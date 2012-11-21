@@ -1,8 +1,17 @@
 *~
 *.o
+*.la
+*.lo
+.deps
+.dirstamp
+.libs
+aclocal.m4
+build-aux
 configure
 Makefile.in
 Makefile
 autom4te.cache
 m4
 ltmain.sh
+libtool
+config.*
