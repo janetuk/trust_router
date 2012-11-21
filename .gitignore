@@ -1,0 +1,8 @@
+*~
+*.o
+configure
+Makefile.in
+Makefile
+autom4te.cache
+m4
+ltmain.sh
