@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, JANET(UK)
+ * Copyright (c) 2012, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
