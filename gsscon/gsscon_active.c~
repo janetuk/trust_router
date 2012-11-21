@@ -52,11 +52,11 @@
  * or implied warranty.
  */
 
-#include <gsscon.h>
+#include "gsscon.h"
 
 /* --------------------------------------------------------------------------- */
 
-int gsscon_connect (const char *inHost, int inPort, int *outFD)
+static int gsscon_connect (const char *inHost, int inPort, int *outFD)
 {
     int err = 0;
     int fd = -1;
@@ -87,7 +87,7 @@ int gsscon_connect (const char *inHost, int inPort, int *outFD)
         *outFD = fd;
         fd = -1; /* takes ownership */
     } else {
-         gsscon_print_error (err, "OpenConnection failed");
+         printError (err, "OpenConnection failed");
     }
     
     if (fd >= 0) { close (fd); }
@@ -97,7 +97,7 @@ int gsscon_connect (const char *inHost, int inPort, int *outFD)
 
 /* --------------------------------------------------------------------------- */
 
-int gsscon_active_authenticate (int   inSocket, 
+static int gsscon_active_authenticate (int           inSocket, 
                          const char   *inClientName, 
                          const char   *inServiceName, 
                          gss_ctx_id_t *outGSSContext)
@@ -134,7 +134,7 @@ int gsscon_active_authenticate (int   inSocket,
             
             majorStatus = gss_import_name (&minorStatus, &nameBuffer, GSS_C_NT_USER_NAME, &clientName); 
             if (majorStatus != GSS_S_COMPLETE) { 
-                gsscon_print_gss_errors ("gss_import_name(inClientName)", majorStatus, minorStatus);
+                printGSSErrors ("gss_import_name(inClientName)", majorStatus, minorStatus);
                 err = minorStatus ? minorStatus : majorStatus; 
             }
         
@@ -142,7 +142,7 @@ int gsscon_active_authenticate (int   inSocket,
                 majorStatus = gss_acquire_cred (&minorStatus, clientName, GSS_C_INDEFINITE, GSS_C_NO_OID_SET, 
                                                 GSS_C_INITIATE, &clientCredentials, NULL, NULL); 
                 if (majorStatus != GSS_S_COMPLETE) { 
-                    gsscon_print_gss_errors ("gss_acquire_cred", majorStatus, minorStatus);
+                    printGSSErrors ("gss_acquire_cred", majorStatus, minorStatus);
                     err = minorStatus ? minorStatus : majorStatus; 
                 }
             }
@@ -195,7 +195,7 @@ int gsscon_active_authenticate (int   inSocket,
         
         majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_KRB5_NT_PRINCIPAL_NAME, &serviceName); 
         if (majorStatus != GSS_S_COMPLETE) { 
-            gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
+            printGSSErrors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
             err = minorStatus ? minorStatus : majorStatus; 
         }
     }
@@ -235,7 +235,7 @@ int gsscon_active_authenticate (int   inSocket,
         
         /* Send the output token to the server (even on error) */
         if ((outputToken.length > 0) && (outputToken.value != NULL)) {
-            err = gsscon_write_token (inSocket, outputToken.value, outputToken.length);
+            err = WriteToken (inSocket, outputToken.value, outputToken.length);
             
             /* free the output token */
             gss_release_buffer (&minorStatus, &outputToken);
@@ -252,7 +252,7 @@ int gsscon_active_authenticate (int   inSocket,
                 }
                 
                 /* Read another input token from the server */
-                err = gsscon_read_token (inSocket, &inputTokenBuffer, &inputTokenBufferLength);
+                err = ReadToken (inSocket, &inputTokenBuffer, &inputTokenBufferLength);
                 
                 if (!err) {
                     /* Set up input buffers for the next run through the loop */
@@ -261,7 +261,7 @@ int gsscon_active_authenticate (int   inSocket,
                     inputTokenPtr = &inputToken;
                 }
             } else if (majorStatus != GSS_S_COMPLETE) {
-                gsscon_print_gss_errors ("gss_init_sec_context", majorStatus, minorStatus);
+                printGSSErrors ("gss_init_sec_context", majorStatus, minorStatus);
                 err = minorStatus ? minorStatus : majorStatus; 
             }
         }
@@ -271,7 +271,7 @@ int gsscon_active_authenticate (int   inSocket,
         *outGSSContext = gssContext;
         gssContext = NULL;
     } else {
-        gsscon_print_error (err, "AuthenticateToServer failed"); 
+        printError (err, "AuthenticateToServer failed"); 
     }
 
     if (inputTokenBuffer) { free (inputTokenBuffer); }

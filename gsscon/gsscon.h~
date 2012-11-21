@@ -52,86 +52,65 @@
  * or implied warranty.
  */
 
-#include "../gsscon.h"
+#ifndef GSSCON_H
+#define GSSCON_H
 
-static void Usage (const char *argv[])
-{
-    fprintf (stderr, "Usage: %s [--port portNumber] [--server serverHostName]\n"
-             "\t[--sprinc servicePrincipal] [--cprinc clientPrincipal]\n", argv[0]);
-    exit (1);
-}
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
-/* --------------------------------------------------------------------------- */
+#include <gssapi/gssapi.h>
+#include <gssapi/gssapi_krb5.h>
+#include <krb5.h>
+#include <errno.h>
 
-int main (int argc, const char *argv[]) 
-{
-    int err = 0;
-    int fd = -1;
-    int port = kDefaultPort;
-    const char *server = "127.0.0.1";
-    const char *clientName = NULL;
-    const char *serviceName = "host";
-    gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
-    OM_uint32 minorStatus = 0;
-    int i = 0;
-        
-    for (i = 1; (i < argc) && !err; i++) {
-        if ((strcmp (argv[i], "--port") == 0) && (i < (argc - 1))) {
-            port = strtol (argv[++i], NULL, 0);
-            if (port == 0) { err = errno; }
-        } else if ((strcmp (argv[i], "--server") == 0) && (i < (argc - 1))) {
-            server = argv[++i];
-        } else if ((strcmp(argv[i], "--cprinc") == 0) && (i < (argc - 1))) {
-            clientName = argv[++i];
-        } else if ((strcmp(argv[i], "--sprinc") == 0) && (i < (argc - 1))) {
-            serviceName = argv[++i];
-        } else {
-            err = EINVAL;
-        }
-    }
-    
-    if (!err) {
-        printf ("%s: Starting up...\n", argv[0]);
-        
-        err = gsscon_connect (server, port, &fd);
-    }
-    
-    if (!err) {
-        err = gsscon_active_authenticate (fd, clientName, serviceName, &gssContext);
-    }
-    
-    if (!err) {
-        char *buffer = NULL;
-        size_t bufferLength = 0;
+#define kDefaultPort 2000
 
-        /* 
-         * Here is where your protocol would go.  This sample client just
-         * reads a nul terminated string from the server.
-         */
-        err = gsscon_read_encrypted_token (fd, gssContext, &buffer, &bufferLength);
+int gsscon_read_token (int      inSocket, 
+               char   **outTokenValue, 
+               size_t  *outTokenLength);
 
-        if (!err) {
-            printf ("Server message: '%s'\n", buffer);
-        }
-        
-        if (buffer != NULL) { free (buffer); }
-    }
-    
-    
-    if (err) {
-        if (err == EINVAL) {
-            Usage (argv);
-        } else {
-            printError (err, "Client failed");
-        }
-    }
-    
-    if (fd >= 0) { printf ("Closing socket.\n"); close (fd); }
-    if (gssContext != GSS_C_NO_CONTEXT) { 
-        gss_delete_sec_context (&minorStatus, &gssContext, GSS_C_NO_BUFFER); }
-    
-    return err ? 1 : 0;
-}
+int gsscon_write_token (int         inSocket, 
+                const char *inTokenValue, 
+                size_t      inTokenLength);
 
+int gsscon_read_encrypted_token (int                  inSocket, 
+                        const gss_ctx_id_t   inContext, 
+                        char               **outTokenValue, 
+                        size_t              *outTokenLength);
 
+int gsscon_write_encrypted_token (int                 inSocket, 
+                         const gss_ctx_id_t  inContext, 
+                         const char         *inToken, 
+                         size_t              inTokenLength);
 
+void gsscon_print_error (int         inError, 
+                 const char *inString);
+
+void gsscon_print_gss_errors (const char *inRoutineName, 
+                     OM_uint32   inMajorStatus, 
+                     OM_uint32   inMinorStatus);
+
+void gsscon_connect (const char *inHost, 
+		     int inPort, 
+		     int *outFD);
+
+void gsscon_active_authenticate (int           inSocket, 
+				 const char   *inClientName, 
+				 const char   *inServiceName, 
+				 gss_ctx_id_t *outGSSContext);
+
+int gsscon_passive_authenticate (int           inSocket, 
+				 gss_ctx_id_t *outGSSContext);
+
+int gsscon_authorize (gss_ctx_id_t  inContext, 
+                      int          *outAuthorized, 
+                      int          *outAuthorizationError);
+
+#endif

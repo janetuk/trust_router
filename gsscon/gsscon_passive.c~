@@ -52,7 +52,7 @@
  * or implied warranty.
  */
 
-#include <gsscon.h>
+#include "gsscon.h"
 
 const char *gServiceName = NULL;
 
@@ -92,7 +92,7 @@ int gsscon_passive_authenticate (int           inSocket,
             inputTokenBuffer = NULL;  /* don't double-free */
         }
         
-        err = gsscon_read_token (inSocket, &inputTokenBuffer, &inputTokenBufferLength);
+        err = ReadToken (inSocket, &inputTokenBuffer, &inputTokenBufferLength);
         
         if (!err) {
             /* Set up input buffers for the next run through the loop */
@@ -136,7 +136,7 @@ int gsscon_passive_authenticate (int           inSocket,
             
             if ((outputToken.length > 0) && (outputToken.value != NULL)) {
                 /* Send the output token to the client (even on error) */
-                err = gsscon_write_token (inSocket, outputToken.value, outputToken.length);
+                err = WriteToken (inSocket, outputToken.value, outputToken.length);
                 
                 /* free the output token */
                 gss_release_buffer (&minorStatus, &outputToken);
@@ -144,7 +144,7 @@ int gsscon_passive_authenticate (int           inSocket,
         }
         
         if ((majorStatus != GSS_S_COMPLETE) && (majorStatus != GSS_S_CONTINUE_NEEDED)) {
-            gsscon_print_gss_errors ("gss_accept_sec_context", majorStatus, minorStatus);
+            printGSSErrors ("gss_accept_sec_context", majorStatus, minorStatus);
             err = minorStatus ? minorStatus : majorStatus; 
         }            
     }
@@ -153,7 +153,7 @@ int gsscon_passive_authenticate (int           inSocket,
         *outGSSContext = gssContext;
         gssContext = NULL;
     } else {
-        gsscon_print_error (err, "Authenticate failed");
+        printError (err, "Authenticate failed");
     }
     
     if (inputTokenBuffer) { free (inputTokenBuffer); }

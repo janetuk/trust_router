@@ -52,7 +52,7 @@
  * or implied warranty.
  */
 
-#include "../gsscon.h"
+#include <gsscon.h>
 
 static void Usage (const char *argv[])
 {

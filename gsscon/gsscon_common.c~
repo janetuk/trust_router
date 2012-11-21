@@ -52,7 +52,7 @@
  * or implied warranty.
  */
 
-#include <gsscon.h>
+#include "gsscon.h"
 
 /* --------------------------------------------------------------------------- */
 /* Display the contents of the buffer in hex and ascii                         */
@@ -111,7 +111,7 @@ static int ReadBuffer (int     inSocket,
         } while (!err && (bytesRead < inBufferLength));
     } 
     
-    if (err) { gsscon_print_error (err, "ReadBuffer failed"); }
+    if (err) { printError (err, "ReadBuffer failed"); }
 
     return err;
 }
@@ -142,7 +142,7 @@ static int WriteBuffer (int         inSocket,
         } while (!err && (bytesWritten < inBufferLength));
     } 
     
-    if (err) { gsscon_print_error (err, "WritBuffer failed"); }
+    if (err) { printError (err, "WriteBuffer failed"); }
 
     return err;
 }
@@ -181,7 +181,7 @@ int gsscon_read_token (int      inSocket,
         *outTokenValue = token;        
         token = NULL; /* only free on error */
     } else { 
-        gsscon_print_error (err, "ReadToken failed"); 
+        printError (err, "ReadToken failed"); 
     }
 
     if (token) { free (token); }
@@ -213,7 +213,7 @@ int gsscon_write_token (int         inSocket,
         printf ("Wrote token:\n");
         PrintBuffer (inTokenValue, inTokenLength);
     } else { 
-        gsscon_print_error (err, "gsscon_write_token() failed");
+        printError (err, "WriteToken failed");
     }
    
     return err;
@@ -241,7 +241,7 @@ int gsscon_read_encrypted_token (int                  inSocket,
     if (!outTokenLength) { err = EINVAL; }
     
     if (!err) {
-        err = gsscon_read_token (inSocket, &token, &tokenLength);
+        err = ReadToken (inSocket, &token, &tokenLength);
     }
     
     if (!err) {
@@ -255,7 +255,7 @@ int gsscon_read_encrypted_token (int                  inSocket,
                                   &encrypted, 
                                   NULL /* qop_state */);
         if (majorStatus != GSS_S_COMPLETE) { 
-            gsscon_print_gss_errors("gss_unwrap", majorStatus, minorStatus);
+            printGSSErrors ("gss_unwrap", majorStatus, minorStatus);
             err = minorStatus ? minorStatus : majorStatus; 
         } else if (!encrypted) {
             fprintf (stderr, "WARNING!  Mechanism not using encryption!");
@@ -279,7 +279,7 @@ int gsscon_read_encrypted_token (int                  inSocket,
         unencryptedToken = NULL; /* only free on error */
         
     } else { 
-        gsscon_print_error (err, "ReadToken failed"); 
+        printError (err, "ReadToken failed"); 
     }
     
     if (token             ) { free (token); }
@@ -318,7 +318,7 @@ int gsscon_write_encrypted_token (int                 inSocket,
                                 &encrypted, 
                                 &outputBuffer);
         if (majorStatus != GSS_S_COMPLETE) { 
-            gsscon_print_gss_errors ("gss_wrap", majorStatus, minorStatus);
+            printGSSErrors ("gss_wrap", majorStatus, minorStatus);
             err = minorStatus ? minorStatus : majorStatus; 
         } else if (!encrypted) {
             fprintf (stderr, "WARNING!  Mechanism does not support encryption!");
@@ -329,12 +329,12 @@ int gsscon_write_encrypted_token (int                 inSocket,
     if (!err) {
         printf ("Unencrypted token:\n");
         PrintBuffer (inToken, inTokenLength);
-	err = gsscon_write_token (inSocket, outputBuffer.value, outputBuffer.length);
+	err = WriteToken (inSocket, outputBuffer.value, outputBuffer.length);
     }
     
     if (!err) {
     } else { 
-        gsscon_print_error (err, "gsscon_write_token failed");
+        printError (err, "WriteToken failed");
     }
     
     if (outputBuffer.value) { gss_release_buffer (&minorStatus, &outputBuffer); }
@@ -353,7 +353,7 @@ void gsscon_print_error (int         inError,
 }
 
 /* --------------------------------------------------------------------------- */
-/* PrintGSSAPI errors                                                         */
+/* Print GSSAPI errors                                                         */
 
 void gsscon_print_gss_errors (const char *inRoutineName, 
                      OM_uint32   inMajorStatus, 
