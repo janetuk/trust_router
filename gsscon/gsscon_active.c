@@ -271,7 +271,7 @@ int gsscon_active_authenticate (int   inSocket,
         *outGSSContext = gssContext;
         gssContext = NULL;
     } else {
-        gsscon_print_gss_error (err, "AuthenticateToServer failed"); 
+        gsscon_print_error (err, "AuthenticateToServer failed"); 
     }
 
     if (inputTokenBuffer) { free (inputTokenBuffer); }
