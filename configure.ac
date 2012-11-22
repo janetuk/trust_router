@@ -12,7 +12,7 @@ AC_PROG_CC
 AC_PROG_RANLIB
 
 AC_CHECK_LIB([gssapi_krb5], [gss_init_sec_context])
-
+AC_CHECK_LIB([com_err], [error_message])
 AC_CHECK_HEADERS(gssapi.h gssapi_ext.h)
 AC_CONFIG_FILES([Makefile gsscon/Makefile])
 AC_OUTPUT
