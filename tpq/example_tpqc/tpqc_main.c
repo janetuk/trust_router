@@ -32,40 +32,68 @@
  *
  */
 
-#ifndef TPQ_H
-#define TPQ_H
+#include <stdio,h>
+#include <tpq.h>
 
-#define TRUST_PATH_QUERY_PORT	12309
+static int tpqc_response_received = 0;
 
-typedef void (*TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQC_REQ *, TPQC_RESP *, void *);
+void tpqc_print_usage (char *name)
+{
+  printf("Usage: %s <server> <realm> <coi>\n", name);
+}
 
-struct tpqc_req_t {
-  struct tpqc_req_t next_req;
-  char realm[1024];
-  char coi[1024];
-  int conn;
-  TPQC_RESP_FUNC *func
-};
+void tpqc_resp_handler (TPQC_INSTANCE * tpqc, 
+			TPQC_REQ *treq, 
+			TPQC_RESP *tresp, 
+			void *cookie) 
+{
+  printf ("Response received!");
+  tpqc_response_received = 1;
+}
 
-typedef struct tpqc_req_t TPQC_REQ;
+int main (int argc, 
+	  const char *argv[]) 
+{
+  TPQC_INSTANCE *tpqc;
+  TPQC_REQ *treq;
+  char *server = NULL;
+  char *realm = NULL;
+  char *coi = NULL;
+  void *cookie = NULL;
+  int conn = 0;
 
-struct tpqc_instance_t {
-  TPQC_REQ *req_list
-};
+  /* Parse command-line arguments */ 
+  if (argc != 4)
+    tpqc_print_usage(argv[0]);
 
-typedef void TPQC_RESP;
+  /* TBD -- validity checking, dealing with quotes, etc. */
+  server = argv[1];
+  realm = argv[2];
+  coi = argv[3];
 
-typedef struct tpqc_instance_t TPQC_INSTANCE;
+  /* Create a TPQ client instance */
+  tpqc = tpqc_create();
 
-TPQC_INSTANCE *tpqc_create (void);
-void tpqc_release (TPQC_INSTANCE *tpqc);
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server);
-TPQC_REQ *tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler);
+  /* Set-up TPQ connection */
+  if (0 == (conn = tpqc_open_connection(tpqc, server))) {
+    /* Handle error */
+  };
 
-typedef void TPQS_INSTANCE;
+  /* Build and send a TPQ request */
+  if (NULL == (treq = tpqc_build_request(tpqc, conn, realm, coi))) {
+    /* Handle error */
+  }
 
-TPQS_INSTANCE *tpqs_init ();
-int tpqs_start (TPQS_INSTANCE *tpqs);
+  if (tpqc_send_request(tpqc, tpqc_resp_handler)) {
+    /* Handle error */
+  }
+    
+  /* Wait for any response */
+  while (!tpqc_response_received);
 
+  /* Clean-up the TPQ client instance */
+  tpqc_release(tpqc);
 
-#endif
+  return 0;
+}
+

@@ -32,40 +32,38 @@
  *
  */
 
-#ifndef TPQ_H
-#define TPQ_H
+#include <gsscon.h>
+#include <tpq.h>
 
-#define TRUST_PATH_QUERY_PORT	12309
+TPQC_INSTANCE *tpqc_create ()
+{
+  TPQC_INSTANCE *tpqc = NULL;
 
-typedef void (*TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQC_REQ *, TPQC_RESP *, void *);
+  if (tpqc = malloc(sizeof(TPQC_INSTANCE)))
+    memset(tpqc, 0, sizeof(TPQC_INSTANCE));
 
-struct tpqc_req_t {
-  struct tpqc_req_t next_req;
-  char realm[1024];
-  char coi[1024];
-  int conn;
-  TPQC_RESP_FUNC *func
-};
+  return tpqc;
+}
 
-typedef struct tpqc_req_t TPQC_REQ;
+void tpqc_destroy (TPQC_INSTANCE *tpqc)
+{
+  if (tpqc)
+    free(tpqc);
+}
 
-struct tpqc_instance_t {
-  TPQC_REQ *req_list
-};
+int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server)
+{
 
-typedef void TPQC_RESP;
+}
 
-typedef struct tpqc_instance_t TPQC_INSTANCE;
+int tpqc_send_request (TPQC_INSTANCE *tpqc, 
+		       int conn, 
+		       char *realm, 
+		       char *coi,
+		       TPQC_RESP_FUNC *resp_handler)
 
-TPQC_INSTANCE *tpqc_create (void);
-void tpqc_release (TPQC_INSTANCE *tpqc);
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server);
-TPQC_REQ *tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler);
+{
 
-typedef void TPQS_INSTANCE;
-
-TPQS_INSTANCE *tpqs_init ();
-int tpqs_start (TPQS_INSTANCE *tpqs);
+}
 
 
-#endif
