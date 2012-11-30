@@ -211,7 +211,7 @@ int gsscon_active_authenticate (int   inSocket,
 
     majorStatus = GSS_S_CONTINUE_NEEDED;
 
-    gss_OID_desc EAP_OID = { 10, "\x2B\x06\x01\x04\x01\xA9\x4A\x16\x01\x11" };
+    gss_OID_desc EAP_OID = { 9, "\x2B\x06\x01\x05\x05\x0F\x01\x01\x11" };
  
    while (!err && (majorStatus != GSS_S_COMPLETE)) {
         gss_buffer_desc outputToken = { 0, NULL }; /* buffer to send to the server */
