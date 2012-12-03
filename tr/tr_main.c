@@ -54,7 +54,7 @@ int main (int argc, const char *argv[])
   }
 
   /* initialize the trust path query server instance */
-  if (0 == (tpqs = tpqs_init ())) {
+  if (0 == (tpqs = tpqs_create ())) {
     printf ("Error initializing Trust Path Query Server instance.\n", err);
     return 1;
   }
@@ -68,5 +68,6 @@ int main (int argc, const char *argv[])
   /* start the trust router protocol engine -- TBD */
   while (1);
 
+  tpqs_destroy(tpqs);
   return 0;
 }

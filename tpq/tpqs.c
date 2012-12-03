@@ -32,13 +32,15 @@
  *
  */
 
+#include <stdlib.h>
+
 #include <tpq.h>
 
-TPQS_INSTANCE *tpqs_init ()
+TPQS_INSTANCE *tpqs_create ()
 {
-  TPQS_INSTANCE *t = 0;
-
-  return t;
+  TPQS_INSTANCE *tpqs = 0;
+  tpqs = malloc(sizeof(TPQS_INSTANCE));
+  return tpqs;
 }
 
 int tpqs_start (TPQS_INSTANCE *tpqs)
@@ -46,4 +48,10 @@ int tpqs_start (TPQS_INSTANCE *tpqs)
 
   return 1;
 }
+
+void tpqs_destroy (TPQS_INSTANCE *tpqs)
+{
+  free(tpqs);
+}
+
 

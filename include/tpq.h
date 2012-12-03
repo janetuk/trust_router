@@ -37,35 +37,42 @@
 
 #define TRUST_PATH_QUERY_PORT	12309
 
-typedef void (*TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQC_REQ *, TPQC_RESP *, void *);
+typedef struct tpq_name {
+  char *buf;
+  int len;
+} TPQ_NAME;
 
-struct tpqc_req_t {
-  struct tpqc_req_t next_req;
-  char realm[1024];
-  char coi[1024];
+typedef struct tpq_req {
+  struct tpq_req *next_req;
+  TPQ_NAME realm;
+  TPQ_NAME coi;
   int conn;
-  TPQC_RESP_FUNC *func
-};
+  void *resp_func;
+  void *cookie;
+} TPQ_REQ;
 
-typedef struct tpqc_req_t TPQC_REQ;
+typedef struct tpq_resp {
+  TPQ_NAME realm;
+  TPQ_NAME coi;
+  /* Address of AAA Server */
+  /* Credentials */
+} TPQ_RESP;
 
-struct tpqc_instance_t {
-  TPQC_REQ *req_list
-};
+typedef struct tpqc_instance {
+  TPQ_REQ *req_list;
+} TPQC_INSTANCE;
 
-typedef void TPQC_RESP;
-
-typedef struct tpqc_instance_t TPQC_INSTANCE;
+typedef void (*TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
 
 TPQC_INSTANCE *tpqc_create (void);
-void tpqc_release (TPQC_INSTANCE *tpqc);
 int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server);
-TPQC_REQ *tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler);
+int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler);
+void tpqc_destroy (TPQC_INSTANCE *tpqc);
 
 typedef void TPQS_INSTANCE;
 
-TPQS_INSTANCE *tpqs_init ();
+TPQS_INSTANCE *tpqs_create ();
 int tpqs_start (TPQS_INSTANCE *tpqs);
-
+void tpqs_destroy (TPQS_INSTANCE *tpqs);
 
 #endif

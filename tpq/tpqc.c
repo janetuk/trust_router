@@ -32,6 +32,8 @@
  *
  */
 
+#include <stdlib.h>
+
 #include <gsscon.h>
 #include <tpq.h>
 
