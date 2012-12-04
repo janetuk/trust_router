@@ -32,12 +32,13 @@
  *
  */
 
-#include <stdio,h>
+#include <stdio.h>
+
 #include <tpq.h>
 
 static int tpqc_response_received = 0;
 
-void tpqc_print_usage (char *name)
+void tpqc_print_usage (const char *name)
 {
   printf("Usage: %s <server> <realm> <coi>\n", name);
 }
@@ -61,15 +62,16 @@ int main (int argc,
   char *coi = NULL;
   void *cookie = NULL;
   int conn = 0;
+  int rc;
 
   /* Parse command-line arguments */ 
   if (argc != 4)
     tpqc_print_usage(argv[0]);
 
   /* TBD -- validity checking, dealing with quotes, etc. */
-  server = argv[1];
-  realm = argv[2];
-  coi = argv[3];
+  server = (char *)argv[1];
+  realm = (char *)argv[2];
+  coi = (char *)argv[3];
 
   /* Create a TPQ client instance */
   tpqc = tpqc_create();
@@ -77,12 +79,12 @@ int main (int argc,
   /* Set-up TPQ connection */
   if (-1 == (conn = tpqc_open_connection(tpqc, server))) {
     /* Handle error */
-    print("Error in tpqc_open_connection.\n");
+    printf("Error in tpqc_open_connection.\n");
     return 1;
   };
 
   /* Send a TPQ request */
-  if (rc = tpqc_send_request(tpqc, conn, realm, coi, tpqc_resp_handler, NULL)) {
+  if (rc = tpqc_send_request(tpqc, conn, realm, coi, &tpqc_resp_handler, NULL)) {
     /* Handle error */
     printf("Error in tpqc_send_request, rc = &d.\n", rc);
     return 1;
@@ -92,7 +94,7 @@ int main (int argc,
   while (!tpqc_response_received);
 
   /* Clean-up the TPQ client instance, and exit */
-  tpqc_release(tpqc);
+  tpqc_destroy(tpqc);
 
   return 0;
 }

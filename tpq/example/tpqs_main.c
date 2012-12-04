@@ -32,13 +32,14 @@
  *
  */
 
-#include <stdio,h>
+#include <stdio.h>
+
 #include <tpq.h>
 
-int tpqc_req_handler (TPQS_INSTANCE * tpqs,
+int tpqs_req_handler (TPQS_INSTANCE * tpqs,
 		      TPQ_REQ *req, 
 		      TPQ_RESP *resp,
-		      void *cookie);
+		      void *cookie)
 {
   printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
   if (tpqs)
@@ -64,12 +65,13 @@ int main (int argc,
     printf("Unexpected arguments, ignored.\n");
 
   /* Create a TPQ server instance */
-  tpqc = tpqc_create();
+  tpqs = tpqs_create();
 
   /* Start-up the server, won't return unless there is an error. */
+  tpqs_start(tpqs, &tpqs_req_handler , NULL);
 
   /* Clean-up the TPQ server instance */
-  tpqs_release(tpqs);
+  tpqs_destroy(tpqs);
 
   return 1;
 }

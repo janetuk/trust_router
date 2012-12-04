@@ -32,16 +32,35 @@
  *
  */
 
+#include <stdlib.h>
+#include <string.h>
+
 #include <tpq.h>
+
+TPQ_NAME *tpq_new_name (char *name) 
+{
+  TPQ_NAME *new;
+
+  if (new = malloc(sizeof(TPQ_NAME))) { 
+    new->len = strlen(name);
+    if (new->buf = malloc(new->len+1)) {
+      strcpy(new->buf, name);
+    }
+  }
+  return new;
+}
 
 TPQ_NAME *tpq_dup_name (TPQ_NAME *from) 
 {
-  TPQ_NAME to;
+  TPQ_NAME *to;
 
-  to.len = from->len;
-  to.buf = malloc(to.len+1);
-  strncpy(from->buf, to.buf, to.len);
-  to.buf[to.len] = 0;		/* NULL terminate for debugging printf()s */
+  if (to = malloc(sizeof(TPQ_NAME))) {
+    to->len = from->len;
+    if (to->buf = malloc(to->len+1)) {
+      strncpy(to->buf, from->buf, to->len);
+      to->buf[to->len] = 0;	/* NULL terminate for debugging printf()s */
+    }
+  }
 
-  return &to;
+  return to;
 }

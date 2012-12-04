@@ -36,6 +36,24 @@
 
 #include <trust_router.h>
 
+int tpqs_req_handler (TPQS_INSTANCE * tpqs,
+		      TPQ_REQ *req, 
+		      TPQ_RESP *resp,
+		      void *cookie)
+{
+  printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
+  if (tpqs)
+    tpqs->req_count++;
+
+  if ((NULL == (resp->realm = tpq_dup_name(req->realm))) ||
+      (NULL == (resp->coi = tpq_dup_name(req->coi)))) {
+    printf ("Error in tpq_dup_name, not responding.\n");
+    return 1;
+  }
+
+  return 0;
+}
+
 int main (int argc, const char *argv[])
 {
   TPQS_INSTANCE *tpqs = 0;
@@ -59,14 +77,11 @@ int main (int argc, const char *argv[])
     return 1;
   }
 
-  /* start the trust path query server, runs in its own thread */
-  if (0 != (err = tpqs_start(tpqs))) {
+  /* start the trust path query server, won't return unless there is an error. */
+  if (0 != (err = tpqs_start(tpqs, &tpqs_req_handler, NULL))) {
     printf ("Error starting Trust Path Query Server, err = %d.\n", err);
     return err;
   }
-
-  /* start the trust router protocol engine -- TBD */
-  while (1);
 
   tpqs_destroy(tpqs);
   return 0;

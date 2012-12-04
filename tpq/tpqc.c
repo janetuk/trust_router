@@ -57,7 +57,7 @@ int tpqc_open_connection (TPQC_INSTANCE *tpqc,
 
   err = gsscon_connect(server, TPQ_PORT, &conn);
   if (!err)
-    err = fsscon_active_authenticate(conn, NULL, "trustquery", &gssContext);
+    err = gsscon_active_authenticate(conn, NULL, "trustquery", &gssContext);
 
   if (!err)
     return conn;

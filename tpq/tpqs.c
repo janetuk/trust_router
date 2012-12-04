@@ -45,7 +45,9 @@ TPQS_INSTANCE *tpqs_create ()
   return tpqs;
 }
 
-int tpqs_start (TPQS_INSTANCE *tpqs)
+int tpqs_start (TPQS_INSTANCE *tpqs, 
+		TPQS_REQ_FUNC *req_handler,
+		void *cookie)
 {
 
   return 1;

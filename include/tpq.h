@@ -45,15 +45,15 @@ typedef struct tpq_name {
 typedef struct tpq_req {
   struct tpq_req *next_req;
   int conn;
-  TPQ_NAME realm;
-  TPQ_NAME coi;
+  TPQ_NAME *realm;
+  TPQ_NAME *coi;
   void *resp_func;
   void *cookie;
 } TPQ_REQ;
 
 typedef struct tpq_resp {
-  TPQ_NAME realm;
-  TPQ_NAME coi;
+  TPQ_NAME *realm;
+  TPQ_NAME *coi;
   /* Address of AAA Server */
   /* Credentials */
   /* Trust Path Used */
@@ -65,10 +65,12 @@ typedef struct tpqc_instance {
 
 typedef struct tpqs_instance {
   int req_count;
+  void *req_handler;
+  void *cookie;
 } TPQS_INSTANCE;
 
-typedef void (*TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQ_RESP *, void *);
-typedef int (*TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
+typedef void (TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQ_RESP *, void *);
+typedef int (TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
 
 TPQ_NAME *tpq_dup_name (TPQ_NAME *from);
 
@@ -78,7 +80,7 @@ int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, char *realm, char *coi, TP
 void tpqc_destroy (TPQC_INSTANCE *tpqc);
 
 TPQS_INSTANCE *tpqs_create ();
-int tpqs_start (TPQS_INSTANCE *tpqs);
+int tpqs_start (TPQS_INSTANCE *tpqs, TPQS_REQ_FUNC *req_handler, void *cookie);
 void tpqs_destroy (TPQS_INSTANCE *tpqs);
 
 #endif
