@@ -32,68 +32,16 @@
  *
  */
 
-#include <stdio,h>
 #include <tpq.h>
 
-static int tpqc_response_received = 0;
-
-void tpqc_print_usage (char *name)
+TPQ_NAME *tpq_dup_name (TPQ_NAME *from) 
 {
-  printf("Usage: %s <server> <realm> <coi>\n", name);
+  TPQ_NAME to;
+
+  to.len = from->len;
+  to.buf = malloc(to.len+1);
+  strncpy(from->buf, to.buf, to.len);
+  to.buf[to.len] = 0;		/* NULL terminate for debugging printf()s */
+
+  return &to;
 }
-
-void tpqc_resp_handler (TPQC_INSTANCE * tpqc, 
-			TPQC_REQ *treq, 
-			TPQC_RESP *tresp, 
-			void *cookie) 
-{
-  printf ("Response received!");
-  tpqc_response_received = 1;
-}
-
-int main (int argc, 
-	  const char *argv[]) 
-{
-  TPQC_INSTANCE *tpqc;
-  TPQC_REQ *treq;
-  char *server = NULL;
-  char *realm = NULL;
-  char *coi = NULL;
-  void *cookie = NULL;
-  int conn = 0;
-
-  /* Parse command-line arguments */ 
-  if (argc != 4)
-    tpqc_print_usage(argv[0]);
-
-  /* TBD -- validity checking, dealing with quotes, etc. */
-  server = argv[1];
-  realm = argv[2];
-  coi = argv[3];
-
-  /* Create a TPQ client instance */
-  tpqc = tpqc_create();
-
-  /* Set-up TPQ connection */
-  if (0 == (conn = tpqc_open_connection(tpqc, server))) {
-    /* Handle error */
-  };
-
-  /* Build and send a TPQ request */
-  if (NULL == (treq = tpqc_build_request(tpqc, conn, realm, coi))) {
-    /* Handle error */
-  }
-
-  if (tpqc_send_request(tpqc, tpqc_resp_handler)) {
-    /* Handle error */
-  }
-    
-  /* Wait for any response */
-  while (!tpqc_response_received);
-
-  /* Clean-up the TPQ client instance */
-  tpqc_release(tpqc);
-
-  return 0;
-}
-

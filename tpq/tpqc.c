@@ -47,25 +47,41 @@ TPQC_INSTANCE *tpqc_create ()
   return tpqc;
 }
 
-void tpqc_destroy (TPQC_INSTANCE *tpqc)
+int tpqc_open_connection (TPQC_INSTANCE *tpqc, 
+			  char *server)
 {
-  if (tpqc)
-    free(tpqc);
-}
+  int err = 0;
+  int conn = -1;
+  gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
 
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server)
-{
 
+  err = gsscon_connect(server, TPQ_PORT, &conn);
+  if (!err)
+    err = fsscon_active_authenticate(conn, NULL, "trustquery", &gssContext);
+
+  if (!err)
+    return conn;
+  else
+    return -1;
 }
 
 int tpqc_send_request (TPQC_INSTANCE *tpqc, 
 		       int conn, 
 		       char *realm, 
 		       char *coi,
-		       TPQC_RESP_FUNC *resp_handler)
+		       TPQC_RESP_FUNC *resp_handler,
+		       void *cookie)
 
 {
 
 }
+
+void tpqc_destroy (TPQC_INSTANCE *tpqc)
+{
+  if (tpqc)
+    free(tpqc);
+}
+
+
 
 

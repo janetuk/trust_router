@@ -32,53 +32,68 @@
  *
  */
 
-#ifndef TPQ_H
-#define TPQ_H
+#include <stdio,h>
+#include <tpq.h>
 
-#define TPQ_PORT	12309
+static int tpqc_response_received = 0;
 
-typedef struct tpq_name {
-  char *buf;
-  int len;
-} TPQ_NAME;
+void tpqc_print_usage (char *name)
+{
+  printf("Usage: %s <server> <realm> <coi>\n", name);
+}
 
-typedef struct tpq_req {
-  struct tpq_req *next_req;
-  int conn;
-  TPQ_NAME realm;
-  TPQ_NAME coi;
-  void *resp_func;
-  void *cookie;
-} TPQ_REQ;
+void tpqc_resp_handler (TPQC_INSTANCE * tpqc, 
+			TPQ_RESP *resp, 
+			void *cookie) 
+{
+  printf ("Response received! Realm = %s, COI = %s.\n", resp->realm->buf, 
+	  resp->coi->buf);
+  tpqc_response_received = 1;
+}
 
-typedef struct tpq_resp {
-  TPQ_NAME realm;
-  TPQ_NAME coi;
-  /* Address of AAA Server */
-  /* Credentials */
-  /* Trust Path Used */
-} TPQ_RESP;
+int main (int argc, 
+	  const char *argv[]) 
+{
+  TPQC_INSTANCE *tpqc;
+  TPQ_REQ *treq;
+  char *server = NULL;
+  char *realm = NULL;
+  char *coi = NULL;
+  void *cookie = NULL;
+  int conn = 0;
 
-typedef struct tpqc_instance {
-  TPQ_REQ *req_list;
-} TPQC_INSTANCE;
+  /* Parse command-line arguments */ 
+  if (argc != 4)
+    tpqc_print_usage(argv[0]);
 
-typedef struct tpqs_instance {
-  int req_count;
-} TPQS_INSTANCE;
+  /* TBD -- validity checking, dealing with quotes, etc. */
+  server = argv[1];
+  realm = argv[2];
+  coi = argv[3];
 
-typedef void (*TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQ_RESP *, void *);
-typedef int (*TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
+  /* Create a TPQ client instance */
+  tpqc = tpqc_create();
 
-TPQ_NAME *tpq_dup_name (TPQ_NAME *from);
+  /* Set-up TPQ connection */
+  if (-1 == (conn = tpqc_open_connection(tpqc, server))) {
+    /* Handle error */
+    print("Error in tpqc_open_connection.\n");
+    return 1;
+  };
 
-TPQC_INSTANCE *tpqc_create (void);
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server);
-int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler, void *cookie);
-void tpqc_destroy (TPQC_INSTANCE *tpqc);
+  /* Send a TPQ request */
+  if (rc = tpqc_send_request(tpqc, conn, realm, coi, tpqc_resp_handler, NULL)) {
+    /* Handle error */
+    printf("Error in tpqc_send_request, rc = &d.\n", rc);
+    return 1;
+  }
+    
+  /* Wait for a response */
+  while (!tpqc_response_received);
 
-TPQS_INSTANCE *tpqs_create ();
-int tpqs_start (TPQS_INSTANCE *tpqs);
-void tpqs_destroy (TPQS_INSTANCE *tpqs);
+  /* Clean-up the TPQ client instance, and exit */
+  tpqc_release(tpqc);
 
-#endif
+  return 0;
+}
+

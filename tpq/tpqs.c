@@ -33,13 +33,15 @@
  */
 
 #include <stdlib.h>
+#include <gsscon.h>
 
 #include <tpq.h>
 
 TPQS_INSTANCE *tpqs_create ()
 {
   TPQS_INSTANCE *tpqs = 0;
-  tpqs = malloc(sizeof(TPQS_INSTANCE));
+  if (tpqs = malloc(sizeof(TPQS_INSTANCE)))
+    memset(tpqs, 0, sizeof(TPQS_INSTANCE));
   return tpqs;
 }
 

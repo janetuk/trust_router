@@ -32,53 +32,45 @@
  *
  */
 
-#ifndef TPQ_H
-#define TPQ_H
+#include <stdio,h>
+#include <tpq.h>
 
-#define TPQ_PORT	12309
+int tpqc_req_handler (TPQS_INSTANCE * tpqs,
+		      TPQ_REQ *req, 
+		      TPQ_RESP *resp,
+		      void *cookie);
+{
+  printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
+  if (tpqs)
+    tpqs->req_count++;
 
-typedef struct tpq_name {
-  char *buf;
-  int len;
-} TPQ_NAME;
+  if ((NULL == (resp->realm = tpq_dup_name(req->realm))) ||
+      (NULL == (resp->coi = tpq_dup_name(req->coi)))) {
+    printf ("Error in tpq_dup_name, not responding.\n");
+    return 1;
+  }
 
-typedef struct tpq_req {
-  struct tpq_req *next_req;
-  int conn;
-  TPQ_NAME realm;
-  TPQ_NAME coi;
-  void *resp_func;
-  void *cookie;
-} TPQ_REQ;
+  return 0;
+}
 
-typedef struct tpq_resp {
-  TPQ_NAME realm;
-  TPQ_NAME coi;
-  /* Address of AAA Server */
-  /* Credentials */
-  /* Trust Path Used */
-} TPQ_RESP;
 
-typedef struct tpqc_instance {
-  TPQ_REQ *req_list;
-} TPQC_INSTANCE;
+int main (int argc, 
+	  const char *argv[]) 
+{
+  static TPQS_INSTANCE *tpqs;
 
-typedef struct tpqs_instance {
-  int req_count;
-} TPQS_INSTANCE;
+  /* Parse command-line arguments */ 
+  if (argc != 1)
+    printf("Unexpected arguments, ignored.\n");
 
-typedef void (*TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQ_RESP *, void *);
-typedef int (*TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
+  /* Create a TPQ server instance */
+  tpqc = tpqc_create();
 
-TPQ_NAME *tpq_dup_name (TPQ_NAME *from);
+  /* Start-up the server, won't return unless there is an error. */
 
-TPQC_INSTANCE *tpqc_create (void);
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server);
-int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler, void *cookie);
-void tpqc_destroy (TPQC_INSTANCE *tpqc);
+  /* Clean-up the TPQ server instance */
+  tpqs_release(tpqs);
 
-TPQS_INSTANCE *tpqs_create ();
-int tpqs_start (TPQS_INSTANCE *tpqs);
-void tpqs_destroy (TPQS_INSTANCE *tpqs);
+  return 1;
+}
 
-#endif
