@@ -93,17 +93,75 @@ static int tpqs_auth_connection (int conn, gss_ctx_id_t *gssctx)
 
 static int tpqs_read_request (int conn, gss_ctx_id_t *gssctx, TPQ_REQ *req)
 {
-  return -1;
+  int err;
+  char *buf;
+  size_t buflen = 0;
+
+  if (err = gsscon_read_encrypted_token(conn, *gssctx, &buf, &buflen)) {
+    if (buf)
+      free(buf);
+    return -1;
+  }
+
+  fprintf(stdout, "Request Received, %d bytes.\n", buflen);
+
+  /* Parse request -- TBD */
+
+  if (buf)
+    free(buf);
+
+  return buflen;
 }
 
 static int tpqs_handle_request (TPQ_REQ *req, TPQ_RESP *resp) 
 {
-  return -1;
+  return 0;
 }
 
 static int tpqs_send_response (int conn, gss_ctx_id_t *gssctx, TPQ_RESP *resp)
 {
-  return -1;
+  json_t *jreq;
+  int err;
+  char *resp_buf;
+
+  /* Create a json TPQ response */
+  if (NULL == (jreq = json_object())) {
+    fprintf(stderr,"Error creating json object.\n");
+    return -1;
+  }
+
+  if (0 > (err = json_object_set_new(jreq, "type", json_string("tpq_response")))) {
+    fprintf(stderr, "Error adding type to response.\n");
+    return -1;
+  }
+  if (0 > (err = json_object_set_new(jreq, "result", json_string("error")))) {
+    fprintf(stderr, "Error adding result to response.\n");
+    return -1;
+  }
+  if (0 > (err = json_object_set_new(jreq, "msg", json_string("No path to realm")))) {
+    fprintf(stderr, "Error adding msg to response.\n");
+    return -1;
+  }
+
+  /* Encode the json response */
+  if (NULL == (resp_buf = json_dumps(jreq, 0))) {
+    fprintf(stderr, "Error encoding json response.\n");
+    return -1;
+  }
+  
+  printf("Encoded response:\n%s\n", resp_buf);
+  
+  /* Send the request over the connection */
+  if (err = gsscon_write_encrypted_token (conn, *gssctx, resp_buf, 
+					  strlen(resp_buf) + 1)) {
+    fprintf(stderr, "Error sending request over connection.\n");
+    return -1;
+  }
+
+  free(resp_buf);
+
+  return 0;
+
 }
 
 static void tpqs_handle_connection (int conn)
@@ -178,6 +236,7 @@ int tpqs_start (TPQS_INSTANCE *tpqs,
     if (pid == 0) {
       close(listen);
       tpqs_handle_connection(conn);
+      close(conn);
       exit(0);
     } else {
       close(conn);

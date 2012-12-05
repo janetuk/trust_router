@@ -76,6 +76,11 @@ typedef int (TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
 TPQ_NAME *tpq_new_name (char *name);
 TPQ_NAME *tpq_dup_name (TPQ_NAME *from);
 
+char *tpq_req_encode(TPQ_REQ *req);
+TPQ_REQ *tpq_req_decode(char *jreq);
+char *tpq_resp_encode(TPQ_REQ *resp);
+TPQ_RESP *tpq_resp_decode(char *jresp);
+
 TPQC_INSTANCE *tpqc_create (void);
 int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server, gss_ctx_id_t *gssctx);
 int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, gss_ctx_id_t gssctx, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler, void *cookie);

@@ -33,6 +33,7 @@
  */
 
 #include <stdlib.h>
+#include <jansson.h>
 
 #include <gsscon.h>
 #include <tpq.h>
@@ -48,16 +49,16 @@ TPQC_INSTANCE *tpqc_create ()
 }
 
 int tpqc_open_connection (TPQC_INSTANCE *tpqc, 
-			  char *server)
+			  char *server,
+			  gss_ctx_id_t *gssctx)
 {
   int err = 0;
   int conn = -1;
-  gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
-
 
   err = gsscon_connect(server, TPQ_PORT, &conn);
+
   if (!err)
-    err = gsscon_active_authenticate(conn, NULL, "trustquery", &gssContext);
+    err = gsscon_active_authenticate(conn, NULL, "trustquery", gssctx);
 
   if (!err)
     return conn;
@@ -67,13 +68,79 @@ int tpqc_open_connection (TPQC_INSTANCE *tpqc,
 
 int tpqc_send_request (TPQC_INSTANCE *tpqc, 
 		       int conn, 
+		       gss_ctx_id_t gssctx,
 		       char *realm, 
 		       char *coi,
 		       TPQC_RESP_FUNC *resp_handler,
 		       void *cookie)
 
 {
+  json_t *jreq;
+  int err;
+  char *req_buf;
+  char *resp_buf;
+  size_t resp_buflen = 0;
 
+  /* Create a json TPQ request */
+  if (NULL == (jreq = json_object())) {
+    fprintf(stderr,"Error creating json object.\n");
+    return -1;
+  }
+
+  if (0 > (err = json_object_set_new(jreq, "type", json_string("tpq_request")))) {
+    fprintf(stderr, "Error adding type to request.\n");
+    return -1;
+  }
+
+  /* Insert realm and coi into the json request */
+  if (0 > (err = json_object_set_new(jreq, "realm", json_string(realm)))) {
+    fprintf(stderr, "Error adding realm to request.\n");
+    return -1;
+  }
+  if (0 > (err = json_object_set_new(jreq, "coi", json_string(coi)))) {
+    fprintf(stderr, "Error adding coi to request.\n");
+    return -1;
+  }
+
+  /* Generate half of a D-H exchange -- TBD */
+  /* Insert D-H information into the request -- TBD */
+
+  /* Encode the json request */
+  if (NULL == (req_buf = json_dumps(jreq, 0))) {
+    fprintf(stderr, "Error encoding json request.\n");
+    return -1;
+  }
+  
+  printf("Encoded request:\n%s\n", req_buf);
+  
+  /* Send the request over the connection */
+  if (err = gsscon_write_encrypted_token (conn, gssctx, req_buf, 
+					  strlen(req_buf) + 1)) {
+    fprintf(stderr, "Error sending request over connection.\n");
+    return -1;
+  }
+
+  free(req_buf);
+
+  /* read the response from the connection */
+
+  if (err = gsscon_read_encrypted_token(conn, gssctx, &resp_buf, &resp_buflen)) {
+    if (resp_buf)
+      free(resp_buf);
+    return -1;
+  }
+
+  fprintf(stdout, "Response Received, %d bytes.\n", resp_buflen);
+
+  /* Parse response -- TBD */
+
+  /* Call the caller's response function */
+  (*resp_handler)(tpqc, NULL, cookie);
+
+  if (resp_buf)
+    free(resp_buf);
+
+  return 0;
 }
 
 void tpqc_destroy (TPQC_INSTANCE *tpqc)

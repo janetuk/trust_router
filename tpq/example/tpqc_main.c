@@ -49,9 +49,11 @@ void tpqc_resp_handler (TPQC_INSTANCE * tpqc,
 			TPQ_RESP *resp, 
 			void *cookie) 
 {
-  printf ("Response received! Realm = %s, COI = %s.\n", resp->realm->buf, 
-	  resp->coi->buf);
+  //  printf ("Response received! Realm = %s, COI = %s.\n", resp->realm->buf, 
+  //	  resp->coi->buf);
+  printf ("Response received at handler!\n");
   tpqc_response_received = 1;
+  return;
 }
 
 int main (int argc, 
@@ -89,8 +91,8 @@ int main (int argc,
   };
 
   /* Send a TPQ request */
-  if (rc = tpqc_send_request(tpqc, conn, gssctx, realm, coi, 
-			     &tpqc_resp_handler, NULL)) {
+  if (0 > (rc = tpqc_send_request(tpqc, conn, gssctx, realm, coi, 
+				  &tpqc_resp_handler, NULL))) {
     /* Handle error */
     printf("Error in tpqc_send_request, rc = %d.\n", rc);
     return 1;
