@@ -37,6 +37,7 @@
 
 #define TPQ_PORT	12309
 
+#include <gsscon.h>
 typedef struct tpq_name {
   char *buf;
   int len;
@@ -76,8 +77,8 @@ TPQ_NAME *tpq_new_name (char *name);
 TPQ_NAME *tpq_dup_name (TPQ_NAME *from);
 
 TPQC_INSTANCE *tpqc_create (void);
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server);
-int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler, void *cookie);
+int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server, gss_ctx_id_t *gssctx);
+int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, gss_ctx_id_t gssctx, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler, void *cookie);
 void tpqc_destroy (TPQC_INSTANCE *tpqc);
 
 TPQS_INSTANCE *tpqs_create ();

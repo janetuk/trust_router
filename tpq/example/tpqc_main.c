@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <gsscon.h>
 #include <tpq.h>
 
 static int tpqc_response_received = 0;
@@ -64,6 +65,7 @@ int main (int argc,
   void *cookie = NULL;
   int conn = 0;
   int rc;
+  gss_ctx_id_t gssctx;
 
   /* Parse command-line arguments */ 
   if (argc != 4) {
@@ -80,14 +82,15 @@ int main (int argc,
   tpqc = tpqc_create();
 
   /* Set-up TPQ connection */
-  if (-1 == (conn = tpqc_open_connection(tpqc, server))) {
+  if (-1 == (conn = tpqc_open_connection(tpqc, server, &gssctx))) {
     /* Handle error */
     printf("Error in tpqc_open_connection.\n");
     return 1;
   };
 
   /* Send a TPQ request */
-  if (rc = tpqc_send_request(tpqc, conn, realm, coi, &tpqc_resp_handler, NULL)) {
+  if (rc = tpqc_send_request(tpqc, conn, gssctx, realm, coi, 
+			     &tpqc_resp_handler, NULL)) {
     /* Handle error */
     printf("Error in tpqc_send_request, rc = %d.\n", rc);
     return 1;
