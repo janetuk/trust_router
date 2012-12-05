@@ -291,44 +291,47 @@ int gsscon_authorize (gss_ctx_id_t  inContext,
         if (nameToken.value) { gss_release_buffer (&minorStatus, &nameToken); }
     }
     
-    if (!err) {
-        /* Pull the service principal string out of the gss name */
-        gss_buffer_desc nameToken;
-        
-        majorStatus = gss_display_name (&minorStatus, 
-                                        serviceName, 
-                                        &nameToken, 
-                                        NULL);
-        if (majorStatus != GSS_S_COMPLETE) { 
-            err = minorStatus ? minorStatus : majorStatus; 
-        }
-        
         if (!err) {
-            servicePrincipal = malloc (nameToken.length + 1);
-            if (servicePrincipal == NULL) { err = ENOMEM; }
-        }
-        
-        if (!err) {
-            memcpy (servicePrincipal, nameToken.value, nameToken.length);
-            servicePrincipal[nameToken.length] = '\0';
-        }        
+    //    /* Pull the service principal string out of the gss name */
+    //    gss_buffer_desc nameToken;
+    //    
+    //    majorStatus = gss_display_name (&minorStatus, 
+    //                                    serviceName, 
+    //                                    &nameToken, 
+    //                                    NULL);
+    //    if (majorStatus != GSS_S_COMPLETE) { 
+    //        err = minorStatus ? minorStatus : majorStatus; 
+    //    }
+    //    
+    //    if (!err) {
+    //        servicePrincipal = malloc (nameToken.length + 1);
+    //        if (servicePrincipal == NULL) { err = ENOMEM; }
+    //    }
+    //    
+    //    if (!err) {
+    //        memcpy (servicePrincipal, nameToken.value, nameToken.length);
+    //        servicePrincipal[nameToken.length] = '\0';
+    //    }        
 
-        if (nameToken.value) { gss_release_buffer (&minorStatus, &nameToken); }
-    }
+    //    if (nameToken.value) { gss_release_buffer (&minorStatus, &nameToken); }
+    // }
     
-    if (!err) {
-        int authorizationErr = ServicePrincipalIsValidForService (servicePrincipal);
+//    if (!err) {
+//        int authorizationErr = ServicePrincipalIsValidForService (servicePr// incipal);
+//        
+//        if (!authorizationErr) {
+
+	  int authorizationErr = 0;
+	  authorizationErr = ClientPrincipalIsAuthorizedForService (clientPrincipal);
+
+//        }
         
-        if (!authorizationErr) {
-            authorizationErr = ClientPrincipalIsAuthorizedForService (clientPrincipal);
+//        printf ("'%s' is%s authorized for service '%s'\n", 
+//                clientPrincipal, authorizationErr ? " NOT" : "", servicePrincipal);            
+//        
+	  *outAuthorized = !authorizationErr;
+	  *outAuthorizationError = authorizationErr;
         }
-        
-        printf ("'%s' is%s authorized for service '%s'\n", 
-                clientPrincipal, authorizationErr ? " NOT" : "", servicePrincipal);            
-        
-        *outAuthorized = !authorizationErr;
-        *outAuthorizationError = authorizationErr;
-    }
     
     if (serviceName     ) { gss_release_name (&minorStatus, &serviceName); }
     if (clientName      ) { gss_release_name (&minorStatus, &clientName); }
