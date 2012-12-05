@@ -32,6 +32,7 @@
  *
  */
 
+#include <stdlib.h>
 #include <stdio.h>
 
 #include <tpq.h>
@@ -65,8 +66,10 @@ int main (int argc,
   int rc;
 
   /* Parse command-line arguments */ 
-  if (argc != 4)
+  if (argc != 4) {
     tpqc_print_usage(argv[0]);
+    exit(1);
+  }
 
   /* TBD -- validity checking, dealing with quotes, etc. */
   server = (char *)argv[1];
@@ -86,7 +89,7 @@ int main (int argc,
   /* Send a TPQ request */
   if (rc = tpqc_send_request(tpqc, conn, realm, coi, &tpqc_resp_handler, NULL)) {
     /* Handle error */
-    printf("Error in tpqc_send_request, rc = &d.\n", rc);
+    printf("Error in tpqc_send_request, rc = %d.\n", rc);
     return 1;
   }
     

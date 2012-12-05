@@ -72,6 +72,7 @@ typedef struct tpqs_instance {
 typedef void (TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQ_RESP *, void *);
 typedef int (TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
 
+TPQ_NAME *tpq_new_name (char *name);
 TPQ_NAME *tpq_dup_name (TPQ_NAME *from);
 
 TPQC_INSTANCE *tpqc_create (void);

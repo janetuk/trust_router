@@ -59,16 +59,22 @@ int main (int argc,
 	  const char *argv[]) 
 {
   static TPQS_INSTANCE *tpqs;
+  int rc = 0;
 
   /* Parse command-line arguments */ 
   if (argc != 1)
     printf("Unexpected arguments, ignored.\n");
 
   /* Create a TPQ server instance */
-  tpqs = tpqs_create();
+  if (NULL == (tpqs = tpqs_create())) {
+    printf("Error in tpqs_create().  Exiting.\n");
+    return 1;
+  }
 
   /* Start-up the server, won't return unless there is an error. */
-  tpqs_start(tpqs, &tpqs_req_handler , NULL);
+  rc = tpqs_start(tpqs, &tpqs_req_handler , NULL);
+  
+  printf("Error in tpqs_start(), rc = %d. Exiting.\n");
 
   /* Clean-up the TPQ server instance */
   tpqs_destroy(tpqs);

@@ -33,9 +33,116 @@
  */
 
 #include <stdlib.h>
-#include <gsscon.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <jansson.h>
 
+#include <gsscon.h>
 #include <tpq.h>
+
+static int tpqs_listen (int port) 
+{
+    int rc = 0;
+    int conn = -1;
+    struct sockaddr_storage addr;
+    struct sockaddr_in *saddr = (struct sockaddr_in *) &addr;
+    
+    saddr->sin_port = htons (port);
+    saddr->sin_family = AF_INET;
+    saddr->sin_addr.s_addr = INADDR_ANY;
+
+    if (0 > (conn = socket (AF_INET, SOCK_STREAM, 0)))
+      return conn;
+        
+    if (0 > (rc = bind (conn, (struct sockaddr *) saddr, sizeof(struct sockaddr_in))))
+      return rc;
+        
+    if (0 > (rc = listen(conn, 512)))
+      return rc;
+    
+    fprintf (stdout, "TPQ Server listening on port %d\n", port);
+    return conn; 
+}
+
+static int tpqs_auth_connection (int conn, gss_ctx_id_t *gssctx)
+{
+  int rc = 0;
+  int auth, autherr = 0;
+
+  if (rc = gsscon_passive_authenticate(conn, gssctx)) {
+    fprintf(stderr, "Error from gsscon_passive_authenticate(), rc = %d.\n", rc);
+    return -1;
+  }
+
+  if (rc = gsscon_authorize(*gssctx, &auth, &autherr)) {
+    fprintf(stderr, "Error from gsscon_authorize, rc = %d, autherr = %d.\n", 
+	    rc, autherr);
+    return -1;
+  }
+
+  if (auth)
+    fprintf(stdout, "Connection authenticated, conn = %d.\n", conn);
+  else
+    fprintf(stderr, "Authentication failed, conn %d.\n", conn);
+
+  return auth;
+}
+
+static int tpqs_read_request (int conn, gss_ctx_id_t *gssctx, TPQ_REQ *req)
+{
+  return -1;
+}
+
+static int tpqs_handle_request (TPQ_REQ *req, TPQ_RESP *resp) 
+{
+  return -1;
+}
+
+static int tpqs_send_response (int conn, gss_ctx_id_t *gssctx, TPQ_RESP *resp)
+{
+  return -1;
+}
+
+static void tpqs_handle_connection (int conn)
+{
+  TPQ_REQ req;
+  TPQ_RESP resp;
+  int rc;
+  gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
+
+  if (!tpqs_auth_connection(conn, &gssctx)) {
+    fprintf(stderr, "Error authorizing TPQ Server connection, rc = %d.\n", rc);
+    close(conn);
+    return;
+  }
+
+  printf("Connection authorized!\n");
+
+  while (1) {	/* continue until an error breaks us out */
+
+    if (0 > (rc = tpqs_read_request(conn, &gssctx, &req))) {
+      fprintf(stderr, "Error from tpqs_read_request(), rc = %d.\n", rc);
+      return;
+    } else if (0 == rc) {
+      continue;
+    }
+
+    if (0 > (rc = tpqs_handle_request(&req, &resp))) {
+      fprintf(stderr, "Error from tpqs_handle_request(), rc = %d.\n", rc);
+      return;
+    }
+
+    if (0 > (rc = tpqs_send_response(conn, &gssctx, &resp))) {
+      fprintf(stderr, "Error from tpqs_send_response(), rc = %d.\n", rc);
+      return;
+    }
+  }  
+
+  return;
+}
 
 TPQS_INSTANCE *tpqs_create ()
 {
@@ -49,8 +156,35 @@ int tpqs_start (TPQS_INSTANCE *tpqs,
 		TPQS_REQ_FUNC *req_handler,
 		void *cookie)
 {
+  int listen = -1;
+  int conn = -1;
+  pid_t pid;
 
-  return 1;
+  if (0 > (listen = tpqs_listen(TPQ_PORT)))
+    perror ("Error from tpqs_listen()");
+
+  while(1) {	/* accept incoming conns until we are stopped */
+
+    if (0 > (conn = accept(listen, NULL, NULL))) {
+      perror("Error from TPQS Server accept()");
+      return 1;
+    }
+
+    if (0 > (pid = fork())) {
+      perror("Error on fork()");
+      return 1;
+    }
+
+    if (pid == 0) {
+      close(listen);
+      tpqs_handle_connection(conn);
+      exit(0);
+    } else {
+      close(conn);
+    }
+  }
+
+  return 1;	/* should never get here */
 }
 
 void tpqs_destroy (TPQS_INSTANCE *tpqs)

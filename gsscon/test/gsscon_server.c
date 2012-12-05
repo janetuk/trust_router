@@ -144,6 +144,7 @@ int main (int argc, const char *argv[])
         int authorizationError = 0;
         
         connectionFD = accept (listenFD, NULL, NULL);
+
         if (connectionFD < 0) {
             if (errno != EINTR) { 
                 err = errno;
