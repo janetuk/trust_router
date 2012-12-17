@@ -35,10 +35,10 @@
 #ifndef TPQ_H
 #define TPQ_H
 
-#define TPQ_PORT	12309
-
 #include <gsscon.h>
 #include <tr_name.h>
+
+#define TPQ_PORT	12309
 
 typedef struct tpq_req {
   struct tpq_req *next_req;
