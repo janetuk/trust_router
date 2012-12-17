@@ -1,3 +1,5 @@
+
+
 /*
  * Copyright (c) 2012, JANET(UK)
  * All rights reserved.
@@ -34,55 +36,10 @@
 
 #include <stdio.h>
 
-#include <tr.h>
+#include <tr_config.h>
 
-int tpqs_req_handler (TPQS_INSTANCE * tpqs,
-		      TPQ_REQ *req, 
-		      TPQ_RESP *resp,
-		      void *cookie)
-{
-  printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
-  if (tpqs)
-    tpqs->req_count++;
+int tr_read_config (FILE *cfg_file) {
+  int rc = 0;
 
-  if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
-      (NULL == (resp->coi = tr_dup_name(req->coi)))) {
-    printf ("Error in tpq_dup_name, not responding.\n");
-    return 1;
-  }
-
-  return 0;
-}
-
-int main (int argc, const char *argv[])
-{
-  TPQS_INSTANCE *tpqs = 0;
-  int err;
-  FILE *cfg_file = 0;
-
-  /* parse command-line arguments -- TBD */
-
-  /* open the configuration file*/
-  cfg_file = fopen ("tr.cfg", "r");
-
-  /* read initial configuration */
-  if (0 != (err = tr_read_config (cfg_file))) {
-    printf ("Error reading configuration, err = %d.\n", err);
-    return 1;
-  }
-
-  /* initialize the trust path query server instance */
-  if (0 == (tpqs = tpqs_create ())) {
-    printf ("Error initializing Trust Path Query Server instance.\n", err);
-    return 1;
-  }
-
-  /* start the trust path query server, won't return unless there is an error. */
-  if (0 != (err = tpqs_start(tpqs, &tpqs_req_handler, NULL))) {
-    printf ("Error starting Trust Path Query Server, err = %d.\n", err);
-    return err;
-  }
-
-  tpqs_destroy(tpqs);
-  return 0;
+  return rc;
 }

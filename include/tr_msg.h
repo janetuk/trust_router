@@ -32,57 +32,33 @@
  *
  */
 
-#include <stdio.h>
+#ifndef TR_MSG_H
+#define TR_MSG_H
 
-#include <tr.h>
+#include <tpq.h>
+// #include <tidr.h>
+#include <jansson.h>
 
-int tpqs_req_handler (TPQS_INSTANCE * tpqs,
-		      TPQ_REQ *req, 
-		      TPQ_RESP *resp,
-		      void *cookie)
-{
-  printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
-  if (tpqs)
-    tpqs->req_count++;
+enum msg_type {
+  TR_UNKNOWN,
+  TPQ_REQUEST,
+  TPQ_RESPONSE,
+  TIDR_REQUEST,
+  TIDR_RESPONSE
+};
 
-  if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
-      (NULL == (resp->coi = tr_dup_name(req->coi)))) {
-    printf ("Error in tpq_dup_name, not responding.\n");
-    return 1;
-  }
+/* Union of TR message types to hold message of any type. */
+typedef struct tr_msg {
+  enum msg_type msg_type;
+  union {
+    TPQ_REQ msg_req;
+    TPQ_RESP msg_resp;
+    // TIDR_REQ tidr_req;
+    // TIDR_RESP tidr_resp;
+  };
+} TR_MSG;
 
-  return 0;
-}
+char *tr_msg_encode(TR_MSG *msg);
+TR_MSG *tr_msg_decode(char *jmsg);
 
-int main (int argc, const char *argv[])
-{
-  TPQS_INSTANCE *tpqs = 0;
-  int err;
-  FILE *cfg_file = 0;
-
-  /* parse command-line arguments -- TBD */
-
-  /* open the configuration file*/
-  cfg_file = fopen ("tr.cfg", "r");
-
-  /* read initial configuration */
-  if (0 != (err = tr_read_config (cfg_file))) {
-    printf ("Error reading configuration, err = %d.\n", err);
-    return 1;
-  }
-
-  /* initialize the trust path query server instance */
-  if (0 == (tpqs = tpqs_create ())) {
-    printf ("Error initializing Trust Path Query Server instance.\n", err);
-    return 1;
-  }
-
-  /* start the trust path query server, won't return unless there is an error. */
-  if (0 != (err = tpqs_start(tpqs, &tpqs_req_handler, NULL))) {
-    printf ("Error starting Trust Path Query Server, err = %d.\n", err);
-    return err;
-  }
-
-  tpqs_destroy(tpqs);
-  return 0;
-}
+#endif

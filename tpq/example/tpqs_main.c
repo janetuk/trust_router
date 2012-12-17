@@ -45,8 +45,8 @@ int tpqs_req_handler (TPQS_INSTANCE * tpqs,
   if (tpqs)
     tpqs->req_count++;
 
-  if ((NULL == (resp->realm = tpq_dup_name(req->realm))) ||
-      (NULL == (resp->coi = tpq_dup_name(req->coi)))) {
+  if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
+      (NULL == (resp->coi = tr_dup_name(req->coi)))) {
     printf ("Error in tpq_dup_name, not responding.\n");
     return 1;
   }

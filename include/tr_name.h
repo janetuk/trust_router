@@ -32,14 +32,15 @@
  *
  */
 
-#ifndef TRUST_ROUTER_H
-#define TRUST_ROUTER_H
+#ifndef TR_NAME_H
+#define TR_NAME_H
 
-#include <tpq.h>
-#include <tidr.h>
+typedef struct tr__name {
+  char *buf;
+  int len;
+} TR_NAME;
 
-#define TRUST_ROUTER_PORT	12308
-
-int tr_read_config (FILE *cfg_file);
+TR_NAME *tr_new_name (char *name);
+TR_NAME *tr_dup_name (TR_NAME *from);
 
 #endif

@@ -1,5 +1,3 @@
-
-
 /*
  * Copyright (c) 2012, JANET(UK)
  * All rights reserved.
@@ -34,12 +32,12 @@
  *
  */
 
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <trust_router.h>
+#include <tr_config.h>
 
 int tr_read_config (FILE *cfg_file) {
-  int rc = 0;
 
-  return rc;
+  return 0;
 }

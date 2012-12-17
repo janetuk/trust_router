@@ -38,23 +38,20 @@
 #define TPQ_PORT	12309
 
 #include <gsscon.h>
-typedef struct tpq_name {
-  char *buf;
-  int len;
-} TPQ_NAME;
+#include <tr_name.h>
 
 typedef struct tpq_req {
   struct tpq_req *next_req;
   int conn;
-  TPQ_NAME *realm;
-  TPQ_NAME *coi;
+  TR_NAME *realm;
+  TR_NAME *coi;
   void *resp_func;
   void *cookie;
 } TPQ_REQ;
 
 typedef struct tpq_resp {
-  TPQ_NAME *realm;
-  TPQ_NAME *coi;
+  TR_NAME *realm;
+  TR_NAME *coi;
   /* Address of AAA Server */
   /* Credentials */
   /* Trust Path Used */
@@ -72,14 +69,6 @@ typedef struct tpqs_instance {
 
 typedef void (TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQ_RESP *, void *);
 typedef int (TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
-
-TPQ_NAME *tpq_new_name (char *name);
-TPQ_NAME *tpq_dup_name (TPQ_NAME *from);
-
-char *tpq_req_encode(TPQ_REQ *req);
-TPQ_REQ *tpq_req_decode(char *jreq);
-char *tpq_resp_encode(TPQ_REQ *resp);
-TPQ_RESP *tpq_resp_decode(char *jresp);
 
 TPQC_INSTANCE *tpqc_create (void);
 int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server, gss_ctx_id_t *gssctx);

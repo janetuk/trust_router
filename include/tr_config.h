@@ -32,29 +32,11 @@
  *
  */
 
-#include <string.h>
-#include <jansson.h>
+#ifndef TR_CONFIG_H
+#define TR_CONFIG_H
 
-#include <tpq.h>
+#include <stdio.h>
 
-char *tpq_req_encode(TPQ_REQ *req) 
-{
-  return NULL;
-}
+int tr_read_config (FILE *cfg_file);
 
-TPQ_REQ *tpq_req_decode(char *jreq)
-{
-  return NULL;
-}
-
-char *tpq_resp_encode(TPQ_REQ *resp) 
-{
-  return NULL;
-}
-
-TPQ_RESP *tpq_resp_decode(char *jresp)
-{
-  return NULL;
-}
-
-
+#endif

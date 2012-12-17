@@ -32,35 +32,20 @@
  *
  */
 
-#include <stdlib.h>
 #include <string.h>
+#include <jansson.h>
 
-#include <tpq.h>
+#include <tr_msg.h>
 
-TPQ_NAME *tpq_new_name (char *name) 
+char *tr_msg_encode(TR_MSG *msg) 
 {
-  TPQ_NAME *new;
-
-  if (new = malloc(sizeof(TPQ_NAME))) { 
-    new->len = strlen(name);
-    if (new->buf = malloc(new->len+1)) {
-      strcpy(new->buf, name);
-    }
-  }
-  return new;
+  return NULL;
 }
 
-TPQ_NAME *tpq_dup_name (TPQ_NAME *from) 
+TR_MSG *tr_msg_decode(char *jmsg)
 {
-  TPQ_NAME *to;
-
-  if (to = malloc(sizeof(TPQ_NAME))) {
-    to->len = from->len;
-    if (to->buf = malloc(to->len+1)) {
-      strncpy(to->buf, from->buf, to->len);
-      to->buf[to->len] = 0;	/* NULL terminate for debugging printf()s */
-    }
-  }
-
-  return to;
+  return NULL;
 }
+
+
+

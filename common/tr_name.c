@@ -32,57 +32,35 @@
  *
  */
 
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <tr.h>
+#include <tr_name.h>
 
-int tpqs_req_handler (TPQS_INSTANCE * tpqs,
-		      TPQ_REQ *req, 
-		      TPQ_RESP *resp,
-		      void *cookie)
+TR_NAME *tr_new_name (char *name) 
 {
-  printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
-  if (tpqs)
-    tpqs->req_count++;
+  TR_NAME *new;
 
-  if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
-      (NULL == (resp->coi = tr_dup_name(req->coi)))) {
-    printf ("Error in tpq_dup_name, not responding.\n");
-    return 1;
+  if (new = malloc(sizeof(TR_NAME))) { 
+    new->len = strlen(name);
+    if (new->buf = malloc(new->len+1)) {
+      strcpy(new->buf, name);
+    }
   }
-
-  return 0;
+  return new;
 }
 
-int main (int argc, const char *argv[])
+TR_NAME *tr_dup_name (TR_NAME *from) 
 {
-  TPQS_INSTANCE *tpqs = 0;
-  int err;
-  FILE *cfg_file = 0;
+  TR_NAME *to;
 
-  /* parse command-line arguments -- TBD */
-
-  /* open the configuration file*/
-  cfg_file = fopen ("tr.cfg", "r");
-
-  /* read initial configuration */
-  if (0 != (err = tr_read_config (cfg_file))) {
-    printf ("Error reading configuration, err = %d.\n", err);
-    return 1;
+  if (to = malloc(sizeof(TR_NAME))) {
+    to->len = from->len;
+    if (to->buf = malloc(to->len+1)) {
+      strncpy(to->buf, from->buf, from->len);
+      to->buf[to->len] = 0;	/* NULL terminate for debugging printf()s */
+    }
   }
 
-  /* initialize the trust path query server instance */
-  if (0 == (tpqs = tpqs_create ())) {
-    printf ("Error initializing Trust Path Query Server instance.\n", err);
-    return 1;
-  }
-
-  /* start the trust path query server, won't return unless there is an error. */
-  if (0 != (err = tpqs_start(tpqs, &tpqs_req_handler, NULL))) {
-    printf ("Error starting Trust Path Query Server, err = %d.\n", err);
-    return err;
-  }
-
-  tpqs_destroy(tpqs);
-  return 0;
+  return to;
 }
