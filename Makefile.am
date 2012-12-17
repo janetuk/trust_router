@@ -1,4 +1,4 @@
-bin_PROGRAMS= tr/tr tpq/example/tpqc tpq/example/tpqs
+bin_PROGRAMS= tr/tr tpq/example/tpqc tpq/example/tpqs tidr/example/tidrc tidr/example/tidrs
 AM_CPPFLAGS=-I$(srcdir)/include
 SUBDIRS = gsscon 
 
@@ -23,5 +23,19 @@ common/tr_name.c \
 common/tr_msg.c
 
 tpq_example_tpqs_LDADD = gsscon/libgsscon.la
+
+tidr_example_tidrc_SOURCES = tidr/example/tidrc_main.c \
+tidr/tidrc.c \
+common/tr_name.c \
+common/tr_msg.c
+
+tidr_example_tidrc_LDADD = gsscon/libgsscon.la
+
+tidr_example_tidrs_SOURCES = tidr/example/tidrs_main.c \
+tidr/tidrs.c \
+common/tr_name.c \
+common/tr_msg.c
+
+tidr_example_tidrs_LDADD = gsscon/libgsscon.la
 
 

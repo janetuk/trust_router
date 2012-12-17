@@ -32,51 +32,53 @@
  *
  */
 
-#ifndef TIDR_H
-#define TIDR_H
+#include <stdio.h>
 
-#include <gsscon.h>
-#include <tr_name.h>
+#include <tidr.h>
 
-#define TIDR_PORT	12310
+int tidrs_req_handler (TIDRS_INSTANCE * tidrs,
+		      TIDR_REQ *req, 
+		      TIDR_RESP *resp,
+		      void *cookie)
+{
+  printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
+  if (tidrs)
+    tidrs->req_count++;
 
-typedef struct tidr_req {
-  struct tidr_req *next_req;
-  int conn;
-  TR_NAME *realm;
-  TR_NAME *coi;
-  void *resp_func;
-  void *cookie;
-} TIDR_REQ;
+  if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
+      (NULL == (resp->coi = tr_dup_name(req->coi)))) {
+    printf ("Error in tidr_dup_name, not responding.\n");
+    return 1;
+  }
 
-typedef struct tidr_resp {
-  TR_NAME *realm;
-  TR_NAME *coi;
-  /* Address of AAA Server */
-  /* Credentials */
-  /* Trust Path Used */
-} TIDR_RESP;
+  return 0;
+}
 
-typedef struct tidrc_instance {
-  TIDR_REQ *req_list;
-} TIDRC_INSTANCE;
 
-typedef struct tidrs_instance {
-  int req_count;
-  void *req_handler;
-  void *cookie;
-} TIDRS_INSTANCE;
+int main (int argc, 
+	  const char *argv[]) 
+{
+  static TIDRS_INSTANCE *tidrs;
+  int rc = 0;
 
-typedef void (TIDRC_RESP_FUNC)(TIDRC_INSTANCE *, TIDR_RESP *, void *);
-typedef int (TIDRS_REQ_FUNC)(TIDRS_INSTANCE *, TIDR_REQ *, TIDR_RESP *, void *);
+  /* Parse command-line arguments */ 
+  if (argc != 1)
+    printf("Unexpected arguments, ignored.\n");
 
-TIDRC_INSTANCE *tidrc_create (void);
-int tidrc_open_connection (TIDRC_INSTANCE *tidrc, char *server, gss_ctx_id_t *gssctx);
-int tidrc_send_request (TIDRC_INSTANCE *tidrc, int conn, gss_ctx_id_t gssctx, char *realm, char *coi, TIDRC_RESP_FUNC *resp_handler, void *cookie);
-void tidrc_destroy (TIDRC_INSTANCE *tpqc);
+  /* Create a TIDR server instance */
+  if (NULL == (tidrs = tidrs_create())) {
+    printf("Error in tidrs_create().  Exiting.\n");
+    return 1;
+  }
 
-TIDRS_INSTANCE *tidrs_create ();
-int tidrs_start (TIDRS_INSTANCE *tidrs, TIDRS_REQ_FUNC *req_handler, void *cookie);
-void tidrs_destroy (TIDRS_INSTANCE *tidrs);
+  /* Start-up the server, won't return unless there is an error. */
+  rc = tidrs_start(tidrs, &tidrs_req_handler , NULL);
+  
+  printf("Error in tidrs_start(), rc = %d. Exiting.\n");
 
-#endif
+  /* Clean-up the TIDR server instance */
+  tidrs_destroy(tidrs);
+
+  return 1;
+}
+
