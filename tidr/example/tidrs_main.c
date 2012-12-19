@@ -36,7 +36,7 @@
 
 #include <tidr.h>
 
-int tidrs_req_handler (TIDRS_INSTANCE * tidrs,
+int tidrs_req_handler (TIDRS_INSTANCE *tidrs,
 		      TIDR_REQ *req, 
 		      TIDR_RESP *resp,
 		      void *cookie)
