@@ -1,0 +1,24 @@
+
+Eventually this document may go away or hold README information for
+the trust router.  Right now, it serves as a to-do list for work that
+needs to be done on the trust router code before various releases:
+
+TO-DO FOR BETA
+==============
+- DH server-side code (in TIDRS)
+- Generate a real random number for DH code (in common/tr_dh.c)
+- Eliminate bulk of info/debug messages
+- Read TR router configuration from a file at start-up
+- Tree/look-up code to find correct AAA Server for a COI/Realm in TR
+- TPQC and TIDRS integration with freeradius
+
+TO-DO FOR PORTAL BETA
+=====================
+- Dynamically re-read TR configuration file at runtime
+- Move to longer-term tasking model for TR
+
+TO-DO FOR PILOT
+===============
+- Trust Router protocol implementation
+- Normalize/configure logging for info msgs, warnings and errors
+- Clean-up gsscon API
