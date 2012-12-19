@@ -13,7 +13,8 @@ tr_tr_LDADD = gsscon/libgsscon.la
 tpq_example_tpqc_SOURCES = tpq/example/tpqc_main.c \
 tpq/tpqc.c \
 common/tr_name.c \
-common/tr_msg.c
+common/tr_msg.c \
+common/tr_dh.c
 
 tpq_example_tpqc_LDADD = gsscon/libgsscon.la
 

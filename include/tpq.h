@@ -35,6 +35,9 @@
 #ifndef TPQ_H
 #define TPQ_H
 
+#include <arpa/inet.h>
+#include <openssl/dh.h>
+
 #include <gsscon.h>
 #include <tr_name.h>
 
@@ -45,6 +48,7 @@ typedef struct tpq_req {
   int conn;
   TR_NAME *realm;
   TR_NAME *coi;
+  DH *tpqc_dh;		/* Client's public dh information */
   void *resp_func;
   void *cookie;
 } TPQ_REQ;
@@ -52,17 +56,21 @@ typedef struct tpq_req {
 typedef struct tpq_resp {
   TR_NAME *realm;
   TR_NAME *coi;
-  /* Address of AAA Server */
-  /* Credentials */
+  in_addr_t aaa_server_addr;
+  DH *aaa_server_dh;		/* AAA server's public dh information */
   /* Trust Path Used */
 } TPQ_RESP;
 
 typedef struct tpqc_instance {
   TPQ_REQ *req_list;
+  char *priv_key;
+  int priv_len;
+  DH *priv_dh;			/* Client's DH struct with priv and pub keys */
 } TPQC_INSTANCE;
 
 typedef struct tpqs_instance {
   int req_count;
+  char *priv_key;
   void *req_handler;
   void *cookie;
 } TPQS_INSTANCE;

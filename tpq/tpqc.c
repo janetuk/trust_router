@@ -32,20 +32,50 @@
  *
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <jansson.h>
 
 #include <gsscon.h>
+#include <tr_dh.h>
 #include <tpq.h>
+
+char tmp_key[32] = 
+  {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
+   0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+   0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+   0x19, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F};
+int tmp_len = 32;
 
 TPQC_INSTANCE *tpqc_create ()
 {
   TPQC_INSTANCE *tpqc = NULL;
 
-  if (tpqc = malloc(sizeof(TPQC_INSTANCE)))
+  if (tpqc = malloc(sizeof(TPQC_INSTANCE))) 
     memset(tpqc, 0, sizeof(TPQC_INSTANCE));
+  else
+    return NULL;
+
+  /* TBD -- Generate random private key */
+  tpqc->priv_key = tmp_key;
+  tpqc->priv_len = tmp_len;
+
+  if (NULL == (tpqc->priv_dh = tr_create_dh_params(tpqc->priv_key, tpqc->priv_len))) {
+    free (tpqc);
+    return NULL;
+  }
+
+  fprintf(stderr, "TPQC DH Parameters:\n");
+  DHparams_print_fp(stdout, tpqc->priv_dh);
+  fprintf(stderr, "\n");
 
   return tpqc;
+}
+
+void tpqc_destroy (TPQC_INSTANCE *tpqc)
+{
+  if (tpqc)
+    free(tpqc);
 }
 
 int tpqc_open_connection (TPQC_INSTANCE *tpqc, 
@@ -143,11 +173,6 @@ int tpqc_send_request (TPQC_INSTANCE *tpqc,
   return 0;
 }
 
-void tpqc_destroy (TPQC_INSTANCE *tpqc)
-{
-  if (tpqc)
-    free(tpqc);
-}
 
 
 
