@@ -13,7 +13,7 @@ TO-DO FOR TPQ/TIDR DEMO
 TO-DO FOR BETA
 ==============
 - Generate a real random number for DH code (in common/tr_dh.c)
-- Read TR router configuration from a file at start-up
+- Read TR router configuration from a file at start-up (non-dynamic)
 - Tree/look-up code to find correct AAA Server for a COI/Realm in TR
 - TPQC and TIDRS integration with freeradius
 - Code for client to handle multiple oustanding requests
