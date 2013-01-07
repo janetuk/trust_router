@@ -117,7 +117,7 @@ int main (int argc,
     exit(1);
   }
 
-  printf("Success: Identical keys generated!\n");
+  printf("Success: Identical keys generated, key length = %d!\n", c_keylen);
   exit(0);
 }
     
