@@ -1,4 +1,4 @@
-bin_PROGRAMS= tr/tr tpq/example/tpqc tpq/example/tpqs tidr/example/tidrc tidr/example/tidrs
+bin_PROGRAMS= tr/tr tpq/example/tpqc tpq/example/tpqs tidr/example/tidrc tidr/example/tidrs common/dh_test/dh_test
 AM_CPPFLAGS=-I$(srcdir)/include
 SUBDIRS = gsscon 
 
@@ -39,4 +39,5 @@ common/tr_msg.c
 
 tidr_example_tidrs_LDADD = gsscon/libgsscon.la
 
+common_dh_test_dh_test_SOURCES = common/tr_dh.c common/dh_test/dh_test.c
 
