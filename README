@@ -3,29 +3,24 @@ Eventually this document may go away or hold README information for
 the trust router.  Right now, it serves as a to-do list for work that
 needs to be done on the trust router code before various releases:
 
-TO-DO FOR TPQ/TIDR DEMO
-=======================
-- DH server-side code (in TIDRS)
-- Eliminate bulk of info/debug messages
-- Hardwire AAA Server choice in TR
-- Java encode/decode of full requests/responses
-
 TO-DO FOR BETA
 ==============
-- Generate a real random number for DH code (in common/tr_dh.c)
+DONE - Eliminate bulk of info/debug messages
+DONE - Java encode/decode of full requests/responses
+DONE - Generate a real random number for DH code (in common/tr_dh.c)
+IN PROGRESS - DH server-side code (in TIDRS)
+IN PROGRESS - TPQC and TIDRS integration with freeradius
 - Read TR router configuration from a file at start-up (non-dynamic)
 - Tree/look-up code to find correct AAA Server for a COI/Realm in TR
-- TPQC and TIDRS integration with freeradius
 - Code for client to handle multiple oustanding requests
-- Finish info/debug msg clean-up, all errors to stderr
-
-TO-DO FOR PORTAL BETA
-=====================
-- Dynamically re-read TR configuration file at runtime
-- Move to longer-term tasking model for TR
 
 TO-DO FOR PILOT
 ===============
-- Trust Router protocol implementation
-- Normalize/configure logging for info msgs, warnings and errors
+- Dynamically re-read TR configuration file at runtime
+- Move to longer-term tasking model for TR
+- Normalize/configure logging for info msgs, warnings and errors (log4c?)
 - Clean-up gsscon API
+
+TO-DO FOR PRODUCTION
+====================
+- Multiple Trust Router support including TR protocol
