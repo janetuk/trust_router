@@ -36,7 +36,7 @@
 #define TR_MSG_H
 
 #include <tpq.h>
-// #include <tidr.h>
+#include <tidr.h>
 #include <jansson.h>
 
 enum msg_type {
@@ -51,14 +51,16 @@ enum msg_type {
 typedef struct tr_msg {
   enum msg_type msg_type;
   union {
-    TPQ_REQ msg_req;
-    TPQ_RESP msg_resp;
-    // TIDR_REQ tidr_req;
-    // TIDR_RESP tidr_resp;
+    TPQ_REQ *tpq_req;
+    TPQ_RESP *tpq_resp;
+    TIDR_REQ *tidr_req;
+    TIDR_RESP *tidr_resp;
   };
 } TR_MSG;
 
 char *tr_msg_encode(TR_MSG *msg);
 TR_MSG *tr_msg_decode(char *jmsg);
+void tr_msg_free_encoded(char *jmsg);
+void tr_msg_free_decoded(TR_MSG *msg);
 
 #endif

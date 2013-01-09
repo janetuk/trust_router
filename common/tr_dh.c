@@ -92,6 +92,7 @@ DH *tr_create_dh_params(char *priv_key,
     dh->priv_key = BN_bin2bn(priv_key, keylen, NULL);
 
   DH_generate_key(dh);		/* generates the public key */
+
   DH_check(dh, &dh_err);
   if (0 != dh_err) {
     fprintf(stderr, "Warning: dh_check failed with %d", dh_err);

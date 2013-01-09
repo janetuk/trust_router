@@ -121,7 +121,7 @@ int gsscon_passive_authenticate (int           inSocket,
              * EOF, and the user wouldn't know what went wrong.
              */
             
-            printf ("Calling gss_accept_sec_context...\n");
+	    // printf ("Calling gss_accept_sec_context...\n");
             majorStatus = gss_accept_sec_context (&minorStatus, 
                                                   &gssContext, 
                                                   GSS_C_NO_CREDENTIAL, 

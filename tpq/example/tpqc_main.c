@@ -42,7 +42,7 @@ static int tpqc_response_received = 0;
 
 void tpqc_print_usage (const char *name)
 {
-  printf("Usage: %s <server> <realm> <coi>\n", name);
+  printf("Usage: %s <server> <RP-realm> <target-realm> <community>\n", name);
 }
 
 void tpqc_resp_handler (TPQC_INSTANCE * tpqc, 
@@ -62,6 +62,7 @@ int main (int argc,
   TPQC_INSTANCE *tpqc;
   TPQ_REQ *treq;
   char *server = NULL;
+  char *rp_realm = NULL;
   char *realm = NULL;
   char *coi = NULL;
   void *cookie = NULL;
@@ -70,16 +71,19 @@ int main (int argc,
   gss_ctx_id_t gssctx;
 
   /* Parse command-line arguments */ 
-  if (argc != 4) {
+  if (argc != 5) {
     tpqc_print_usage(argv[0]);
     exit(1);
   }
 
   /* TBD -- validity checking, dealing with quotes, etc. */
   server = (char *)argv[1];
-  realm = (char *)argv[2];
-  coi = (char *)argv[3];
+  rp_realm = (char *) argv[2];
+  realm = (char *)argv[3];
+  coi = (char *)argv[4];
 
+  printf("TPQC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s\n", server, rp_realm, realm, coi);
+ 
   /* Create a TPQ client instance */
   tpqc = tpqc_create();
 
@@ -91,7 +95,7 @@ int main (int argc,
   };
 
   /* Send a TPQ request */
-  if (0 > (rc = tpqc_send_request(tpqc, conn, gssctx, realm, coi, 
+  if (0 > (rc = tpqc_send_request(tpqc, conn, gssctx, rp_realm, realm, coi, 
 				  &tpqc_resp_handler, NULL))) {
     /* Handle error */
     printf("Error in tpqc_send_request, rc = %d.\n", rc);

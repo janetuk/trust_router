@@ -174,8 +174,8 @@ int gsscon_read_token (int      inSocket,
     }
     
     if (!err) {
-        printf ("Read token:\n");
-        PrintBuffer (token, tokenLength);
+    //    printf ("Read token:\n");
+    //    PrintBuffer (token, tokenLength);
         
 	*outTokenLength = tokenLength;
         *outTokenValue = token;        
@@ -210,8 +210,9 @@ int gsscon_write_token (int         inSocket,
     }
     
     if (!err) {
-        printf ("Wrote token:\n");
-        PrintBuffer (inTokenValue, inTokenLength);
+    //    printf ("Wrote token:\n");
+    //    PrintBuffer (inTokenValue, inTokenLength);
+
     } else { 
         gsscon_print_error (err, "gsscon_write_token() failed");
     }
@@ -271,8 +272,8 @@ int gsscon_read_encrypted_token (int                  inSocket,
     if (!err) {
         memcpy (unencryptedToken, outputBuffer.value, outputBuffer.length);
         
-        printf ("Unencrypted token:\n");
-        PrintBuffer (unencryptedToken, outputBuffer.length);
+	// printf ("Unencrypted token:\n");
+        // PrintBuffer (unencryptedToken, outputBuffer.length);
         
 	*outTokenLength = outputBuffer.length;
         *outTokenValue = unencryptedToken;
@@ -327,8 +328,8 @@ int gsscon_write_encrypted_token (int                 inSocket,
     }
     
     if (!err) {
-        printf ("Unencrypted token:\n");
-        PrintBuffer (inToken, inTokenLength);
+      //  printf ("Unencrypted token:\n");
+      //  PrintBuffer (inToken, inTokenLength);
 	err = gsscon_write_token (inSocket, outputBuffer.value, outputBuffer.length);
     }
     

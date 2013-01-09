@@ -43,7 +43,7 @@ TR_NAME *tr_new_name (char *name)
 
   if (new = malloc(sizeof(TR_NAME))) { 
     new->len = strlen(name);
-    if (new->buf = malloc(new->len+1)) {
+    if (new->buf = malloc((new->len)+1)) {
       strcpy(new->buf, name);
     }
   }

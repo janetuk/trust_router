@@ -46,6 +46,7 @@
 typedef struct tpq_req {
   struct tpq_req *next_req;
   int conn;
+  TR_NAME *rp_realm;
   TR_NAME *realm;
   TR_NAME *coi;
   DH *tpqc_dh;		/* Client's public dh information */
@@ -80,7 +81,7 @@ typedef int (TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
 
 TPQC_INSTANCE *tpqc_create (void);
 int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server, gss_ctx_id_t *gssctx);
-int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, gss_ctx_id_t gssctx, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler, void *cookie);
+int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler, void *cookie);
 void tpqc_destroy (TPQC_INSTANCE *tpqc);
 
 TPQS_INSTANCE *tpqs_create ();

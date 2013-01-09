@@ -39,12 +39,15 @@
 #include <gsscon.h>
 #include <tr_dh.h>
 #include <tpq.h>
+#include <tr_msg.h>
 
-char tmp_key[32] = 
+/* char tmp_key[32] = 
   {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
    0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
    0x19, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F};
+*/
+
 int tmp_len = 32;
 
 TPQC_INSTANCE *tpqc_create ()
@@ -56,11 +59,7 @@ TPQC_INSTANCE *tpqc_create ()
   else
     return NULL;
 
-  /* TBD -- Generate random private key */
-  tpqc->priv_key = tmp_key;
-  tpqc->priv_len = tmp_len;
-
-  if (NULL == (tpqc->priv_dh = tr_create_dh_params(tpqc->priv_key, tpqc->priv_len))) {
+  if (NULL == (tpqc->priv_dh = tr_create_dh_params(NULL, 0))) {
     free (tpqc);
     return NULL;
   }
@@ -99,6 +98,7 @@ int tpqc_open_connection (TPQC_INSTANCE *tpqc,
 int tpqc_send_request (TPQC_INSTANCE *tpqc, 
 		       int conn, 
 		       gss_ctx_id_t gssctx,
+		       char *rp_realm,
 		       char *realm, 
 		       char *coi,
 		       TPQC_RESP_FUNC *resp_handler,
@@ -110,49 +110,50 @@ int tpqc_send_request (TPQC_INSTANCE *tpqc,
   char *req_buf;
   char *resp_buf;
   size_t resp_buflen = 0;
+  TR_MSG *msg;
+  TPQ_REQ *tpq_req;
 
-  /* Create a json TPQ request */
-  if (NULL == (jreq = json_object())) {
-    fprintf(stderr,"Error creating json object.\n");
+  /* Create and populate a TPQ msg structure */
+  if ((!(msg = malloc(sizeof(TR_MSG)))) ||
+      (!(tpq_req = malloc(sizeof(TPQ_REQ)))))
     return -1;
-  }
 
-  if (0 > (err = json_object_set_new(jreq, "type", json_string("tpq_request")))) {
-    fprintf(stderr, "Error adding type to request.\n");
-    return -1;
-  }
+  memset(tpq_req, 0, sizeof(tpq_req));
 
-  /* Insert realm and coi into the json request */
-  if (0 > (err = json_object_set_new(jreq, "realm", json_string(realm)))) {
-    fprintf(stderr, "Error adding realm to request.\n");
-    return -1;
-  }
-  if (0 > (err = json_object_set_new(jreq, "coi", json_string(coi)))) {
-    fprintf(stderr, "Error adding coi to request.\n");
-    return -1;
-  }
+  msg->msg_type = TPQ_REQUEST;
 
-  /* Generate half of a D-H exchange -- TBD */
-  /* Insert D-H information into the request -- TBD */
+  msg->tpq_req = tpq_req;
 
-  /* Encode the json request */
-  if (NULL == (req_buf = json_dumps(jreq, 0))) {
-    fprintf(stderr, "Error encoding json request.\n");
-    return -1;
-  }
+  tpq_req->conn = conn;
+
+  /* TBD -- error handling */
+  tpq_req->rp_realm = tr_new_name(rp_realm);
+  tpq_req->realm = tr_new_name(realm);
+  tpq_req->coi = tr_new_name(coi);
+
+  tpq_req->tpqc_dh = tpqc->priv_dh;
   
-  printf("Encoded request:\n%s\n", req_buf);
-  
+  tpq_req->resp_func = resp_handler;
+  tpq_req->cookie = cookie;
+
+  /* Encode the request into a json string */
+  if (!(req_buf = tr_msg_encode(msg))) {
+    printf("Error encoding TPQ request.\n");
+    return -1;
+  }
+
+  printf ("Sending TPQ request:\n");
+  printf ("%s\n", req_buf);
+
   /* Send the request over the connection */
   if (err = gsscon_write_encrypted_token (conn, gssctx, req_buf, 
-					  strlen(req_buf) + 1)) {
+					  strlen(req_buf))) {
     fprintf(stderr, "Error sending request over connection.\n");
     return -1;
   }
 
-  free(req_buf);
-
-  /* read the response from the connection */
+  /* TBD -- should queue request on instance, resps read in separate thread */
+  /* Read the response from the connection */
 
   if (err = gsscon_read_encrypted_token(conn, gssctx, &resp_buf, &resp_buflen)) {
     if (resp_buf)
@@ -167,6 +168,12 @@ int tpqc_send_request (TPQC_INSTANCE *tpqc,
   /* Call the caller's response function */
   (*resp_handler)(tpqc, NULL, cookie);
 
+  if (msg)
+    free(msg);
+  if (tpq_req)
+    free(tpq_req);
+  if (req_buf)
+    free(req_buf);
   if (resp_buf)
     free(resp_buf);
 
