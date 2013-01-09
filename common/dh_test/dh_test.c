@@ -80,9 +80,9 @@ int main (int argc,
     exit(1);
   }
 
-  fprintf(stderr, "Server DH Parameters:\n");
+  fprintf(stdout, "Server DH Parameters:\n");
   DHparams_print_fp(stdout, s_dh);
-  fprintf(stderr, "\n");
+  fprintf(stdout, "\n");
 
   /*** Would now send server's pub key to client ***/
 
@@ -111,7 +111,7 @@ int main (int argc,
   }
   
   /* Compare the two keys to see if they match */
-  if ((c_keylen != s_keylen) &&
+  if ((c_keylen != s_keylen) ||
       (0 != memcmp(c_keybuf, s_keybuf, c_keylen))) {
     printf("Error: Different keys generated!\n");
     exit(1);
