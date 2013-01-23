@@ -37,7 +37,8 @@
 #include <jansson.h>
 
 #include <tr_msg.h>
-#include <tpq.h>
+#include <tid.h>
+
 static json_t *tr_msg_encode_dh(DH *dh)
 {
   json_t *jdh = NULL;
@@ -67,7 +68,7 @@ static DH *tr_msg_decode_dh(json_t *jdh)
   return dh;
 }
 
-json_t *tr_msg_encode_tpqreq(TPQ_REQ *req)
+json_t *tr_msg_encode_tidreq(TID_REQ *req)
 {
   json_t *jreq = NULL;
   json_t *jstr = NULL;
@@ -86,19 +87,19 @@ json_t *tr_msg_encode_tpqreq(TPQ_REQ *req)
   jstr = json_string(req->coi->buf);
   json_object_set_new(jreq, "community", jstr);
 
-  json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tpqc_dh));
+  json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tidc_dh));
   
   return jreq;
 }
 
-TPQ_REQ *tr_msg_decode_tpqreq(json_t *jreq)
+TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
 {
-  TPQ_REQ *req = NULL;
+  TID_REQ *req = NULL;
 
   return req;
 }
 
-json_t *tr_msg_encode_tpqresp(TPQ_RESP *resp)
+json_t *tr_msg_encode_tidresp(TID_RESP *resp)
 {
   json_t *jresp = NULL;
 
@@ -106,38 +107,9 @@ json_t *tr_msg_encode_tpqresp(TPQ_RESP *resp)
 }
 
 
-TPQ_RESP *tr_msg_decode_tpqresp(json_t *jresp)
+TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
 {
-  TPQ_RESP *resp = NULL;
-
-  return resp;
-}
-
-json_t *tr_msg_encode_tidrreq(TIDR_REQ *req)
-{
-  json_t *jreq = NULL;
-
-  return jreq;
-
-}
-
-TIDR_REQ *tr_msg_decode_tidrreq(json_t *jreq)
-{
-  TIDR_REQ *req = NULL;
-
-  return req;
-}
-
-json_t *tr_msg_encode_tidrresp(TIDR_RESP *resp)
-{
-  json_t *jresp = NULL;
-
-  return jresp;
-}
-
-TIDR_RESP *tr_msg_decode_tidrresp(json_t *jresp)
-{
-  TIDR_RESP *resp = NULL;
+  TID_RESP *resp = NULL;
 
   return resp;
 }
@@ -152,28 +124,16 @@ char *tr_msg_encode(TR_MSG *msg)
 
   switch (msg->msg_type) 
     {
-    case TPQ_REQUEST:
-      jmsg_type = json_string("TPQRequest");
-      json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tpqreq(msg->tpq_req));
-      break;
-
-    case TPQ_RESPONSE:
-      jmsg_type = json_string("TPQResponse");
-      json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tpqresp(msg->tpq_resp));
-      break;
-
-    case TIDR_REQUEST:
+    case TID_REQUEST:
       jmsg_type = json_string("TIDRequest");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidrreq(msg->tidr_req));
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidreq(msg->tid_req));
       break;
 
-    case TIDR_RESPONSE:
+    case TID_RESPONSE:
       jmsg_type = json_string("TIDResponse");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidrresp(msg->tidr_resp));
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidresp(msg->tid_resp));
       break;
 
       /* TBD -- Add TR message types */

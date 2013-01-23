@@ -34,20 +34,20 @@
 
 #include <stdio.h>
 
-#include <tpq.h>
+#include <tid.h>
 
-int tpqs_req_handler (TPQS_INSTANCE * tpqs,
-		      TPQ_REQ *req, 
-		      TPQ_RESP *resp,
+int tids_req_handler (TIDS_INSTANCE * tids,
+		      TID_REQ *req, 
+		      TID_RESP *resp,
 		      void *cookie)
 {
   printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
-  if (tpqs)
-    tpqs->req_count++;
+  if (tids)
+    tids->req_count++;
 
   if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
       (NULL == (resp->coi = tr_dup_name(req->coi)))) {
-    printf ("Error in tpq_dup_name, not responding.\n");
+    printf ("Error in tid_dup_name, not responding.\n");
     return 1;
   }
 
@@ -58,26 +58,26 @@ int tpqs_req_handler (TPQS_INSTANCE * tpqs,
 int main (int argc, 
 	  const char *argv[]) 
 {
-  static TPQS_INSTANCE *tpqs;
+  static TIDS_INSTANCE *tids;
   int rc = 0;
 
   /* Parse command-line arguments */ 
   if (argc != 1)
     printf("Unexpected arguments, ignored.\n");
 
-  /* Create a TPQ server instance */
-  if (NULL == (tpqs = tpqs_create())) {
-    printf("Error in tpqs_create().  Exiting.\n");
+  /* Create a TID server instance */
+  if (NULL == (tids = tids_create())) {
+    printf("Error in tids_create().  Exiting.\n");
     return 1;
   }
 
   /* Start-up the server, won't return unless there is an error. */
-  rc = tpqs_start(tpqs, &tpqs_req_handler , NULL);
+  rc = tids_start(tids, &tids_req_handler , NULL);
   
-  printf("Error in tpqs_start(), rc = %d. Exiting.\n");
+  printf("Error in tids_start(), rc = %d. Exiting.\n");
 
-  /* Clean-up the TPQ server instance */
-  tpqs_destroy(tpqs);
+  /* Clean-up the TID server instance */
+  tids_destroy(tids);
 
   return 1;
 }

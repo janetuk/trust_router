@@ -32,8 +32,8 @@
  *
  */
 
-#ifndef TPQ_H
-#define TPQ_H
+#ifndef TID_H
+#define TID_H
 
 #include <arpa/inet.h>
 #include <openssl/dh.h>
@@ -41,51 +41,51 @@
 #include <gsscon.h>
 #include <tr_name.h>
 
-#define TPQ_PORT	12309
+#define TID_PORT	12309
 
-typedef struct tpq_req {
-  struct tpq_req *next_req;
+typedef struct tid_req {
+  struct tid_req *next_req;
   int conn;
   TR_NAME *rp_realm;
   TR_NAME *realm;
   TR_NAME *coi;
-  DH *tpqc_dh;		/* Client's public dh information */
+  DH *tidc_dh;		/* Client's public dh information */
   void *resp_func;
   void *cookie;
-} TPQ_REQ;
+} TID_REQ;
 
-typedef struct tpq_resp {
+typedef struct tid_resp {
   TR_NAME *realm;
   TR_NAME *coi;
   in_addr_t aaa_server_addr;
   DH *aaa_server_dh;		/* AAA server's public dh information */
   /* Trust Path Used */
-} TPQ_RESP;
+} TID_RESP;
 
-typedef struct tpqc_instance {
-  TPQ_REQ *req_list;
+typedef struct tidc_instance {
+  TID_REQ *req_list;
   char *priv_key;
   int priv_len;
   DH *priv_dh;			/* Client's DH struct with priv and pub keys */
-} TPQC_INSTANCE;
+} TIDC_INSTANCE;
 
-typedef struct tpqs_instance {
+typedef struct tids_instance {
   int req_count;
   char *priv_key;
   void *req_handler;
   void *cookie;
-} TPQS_INSTANCE;
+} TIDS_INSTANCE;
 
-typedef void (TPQC_RESP_FUNC)(TPQC_INSTANCE *, TPQ_RESP *, void *);
-typedef int (TPQS_REQ_FUNC)(TPQS_INSTANCE *, TPQ_REQ *, TPQ_RESP *, void *);
+typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_RESP *, void *);
+typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
-TPQC_INSTANCE *tpqc_create (void);
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, char *server, gss_ctx_id_t *gssctx);
-int tpqc_send_request (TPQC_INSTANCE *tpqc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TPQC_RESP_FUNC *resp_handler, void *cookie);
-void tpqc_destroy (TPQC_INSTANCE *tpqc);
+TIDC_INSTANCE *tidc_create (void);
+int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, gss_ctx_id_t *gssctx);
+int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
+void tidc_destroy (TIDC_INSTANCE *tidc);
 
-TPQS_INSTANCE *tpqs_create ();
-int tpqs_start (TPQS_INSTANCE *tpqs, TPQS_REQ_FUNC *req_handler, void *cookie);
-void tpqs_destroy (TPQS_INSTANCE *tpqs);
+TIDS_INSTANCE *tids_create ();
+int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler, void *cookie);
+void tids_destroy (TIDS_INSTANCE *tids);
 
 #endif

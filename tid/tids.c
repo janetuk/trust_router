@@ -41,9 +41,9 @@
 #include <jansson.h>
 
 #include <gsscon.h>
-#include <tpq.h>
+#include <tid.h>
 
-static int tpqs_listen (int port) 
+static int tids_listen (int port) 
 {
     int rc = 0;
     int conn = -1;
@@ -63,11 +63,11 @@ static int tpqs_listen (int port)
     if (0 > (rc = listen(conn, 512)))
       return rc;
     
-    fprintf (stdout, "TPQ Server listening on port %d\n", port);
+    fprintf (stdout, "TID Server listening on port %d\n", port);
     return conn; 
 }
 
-static int tpqs_auth_connection (int conn, gss_ctx_id_t *gssctx)
+static int tids_auth_connection (int conn, gss_ctx_id_t *gssctx)
 {
   int rc = 0;
   int auth, autherr = 0;
@@ -91,7 +91,7 @@ static int tpqs_auth_connection (int conn, gss_ctx_id_t *gssctx)
   return auth;
 }
 
-static int tpqs_read_request (int conn, gss_ctx_id_t *gssctx, TPQ_REQ *req)
+static int tids_read_request (int conn, gss_ctx_id_t *gssctx, TID_REQ *req)
 {
   int err;
   char *buf;
@@ -113,24 +113,24 @@ static int tpqs_read_request (int conn, gss_ctx_id_t *gssctx, TPQ_REQ *req)
   return buflen;
 }
 
-static int tpqs_handle_request (TPQ_REQ *req, TPQ_RESP *resp) 
+static int tids_handle_request (TID_REQ *req, TID_RESP *resp) 
 {
   return 0;
 }
 
-static int tpqs_send_response (int conn, gss_ctx_id_t *gssctx, TPQ_RESP *resp)
+static int tids_send_response (int conn, gss_ctx_id_t *gssctx, TID_RESP *resp)
 {
   json_t *jreq;
   int err;
   char *resp_buf;
 
-  /* Create a json TPQ response */
+  /* Create a json TID response */
   if (NULL == (jreq = json_object())) {
     fprintf(stderr,"Error creating json object.\n");
     return -1;
   }
 
-  if (0 > (err = json_object_set_new(jreq, "type", json_string("tpq_response")))) {
+  if (0 > (err = json_object_set_new(jreq, "type", json_string("tid_response")))) {
     fprintf(stderr, "Error adding type to response.\n");
     return -1;
   }
@@ -164,15 +164,15 @@ static int tpqs_send_response (int conn, gss_ctx_id_t *gssctx, TPQ_RESP *resp)
 
 }
 
-static void tpqs_handle_connection (int conn)
+static void tids_handle_connection (int conn)
 {
-  TPQ_REQ req;
-  TPQ_RESP resp;
+  TID_REQ req;
+  TID_RESP resp;
   int rc;
   gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
 
-  if (!tpqs_auth_connection(conn, &gssctx)) {
-    fprintf(stderr, "Error authorizing TPQ Server connection, rc = %d.\n", rc);
+  if (!tids_auth_connection(conn, &gssctx)) {
+    fprintf(stderr, "Error authorizing TID Server connection, rc = %d.\n", rc);
     close(conn);
     return;
   }
@@ -181,20 +181,20 @@ static void tpqs_handle_connection (int conn)
 
   while (1) {	/* continue until an error breaks us out */
 
-    if (0 > (rc = tpqs_read_request(conn, &gssctx, &req))) {
-      fprintf(stderr, "Error from tpqs_read_request(), rc = %d.\n", rc);
+    if (0 > (rc = tids_read_request(conn, &gssctx, &req))) {
+      fprintf(stderr, "Error from tids_read_request(), rc = %d.\n", rc);
       return;
     } else if (0 == rc) {
       continue;
     }
 
-    if (0 > (rc = tpqs_handle_request(&req, &resp))) {
-      fprintf(stderr, "Error from tpqs_handle_request(), rc = %d.\n", rc);
+    if (0 > (rc = tids_handle_request(&req, &resp))) {
+      fprintf(stderr, "Error from tids_handle_request(), rc = %d.\n", rc);
       return;
     }
 
-    if (0 > (rc = tpqs_send_response(conn, &gssctx, &resp))) {
-      fprintf(stderr, "Error from tpqs_send_response(), rc = %d.\n", rc);
+    if (0 > (rc = tids_send_response(conn, &gssctx, &resp))) {
+      fprintf(stderr, "Error from tids_send_response(), rc = %d.\n", rc);
       return;
     }
   }  
@@ -202,29 +202,29 @@ static void tpqs_handle_connection (int conn)
   return;
 }
 
-TPQS_INSTANCE *tpqs_create ()
+TIDS_INSTANCE *tids_create ()
 {
-  TPQS_INSTANCE *tpqs = 0;
-  if (tpqs = malloc(sizeof(TPQS_INSTANCE)))
-    memset(tpqs, 0, sizeof(TPQS_INSTANCE));
-  return tpqs;
+  TIDS_INSTANCE *tids = 0;
+  if (tids = malloc(sizeof(TIDS_INSTANCE)))
+    memset(tids, 0, sizeof(TIDS_INSTANCE));
+  return tids;
 }
 
-int tpqs_start (TPQS_INSTANCE *tpqs, 
-		TPQS_REQ_FUNC *req_handler,
+int tids_start (TIDS_INSTANCE *tids, 
+		TIDS_REQ_FUNC *req_handler,
 		void *cookie)
 {
   int listen = -1;
   int conn = -1;
   pid_t pid;
 
-  if (0 > (listen = tpqs_listen(TPQ_PORT)))
-    perror ("Error from tpqs_listen()");
+  if (0 > (listen = tids_listen(TID_PORT)))
+    perror ("Error from tids_listen()");
 
   while(1) {	/* accept incoming conns until we are stopped */
 
     if (0 > (conn = accept(listen, NULL, NULL))) {
-      perror("Error from TPQS Server accept()");
+      perror("Error from TIDS Server accept()");
       return 1;
     }
 
@@ -235,7 +235,7 @@ int tpqs_start (TPQS_INSTANCE *tpqs,
 
     if (pid == 0) {
       close(listen);
-      tpqs_handle_connection(conn);
+      tids_handle_connection(conn);
       close(conn);
       exit(0);
     } else {
@@ -246,9 +246,9 @@ int tpqs_start (TPQS_INSTANCE *tpqs,
   return 1;	/* should never get here */
 }
 
-void tpqs_destroy (TPQS_INSTANCE *tpqs)
+void tids_destroy (TIDS_INSTANCE *tids)
 {
-  free(tpqs);
+  free(tids);
 }
 
 

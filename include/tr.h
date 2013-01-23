@@ -38,8 +38,7 @@
 #include <tr_msg.h>
 #include <tr_name.h>
 #include <tr_config.h>
-#include <tpq.h>
-#include <tidr.h>
+#include <tid.h>
 
 #define TRUST_ROUTER_PORT	12308
 

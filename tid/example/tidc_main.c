@@ -36,31 +36,31 @@
 #include <stdio.h>
 
 #include <gsscon.h>
-#include <tpq.h>
+#include <tid.h>
 
-static int tpqc_response_received = 0;
+static int tidc_response_received = 0;
 
-void tpqc_print_usage (const char *name)
+void tidc_print_usage (const char *name)
 {
   printf("Usage: %s <server> <RP-realm> <target-realm> <community>\n", name);
 }
 
-void tpqc_resp_handler (TPQC_INSTANCE * tpqc, 
-			TPQ_RESP *resp, 
+void tidc_resp_handler (TIDC_INSTANCE * tidc, 
+			TID_RESP *resp, 
 			void *cookie) 
 {
   //  printf ("Response received! Realm = %s, COI = %s.\n", resp->realm->buf, 
   //	  resp->coi->buf);
   printf ("Response received at handler!\n");
-  tpqc_response_received = 1;
+  tidc_response_received = 1;
   return;
 }
 
 int main (int argc, 
 	  const char *argv[]) 
 {
-  TPQC_INSTANCE *tpqc;
-  TPQ_REQ *treq;
+  TIDC_INSTANCE *tidc;
+  TID_REQ *treq;
   char *server = NULL;
   char *rp_realm = NULL;
   char *realm = NULL;
@@ -72,7 +72,7 @@ int main (int argc,
 
   /* Parse command-line arguments */ 
   if (argc != 5) {
-    tpqc_print_usage(argv[0]);
+    tidc_print_usage(argv[0]);
     exit(1);
   }
 
@@ -82,31 +82,31 @@ int main (int argc,
   realm = (char *)argv[3];
   coi = (char *)argv[4];
 
-  printf("TPQC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s\n", server, rp_realm, realm, coi);
+  printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s\n", server, rp_realm, realm, coi);
  
-  /* Create a TPQ client instance */
-  tpqc = tpqc_create();
+  /* Create a TID client instance */
+  tidc = tidc_create();
 
-  /* Set-up TPQ connection */
-  if (-1 == (conn = tpqc_open_connection(tpqc, server, &gssctx))) {
+  /* Set-up TID connection */
+  if (-1 == (conn = tidc_open_connection(tidc, server, &gssctx))) {
     /* Handle error */
-    printf("Error in tpqc_open_connection.\n");
+    printf("Error in tidc_open_connection.\n");
     return 1;
   };
 
-  /* Send a TPQ request */
-  if (0 > (rc = tpqc_send_request(tpqc, conn, gssctx, rp_realm, realm, coi, 
-				  &tpqc_resp_handler, NULL))) {
+  /* Send a TID request */
+  if (0 > (rc = tidc_send_request(tidc, conn, gssctx, rp_realm, realm, coi, 
+				  &tidc_resp_handler, NULL))) {
     /* Handle error */
-    printf("Error in tpqc_send_request, rc = %d.\n", rc);
+    printf("Error in tidc_send_request, rc = %d.\n", rc);
     return 1;
   }
     
   /* Wait for a response */
-  while (!tpqc_response_received);
+  while (!tidc_response_received);
 
-  /* Clean-up the TPQ client instance, and exit */
-  tpqc_destroy(tpqc);
+  /* Clean-up the TID client instance, and exit */
+  tidc_destroy(tidc);
 
   return 0;
 }

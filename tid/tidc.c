@@ -38,7 +38,7 @@
 
 #include <gsscon.h>
 #include <tr_dh.h>
-#include <tpq.h>
+#include <tid.h>
 #include <tr_msg.h>
 
 /* char tmp_key[32] = 
@@ -50,41 +50,41 @@
 
 int tmp_len = 32;
 
-TPQC_INSTANCE *tpqc_create ()
+TIDC_INSTANCE *tidc_create ()
 {
-  TPQC_INSTANCE *tpqc = NULL;
+  TIDC_INSTANCE *tidc = NULL;
 
-  if (tpqc = malloc(sizeof(TPQC_INSTANCE))) 
-    memset(tpqc, 0, sizeof(TPQC_INSTANCE));
+  if (tidc = malloc(sizeof(TIDC_INSTANCE))) 
+    memset(tidc, 0, sizeof(TIDC_INSTANCE));
   else
     return NULL;
 
-  if (NULL == (tpqc->priv_dh = tr_create_dh_params(NULL, 0))) {
-    free (tpqc);
+  if (NULL == (tidc->priv_dh = tr_create_dh_params(NULL, 0))) {
+    free (tidc);
     return NULL;
   }
 
-  fprintf(stderr, "TPQC DH Parameters:\n");
-  DHparams_print_fp(stdout, tpqc->priv_dh);
+  fprintf(stderr, "TIDC DH Parameters:\n");
+  DHparams_print_fp(stdout, tidc->priv_dh);
   fprintf(stderr, "\n");
 
-  return tpqc;
+  return tidc;
 }
 
-void tpqc_destroy (TPQC_INSTANCE *tpqc)
+void tidc_destroy (TIDC_INSTANCE *tidc)
 {
-  if (tpqc)
-    free(tpqc);
+  if (tidc)
+    free(tidc);
 }
 
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, 
+int tidc_open_connection (TIDC_INSTANCE *tidc, 
 			  char *server,
 			  gss_ctx_id_t *gssctx)
 {
   int err = 0;
   int conn = -1;
 
-  err = gsscon_connect(server, TPQ_PORT, &conn);
+  err = gsscon_connect(server, TID_PORT, &conn);
 
   if (!err)
     err = gsscon_active_authenticate(conn, NULL, "trustquery", gssctx);
@@ -95,13 +95,13 @@ int tpqc_open_connection (TPQC_INSTANCE *tpqc,
     return -1;
 }
 
-int tpqc_send_request (TPQC_INSTANCE *tpqc, 
+int tidc_send_request (TIDC_INSTANCE *tidc, 
 		       int conn, 
 		       gss_ctx_id_t gssctx,
 		       char *rp_realm,
 		       char *realm, 
 		       char *coi,
-		       TPQC_RESP_FUNC *resp_handler,
+		       TIDC_RESP_FUNC *resp_handler,
 		       void *cookie)
 
 {
@@ -111,38 +111,38 @@ int tpqc_send_request (TPQC_INSTANCE *tpqc,
   char *resp_buf;
   size_t resp_buflen = 0;
   TR_MSG *msg;
-  TPQ_REQ *tpq_req;
+  TID_REQ *tid_req;
 
-  /* Create and populate a TPQ msg structure */
+  /* Create and populate a TID msg structure */
   if ((!(msg = malloc(sizeof(TR_MSG)))) ||
-      (!(tpq_req = malloc(sizeof(TPQ_REQ)))))
+      (!(tid_req = malloc(sizeof(TID_REQ)))))
     return -1;
 
-  memset(tpq_req, 0, sizeof(tpq_req));
+  memset(tid_req, 0, sizeof(tid_req));
 
-  msg->msg_type = TPQ_REQUEST;
+  msg->msg_type = TID_REQUEST;
 
-  msg->tpq_req = tpq_req;
+  msg->tid_req = tid_req;
 
-  tpq_req->conn = conn;
+  tid_req->conn = conn;
 
   /* TBD -- error handling */
-  tpq_req->rp_realm = tr_new_name(rp_realm);
-  tpq_req->realm = tr_new_name(realm);
-  tpq_req->coi = tr_new_name(coi);
+  tid_req->rp_realm = tr_new_name(rp_realm);
+  tid_req->realm = tr_new_name(realm);
+  tid_req->coi = tr_new_name(coi);
 
-  tpq_req->tpqc_dh = tpqc->priv_dh;
+  tid_req->tidc_dh = tidc->priv_dh;
   
-  tpq_req->resp_func = resp_handler;
-  tpq_req->cookie = cookie;
+  tid_req->resp_func = resp_handler;
+  tid_req->cookie = cookie;
 
   /* Encode the request into a json string */
   if (!(req_buf = tr_msg_encode(msg))) {
-    printf("Error encoding TPQ request.\n");
+    printf("Error encoding TID request.\n");
     return -1;
   }
 
-  printf ("Sending TPQ request:\n");
+  printf ("Sending TID request:\n");
   printf ("%s\n", req_buf);
 
   /* Send the request over the connection */
@@ -166,12 +166,12 @@ int tpqc_send_request (TPQC_INSTANCE *tpqc,
   /* Parse response -- TBD */
 
   /* Call the caller's response function */
-  (*resp_handler)(tpqc, NULL, cookie);
+  (*resp_handler)(tidc, NULL, cookie);
 
   if (msg)
     free(msg);
-  if (tpq_req)
-    free(tpq_req);
+  if (tid_req)
+    free(tid_req);
   if (req_buf)
     free(req_buf);
   if (resp_buf)

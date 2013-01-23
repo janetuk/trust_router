@@ -35,26 +35,21 @@
 #ifndef TR_MSG_H
 #define TR_MSG_H
 
-#include <tpq.h>
-#include <tidr.h>
+#include <tid.h>
 #include <jansson.h>
 
 enum msg_type {
   TR_UNKNOWN,
-  TPQ_REQUEST,
-  TPQ_RESPONSE,
-  TIDR_REQUEST,
-  TIDR_RESPONSE
+  TID_REQUEST,
+  TID_RESPONSE
 };
 
 /* Union of TR message types to hold message of any type. */
 typedef struct tr_msg {
   enum msg_type msg_type;
   union {
-    TPQ_REQ *tpq_req;
-    TPQ_RESP *tpq_resp;
-    TIDR_REQ *tidr_req;
-    TIDR_RESP *tidr_resp;
+    TID_REQ *tid_req;
+    TID_RESP *tid_resp;
   };
 } TR_MSG;
 

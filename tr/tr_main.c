@@ -36,18 +36,18 @@
 
 #include <tr.h>
 
-int tpqs_req_handler (TPQS_INSTANCE * tpqs,
-		      TPQ_REQ *req, 
-		      TPQ_RESP *resp,
+int tids_req_handler (TIDS_INSTANCE * tids,
+		      TID_REQ *req, 
+		      TID_RESP *resp,
 		      void *cookie)
 {
   printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
-  if (tpqs)
-    tpqs->req_count++;
+  if (tids)
+    tids->req_count++;
 
   if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
       (NULL == (resp->coi = tr_dup_name(req->coi)))) {
-    printf ("Error in tpq_dup_name, not responding.\n");
+    printf ("Error in tid_dup_name, not responding.\n");
     return 1;
   }
 
@@ -56,7 +56,7 @@ int tpqs_req_handler (TPQS_INSTANCE * tpqs,
 
 int main (int argc, const char *argv[])
 {
-  TPQS_INSTANCE *tpqs = 0;
+  TIDS_INSTANCE *tids = 0;
   int err;
   FILE *cfg_file = 0;
 
@@ -72,17 +72,17 @@ int main (int argc, const char *argv[])
   }
 
   /* initialize the trust path query server instance */
-  if (0 == (tpqs = tpqs_create ())) {
+  if (0 == (tids = tids_create ())) {
     printf ("Error initializing Trust Path Query Server instance.\n", err);
     return 1;
   }
 
   /* start the trust path query server, won't return unless there is an error. */
-  if (0 != (err = tpqs_start(tpqs, &tpqs_req_handler, NULL))) {
+  if (0 != (err = tids_start(tids, &tids_req_handler, NULL))) {
     printf ("Error starting Trust Path Query Server, err = %d.\n", err);
     return err;
   }
 
-  tpqs_destroy(tpqs);
+  tids_destroy(tids);
   return 0;
 }
