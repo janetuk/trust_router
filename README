@@ -8,11 +8,11 @@ TO-DO FOR BETA
 DONE - Eliminate bulk of info/debug messages
 DONE - Java encode/decode of full requests/responses
 DONE - Generate a real random number for DH code (in common/tr_dh.c)
-IN PROGRESS - DH server-side code (in TIDRS)
-IN PROGRESS - TPQC and TIDRS integration with freeradius
-- Read TR router configuration from a file at start-up (non-dynamic)
+DONE - DH server-side code (in TIDS)
+IN PROGRESS - Read TR router config from file at start-up (non-dynamic)
 - Tree/look-up code to find correct AAA Server for a COI/Realm in TR
 - Code for client to handle multiple oustanding requests
+IN PROGRESS - TIDC and TIDS integration with freeradius
 
 TO-DO FOR PILOT
 ===============
@@ -24,3 +24,4 @@ TO-DO FOR PILOT
 TO-DO FOR PRODUCTION
 ====================
 - Multiple Trust Router support including TR protocol
+- Consider standard encoding of DH info (from ?? WG)
