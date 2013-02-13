@@ -25,3 +25,4 @@ TO-DO FOR PRODUCTION
 ====================
 - Multiple Trust Router support including TR protocol
 - Consider standard encoding of DH info (from ?? WG)
+- Update json parsers to use "format strings" for better error handling
