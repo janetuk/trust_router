@@ -1,4 +1,5 @@
 AM_CPPFLAGS=-I$(top_srcdir)/include
+AM_CFLAGS = -fvisibility=hidden
 
 noinst_LTLIBRARIES = libgsscon.la
 noinst_PROGRAMS=test/gsscon_client test/gsscon_server

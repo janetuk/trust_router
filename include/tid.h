@@ -40,6 +40,7 @@
 
 #include <gsscon.h>
 #include <tr_name.h>
+#include <tr_versioning.h>
 
 #define TID_PORT	12309
 
@@ -89,13 +90,13 @@ typedef struct tids_instance {
 typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_RESP *, void *);
 typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
-TIDC_INSTANCE *tidc_create (void);
-int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, gss_ctx_id_t *gssctx);
-int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
-void tidc_destroy (TIDC_INSTANCE *tidc);
+TR_EXPORT TIDC_INSTANCE *tidc_create (void);
+TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, gss_ctx_id_t *gssctx);
+TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
+TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
-TIDS_INSTANCE *tids_create ();
-int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler, void *cookie);
-void tids_destroy (TIDS_INSTANCE *tids);
+TR_EXPORT TIDS_INSTANCE *tids_create ();
+TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler, void *cookie);
+TR_EXPORT void tids_destroy (TIDS_INSTANCE *tids);
 
 #endif
