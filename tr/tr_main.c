@@ -36,7 +36,7 @@
 
 #include <tr.h>
 
-int tids_req_handler (TIDS_INSTANCE * tids,
+int static tids_req_handler (TIDS_INSTANCE * tids,
 		      TID_REQ *req, 
 		      TID_RESP *resp,
 		      void *cookie)

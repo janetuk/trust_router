@@ -40,12 +40,12 @@
 
 static int tidc_response_received = 0;
 
-void tidc_print_usage (const char *name)
+void static tidc_print_usage (const char *name)
 {
   printf("Usage: %s <server> <RP-realm> <target-realm> <community>\n", name);
 }
 
-void tidc_resp_handler (TIDC_INSTANCE * tidc, 
+static void tidc_resp_handler (TIDC_INSTANCE * tidc, 
 			TID_RESP *resp, 
 			void *cookie) 
 {

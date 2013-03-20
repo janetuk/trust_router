@@ -1,5 +1,6 @@
 bin_PROGRAMS= tr/tr tid/example/tidc tid/example/tids common/dh_test/tr_dh_test
 AM_CPPFLAGS=-I$(srcdir)/include
+AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror=strict-prototypes -Wno-parentheses
 SUBDIRS = gsscon 
 common_srcs = common/tr_name.c \
 common/tr_msg.c \

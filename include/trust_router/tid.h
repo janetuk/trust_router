@@ -96,7 +96,7 @@ TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, gss_ctx_i
 TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
-TR_EXPORT TIDS_INSTANCE *tids_create ();
+TR_EXPORT TIDS_INSTANCE *tids_create (void);
 TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler, void *cookie);
 TR_EXPORT void tids_destroy (TIDS_INSTANCE *tids);
 

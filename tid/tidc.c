@@ -162,7 +162,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
     return -1;
   }
 
-  fprintf(stdout, "Response Received, %d bytes.\n", resp_buflen);
+  fprintf(stdout, "Response Received, %u bytes.\n", (unsigned) resp_buflen);
 
   /* Parse response -- TBD */
 
