@@ -37,6 +37,7 @@
 #include <jansson.h>
 
 #include <tr_msg.h>
+#include <tr_name.h>
 #include <tid.h>
 
 static json_t *tr_msg_encode_dh(DH *dh)
@@ -90,9 +91,9 @@ static DH *tr_msg_decode_dh(json_t *jdh)
     return NULL;
   }
 
-  dh->p = json_string_value(jp);
-  dh->g = json_string_value(jg);
-  dh->pub_key = json_string_value(jpub_key);
+  BN_hex2bn(&(dh->p), json_string_value(jp));
+  BN_hex2bn(&(dh->g), json_string_value(jg));
+  BN_hex2bn(&(dh->pub_key), json_string_value(jpub_key));
 
   return dh;
 }
@@ -154,19 +155,15 @@ TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
     return NULL;
   }
 
-  treq->rp_realm->buf = json_string_value(jrp_realm);
-  treq->rp_realm->len = strlen(treq->rp_realm->buf);
-  treq->realm->buf = json_string_value(jrealm);
-  treq->realm->len = strlen(treq->realm->buf);
-  treq->comm->buf = json_string_value(jcomm);
-  treq->comm->len = strlen(treq->comm->buf);
+  treq->rp_realm = tr_new_name((char *)json_string_value(jrp_realm));
+  treq->realm = tr_new_name((char *)json_string_value(jrealm));
+  treq->comm = tr_new_name((char *)json_string_value(jcomm));
   treq->tidc_dh = tr_msg_decode_dh(jdh);
 
   /* store optional "orig_coi" field */
   if ((NULL != (jorig_coi = json_object_get(jreq, "orig_coi"))) &&
       (!json_is_object(jorig_coi))) {
-    treq->orig_coi->buf = json_string_value(jorig_coi);
-    treq->orig_coi->len = strlen(treq->orig_coi->buf);
+    treq->orig_coi = tr_new_name((char *)json_string_value(jorig_coi));
   }
 
   return treq;
@@ -240,20 +237,15 @@ TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
     return NULL;
   }
 
-  tresp->result->buf = json_string_value(jresult);
-  tresp->result->len = strlen(tresp->result->buf);
-  tresp->rp_realm->buf = json_string_value(jrp_realm);
-  tresp->rp_realm->len = strlen(tresp->rp_realm->buf);
-  tresp->realm->buf = json_string_value(jrealm);
-  tresp->realm->len = strlen(tresp->realm->buf);
-  tresp->comm->buf = json_string_value(jcomm);
-  tresp->comm->len = strlen(tresp->comm->buf);
+  tresp->result = tr_new_name((char *)json_string_value(jresult));
+  tresp->rp_realm = tr_new_name((char *)json_string_value(jrp_realm));
+  tresp->realm = tr_new_name((char *)json_string_value(jrealm));
+  tresp->comm = tr_new_name((char *)json_string_value(jcomm));
 
   /* store optional "orig_coi" field */
   if ((NULL != (jorig_coi = json_object_get(jresp, "orig_coi"))) &&
       (!json_is_object(jorig_coi))) {
-    tresp->orig_coi->buf = json_string_value(jorig_coi);
-    tresp->orig_coi->len = strlen(tresp->orig_coi->buf);
+    tresp->orig_coi = tr_new_name((char *)json_string_value(jorig_coi));
   }
 
   //  Decode server info
