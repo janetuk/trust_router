@@ -1,4 +1,4 @@
-bin_PROGRAMS= tr/tr tid/example/tidc tid/example/tids common/dh_test/dh_test
+bin_PROGRAMS= tr/tr tid/example/tidc tid/example/tids common/dh_test/tr_dh_test
 AM_CPPFLAGS=-I$(srcdir)/include
 SUBDIRS = gsscon 
 common_srcs = common/tr_name.c \
@@ -20,7 +20,7 @@ tid_example_tids_SOURCES = tid/example/tids_main.c
 
 tid_example_tids_LDADD = gsscon/libgsscon.la libtr_tid.la
 
-common_dh_test_dh_test_SOURCES = common/tr_dh.c \
+common_dh_test_tr_dh_test_SOURCES = common/tr_dh.c \
 common/dh_test/dh_test.c
 
 libtr_tid_la_SOURCES = tid/tids.c tid/tidc.c \
