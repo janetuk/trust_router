@@ -100,7 +100,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
 		       gss_ctx_id_t gssctx,
 		       char *rp_realm,
 		       char *realm, 
-		       char *coi,
+		       char *comm,
 		       TIDC_RESP_FUNC *resp_handler,
 		       void *cookie)
 
@@ -129,7 +129,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   /* TBD -- error handling */
   tid_req->rp_realm = tr_new_name(rp_realm);
   tid_req->realm = tr_new_name(realm);
-  tid_req->coi = tr_new_name(coi);
+  tid_req->comm = tr_new_name(comm);
 
   tid_req->tidc_dh = tidc->priv_dh;
   

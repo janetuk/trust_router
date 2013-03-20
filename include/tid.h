@@ -48,18 +48,28 @@ typedef struct tid_req {
   int conn;
   TR_NAME *rp_realm;
   TR_NAME *realm;
-  TR_NAME *coi;
-  DH *tidc_dh;		/* Client's public dh information */
+  TR_NAME *comm;
+  TR_NAME *orig_coi;
+  DH *tidc_dh;			/* Client's public dh information */
   void *resp_func;
   void *cookie;
 } TID_REQ;
 
-typedef struct tid_resp {
-  TR_NAME *realm;
-  TR_NAME *coi;
+typedef struct tid_srvr_blk {
+  struct tid_srvr_blk *next;
   in_addr_t aaa_server_addr;
   DH *aaa_server_dh;		/* AAA server's public dh information */
-  /* Trust Path Used */
+} TID_SRVR_BLK;
+  
+
+typedef struct tid_resp {
+  TR_NAME *result;
+  TR_NAME *rp_realm;
+  TR_NAME *realm;
+  TR_NAME *comm;
+  TR_NAME *orig_coi;
+  TID_SRVR_BLK *servers;       	/* Linked list of servers */
+  /* TBD -- Trust Path Used */
 } TID_RESP;
 
 typedef struct tidc_instance {

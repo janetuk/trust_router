@@ -39,7 +39,7 @@
 #include <jansson.h>
 
 enum msg_type {
-  TR_UNKNOWN,
+  TR_UNKNOWN = 0,
   TID_REQUEST,
   TID_RESPONSE
 };
@@ -54,7 +54,7 @@ typedef struct tr_msg {
 } TR_MSG;
 
 char *tr_msg_encode(TR_MSG *msg);
-TR_MSG *tr_msg_decode(char *jmsg);
+TR_MSG *tr_msg_decode(char *jmsg, size_t len);
 void tr_msg_free_encoded(char *jmsg);
 void tr_msg_free_decoded(TR_MSG *msg);
 

@@ -41,12 +41,12 @@ int tids_req_handler (TIDS_INSTANCE * tids,
 		      TID_RESP *resp,
 		      void *cookie)
 {
-  printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
+  printf("Request received! Realm = %s, Comm = %s\n", req->realm->buf, req->comm->buf);
   if (tids)
     tids->req_count++;
 
   if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
-      (NULL == (resp->coi = tr_dup_name(req->coi)))) {
+      (NULL == (resp->comm = tr_dup_name(req->comm)))) {
     printf ("Error in tid_dup_name, not responding.\n");
     return 1;
   }

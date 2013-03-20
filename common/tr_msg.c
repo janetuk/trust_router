@@ -64,6 +64,35 @@ static json_t *tr_msg_encode_dh(DH *dh)
 static DH *tr_msg_decode_dh(json_t *jdh)
 {
   DH *dh = NULL;
+  json_error_t rc;
+  json_t *jp = NULL;
+  json_t *jg = NULL;
+  json_t *jpub_key = NULL;
+  int msize;
+
+  if (!(dh = malloc(sizeof(DH)))) {
+    fprintf (stderr, "tr_msg_decode_dh(): Error allocating DH structure.\n");
+    return NULL;
+  }
+ 
+  memset(dh, 0, sizeof(DH));
+
+  /* store required fields from dh object */
+  if (((msize = json_object_size(jdh)) < 3) ||
+      (NULL == (jp = json_object_get(jdh, "dh_p"))) ||
+      (!json_is_string(jp)) ||
+      (NULL == (jg = json_object_get(jdh, "dh_g"))) ||
+      (!json_is_string(jg)) ||
+      (NULL == (jpub_key = json_object_get(jdh, "dh_pub_key"))) ||
+      (!json_is_string(jdh))) {
+    fprintf (stderr, "tr_msg_decode(): Error parsing message.\n");
+    free(dh);
+    return NULL;
+  }
+
+  dh->p = json_string_value(jp);
+  dh->g = json_string_value(jg);
+  dh->pub_key = json_string_value(jpub_key);
 
   return dh;
 }
@@ -73,7 +102,7 @@ json_t *tr_msg_encode_tidreq(TID_REQ *req)
   json_t *jreq = NULL;
   json_t *jstr = NULL;
 
-  if ((!req) || (!req->rp_realm) || (!req->realm) || !(req->coi))
+  if ((!req) || (!req->rp_realm) || (!req->realm) || !(req->comm))
     return NULL;
 
   jreq = json_object();
@@ -84,7 +113,7 @@ json_t *tr_msg_encode_tidreq(TID_REQ *req)
   jstr = json_string(req->realm->buf);
   json_object_set_new(jreq, "target_realm", jstr);
 
-  jstr = json_string(req->coi->buf);
+  jstr = json_string(req->comm->buf);
   json_object_set_new(jreq, "community", jstr);
 
   json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tidc_dh));
@@ -94,24 +123,143 @@ json_t *tr_msg_encode_tidreq(TID_REQ *req)
 
 TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
 {
-  TID_REQ *req = NULL;
+  TID_REQ *treq = NULL;
+  json_error_t rc;
+  json_t *jrp_realm = NULL;
+  json_t *jrealm = NULL;
+  json_t *jcomm = NULL;
+  json_t *jorig_coi = NULL;
+  json_t *jdh = NULL;
+  int msize;
 
-  return req;
+  if (!(treq = malloc(sizeof(TID_REQ)))) {
+    fprintf (stderr, "tr_msg_decode_tidreq(): Error allocating TID_REQ structure.\n");
+    return NULL;
+  }
+ 
+  memset(treq, 0, sizeof(TID_REQ));
+
+  /* store required fields from request */
+  if (((msize = json_object_size(jreq)) < 4) ||
+      (NULL == (jrp_realm = json_object_get(jreq, "rp_realm"))) ||
+      (!json_is_string(jrp_realm)) ||
+      (NULL == (jrealm = json_object_get(jreq, "realm"))) ||
+      (!json_is_string(jrealm)) ||
+      (NULL == (jcomm = json_object_get(jreq, "comm"))) ||
+      (!json_is_string(jcomm)) ||
+      (NULL == (jdh = json_object_get(jreq, "dh_info"))) ||
+      (!json_is_object(jdh))) {
+    fprintf (stderr, "tr_msg_decode(): Error parsing message.\n");
+    free(treq);
+    return NULL;
+  }
+
+  treq->rp_realm->buf = json_string_value(jrp_realm);
+  treq->rp_realm->len = strlen(treq->rp_realm->buf);
+  treq->realm->buf = json_string_value(jrealm);
+  treq->realm->len = strlen(treq->realm->buf);
+  treq->comm->buf = json_string_value(jcomm);
+  treq->comm->len = strlen(treq->comm->buf);
+  treq->tidc_dh = tr_msg_decode_dh(jdh);
+
+  /* store optional "orig_coi" field */
+  if ((NULL != (jorig_coi = json_object_get(jreq, "orig_coi"))) &&
+      (!json_is_object(jorig_coi))) {
+    treq->orig_coi->buf = json_string_value(jorig_coi);
+    treq->orig_coi->len = strlen(treq->orig_coi->buf);
+  }
+
+  return treq;
 }
 
 json_t *tr_msg_encode_tidresp(TID_RESP *resp)
 {
   json_t *jresp = NULL;
+  json_t *jstr = NULL;
 
+  if ((!resp) || (!resp->result) || (!resp->rp_realm) || (!resp->realm) || !(resp->comm))
+    return NULL;
+
+  jresp = json_object();
+
+  jstr = json_string(resp->result->buf);
+  json_object_set_new(jresp, "result", jstr);
+
+  jstr = json_string(resp->rp_realm->buf);
+  json_object_set_new(jresp, "rp_realm", jstr);
+
+  jstr = json_string(resp->realm->buf);
+  json_object_set_new(jresp, "target_realm", jstr);
+
+  jstr = json_string(resp->comm->buf);
+  json_object_set_new(jresp, "comm", jstr);
+
+  if (resp->orig_coi) {
+    jstr = json_string(resp->orig_coi->buf);
+    json_object_set_new(jresp, "orig_coi", jstr);
+  }
+
+  // TBD -- Encode server info.
+  
   return jresp;
 }
 
-
 TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
 {
-  TID_RESP *resp = NULL;
+  TID_RESP *tresp = NULL;
+  json_error_t rc;
+  json_t *jresult = NULL;
+  json_t *jrp_realm = NULL;
+  json_t *jrealm = NULL;
+  json_t *jcomm = NULL;
+  json_t *jorig_coi = NULL;
+  json_t *jservers = NULL;
+  int msize;
 
-  return resp;
+  if (!(tresp = malloc(sizeof(TID_RESP)))) {
+    fprintf (stderr, "tr_msg_decode_tidresp(): Error allocating TID_RESP structure.\n");
+    return NULL;
+  }
+ 
+  memset(tresp, 0, sizeof(TID_RESP));
+
+  /* store required fields from request */
+  if (((msize = json_object_size(jresp)) < 5) ||
+      (NULL == (jresult = json_object_get(jresp, "result"))) ||
+      (!json_is_string(jresult)) ||
+      (NULL == (jrp_realm = json_object_get(jresp, "rp_realm"))) ||
+      (!json_is_string(jrp_realm)) ||
+      (NULL == (jrealm = json_object_get(jresp, "realm"))) ||
+      (!json_is_string(jrealm)) ||
+      (NULL == (jcomm = json_object_get(jresp, "comm"))) ||
+      (!json_is_string(jcomm)) ||
+      (NULL == (jservers = json_object_get(jresp, "servers"))) ||
+      (!json_is_object(jservers))) {
+    fprintf (stderr, "tr_msg_decode(): Error parsing message.\n");
+    free(tresp);
+    return NULL;
+  }
+
+  tresp->result->buf = json_string_value(jresult);
+  tresp->result->len = strlen(tresp->result->buf);
+  tresp->rp_realm->buf = json_string_value(jrp_realm);
+  tresp->rp_realm->len = strlen(tresp->rp_realm->buf);
+  tresp->realm->buf = json_string_value(jrealm);
+  tresp->realm->len = strlen(tresp->realm->buf);
+  tresp->comm->buf = json_string_value(jcomm);
+  tresp->comm->len = strlen(tresp->comm->buf);
+
+  /* store optional "orig_coi" field */
+  if ((NULL != (jorig_coi = json_object_get(jresp, "orig_coi"))) &&
+      (!json_is_object(jorig_coi))) {
+    tresp->orig_coi->buf = json_string_value(jorig_coi);
+    tresp->orig_coi->len = strlen(tresp->orig_coi->buf);
+  }
+
+  //  Decode server info
+  //  tresp->servers = tr_msg_decode_servers(jservers); 
+  
+  return tresp;
 }
 
 char *tr_msg_encode(TR_MSG *msg) 
@@ -146,15 +294,54 @@ char *tr_msg_encode(TR_MSG *msg)
   return(json_dumps(jmsg, 0));
 }
 
-TR_MSG *tr_msg_decode(char *jmsg)
+TR_MSG *tr_msg_decode(char *jbuf, size_t buflen)
 {
   TR_MSG *msg;
+  json_t *jmsg = NULL;
+  json_error_t rc;
+  size_t msize;
+  json_t *jtype;
+  json_t *jbody;
+  const char *mtype = NULL;
 
-  if (!(msg = malloc(sizeof(TR_MSG *)))) {
-    fprintf (stderr, "tr_msg_decode(): Error allocating TR_MSG structure.\n");
+  if (NULL == (jmsg = json_loadb(jbuf, buflen, 0, &rc))) {
+    fprintf (stderr, "tr_msg_decode(): error loading object, rc = %d.\n", rc);
     return NULL;
   }
 
+  if (!(msg = malloc(sizeof(TR_MSG)))) {
+    fprintf (stderr, "tr_msg_decode(): Error allocating TR_MSG structure.\n");
+    json_decref(jmsg);
+    return NULL;
+  }
+ 
+  memset(msg, 0, sizeof(TR_MSG));
+
+  if ((2 != (msize = json_object_size(jmsg))) ||
+      (NULL == (jtype = json_object_get(jmsg, "msg_type"))) ||
+      (!json_is_string(jtype)) ||
+      (NULL == (jbody = json_object_get(jmsg, "msg_body"))) ||
+      (!json_is_object(jbody))) {
+    fprintf (stderr, "tr_msg_decode(): Error parsing message.\n");
+    json_decref(jmsg);
+    tr_msg_free_decoded(msg);
+    return NULL;
+  }
+
+  mtype = json_string_value(jtype);
+
+  if (0 == strcmp(mtype, "TIDRequest")) {
+    msg->msg_type = TID_REQUEST;
+    msg->tid_req = tr_msg_decode_tidreq(jbody);
+  }
+  else if (0 == strcmp(mtype, "TIDResponse")) {
+    msg->msg_type = TID_RESPONSE;
+    msg->tid_resp = tr_msg_decode_tidresp(jbody);
+  }
+  else {
+    msg->msg_type = TR_UNKNOWN;
+    msg->tid_req = NULL;
+  }
   return msg;
 }
 
