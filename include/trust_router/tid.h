@@ -38,11 +38,12 @@
 #include <arpa/inet.h>
 #include <openssl/dh.h>
 
-#include <gsscon.h>
 #include <trust_router/tr_name.h>
 #include <trust_router/tr_versioning.h>
 
 #define TID_PORT	12309
+
+typedef struct gss_ctx_id_struct *gss_ctx_id_t;
 
 typedef struct tid_req {
   struct tid_req *next_req;
