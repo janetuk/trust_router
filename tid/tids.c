@@ -41,7 +41,8 @@
 #include <jansson.h>
 
 #include <gsscon.h>
-#include <tid.h>
+#include <trust_router/tid.h>
+
 
 static int tids_listen (int port) 
 {

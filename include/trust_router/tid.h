@@ -39,8 +39,8 @@
 #include <openssl/dh.h>
 
 #include <gsscon.h>
-#include <tr_name.h>
-#include <tr_versioning.h>
+#include <trust_router/tr_name.h>
+#include <trust_router/tr_versioning.h>
 
 #define TID_PORT	12309
 

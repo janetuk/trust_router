@@ -37,8 +37,8 @@
 #include <jansson.h>
 
 #include <tr_msg.h>
-#include <tr_name.h>
-#include <tid.h>
+#include <trust_router/tr_name.h>
+#include <trust_router/tid.h>
 
 static json_t *tr_msg_encode_dh(DH *dh)
 {

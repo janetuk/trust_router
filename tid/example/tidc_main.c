@@ -36,7 +36,7 @@
 #include <stdio.h>
 
 #include <gsscon.h>
-#include <tid.h>
+#include <trust_router/tid.h>
 
 static int tidc_response_received = 0;
 

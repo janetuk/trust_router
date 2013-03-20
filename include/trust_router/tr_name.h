@@ -34,13 +34,14 @@
 
 #ifndef TR_NAME_H
 #define TR_NAME_H
+#include <trust_router/tr_versioning.h>
 
 typedef struct tr__name {
   char *buf;
   int len;
 } TR_NAME;
 
-TR_NAME *tr_new_name (char *name);
-TR_NAME *tr_dup_name (TR_NAME *from);
+TR_EXPORT TR_NAME *tr_new_name (char *name);
+TR_EXPORT TR_NAME *tr_dup_name (TR_NAME *from);
 
 #endif

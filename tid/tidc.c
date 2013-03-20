@@ -38,8 +38,9 @@
 
 #include <gsscon.h>
 #include <tr_dh.h>
-#include <tid.h>
+#include <trust_router/tid.h>
 #include <tr_msg.h>
+#include <gsscon.h>
 
 /* char tmp_key[32] = 
   {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
