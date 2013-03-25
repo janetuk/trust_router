@@ -58,7 +58,7 @@ int main (int argc,
   DH *s_dh = NULL;
   char *c_keybuf = NULL;
   char *s_keybuf = NULL;
-  int dh_err = 0, c_keylen = 0, s_keylen = 0;
+  int dh_err = 0, c_keylen = 0, s_keylen = 0, i = 0;
 
   /* TBD -- Generate random private keys */
 
@@ -99,7 +99,7 @@ int main (int argc,
   }
   
   /* Compute key on server */
-  if (NULL == (s_keybuf = malloc(DH_size(c_dh)))) {
+  if (NULL == (s_keybuf = malloc(DH_size(s_dh)))) {
     printf ("Error: Can't allocate server keybuf, exiting.\n");
     exit(1);
   }
@@ -107,9 +107,24 @@ int main (int argc,
 				      DH_size(s_dh), 
 				      c_dh->pub_key, 
 				      s_dh))) {
-    
+    printf("Error: Can't compute server key.\n");
+    exit(1);
   }
   
+  /* Print out the client key. */
+  printf("Client Key Generated (len = %d):\n", c_keylen);
+  for (i = 0; i < c_keylen; i++) {
+    printf("%x", c_keybuf[i]);
+  }
+  printf("\n");
+
+  /* Print out the server key. */
+  printf("Server Key Generated (len = %d):\n", s_keylen);
+  for (i = 0; i < s_keylen; i++) {
+    printf("%x", s_keybuf[i]);
+  }
+  printf("\n");
+
   /* Compare the two keys to see if they match */
   if ((c_keylen != s_keylen) ||
       (0 != memcmp(c_keybuf, s_keybuf, c_keylen))) {
