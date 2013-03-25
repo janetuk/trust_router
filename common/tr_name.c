@@ -35,7 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <tr_name.h>
+#include <trust_router/tr_name.h>
 
 TR_NAME *tr_new_name (char *name) 
 {

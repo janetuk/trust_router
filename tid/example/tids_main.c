@@ -34,9 +34,9 @@
 
 #include <stdio.h>
 
-#include <tid.h>
+#include <trust_router/tid.h>
 
-int tids_req_handler (TIDS_INSTANCE * tids,
+static int tids_req_handler (TIDS_INSTANCE * tids,
 		      TID_REQ *req, 
 		      TID_RESP *resp,
 		      void *cookie)

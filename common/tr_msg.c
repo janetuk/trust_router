@@ -37,8 +37,8 @@
 #include <jansson.h>
 
 #include <tr_msg.h>
-#include <tr_name.h>
-#include <tid.h>
+#include <trust_router/tr_name.h>
+#include <trust_router/tid.h>
 
 static json_t *tr_msg_encode_dh(DH *dh)
 {
@@ -98,7 +98,7 @@ static DH *tr_msg_decode_dh(json_t *jdh)
   return dh;
 }
 
-json_t *tr_msg_encode_tidreq(TID_REQ *req)
+static json_t * tr_msg_encode_tidreq(TID_REQ *req)
 {
   json_t *jreq = NULL;
   json_t *jstr = NULL;
@@ -122,7 +122,7 @@ json_t *tr_msg_encode_tidreq(TID_REQ *req)
   return jreq;
 }
 
-TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
+static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
 {
   TID_REQ *treq = NULL;
   json_error_t rc;
@@ -169,7 +169,7 @@ TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
   return treq;
 }
 
-json_t *tr_msg_encode_tidresp(TID_RESP *resp)
+static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
 {
   json_t *jresp = NULL;
   json_t *jstr = NULL;
@@ -201,7 +201,7 @@ json_t *tr_msg_encode_tidresp(TID_RESP *resp)
   return jresp;
 }
 
-TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
+static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
 {
   TID_RESP *tresp = NULL;
   json_error_t rc;

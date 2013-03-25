@@ -32,30 +32,9 @@
  *
  */
 
-#ifndef TR_MSG_H
-#define TR_MSG_H
+#ifndef TR_VERSIONING_H
+#define TR_VERSIONING_H
 
-#include <trust_router/tid.h>
-#include <jansson.h>
+#define TR_EXPORT __attribute__((visibility("default")))
 
-enum msg_type {
-  TR_UNKNOWN = 0,
-  TID_REQUEST,
-  TID_RESPONSE
-};
-
-/* Union of TR message types to hold message of any type. */
-typedef struct tr_msg {
-  enum msg_type msg_type;
-  union {
-    TID_REQ *tid_req;
-    TID_RESP *tid_resp;
-  };
-} TR_MSG;
-
-char *tr_msg_encode(TR_MSG *msg);
-TR_MSG *tr_msg_decode(char *jmsg, size_t len);
-void tr_msg_free_encoded(char *jmsg);
-void tr_msg_free_decoded(TR_MSG *msg);
-
-#endif
+#endif /*TR_VERSIONING_h*/

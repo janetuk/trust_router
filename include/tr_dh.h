@@ -41,6 +41,6 @@
 DH *tr_create_dh_params(char *key, size_t len);
 DH *tr_create_matching_dh(char *key, size_t len, DH *in_dh);
 void tr_destroy_dh_params(DH *dh);
-int tr_compute_dh_key(char *buf, size_t buflen, BIGNUM *pub_key, DH *priv_dh);
+int tr_compute_dh_key(unsigned char *buf, size_t buflen, BIGNUM *pub_key, DH *priv_dh);
 
 #endif

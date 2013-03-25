@@ -41,7 +41,8 @@
 #include <jansson.h>
 
 #include <gsscon.h>
-#include <tid.h>
+#include <trust_router/tid.h>
+
 
 static int tids_listen (int port) 
 {
@@ -103,7 +104,7 @@ static int tids_read_request (int conn, gss_ctx_id_t *gssctx, TID_REQ *req)
     return -1;
   }
 
-  fprintf(stdout, "Request Received, %d bytes.\n", buflen);
+  fprintf(stdout, "Request Received, %u bytes.\n", (unsigned) buflen);
 
   /* Parse request -- TBD */
 
@@ -202,7 +203,7 @@ static void tids_handle_connection (int conn)
   return;
 }
 
-TIDS_INSTANCE *tids_create ()
+TIDS_INSTANCE *tids_create (void)
 {
   TIDS_INSTANCE *tids = 0;
   if (tids = malloc(sizeof(TIDS_INSTANCE)))
