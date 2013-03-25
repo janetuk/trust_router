@@ -70,7 +70,7 @@ unsigned char tr_2048_dhprime[2048/8] = {
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 };
 
-DH *tr_create_dh_params(char *priv_key, 
+DH *tr_create_dh_params(unsigned char *priv_key, 
 			size_t keylen) {
 
   DH *dh = NULL;
@@ -112,7 +112,7 @@ DH *tr_create_dh_params(char *priv_key,
   return(dh);
 }
 
-DH *tr_create_matching_dh (char *priv_key, 
+DH *tr_create_matching_dh (unsigned char *priv_key, 
 			   size_t keylen,
 			   DH *in_dh) {
   DH *dh = NULL;
@@ -121,13 +121,16 @@ DH *tr_create_matching_dh (char *priv_key,
   if (!in_dh)
     return NULL;
 
-  if (NULL == (dh = DH_new()))
+  if (NULL == (dh = DH_new())) {
+    fprintf(stderr, "Unable to allocate new DH structure.\n");
     return NULL;
+  }
 
   if ((NULL == (dh->g = BN_dup(in_dh->g))) ||
-      (NULL == (dh->p = BN_dup(in_dh->p))) ||
-      (NULL == (dh->q = BN_dup(in_dh->q)))) {
+      (NULL == (dh->p = BN_dup(in_dh->p)))) {
     DH_free(dh);
+    fprintf(stderr, "Invalid dh parameter values, can't be duped.\n");
+    return NULL;
   }
 
   /* TBD -- share code with previous function */
@@ -170,8 +173,10 @@ int tr_compute_dh_key(unsigned char *buf,
   if ((!buf) || 
       (!pub_key) || 
       (!priv_dh) ||
-      (buflen < DH_size(priv_dh)))
+      (buflen < DH_size(priv_dh))) {
+    fprintf(stderr, "tr_compute_dh_key(): Invalid parameters.\n");
     return(-1);
+  }
 
   rc = DH_compute_key(buf, pub_key, priv_dh);
   return rc;

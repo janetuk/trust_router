@@ -38,18 +38,12 @@
 
 int static tids_req_handler (TIDS_INSTANCE * tids,
 		      TID_REQ *req, 
-		      TID_RESP *resp,
+		      TID_RESP **resp,
 		      void *cookie)
 {
   printf("Request received! Realm = %s, Comm = %s\n", req->realm->buf, req->comm->buf);
   if (tids)
     tids->req_count++;
-
-  if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
-      (NULL == (resp->comm = tr_dup_name(req->comm)))) {
-    printf ("Error in tid_dup_name, not responding.\n");
-    return 1;
-  }
 
   return 0;
 }
@@ -73,7 +67,7 @@ int main (int argc, const char *argv[])
 
   /* initialize the trust path query server instance */
   if (0 == (tids = tids_create ())) {
-    printf ("Error initializing Trust Path Query Server instance.\n", err);
+    printf ("Error initializing Trust Path Query Server instance.\n");
     return 1;
   }
 

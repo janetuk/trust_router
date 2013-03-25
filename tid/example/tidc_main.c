@@ -46,13 +46,14 @@ void static tidc_print_usage (const char *name)
 }
 
 static void tidc_resp_handler (TIDC_INSTANCE * tidc, 
+			TID_REQ *req,
 			TID_RESP *resp, 
 			void *cookie) 
 {
-  //  printf ("Response received! Realm = %s, COI = %s.\n", resp->realm->buf, 
-  //	  resp->coi->buf);
-  printf ("Response received at handler!\n");
+  printf ("Response received! Realm = %s, Community = %s.\n", resp->realm->buf, resp->comm->buf);
   tidc_response_received = 1;
+
+  
   return;
 }
 
@@ -60,12 +61,10 @@ int main (int argc,
 	  const char *argv[]) 
 {
   TIDC_INSTANCE *tidc;
-  TID_REQ *treq;
   char *server = NULL;
   char *rp_realm = NULL;
   char *realm = NULL;
   char *coi = NULL;
-  void *cookie = NULL;
   int conn = 0;
   int rc;
   gss_ctx_id_t gssctx;

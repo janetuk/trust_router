@@ -41,10 +41,10 @@
 #include <jansson.h>
 
 #include <gsscon.h>
+#include <tr_msg.h>
 #include <trust_router/tid.h>
 
-
-static int tids_listen (int port) 
+static int tids_listen (TIDS_INSTANCE *tids, int port) 
 {
     int rc = 0;
     int conn = -1;
@@ -92,7 +92,7 @@ static int tids_auth_connection (int conn, gss_ctx_id_t *gssctx)
   return auth;
 }
 
-static int tids_read_request (int conn, gss_ctx_id_t *gssctx, TID_REQ *req)
+static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssctx, TR_MSG **mreq)
 {
   int err;
   char *buf;
@@ -104,72 +104,88 @@ static int tids_read_request (int conn, gss_ctx_id_t *gssctx, TID_REQ *req)
     return -1;
   }
 
-  fprintf(stdout, "Request Received, %u bytes.\n", (unsigned) buflen);
+  fprintf(stdout, "tids_read_request():Request Received, %d bytes.\n", buflen);
 
-  /* Parse request -- TBD */
+  /* Parse request */
+  if (NULL == ((*mreq) = tr_msg_decode(buf, buflen))) {
+    printf("tids_read_request():Error decoding request.\n");
+    free (buf);
+    return -1;
+  }
 
-  if (buf)
-    free(buf);
+  /* If this isn't a TID Request, just drop it. */
+  if (TID_REQUEST != (*mreq)->msg_type) {
+    printf("tids_read_request(): Not a TID Request, dropped.\n");
+    return -1;
+  }
 
+  free (buf);
   return buflen;
 }
 
-static int tids_handle_request (TID_REQ *req, TID_RESP *resp) 
+static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TR_MSG **mresp) 
 {
-  return 0;
+  int rc;
+  TID_RESP *resp;
+
+  /* Check that this is a valid TID Request.  If not, send an error return. */
+  if ((!mreq->tid_req) ||
+      (!mreq->tid_req->rp_realm) ||
+      (!mreq->tid_req->realm) ||
+      (!mreq->tid_req->comm)) {
+    printf("tids_handle_request():Not a valid TID Request.\n");
+    (*mresp)->tid_resp->result = TID_ERROR;
+    (*mresp)->tid_resp->err_msg = tr_new_name("Bad request format");
+    return -1;
+  }
+
+  /* Call the caller's request handler */
+  /* TBD -- Handle different error returns/msgs */
+  resp = (*mresp)->tid_resp;
+  if (0 > (rc = (*tids->req_handler)(tids, mreq->tid_req, &resp, tids->cookie))) {
+    /* set-up an error response */
+    (*mresp)->tid_resp->result = TID_ERROR;
+    if (!(*mresp)->tid_resp->err_msg)	/* Use msg set by handler, if any */
+      (*mresp)->tid_resp->err_msg = tr_new_name("Internal processing error");
+  }
+  else {
+    /* set-up a success response */
+    (*mresp)->tid_resp->result = TID_SUCCESS;
+    (*mresp)->tid_resp->err_msg = NULL;	/* No msg on successful return */
+  }
+    
+  return rc;
 }
 
-static int tids_send_response (int conn, gss_ctx_id_t *gssctx, TID_RESP *resp)
+static int tids_send_response (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssctx, TR_MSG *mresp)
 {
-  json_t *jreq;
   int err;
   char *resp_buf;
 
-  /* Create a json TID response */
-  if (NULL == (jreq = json_object())) {
-    fprintf(stderr,"Error creating json object.\n");
+  if (NULL == (resp_buf = tr_msg_encode(mresp))) {
+    fprintf(stderr, "Error decoding json response.\n");
     return -1;
   }
 
-  if (0 > (err = json_object_set_new(jreq, "type", json_string("tid_response")))) {
-    fprintf(stderr, "Error adding type to response.\n");
-    return -1;
-  }
-  if (0 > (err = json_object_set_new(jreq, "result", json_string("error")))) {
-    fprintf(stderr, "Error adding result to response.\n");
-    return -1;
-  }
-  if (0 > (err = json_object_set_new(jreq, "msg", json_string("No path to realm")))) {
-    fprintf(stderr, "Error adding msg to response.\n");
-    return -1;
-  }
-
-  /* Encode the json response */
-  if (NULL == (resp_buf = json_dumps(jreq, 0))) {
-    fprintf(stderr, "Error encoding json response.\n");
-    return -1;
-  }
-  
   printf("Encoded response:\n%s\n", resp_buf);
   
-  /* Send the request over the connection */
+  /* Send the response over the connection */
   if (err = gsscon_write_encrypted_token (conn, *gssctx, resp_buf, 
 					  strlen(resp_buf) + 1)) {
-    fprintf(stderr, "Error sending request over connection.\n");
+    fprintf(stderr, "Error sending response over connection.\n");
     return -1;
   }
 
   free(resp_buf);
 
   return 0;
-
 }
 
-static void tids_handle_connection (int conn)
+static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
 {
-  TID_REQ req;
-  TID_RESP resp;
-  int rc;
+  TR_MSG *mreq = NULL;
+  TR_MSG *mresp = NULL;
+  int rc = 0;
   gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
 
   if (!tids_auth_connection(conn, &gssctx)) {
@@ -182,19 +198,37 @@ static void tids_handle_connection (int conn)
 
   while (1) {	/* continue until an error breaks us out */
 
-    if (0 > (rc = tids_read_request(conn, &gssctx, &req))) {
+    if (0 > (rc = tids_read_request(tids, conn, &gssctx, &mreq))) {
       fprintf(stderr, "Error from tids_read_request(), rc = %d.\n", rc);
       return;
     } else if (0 == rc) {
       continue;
     }
 
-    if (0 > (rc = tids_handle_request(&req, &resp))) {
+    /* Allocate a response structure and populate common fields */
+    if ((NULL == (mresp = malloc(sizeof(TR_MSG)))) ||
+	(NULL == (mresp->tid_resp = malloc(sizeof(TID_RESP))))) {
+      fprintf(stderr, "Error allocating response structure.\n");
+      return;
+    }
+
+    mresp->msg_type = TID_RESPONSE;
+    memset(mresp->tid_resp, 0, sizeof(TID_RESP));
+
+    /* TBD -- handle errors */
+    mresp->tid_resp->result = TID_SUCCESS; /* presume success */
+    mresp->tid_resp->rp_realm = tr_dup_name(mreq->tid_req->rp_realm);
+    mresp->tid_resp->realm = tr_dup_name(mreq->tid_req->realm);
+    mresp->tid_resp->comm = tr_dup_name(mreq->tid_req->comm);
+    if (mreq->tid_req->orig_coi)
+      mresp->tid_resp->orig_coi = tr_dup_name(mreq->tid_req->orig_coi);
+
+    if (0 > (rc = tids_handle_request(tids, mreq, &mresp))) {
       fprintf(stderr, "Error from tids_handle_request(), rc = %d.\n", rc);
       return;
     }
 
-    if (0 > (rc = tids_send_response(conn, &gssctx, &resp))) {
+    if (0 > (rc = tids_send_response(tids, conn, &gssctx, mresp))) {
       fprintf(stderr, "Error from tids_send_response(), rc = %d.\n", rc);
       return;
     }
@@ -218,9 +252,16 @@ int tids_start (TIDS_INSTANCE *tids,
   int listen = -1;
   int conn = -1;
   pid_t pid;
+  int optval = 1;
 
-  if (0 > (listen = tids_listen(TID_PORT)))
+  if (0 > (listen = tids_listen(tids, TID_PORT)))
     perror ("Error from tids_listen()");
+
+  setsockopt(listen, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+
+  /* store the caller's request handler & cookie */
+  tids->req_handler = req_handler;
+  tids->cookie = cookie;
 
   while(1) {	/* accept incoming conns until we are stopped */
 
@@ -236,7 +277,7 @@ int tids_start (TIDS_INSTANCE *tids,
 
     if (pid == 0) {
       close(listen);
-      tids_handle_connection(conn);
+      tids_handle_connection(tids, conn);
       close(conn);
       exit(0);
     } else {

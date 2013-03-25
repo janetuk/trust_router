@@ -106,13 +106,16 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
 		       void *cookie)
 
 {
-  json_t *jreq;
-  int err;
-  char *req_buf;
-  char *resp_buf;
+  int err = 0;
+  char *req_buf = NULL;
+  char *resp_buf = NULL;
   size_t resp_buflen = 0;
-  TR_MSG *msg;
-  TID_REQ *tid_req;
+  TR_MSG *msg = NULL;
+  TID_REQ *tid_req = NULL;
+  TR_MSG *resp_msg = NULL;
+  int c_keylen = 0;
+  unsigned char *c_keybuf = NULL;
+  int i;
 
   /* Create and populate a TID msg structure */
   if ((!(msg = malloc(sizeof(TR_MSG)))) ||
@@ -162,12 +165,54 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
     return -1;
   }
 
-  fprintf(stdout, "Response Received, %u bytes.\n", (unsigned) resp_buflen);
+  fprintf(stdout, "Response Received (%d bytes).\n", resp_buflen);
+  fprintf(stdout, "%s\n", resp_buf);
 
-  /* Parse response -- TBD */
+  if (NULL == (resp_msg = tr_msg_decode(resp_buf, resp_buflen))) {
+    fprintf(stderr, "Error decoding response.\n");
+    return -1;
+  }
 
+  /* TBD -- Check if this is actually a valid response */
+  if (!resp_msg->tid_resp) {
+    fprintf(stderr, "Error: No response in the response!\n");
+    return -1;
+  }
+  
   /* Call the caller's response function */
-  (*resp_handler)(tidc, NULL, cookie);
+  (*tid_req->resp_func)(tidc, tid_req, resp_msg->tid_resp, cookie);
+
+
+  /* Generate the client key -- TBD, handle more than one server */
+  if (TID_SUCCESS != resp_msg->tid_resp->result) {
+    fprintf(stderr, "Response is an error.\n");
+    return -1;
+  }
+
+  if (!resp_msg->tid_resp->servers) {
+    fprintf(stderr, "Response does not contain server info.\n");
+    return -1;
+  }
+  
+  if (NULL == (c_keybuf = malloc(DH_size(tid_req->tidc_dh)))) {
+    fprintf (stderr, "Error: Can't allocate client keybuf, exiting.\n");
+    return -1;
+  }
+  if (0 > (c_keylen = tr_compute_dh_key(c_keybuf, 
+				      DH_size(tid_req->tidc_dh), 
+				      resp_msg->tid_resp->servers->aaa_server_dh->pub_key, 
+				      tid_req->tidc_dh))) {
+    
+    printf("Error computing client key.\n");
+    return -1;
+  }
+  
+  /* Print out the client key. */
+  printf("Client Key Generated (len = %d):\n", c_keylen);
+  for (i = 0; i < c_keylen; i++) {
+    printf("%x", c_keybuf[i]); 
+  }
+  printf("\n");
 
   if (msg)
     free(msg);
@@ -177,6 +222,8 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
     free(req_buf);
   if (resp_buf)
     free(resp_buf);
+
+  /* TBD -- free the decoded response */
 
   return 0;
 }

@@ -34,6 +34,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <tr_dh.h>
 
@@ -56,9 +57,9 @@ int main (int argc,
 {
   DH *c_dh = NULL;
   DH *s_dh = NULL;
-  char *c_keybuf = NULL;
-  char *s_keybuf = NULL;
-  int dh_err = 0, c_keylen = 0, s_keylen = 0, i = 0;
+  unsigned char *c_keybuf = NULL;
+  unsigned char *s_keybuf = NULL;
+  int c_keylen = 0, s_keylen = 0, i = 0;
 
   /* TBD -- Generate random private keys */
 
@@ -114,14 +115,14 @@ int main (int argc,
   /* Print out the client key. */
   printf("Client Key Generated (len = %d):\n", c_keylen);
   for (i = 0; i < c_keylen; i++) {
-    printf("%x", c_keybuf[i]);
+    printf("%2x", c_keybuf[i]);
   }
   printf("\n");
 
   /* Print out the server key. */
   printf("Server Key Generated (len = %d):\n", s_keylen);
   for (i = 0; i < s_keylen; i++) {
-    printf("%x", s_keybuf[i]);
+    printf("%2x", s_keybuf[i]);
   }
   printf("\n");
 

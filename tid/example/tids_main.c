@@ -33,27 +33,80 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
 #include <trust_router/tid.h>
+#include <tr_dh.h>
 
 static int tids_req_handler (TIDS_INSTANCE * tids,
 		      TID_REQ *req, 
-		      TID_RESP *resp,
+		      TID_RESP **resp,
 		      void *cookie)
 {
-  printf("Request received! Realm = %s, Comm = %s\n", req->realm->buf, req->comm->buf);
+  unsigned char *s_keybuf = NULL;
+  int s_keylen = 0;
+  int i = 0;
+
+  printf("Request received! target_realm = %s, community = %s\n", req->realm->buf, req->comm->buf);
   if (tids)
     tids->req_count++;
 
-  if ((NULL == (resp->realm = tr_dup_name(req->realm))) ||
-      (NULL == (resp->comm = tr_dup_name(req->comm)))) {
-    printf ("Error in tid_dup_name, not responding.\n");
-    return 1;
+  if (!(resp) || !(*resp)) {
+    printf("tids_req_handler: No response structure.\n");
+    return -1;
   }
 
-  return 0;
-}
+  /* Allocate a new server block */
+  if (NULL == ((*resp)->servers = malloc(sizeof(TID_SRVR_BLK)))){
+    printf("tids_req_handler(): malloc failed.\n");
+    return -1;
+  }
+  memset((*resp)->servers, 0, sizeof(TID_SRVR_BLK));
 
+  /* TBD -- Set up the server IP Address */
+
+  if (!(req) || !(req->tidc_dh)) {
+    printf("tids_req_handler(): No client DH info.\n");
+    return -1;
+  }
+
+  if ((!req->tidc_dh->p) || (!req->tidc_dh->g)) {
+    printf("tids_req_handler(): NULL dh values.\n");
+    return -1;
+  }
+
+  /* Generate the server DH block based on the client DH block */
+  printf("Generating the server DH block.\n");
+  printf("...from client DH block, dh_g = %s, dh_p = %s.\n", BN_bn2hex(req->tidc_dh->g), BN_bn2hex(req->tidc_dh->p));
+
+  if (NULL == ((*resp)->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
+    printf("tids_req_handler(): Can't create server DH params.\n");
+    return -1;
+  }
+
+  /* Generate the server key */
+  printf("Generating the server key.\n");
+  if (NULL == (s_keybuf = malloc(DH_size((*resp)->servers->aaa_server_dh)))) {
+    printf ("tids_req_handler(): Can't allocate server keybuf.\n");
+    return -1;
+  }
+
+  if (0 > (s_keylen = tr_compute_dh_key(s_keybuf, 
+					DH_size((*resp)->servers->aaa_server_dh), 
+					req->tidc_dh->pub_key, 
+				        (*resp)->servers->aaa_server_dh))) {
+    printf("tids_req_handler(): Key computation failed.");
+    return -1;
+  }
+
+  /* Print out the key.  If this were a AAA server, we'd store the key. */
+  printf("tids_req_handler(): Server Key Generated (len = %d):\n", s_keylen);
+  for (i = 0; i < s_keylen; i++) {
+    printf("%x", s_keybuf[i]); 
+  }
+  printf("\n");
+  return s_keylen;
+}
 
 int main (int argc, 
 	  const char *argv[]) 
@@ -74,7 +127,7 @@ int main (int argc,
   /* Start-up the server, won't return unless there is an error. */
   rc = tids_start(tids, &tids_req_handler , NULL);
   
-  printf("Error in tids_start(), rc = %d. Exiting.\n");
+  printf("Error in tids_start(), rc = %d. Exiting.\n", rc);
 
   /* Clean-up the TID server instance */
   tids_destroy(tids);

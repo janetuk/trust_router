@@ -45,27 +45,22 @@
 
 typedef struct gss_ctx_id_struct *gss_ctx_id_t;
 
-typedef struct tid_req {
-  struct tid_req *next_req;
-  int conn;
-  TR_NAME *rp_realm;
-  TR_NAME *realm;
-  TR_NAME *comm;
-  TR_NAME *orig_coi;
-  DH *tidc_dh;			/* Client's public dh information */
-  void *resp_func;
-  void *cookie;
-} TID_REQ;
+typedef struct tid_req TID_REQ;
+
+typedef enum tid_rc {
+  TID_SUCCESS = 0,
+  TID_ERROR
+} TID_RC;
 
 typedef struct tid_srvr_blk {
   struct tid_srvr_blk *next;
-  in_addr_t aaa_server_addr;
+  struct in_addr aaa_server_addr;
   DH *aaa_server_dh;		/* AAA server's public dh information */
 } TID_SRVR_BLK;
   
-
 typedef struct tid_resp {
-  TR_NAME *result;
+  TID_RC result;
+  TR_NAME *err_msg;
   TR_NAME *rp_realm;
   TR_NAME *realm;
   TR_NAME *comm;
@@ -74,22 +69,39 @@ typedef struct tid_resp {
   /* TBD -- Trust Path Used */
 } TID_RESP;
 
-typedef struct tidc_instance {
+typedef struct tidc_instance TIDC_INSTANCE;
+typedef struct tids_instance TIDS_INSTANCE;
+typedef struct tid_req TID_REQ;
+
+typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
+
+struct tid_req {
+  struct tid_req *next_req;
+  int conn;
+  TR_NAME *rp_realm;
+  TR_NAME *realm;
+  TR_NAME *comm;
+  TR_NAME *orig_coi;
+  DH *tidc_dh;			/* Client's public dh information */
+  TIDC_RESP_FUNC *resp_func;
+  void *cookie;
+};
+
+struct tidc_instance {
   TID_REQ *req_list;
   char *priv_key;
   int priv_len;
   DH *priv_dh;			/* Client's DH struct with priv and pub keys */
-} TIDC_INSTANCE;
+};
 
-typedef struct tids_instance {
+typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP **, void *);
+
+struct tids_instance {
   int req_count;
   char *priv_key;
-  void *req_handler;
+  TIDS_REQ_FUNC *req_handler;
   void *cookie;
-} TIDS_INSTANCE;
-
-typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_RESP *, void *);
-typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP *, void *);
+};
 
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);
 TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, gss_ctx_id_t *gssctx);
