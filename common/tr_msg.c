@@ -172,11 +172,13 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
 
   jsrvr = json_object();
 
-  /* Server IP Address -- TBD */
-  jstr = json_string("127.0.0.1");
+  /* Server IP Address -- TBD handle IPv6 */
+  jstr = json_string(inet_ntoa(srvr->aaa_server_addr));
   json_object_set_new(jsrvr, "server_addr", jstr);
 
   /* Server DH Block */
+  jstr = json_string(srvr->key_name->buf);
+  json_object_set_new(jsrvr, "key_name", jstr);
   json_object_set_new(jsrvr, "server_dh", tr_msg_encode_dh(srvr->aaa_server_dh));
   
   //  fprintf(stderr,"tr_msg_encode_one_server(): jsrvr contains:\n");
@@ -188,6 +190,7 @@ static TID_SRVR_BLK *tr_msg_decode_one_server(json_t *jsrvr)
 {
   TID_SRVR_BLK *srvr;
   json_t *jsrvr_addr = NULL;
+  json_t *jsrvr_kn = NULL;
   json_t *jsrvr_dh = NULL;
 
   if (jsrvr == NULL)
@@ -197,6 +200,7 @@ static TID_SRVR_BLK *tr_msg_decode_one_server(json_t *jsrvr)
     return NULL;
 
   if ((NULL == (jsrvr_addr = json_object_get(jsrvr, "server_addr"))) ||
+      (NULL == (jsrvr_kn = json_object_get(jsrvr, "key_name"))) ||
       (NULL == (jsrvr_dh = json_object_get(jsrvr, "server_dh")))) {
     fprintf (stderr, "tr_msg_decode_one_server(): Error parsing required fields.\n");
     free(srvr);
@@ -205,6 +209,7 @@ static TID_SRVR_BLK *tr_msg_decode_one_server(json_t *jsrvr)
   
   /* TBD -- handle IPv6 Addresses */
   inet_aton(json_string_value(jsrvr_addr), &(srvr->aaa_server_addr));
+  srvr->key_name = tr_new_name((char *)json_string_value(jsrvr_kn));
   srvr->aaa_server_dh = tr_msg_decode_dh(jsrvr_dh);
 
   return srvr;

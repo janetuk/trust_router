@@ -34,6 +34,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <stdio.h>
 #include <errno.h>
 #include <sys/socket.h>
@@ -189,7 +190,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
   gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
 
   if (!tids_auth_connection(conn, &gssctx)) {
-    fprintf(stderr, "Error authorizing TID Server connection, rc = %d.\n", rc);
+    fprintf(stderr, "Error authorizing TID Server connection.\n");
     close(conn);
     return;
   }
@@ -239,7 +240,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
 
 TIDS_INSTANCE *tids_create (void)
 {
-  TIDS_INSTANCE *tids = 0;
+  TIDS_INSTANCE *tids = NULL;
   if (tids = malloc(sizeof(TIDS_INSTANCE)))
     memset(tids, 0, sizeof(TIDS_INSTANCE));
   return tids;

@@ -55,6 +55,7 @@ typedef enum tid_rc {
 typedef struct tid_srvr_blk {
   struct tid_srvr_blk *next;
   struct in_addr aaa_server_addr;
+  TR_NAME *key_name;
   DH *aaa_server_dh;		/* AAA server's public dh information */
 } TID_SRVR_BLK;
   

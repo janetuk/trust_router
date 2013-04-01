@@ -84,6 +84,17 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
     return -1;
   }
 
+  /* Hard-code the IP Address in the response.  If this were a AAA server, we'd expect
+   * this to be set by the Trust Router before calling us. 
+   */
+  if (0 == inet_aton("127.0.0.1", &((*resp)->servers->aaa_server_addr))) {
+    printf("tids_req_handler(): inet_aton() failed.\n");
+    return -1;
+  }
+
+  /* Set the key name */
+  (*resp)->servers->key_name = tr_new_name("placeholder.key.name");
+
   /* Generate the server key */
   printf("Generating the server key.\n");
   if (NULL == (s_keybuf = malloc(DH_size((*resp)->servers->aaa_server_dh)))) {
@@ -120,7 +131,7 @@ int main (int argc,
 
   /* Create a TID server instance */
   if (NULL == (tids = tids_create())) {
-    printf("Error in tids_create().  Exiting.\n");
+    printf("Unable to create TIDS instance,exiting.\n");
     return 1;
   }
 
