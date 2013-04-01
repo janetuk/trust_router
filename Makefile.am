@@ -9,7 +9,8 @@ common/tr_dh.c
 lib_LTLIBRARIES = libtr_tid.la
 
 tr_tr_SOURCES = tr/tr_main.c \
-common/tr_config.c 
+common/tr_config.c \
+tr/tr.c
 
 tr_tr_LDADD = gsscon/libgsscon.la libtr_tid.la
 

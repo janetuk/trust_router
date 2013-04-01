@@ -33,10 +33,14 @@
  */
 
 #include <stdio.h>
+#include <jansson.h>
 
 #include <tr.h>
+#include <trust_router/tid.h>
+#include <tr_config.h>
 
-int static tids_req_handler (TIDS_INSTANCE * tids,
+
+static int tids_req_handler (TIDS_INSTANCE * tids,
 		      TID_REQ *req, 
 		      TID_RESP **resp,
 		      void *cookie)
@@ -50,19 +54,41 @@ int static tids_req_handler (TIDS_INSTANCE * tids,
 
 int main (int argc, const char *argv[])
 {
-  TIDS_INSTANCE *tids = 0;
-  int err;
-  FILE *cfg_file = 0;
+  TR_INSTANCE *tr = NULL;
+  TIDS_INSTANCE *tids = NULL;
+  struct dirent **cfg_files = NULL;
+  json_t *jcfg = NULL;
+  TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
+  int err = 0, n = 0;;
 
   /* parse command-line arguments -- TBD */
 
-  /* open the configuration file*/
-  cfg_file = fopen ("tr.cfg", "r");
-
-  /* read initial configuration */
-  if (0 != (err = tr_read_config (cfg_file))) {
-    printf ("Error reading configuration, err = %d.\n", err);
+  /* create a Trust Router instance */
+  if (NULL == (tr = tr_create())) {
+    fprintf(stderr, "Unable to create Trust Router instance, exiting.\n");
     return 1;
+  }
+
+  /* find the configuration files */
+  if (0 == (n = tr_find_config_files(&cfg_files))) {
+    fprintf (stderr, "Can't locate configuration files, exiting.\n");
+    exit(1);
+  }
+
+  /* read and parse initial configuration */
+  if (NULL == (jcfg = tr_read_config (n, cfg_files))) {
+    fprintf (stderr, "Error reading or parsing configuration files, exiting.\n");
+    exit(1);
+  }
+  if (TR_CFG_SUCCESS != tr_parse_config(tr, jcfg)) {
+    fprintf (stderr, "Error decoding configuration information, exiting.\n");
+    exit(1);
+  }
+
+  /* apply initial configuration */
+  if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(tr))) {
+    fprintf (stderr, "Error applying configuration, rc = %d.\n", rc);
+    exit(1);
   }
 
   /* initialize the trust path query server instance */
@@ -71,7 +97,7 @@ int main (int argc, const char *argv[])
     return 1;
   }
 
-  /* start the trust path query server, won't return unless there is an error. */
+  /* start the trust path query server, won't return unless error. */
   if (0 != (err = tids_start(tids, &tids_req_handler, NULL))) {
     printf ("Error starting Trust Path Query Server, err = %d.\n", err);
     return err;

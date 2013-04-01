@@ -35,11 +35,19 @@
 #ifndef TR_H
 #define TR_H
 
-#include <tr_msg.h>
-#include <trust_router/tr_name.h>
-#include <tr_config.h>
 #include <trust_router/tid.h>
+#include <trust_router/tr_name.h>
+#include <tr_msg.h>
 
 #define TRUST_ROUTER_PORT	12308
+
+typedef struct tr_instance {
+  struct tr_cfg *new_cfg;	/* unapplyed configuration */
+  struct tr_cfg *active_cfg;
+  TIDC_INSTANCE tidc;
+  TIDS_INSTANCE tids;
+} TR_INSTANCE;
+
+TR_INSTANCE *tr_create(void);
 
 #endif

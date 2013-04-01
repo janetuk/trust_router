@@ -36,7 +36,41 @@
 #define TR_CONFIG_H
 
 #include <stdio.h>
+#include <dirent.h>
+#include <jansson.h>
 
-int tr_read_config (FILE *cfg_file);
+#include <tr.h>
 
+typedef enum tr_cfg_rc {
+  TR_CFG_SUCCESS = 0,	/* No error */
+  TR_CFG_ERROR,		/* General processing error */
+  TR_CFG_BAD_PARAMS	/* Bad parameters passed to tr_config function */
+} TR_CFG_RC;
+
+
+typedef struct tr_cfg_file {
+  struct tr_cfg_file *next;
+  FILE *cfg_file;
+} TR_CFG_FILE;
+
+typedef struct tr_cfg_internal {
+  unsigned int tr_max_tree_depth;
+} TR_CFG_INTERNAL;
+
+typedef struct tr_cfg {
+  TR_CFG_INTERNAL *internal;	/* internal trust router config */
+  //  TR_COMM *comms;		/* locally-known communities */
+  //  TR_IDP_REALM *idp_realms;	/* locally associated IDP Realms */
+  //  TR_RP_CLIENT *rp_clients;	/* locally associated RP Clients */
+  /* TBD -- Global Filters */
+  /* TBD -- Trust Router Peers */
+  /* TBD -- Trust Links */
+} TR_CFG;
+
+int tr_find_config_files (struct dirent ***cfg_files);
+json_t *tr_read_config (int n, struct dirent **cfgfiles);
+TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, json_t *jcfg);
+TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
+void tr_cfg_free(TR_CFG *cfg);
+void tr_print_config(FILE *stream, TR_CFG *cfg);
 #endif
