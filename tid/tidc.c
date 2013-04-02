@@ -88,7 +88,7 @@ int tidc_open_connection (TIDC_INSTANCE *tidc,
   err = gsscon_connect(server, TID_PORT, &conn);
 
   if (!err)
-    err = gsscon_active_authenticate(conn, NULL, "trustquery", gssctx);
+    err = gsscon_active_authenticate(conn, NULL, "trustidentity", gssctx);
 
   if (!err)
     return conn;
