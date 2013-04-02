@@ -10,19 +10,24 @@ DONE - Java encode/decode of full requests/responses
 DONE - Generate a real random number for DH code (in common/tr_dh.c)
 DONE - DH server-side code (in TIDS)
 IN PROGRESS - Read TR router config from file at start-up (non-dynamic)
-- Tree/look-up code to find correct AAA Server for a COI/Realm in TR
-- Code for client to handle multiple oustanding requests
-IN PROGRESS - TIDC and TIDS integration with freeradius
+IN PROGRESS - Look-up code to find correct AAA Server for a Comm/Realm
+JUST STARTED - TIDC and TIDS integration with freeradius proxy and server 
+- Code to map a COI to an APC in TR
+- Code to check rp_realm COI membership in TR
+- Code to check gss_name in TR
 
 TO-DO FOR PILOT
 ===============
 - Dynamically re-read TR configuration file at runtime
 - Move to longer-term tasking model for TR
 - Normalize/configure logging for info msgs, warnings and errors (log4c?)
-- Clean-up gsscon API
+- Clean-up gsscon API/messages
+- Hand IPv6 addresses in TID req/resp
+- Filtering and Constraints
 
 TO-DO FOR PRODUCTION
 ====================
 - Multiple Trust Router support including TR protocol
 - Consider standard encoding of DH info (from ?? WG)
 - Update json parsers to use "format strings" for better error handling
+- Algorithm agility in TID protocol?
