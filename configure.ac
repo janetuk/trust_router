@@ -1,4 +1,4 @@
-AC_PREREQ(2.66)
+AC_PREREQ(2.63)
 AC_INIT([trust_router],[0.0.1],
 [bugs@project-moonshot.org])
 AC_CONFIG_MACRO_DIR(m4)
