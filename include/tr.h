@@ -44,10 +44,10 @@
 typedef struct tr_instance {
   struct tr_cfg *new_cfg;	/* unapplyed configuration */
   struct tr_cfg *active_cfg;
-  TIDC_INSTANCE tidc;
-  TIDS_INSTANCE tids;
+  TIDS_INSTANCE *tids;
 } TR_INSTANCE;
 
 TR_INSTANCE *tr_create(void);
+void tr_destroy(TR_INSTANCE *tr);
 
 #endif

@@ -32,17 +32,30 @@
  *
  */
 
-#include <stdlib.h>
-#include <string.h>
+#ifndef TR_IDP_H
+#define TR_IDP_H
+
+#include <trust_router/tr_name.h>
 #include <tr.h>
 
-TR_INSTANCE *tr_create() {
-  TR_INSTANCE *tr = NULL;
-  if (tr = malloc(sizeof(TR_INSTANCE)))
-    memset(tr, 0, sizeof(TR_INSTANCE));
-  return tr;
-}
+typedef struct tr_apc {
+  struct tr_apc *next;
+  TR_NAME *apc;
+} TR_APC;
 
-void tr_destroy(TR_INSTANCE *tr) {
-  free (tr);
-}
+typedef struct tr_aaa_server {
+  struct tr_aaa_server *next;
+  struct in_addr aaa_server_addr;
+} TR_AAA_SERVER;
+
+typedef struct tr_idp_realm {
+  struct tr_idp_realm *next;
+  TR_NAME *realm_id;
+  int shared_config;
+  TR_AAA_SERVER *aaa_servers;
+  TR_APC *apcs;
+} TR_IDP_REALM;
+  
+TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_NAME *comm);
+
+#endif

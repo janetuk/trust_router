@@ -45,8 +45,6 @@
 
 typedef struct gss_ctx_id_struct *gss_ctx_id_t;
 
-typedef struct tid_req TID_REQ;
-
 typedef enum tid_rc {
   TID_SUCCESS = 0,
   TID_ERROR
@@ -79,6 +77,8 @@ typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 struct tid_req {
   struct tid_req *next_req;
   int conn;
+  gss_ctx_id_t *gssctx;
+  int resp_rcvd;
   TR_NAME *rp_realm;
   TR_NAME *realm;
   TR_NAME *comm;
@@ -107,6 +107,7 @@ struct tids_instance {
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);
 TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, gss_ctx_id_t *gssctx);
 TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
+TR_EXPORT int tids_send_response (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssctx, TID_RESP *resp);
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
 TR_EXPORT TIDS_INSTANCE *tids_create (void);

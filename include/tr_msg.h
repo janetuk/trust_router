@@ -35,8 +35,9 @@
 #ifndef TR_MSG_H
 #define TR_MSG_H
 
-#include <trust_router/tid.h>
 #include <jansson.h>
+#include <trust_router/tr_versioning.h>
+#include <trust_router/tid.h>
 
 enum msg_type {
   TR_UNKNOWN = 0,

@@ -129,6 +129,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   msg->tid_req = tid_req;
 
   tid_req->conn = conn;
+  tid_req->gssctx = gssctx;
 
   /* TBD -- error handling */
   tid_req->rp_realm = tr_new_name(rp_realm);

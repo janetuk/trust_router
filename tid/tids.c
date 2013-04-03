@@ -41,9 +41,9 @@
 #include <netinet/in.h>
 #include <jansson.h>
 
+#include <trust_router/tid.h>
 #include <gsscon.h>
 #include <tr_msg.h>
-#include <trust_router/tid.h>
 
 static int tids_listen (TIDS_INSTANCE *tids, int port) 
 {
@@ -124,10 +124,9 @@ static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssct
   return buflen;
 }
 
-static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TR_MSG **mresp) 
+static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP **resp) 
 {
   int rc;
-  TID_RESP *resp;
 
   /* Check that this is a valid TID Request.  If not, send an error return. */
   if ((!mreq->tid_req) ||
@@ -135,35 +134,38 @@ static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TR_MSG **mres
       (!mreq->tid_req->realm) ||
       (!mreq->tid_req->comm)) {
     printf("tids_handle_request():Not a valid TID Request.\n");
-    (*mresp)->tid_resp->result = TID_ERROR;
-    (*mresp)->tid_resp->err_msg = tr_new_name("Bad request format");
+    (*resp)->result = TID_ERROR;
+    (*resp)->err_msg = tr_new_name("Bad request format");
     return -1;
   }
 
   /* Call the caller's request handler */
   /* TBD -- Handle different error returns/msgs */
-  resp = (*mresp)->tid_resp;
-  if (0 > (rc = (*tids->req_handler)(tids, mreq->tid_req, &resp, tids->cookie))) {
+  if (0 > (rc = (*tids->req_handler)(tids, mreq->tid_req, &(*resp), tids->cookie))) {
     /* set-up an error response */
-    (*mresp)->tid_resp->result = TID_ERROR;
-    if (!(*mresp)->tid_resp->err_msg)	/* Use msg set by handler, if any */
-      (*mresp)->tid_resp->err_msg = tr_new_name("Internal processing error");
+    (*resp)->result = TID_ERROR;
+    if (!(*resp)->err_msg)	/* Use msg set by handler, if any */
+      (*resp)->err_msg = tr_new_name("Internal processing error");
   }
   else {
     /* set-up a success response */
-    (*mresp)->tid_resp->result = TID_SUCCESS;
-    (*mresp)->tid_resp->err_msg = NULL;	/* No msg on successful return */
+    (*resp)->result = TID_SUCCESS;
+    (*resp)->err_msg = NULL;	/* No msg on successful return */
   }
     
   return rc;
 }
 
-static int tids_send_response (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssctx, TR_MSG *mresp)
+int tids_send_response (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssctx, TID_RESP *resp)
 {
   int err;
+  TR_MSG mresp;
   char *resp_buf;
 
-  if (NULL == (resp_buf = tr_msg_encode(mresp))) {
+  mresp.msg_type = TID_RESPONSE;
+  mresp.tid_resp = resp;
+  
+  if (NULL == (resp_buf = tr_msg_encode(&mresp))) {
     fprintf(stderr, "Error decoding json response.\n");
     return -1;
   }
@@ -185,7 +187,7 @@ static int tids_send_response (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssc
 static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
 {
   TR_MSG *mreq = NULL;
-  TR_MSG *mresp = NULL;
+  TID_RESP *resp = NULL;
   int rc = 0;
   gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
 
@@ -207,29 +209,25 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
     }
 
     /* Allocate a response structure and populate common fields */
-    if ((NULL == (mresp = malloc(sizeof(TR_MSG)))) ||
-	(NULL == (mresp->tid_resp = malloc(sizeof(TID_RESP))))) {
+    if ((NULL == (resp = malloc(sizeof(TID_RESP))))) {
       fprintf(stderr, "Error allocating response structure.\n");
       return;
     }
 
-    mresp->msg_type = TID_RESPONSE;
-    memset(mresp->tid_resp, 0, sizeof(TID_RESP));
-
     /* TBD -- handle errors */
-    mresp->tid_resp->result = TID_SUCCESS; /* presume success */
-    mresp->tid_resp->rp_realm = tr_dup_name(mreq->tid_req->rp_realm);
-    mresp->tid_resp->realm = tr_dup_name(mreq->tid_req->realm);
-    mresp->tid_resp->comm = tr_dup_name(mreq->tid_req->comm);
+    resp->result = TID_SUCCESS; /* presume success */
+    resp->rp_realm = tr_dup_name(mreq->tid_req->rp_realm);
+    resp->realm = tr_dup_name(mreq->tid_req->realm);
+    resp->comm = tr_dup_name(mreq->tid_req->comm);
     if (mreq->tid_req->orig_coi)
-      mresp->tid_resp->orig_coi = tr_dup_name(mreq->tid_req->orig_coi);
+      resp->orig_coi = tr_dup_name(mreq->tid_req->orig_coi);
 
-    if (0 > (rc = tids_handle_request(tids, mreq, &mresp))) {
+    if (0 > (rc = tids_handle_request(tids, mreq, &resp))) {
       fprintf(stderr, "Error from tids_handle_request(), rc = %d.\n", rc);
       return;
     }
 
-    if (0 > (rc = tids_send_response(tids, conn, &gssctx, mresp))) {
+    if (0 > (rc = tids_send_response(tids, conn, &gssctx, resp))) {
       fprintf(stderr, "Error from tids_send_response(), rc = %d.\n", rc);
       return;
     }

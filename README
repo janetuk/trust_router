@@ -14,13 +14,13 @@ DONE - Generate a real random number for DH (in common/tr_dh.c)
 DONE - Read TR portal/manual config from files at start-up (non-dynamic)
 DONE - Look-up code to find correct AAA Server for a Comm/Realm
 IN PROGRESS - TR TID request & response handlers
-IN PROGRESS - TIDS integration with freeradius server (Sam)
-IN PROGRESS - TIDC integration with freeradius proxy (incl default comm config)
-- Handle community configuration in AAA proxy (per-request config)
-- Map a COI to an APC in TR (incl config & lookup code)
+- Check gss_name on incoming TID request in TR (in TIDS, too?)
 - Check rp_realm COI membership in TR 
 - Check idp_realm APC membership in TR 
-- Check gss_name in TR
+- Map a COI to an APC in TR (incl config & lookup code)
+IN PROGRESS - TIDS integration with freeradius server (Sam)
+IN PROGRESS - TIDC integration with freeradius proxy (incl default comm config)
+- Handle per-request community configuration in AAA proxy
 - Resolve TBDs for error handling and memory deallocation
 
 TO-DO FOR FULL PILOT VERSION (~2 months after beta release)
