@@ -32,54 +32,23 @@
  *
  */
 
-#include <stdlib.h>
-#include <string.h>
-
 #include <trust_router/tr_name.h>
+#include <tr_idp.h>
+#include <tr.h>
+#include <tr_config.h>
 
-void tr_free_name (TR_NAME *name)
+TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_NAME *comm)
 {
-  if (name->buf) {
-    free (name->buf);
-    name->buf = NULL;
-  }
-  
-  free(name);
-}
+  TR_IDP_REALM *idp = NULL;
 
-TR_NAME *tr_new_name (char *name) 
-{
-  TR_NAME *new;
-
-  if (new = malloc(sizeof(TR_NAME))) { 
-    new->len = strlen(name);
-    if (new->buf = malloc((new->len)+1)) {
-      strcpy(new->buf, name);
+  for (idp = tr->active_cfg->idp_realms; idp != NULL; idp = idp->next) {
+    if (!tr_name_cmp(idp_realm, idp->realm_id)) {
+      /* TBD -- check that the community is one of the APCs for the IDP */
+      break;
     }
   }
-  return new;
-}
-
-TR_NAME *tr_dup_name (TR_NAME *from) 
-{
-  TR_NAME *to;
-
-  if (to = malloc(sizeof(TR_NAME))) {
-    to->len = from->len;
-    if (to->buf = malloc(to->len+1)) {
-      strncpy(to->buf, from->buf, from->len);
-      to->buf[to->len] = 0;	/* NULL terminate for debugging printf()s */
-    }
-  }
-
-  return to;
-}
-
-int tr_name_cmp(TR_NAME *one, TR_NAME *two)
-{
-  if (one->len != two->len)
-    return 1;
+  if (idp)
+    return idp->aaa_servers;
   else 
-    /* TBD -- should really do a length-based comparison */
-    return strcmp(one->buf, two->buf);
+    return NULL;
 }

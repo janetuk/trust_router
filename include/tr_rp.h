@@ -32,54 +32,15 @@
  *
  */
 
-#include <stdlib.h>
-#include <string.h>
+#ifndef TR_RP_H
+#define TR_RP_H
 
-#include <trust_router/tr_name.h>
+#define TR_MAX_GSS_NAMES 5
 
-void tr_free_name (TR_NAME *name)
-{
-  if (name->buf) {
-    free (name->buf);
-    name->buf = NULL;
-  }
-  
-  free(name);
-}
+typedef struct tr_rp_client {
+  struct tr_rp_client *next;
+  // TR_FILTER *filters;
+  TR_NAME gss_name[TR_MAX_GSS_NAMES];
+} TR_RP_CLIENT;
 
-TR_NAME *tr_new_name (char *name) 
-{
-  TR_NAME *new;
-
-  if (new = malloc(sizeof(TR_NAME))) { 
-    new->len = strlen(name);
-    if (new->buf = malloc((new->len)+1)) {
-      strcpy(new->buf, name);
-    }
-  }
-  return new;
-}
-
-TR_NAME *tr_dup_name (TR_NAME *from) 
-{
-  TR_NAME *to;
-
-  if (to = malloc(sizeof(TR_NAME))) {
-    to->len = from->len;
-    if (to->buf = malloc(to->len+1)) {
-      strncpy(to->buf, from->buf, from->len);
-      to->buf[to->len] = 0;	/* NULL terminate for debugging printf()s */
-    }
-  }
-
-  return to;
-}
-
-int tr_name_cmp(TR_NAME *one, TR_NAME *two)
-{
-  if (one->len != two->len)
-    return 1;
-  else 
-    /* TBD -- should really do a length-based comparison */
-    return strcmp(one->buf, two->buf);
-}
+#endif

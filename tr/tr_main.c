@@ -91,6 +91,8 @@ int main (int argc, const char *argv[])
     exit(1);
   }
 
+  //  printf("Trust Router Configured, max_tree_depth = %d.\n", tr->active_cfg->internal->max_tree_depth);
+
   /* initialize the trust path query server instance */
   if (0 == (tids = tids_create ())) {
     printf ("Error initializing Trust Path Query Server instance.\n");

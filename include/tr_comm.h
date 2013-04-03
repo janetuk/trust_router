@@ -32,54 +32,24 @@
  *
  */
 
-#include <stdlib.h>
-#include <string.h>
+#ifndef TR_COMM_H
+#define TR_COMM_H
 
-#include <trust_router/tr_name.h>
+#include <tr_idp.h>
+#include <tr_rp.h>
 
-void tr_free_name (TR_NAME *name)
-{
-  if (name->buf) {
-    free (name->buf);
-    name->buf = NULL;
-  }
-  
-  free(name);
-}
+typedef enum tr_comm_type {
+  TR_COMM_UNKNOWN,
+  TR_COMM_APC,
+  TR_COMM_COI
+} TR_COMM_TYPE;
 
-TR_NAME *tr_new_name (char *name) 
-{
-  TR_NAME *new;
+typedef struct tr_comm {
+  struct tr_comm *next;
+  TR_COMM_TYPE type;
+  char *id;
+  TR_IDP_REALM *idp_realms;
+  TR_RP_CLIENT *rp_clients;
+} TR_COMM;
 
-  if (new = malloc(sizeof(TR_NAME))) { 
-    new->len = strlen(name);
-    if (new->buf = malloc((new->len)+1)) {
-      strcpy(new->buf, name);
-    }
-  }
-  return new;
-}
-
-TR_NAME *tr_dup_name (TR_NAME *from) 
-{
-  TR_NAME *to;
-
-  if (to = malloc(sizeof(TR_NAME))) {
-    to->len = from->len;
-    if (to->buf = malloc(to->len+1)) {
-      strncpy(to->buf, from->buf, from->len);
-      to->buf[to->len] = 0;	/* NULL terminate for debugging printf()s */
-    }
-  }
-
-  return to;
-}
-
-int tr_name_cmp(TR_NAME *one, TR_NAME *two)
-{
-  if (one->len != two->len)
-    return 1;
-  else 
-    /* TBD -- should really do a length-based comparison */
-    return strcmp(one->buf, two->buf);
-}
+#endif

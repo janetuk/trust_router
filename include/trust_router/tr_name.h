@@ -43,5 +43,6 @@ typedef struct tr__name {
 
 TR_EXPORT TR_NAME *tr_new_name (char *name);
 TR_EXPORT TR_NAME *tr_dup_name (TR_NAME *from);
-
+TR_EXPORT void tr_free_name (TR_NAME *name);
+TR_EXPORT int tr_name_cmp (TR_NAME *one, TR_NAME *two);
 #endif

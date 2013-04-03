@@ -40,28 +40,29 @@
 #include <jansson.h>
 
 #include <tr.h>
+#include <tr_rp.h>
+#include <tr_idp.h>
+#include <tr_comm.h>
+
+#define TR_DEFAULT_MAX_TREE_DEPTH 12
 
 typedef enum tr_cfg_rc {
   TR_CFG_SUCCESS = 0,	/* No error */
   TR_CFG_ERROR,		/* General processing error */
-  TR_CFG_BAD_PARAMS	/* Bad parameters passed to tr_config function */
+  TR_CFG_BAD_PARAMS,	/* Bad parameters passed to tr_config function */
+  TR_CFG_NOPARSE,	/* Parsing error */
+  TR_CFG_NOMEM		/* Memory allocation error */
 } TR_CFG_RC;
 
-
-typedef struct tr_cfg_file {
-  struct tr_cfg_file *next;
-  FILE *cfg_file;
-} TR_CFG_FILE;
-
 typedef struct tr_cfg_internal {
-  unsigned int tr_max_tree_depth;
+  unsigned int max_tree_depth;
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {
   TR_CFG_INTERNAL *internal;	/* internal trust router config */
+  TR_IDP_REALM *idp_realms;	/* locally associated IDP Realms */
+  TR_RP_CLIENT *rp_clients;	/* locally associated RP Clients */
   //  TR_COMM *comms;		/* locally-known communities */
-  //  TR_IDP_REALM *idp_realms;	/* locally associated IDP Realms */
-  //  TR_RP_CLIENT *rp_clients;	/* locally associated RP Clients */
   /* TBD -- Global Filters */
   /* TBD -- Trust Router Peers */
   /* TBD -- Trust Links */

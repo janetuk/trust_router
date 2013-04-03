@@ -1,33 +1,43 @@
-
 Eventually this document may go away or hold README information for
 the trust router.  Right now, it serves as a to-do list for work that
 needs to be done on the trust router code before various releases:
 
-TO-DO FOR BETA
-==============
-DONE - Eliminate bulk of info/debug messages
-DONE - Java encode/decode of full requests/responses
-DONE - Generate a real random number for DH code (in common/tr_dh.c)
-DONE - DH server-side code (in TIDS)
-IN PROGRESS - Read TR router config from file at start-up (non-dynamic)
-IN PROGRESS - Look-up code to find correct AAA Server for a Comm/Realm
-JUST STARTED - TIDC and TIDS integration with freeradius proxy and server 
-- Code to map a COI to an APC in TR
-- Code to check rp_realm COI membership in TR
-- Code to check gss_name in TR
+TO-DO FOR BETA RELEASE (originally due Jan 2013)
+======================
+DONE - GSS connection API (based on MIT example code)
+DONE - DH implementation and test code (based on openssl)
+DONE - TID server and client implementation (API & example code)
+DONE - Add DH server-side code to TIDS
+DONE - JSON encode/decode of TID requests/responses (jansson)
+DONE - Eliminate bulk of info/debug messages (mostly from GSS code)
+DONE - Generate a real random number for DH (in common/tr_dh.c)
+DONE - Read TR portal/manual config from files at start-up (non-dynamic)
+DONE - Look-up code to find correct AAA Server for a Comm/Realm
+IN PROGRESS - TR TID request & response handlers
+IN PROGRESS - TIDS integration with freeradius server (Sam)
+IN PROGRESS - TIDC integration with freeradius proxy (incl default comm config)
+- Handle community configuration in AAA proxy (per-request config)
+- Map a COI to an APC in TR (incl config & lookup code)
+- Check rp_realm COI membership in TR 
+- Check idp_realm APC membership in TR 
+- Check gss_name in TR
+- Resolve TBDs for error handling and memory deallocation
 
-TO-DO FOR PILOT
-===============
+TO-DO FOR FULL PILOT VERSION (~2 months after beta release)
+============================
+- Move to better tasking model for TR (needed for dyn cfg and TR protocol)
 - Dynamically re-read TR configuration file at runtime
-- Move to longer-term tasking model for TR
-- Normalize/configure logging for info msgs, warnings and errors (log4c?)
-- Clean-up gsscon API/messages
-- Hand IPv6 addresses in TID req/resp
-- Filtering and Constraints
+- Keep single connection open between AAA proxy & TR for TID requests
+- Normalize/configure logging for info msgs, warnings and errors (log4c)
+- Clean-up gsscon API and messages
+- Handle IPv6 addresses in TID req/resp (use getaddrinfo())
+- Implement rp_permitted filters (incl. general filtering mechanism)
+- Add constraints to TID req in TR, store and use them in AAA Server
+- Use valgrind to check for memory leaks, other issues
+- Full functional testing
 
-TO-DO FOR PRODUCTION
-====================
-- Multiple Trust Router support including TR protocol
-- Consider standard encoding of DH info (from ?? WG)
-- Update json parsers to use "format strings" for better error handling
+TO-DO FOR PRODUCTION VERSION (August 2013)
+============================
+- Multiple Trust Router support including implementation of TR protocol
+- Consider standard encoding of DH info (from jose WG)
 - Algorithm agility in TID protocol?
