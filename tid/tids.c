@@ -90,7 +90,7 @@ static int tids_auth_connection (int conn, gss_ctx_id_t *gssctx)
   else
     fprintf(stderr, "Authentication failed, conn %d.\n", conn);
 
-  return auth;
+  return !auth;
 }
 
 static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssctx, TR_MSG **mreq)
@@ -191,7 +191,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
   int rc = 0;
   gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
 
-  if (!tids_auth_connection(conn, &gssctx)) {
+  if (tids_auth_connection(conn, &gssctx)) {
     fprintf(stderr, "Error authorizing TID Server connection.\n");
     close(conn);
     return;
