@@ -209,7 +209,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
     }
 
     /* Allocate a response structure and populate common fields */
-    if ((NULL == (resp = malloc(sizeof(TID_RESP))))) {
+    if ((NULL == (resp = calloc(sizeof(TID_RESP), 1)))) {
       fprintf(stderr, "Error allocating response structure.\n");
       return;
     }
