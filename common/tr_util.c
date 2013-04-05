@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2013, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,20 +32,19 @@
  *
  */
 
-#ifndef TR_DH_H
-#define TR_DH_H
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+#include <tr_dh.h>
 
-#include <openssl/dh.h>
-#include <openssl/bn.h>
-#include <trust_router/tr_versioning.h>
-
-TR_EXPORT DH *tr_create_dh_params(unsigned char *key, size_t len);
-TR_EXPORT DH *tr_create_matching_dh(unsigned char *key, size_t len, DH *in_dh);
-TR_EXPORT void tr_destroy_dh_params(DH *dh);
-TR_EXPORT int tr_compute_dh_key(unsigned char *buf, size_t buflen, BIGNUM *pub_key, DH *priv_dh);
-
-
-TR_EXPORT void tr_bin_to_hex(const unsigned char * bin, size_t binlen,
-			     char * hex_out, size_t hex_len);
-
-#endif
+void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
+		   char * hex_out, size_t hex_len)
+{
+  assert(hex_len >= 2*bin_len);
+  while (bin_len >0) {
+    snprintf(hex_out, hex_len, "%2x", bin[0]);
+    bin++, hex_out += 2;
+    bin_len--;
+    hex_len -= 2;
+  }
+}

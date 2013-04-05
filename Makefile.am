@@ -4,7 +4,8 @@ AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror=strict-prototypes -Wno-pare
 SUBDIRS = gsscon 
 common_srcs = common/tr_name.c \
 common/tr_msg.c \
-common/tr_dh.c
+common/tr_dh.c \
+	common/tr_util.c
 
 lib_LTLIBRARIES = libtr_tid.la
 
