@@ -34,10 +34,35 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <sqlite3.h>
 
 #include <trust_router/tid.h>
 #include <tr_dh.h>
+#include <openssl/rand.h>
 
+static sqlite3 *db = NULL;
+static sqlite3_stmt *insert_stmt = NULL;
+
+static int  create_key_id(char *out_id, size_t len)
+{
+  unsigned char rand_buf[32];
+  size_t bin_len;
+  if (len <8)
+    return -1;
+  strncpy(out_id, "key-", len);
+  len -= 4;
+  out_id += 4;
+  if (sizeof(rand_buf)*2+1 < len)
+    len = sizeof(rand_buf)*2 + 1;
+  bin_len = (len-1)/2;
+  if (-1 == RAND_pseudo_bytes(rand_buf, bin_len))
+      return -1;
+  tr_bin_to_hex(rand_buf, bin_len, out_id, len);
+  out_id[bin_len*2] = '\0';
+  return 0;
+}
+  
 static int tids_req_handler (TIDS_INSTANCE * tids,
 		      TID_REQ *req, 
 		      TID_RESP **resp,
@@ -46,6 +71,8 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
   unsigned char *s_keybuf = NULL;
   int s_keylen = 0;
   int i = 0;
+  char key_id[12];
+  
 
   printf("Request received! target_realm = %s, community = %s\n", req->realm->buf, req->comm->buf);
   if (tids)
@@ -93,7 +120,9 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
   }
 
   /* Set the key name */
-  (*resp)->servers->key_name = tr_new_name("placeholder.key.name");
+  if (-1 == create_key_id(key_id, sizeof(key_id)))
+    return -1;
+  (*resp)->servers->key_name = tr_new_name(key_id);
 
   /* Generate the server key */
   printf("Generating the server key.\n");
@@ -109,7 +138,16 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
     printf("tids_req_handler(): Key computation failed.");
     return -1;
   }
-
+      if (NULL != insert_stmt) {
+	int sqlite3_result;
+	sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
+	sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
+	sqlite3_result = sqlite3_step(insert_stmt);
+	if (SQLITE_DONE != sqlite3_result)
+	  printf("sqlite3: failed to write to database\n");
+	sqlite3_reset(insert_stmt);
+      }
+      
   /* Print out the key.  If this were a AAA server, we'd store the key. */
   printf("tids_req_handler(): Server Key Generated (len = %d):\n", s_keylen);
   for (i = 0; i < s_keylen; i++) {
@@ -122,12 +160,22 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
 int main (int argc, 
 	  const char *argv[]) 
 {
-  static TIDS_INSTANCE *tids;
+  TIDS_INSTANCE *tids;
   int rc = 0;
 
   /* Parse command-line arguments */ 
-  if (argc != 1)
+  if (argc > 2)
     printf("Unexpected arguments, ignored.\n");
+
+  /*If we have a database, open and prepare*/
+  if (argc >= 2) {
+    if (SQLITE_OK != sqlite3_open(argv[1], &db)) {
+      printf("Error opening database\n");
+      exit(1);
+    }
+    sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key) values(?, ?)",
+		       -1, &insert_stmt, NULL);
+  }
 
   /* Create a TID server instance */
   if (NULL == (tids = tids_create())) {
