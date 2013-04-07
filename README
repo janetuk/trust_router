@@ -19,7 +19,7 @@ IN PROGRESS - TR TID request & response handlers
 - Check idp_realm APC membership in TR 
 - Map a COI to an APC in TR (incl config & lookup code)
 IN PROGRESS - TIDS integration with freeradius server (Sam)
-IN PROGRESS - TIDC integration with freeradius proxy (incl default comm config)
+IN PROGRESS - TIDC integration with freeradius proxy (w/default comm config)
 - Handle per-request community configuration in AAA proxy
 - Resolve TBDs for error handling and memory deallocation
 
@@ -30,6 +30,7 @@ TO-DO FOR FULL PILOT VERSION (~2 months after beta release)
 - Keep single connection open between AAA proxy & TR for TID requests
 - Normalize/configure logging for info msgs, warnings and errors (log4c)
 - Clean-up gsscon API and messages
+- Figure out what to do about commented-out checks in gsscon_passive.c
 - Handle IPv6 addresses in TID req/resp (use getaddrinfo())
 - Implement rp_permitted filters (incl. general filtering mechanism)
 - Add constraints to TID req in TR, store and use them in AAA Server

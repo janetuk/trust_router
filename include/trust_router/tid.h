@@ -77,7 +77,7 @@ typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 struct tid_req {
   struct tid_req *next_req;
   int conn;
-  gss_ctx_id_t *gssctx;
+  gss_ctx_id_t gssctx;
   int resp_rcvd;
   TR_NAME *rp_realm;
   TR_NAME *realm;
@@ -100,6 +100,7 @@ typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP **, void *);
 struct tids_instance {
   int req_count;
   char *priv_key;
+  char *ipaddr;
   TIDS_REQ_FUNC *req_handler;
   void *cookie;
 };

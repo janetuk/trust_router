@@ -55,7 +55,7 @@ static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc,
   req->resp_rcvd = 1;
 
   /* TBD -- handle concatentation of multiple responses to single req */
-  tids_send_response(((TR_RESP_COOKIE *)resp_cookie)->tr->tids, ((TR_RESP_COOKIE *)resp_cookie)->orig_req->conn, ((TR_RESP_COOKIE *)resp_cookie)->orig_req->gssctx, resp);
+  tids_send_response(((TR_RESP_COOKIE *)resp_cookie)->tr->tids, ((TR_RESP_COOKIE *)resp_cookie)->orig_req->conn, &((TR_RESP_COOKIE *)resp_cookie)->orig_req->gssctx, resp);
   
   return;
 }

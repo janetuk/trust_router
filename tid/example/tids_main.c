@@ -111,10 +111,7 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
     return -1;
   }
 
-  /* Hard-code the IP Address in the response.  If this were a AAA server, we'd expect
-   * this to be set by the Trust Router before calling us. 
-   */
-  if (0 == inet_aton("127.0.0.1", &((*resp)->servers->aaa_server_addr))) {
+  if (0 == inet_aton(tids->ipaddr, &((*resp)->servers->aaa_server_addr))) {
     printf("tids_req_handler(): inet_aton() failed.\n");
     return -1;
   }
@@ -162,15 +159,24 @@ int main (int argc,
 {
   TIDS_INSTANCE *tids;
   int rc = 0;
+  char *ipaddr = NULL;
 
   /* Parse command-line arguments */ 
-  if (argc > 2)
-    printf("Unexpected arguments, ignored.\n");
+  if (argc > 3)
+    printf("Usage: %s [<ip-address> [<database-name>]]\n", argv[0]);
+
+  if (argc >= 2) {
+    ipaddr = (char *)argv[1];
+  } else {
+    ipaddr = "127.0.0.1";
+  }
+
+  /* TBD -- check that input is a valid IP address? */
 
   /*If we have a database, open and prepare*/
-  if (argc >= 2) {
-    if (SQLITE_OK != sqlite3_open(argv[1], &db)) {
-      printf("Error opening database\n");
+  if (argc == 3) {
+    if (SQLITE_OK != sqlite3_open(argv[2], &db)) {
+      printf("Error opening database %s\n", argv[2]);
       exit(1);
     }
     sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key) values(?, ?)",
@@ -182,6 +188,8 @@ int main (int argc,
     printf("Unable to create TIDS instance,exiting.\n");
     return 1;
   }
+
+  tids->ipaddr = ipaddr;
 
   /* Start-up the server, won't return unless there is an error. */
   rc = tids_start(tids, &tids_req_handler , NULL);
