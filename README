@@ -13,7 +13,7 @@ DONE - Eliminate bulk of info/debug messages (mostly from GSS code)
 DONE - Generate a real random number for DH (in common/tr_dh.c)
 DONE - Read TR portal/manual config from files at start-up (non-dynamic)
 DONE - Look-up code to find correct AAA Server for a Comm/Realm
-IN PROGRESS - TR TID request & response handlers
+DONE - TR TID request & response handlers
 - Check gss_name on incoming TID request in TR (in TIDS, too?)
 - Check rp_realm COI membership in TR 
 - Check idp_realm APC membership in TR 
@@ -28,6 +28,8 @@ TO-DO FOR FULL PILOT VERSION (~2 months after beta release)
 - Move to better tasking model for TR (needed for dyn cfg and TR protocol)
 - Dynamically re-read TR configuration file at runtime
 - Keep single connection open between AAA proxy & TR for TID requests
+- Handle multiple simultaneous TID requests in AAA proxy (reqs req ID in the protocol)
+- Add TR support for multiple AAA servers in an IDP
 - Normalize/configure logging for info msgs, warnings and errors (log4c)
 - Clean-up gsscon API and messages
 - Figure out what to do about commented-out checks in gsscon_passive.c

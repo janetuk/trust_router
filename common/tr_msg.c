@@ -198,6 +198,7 @@ static TID_SRVR_BLK *tr_msg_decode_one_server(json_t *jsrvr)
 
   if (NULL == (srvr = malloc(sizeof(TID_SRVR_BLK)))) 
     return NULL;
+  memset(srvr, 0, sizeof(TID_SRVR_BLK));
 
   if ((NULL == (jsrvr_addr = json_object_get(jsrvr, "server_addr"))) ||
       (NULL == (jsrvr_kn = json_object_get(jsrvr, "key_name"))) ||

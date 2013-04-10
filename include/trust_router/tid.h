@@ -90,6 +90,7 @@ struct tid_req {
 
 struct tidc_instance {
   TID_REQ *req_list;
+  // TBD -- Do we still need a separate private key */
   char *priv_key;
   int priv_len;
   DH *priv_dh;			/* Client's DH struct with priv and pub keys */

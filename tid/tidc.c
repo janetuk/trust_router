@@ -35,8 +35,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <jansson.h>
-
 #include <gsscon.h>
+
 #include <trust_router/tr_dh.h>
 #include <trust_router/tid.h>
 #include <tr_msg.h>
@@ -60,6 +60,7 @@ TIDC_INSTANCE *tidc_create ()
   else
     return NULL;
 
+ // TBD -- Add a flag, so we don't do this for the trust router */
   if (NULL == (tidc->priv_dh = tr_create_dh_params(NULL, 0))) {
     free (tidc);
     return NULL;
@@ -113,9 +114,6 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   TR_MSG *msg = NULL;
   TID_REQ *tid_req = NULL;
   TR_MSG *resp_msg = NULL;
-  int c_keylen = 0;
-  unsigned char *c_keybuf = NULL;
-  int i;
 
   /* Create and populate a TID msg structure */
   if ((!(msg = malloc(sizeof(TR_MSG)))) ||
@@ -183,32 +181,6 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   /* Call the caller's response function */
   (*tid_req->resp_func)(tidc, tid_req, resp_msg->tid_resp, cookie);
 
-
-  /* Generate the client key -- TBD, handle more than one server */
-  if (TID_SUCCESS != resp_msg->tid_resp->result) {
-    fprintf(stderr, "Response is an error.\n");
-    return -1;
-  }
-
-  if (!resp_msg->tid_resp->servers) {
-    fprintf(stderr, "Response does not contain server info.\n");
-    return -1;
-  }
-  
-  if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf, 
-				      resp_msg->tid_resp->servers->aaa_server_dh->pub_key, 
-				      tid_req->tidc_dh))) {
-    
-    printf("Error computing client key.\n");
-    return -1;
-  }
-  
-  /* Print out the client key. */
-  printf("Client Key Generated (len = %d):\n", c_keylen);
-  for (i = 0; i < c_keylen; i++) {
-    printf("%x", c_keybuf[i]); 
-  }
-  printf("\n");
 
   if (msg)
     free(msg);

@@ -170,7 +170,7 @@ int tr_compute_dh_key(unsigned char **pbuf,
   unsigned char *buf = NULL;;
   int rc = 0;
   
-  if ((!buf) || 
+  if ((!pbuf) || 
       (!pub_key) || 
       (!priv_dh)) {
     fprintf(stderr, "tr_compute_dh_key(): Invalid parameters.\n");

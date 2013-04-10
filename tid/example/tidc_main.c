@@ -37,6 +37,7 @@
 
 #include <gsscon.h>
 #include <trust_router/tid.h>
+#include <trust_router/tr_dh.h>
 
 static int tidc_response_received = 0;
 
@@ -50,10 +51,39 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
 			TID_RESP *resp, 
 			void *cookie) 
 {
+  int c_keylen = 0;
+  unsigned char *c_keybuf = NULL;
+  int i;
+
   printf ("Response received! Realm = %s, Community = %s.\n", resp->realm->buf, resp->comm->buf);
   tidc_response_received = 1;
 
+  /* Generate the client key -- TBD, handle more than one server */
+  if (TID_SUCCESS != resp->result) {
+    fprintf(stderr, "tidc_resp_handler: Response is an error.\n");
+    return;
+  }
+
+  if (!resp->servers) {
+    fprintf(stderr, "tidc_resp_handler: Response does not contain server info.\n");
+    return;
+  }
   
+  if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf, 
+				      resp->servers->aaa_server_dh->pub_key, 
+				      req->tidc_dh))) {
+    
+    printf("tidc_resp_handler: Error computing client key.\n");
+    return;
+  }
+  
+  /* Print out the client key. */
+  printf("Client Key Generated (len = %d):\n", c_keylen);
+  for (i = 0; i < c_keylen; i++) {
+    printf("%x", c_keybuf[i]); 
+  }
+  printf("\n");
+
   return;
 }
 

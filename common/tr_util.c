@@ -42,7 +42,7 @@ void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
 {
   assert(hex_len >= 2*bin_len);
   while (bin_len >0) {
-    snprintf(hex_out, hex_len, "%2x", bin[0]);
+    snprintf(hex_out, hex_len, "%.2x", bin[0]);
     bin++, hex_out += 2;
     bin_len--;
     hex_len -= 2;
