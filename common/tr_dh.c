@@ -163,22 +163,34 @@ void tr_destroy_dh_params(DH *dh) {
   }
 }
 
-int tr_compute_dh_key(unsigned char *buf, 
-		      size_t buflen, 
+int tr_compute_dh_key(unsigned char **pbuf, 
 		      BIGNUM *pub_key, 
 		      DH *priv_dh) {
-
+  size_t buflen;
+  unsigned char *buf = NULL;;
   int rc = 0;
-
+  
   if ((!buf) || 
       (!pub_key) || 
-      (!priv_dh) ||
-      (buflen < DH_size(priv_dh))) {
+      (!priv_dh)) {
     fprintf(stderr, "tr_compute_dh_key(): Invalid parameters.\n");
     return(-1);
   }
+  *pbuf = NULL;
+  buflen = DH_size(priv_dh);
+  buf = malloc(buflen);
+  if (buf == NULL) {
+    fprintf(stderr, "out of memory\n");
+    return -1;
+  }
 
+  
   rc = DH_compute_key(buf, pub_key, priv_dh);
+  if (0 <= rc) {
+    *pbuf = buf;
+  }else {
+    free(buf);
+  }
   return rc;
 }
 

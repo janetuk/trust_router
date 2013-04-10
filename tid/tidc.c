@@ -195,12 +195,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
     return -1;
   }
   
-  if (NULL == (c_keybuf = malloc(DH_size(tid_req->tidc_dh)))) {
-    fprintf (stderr, "Error: Can't allocate client keybuf, exiting.\n");
-    return -1;
-  }
-  if (0 > (c_keylen = tr_compute_dh_key(c_keybuf, 
-				      DH_size(tid_req->tidc_dh), 
+  if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf, 
 				      resp_msg->tid_resp->servers->aaa_server_dh->pub_key, 
 				      tid_req->tidc_dh))) {
     

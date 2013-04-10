@@ -42,7 +42,7 @@
 TR_EXPORT DH *tr_create_dh_params(unsigned char *key, size_t len);
 TR_EXPORT DH *tr_create_matching_dh(unsigned char *key, size_t len, DH *in_dh);
 TR_EXPORT void tr_destroy_dh_params(DH *dh);
-TR_EXPORT int tr_compute_dh_key(unsigned char *buf, size_t buflen, BIGNUM *pub_key, DH *priv_dh);
+TR_EXPORT int tr_compute_dh_key(unsigned char **pbuf,  BIGNUM *pub_key, DH *priv_dh);
 
 
 TR_EXPORT void tr_bin_to_hex(const unsigned char * bin, size_t binlen,

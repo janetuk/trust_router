@@ -123,13 +123,8 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
 
   /* Generate the server key */
   printf("Generating the server key.\n");
-  if (NULL == (s_keybuf = malloc(DH_size((*resp)->servers->aaa_server_dh)))) {
-    printf ("tids_req_handler(): Can't allocate server keybuf.\n");
-    return -1;
-  }
 
-  if (0 > (s_keylen = tr_compute_dh_key(s_keybuf, 
-					DH_size((*resp)->servers->aaa_server_dh), 
+  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, 
 					req->tidc_dh->pub_key, 
 				        (*resp)->servers->aaa_server_dh))) {
     printf("tids_req_handler(): Key computation failed.");

@@ -88,24 +88,14 @@ int main (int argc,
   /*** Would now send server's pub key to client ***/
 
   /* Compute key on client */
-  if (NULL == (c_keybuf = malloc(DH_size(c_dh)))) {
-    printf ("Error: Can't allocate client keybuf, exiting.\n");
-    exit(1);
-  }
-  if (0 > (c_keylen = tr_compute_dh_key(c_keybuf, 
-				      DH_size(c_dh), 
+  if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf, 
 				      s_dh->pub_key, 
 				      c_dh))) {
     
   }
   
   /* Compute key on server */
-  if (NULL == (s_keybuf = malloc(DH_size(s_dh)))) {
-    printf ("Error: Can't allocate server keybuf, exiting.\n");
-    exit(1);
-  }
-  if (0 > (s_keylen = tr_compute_dh_key(s_keybuf, 
-				      DH_size(s_dh), 
+  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, 
 				      c_dh->pub_key, 
 				      s_dh))) {
     printf("Error: Can't compute server key.\n");
