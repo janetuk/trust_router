@@ -83,3 +83,27 @@ int tr_name_cmp(TR_NAME *one, TR_NAME *two)
     /* TBD -- should really do a length-based comparison */
     return strcmp(one->buf, two->buf);
 }
+
+void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
+{
+  size_t used_len;
+  if (src->len >= len)
+    used_len = len-1;
+  else used_len = src->len;
+  if (used_len > 0)
+    strncat(dest, src->buf, used_len);
+  else dest[0] = '\0';
+}
+
+  
+char * tr_name_strdup(TR_NAME *src)
+{
+  char *s = calloc(src->len+1, 1);
+  if (s) {
+    memcpy(s, src->buf, src->len);
+    s[src->len] = '\0';
+  }
+  return s;
+}
+
+  

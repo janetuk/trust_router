@@ -34,6 +34,7 @@
 
 #ifndef TR_NAME_H
 #define TR_NAME_H
+#include <string.h>
 #include <trust_router/tr_versioning.h>
 
 typedef struct tr__name {
@@ -45,4 +46,7 @@ TR_EXPORT TR_NAME *tr_new_name (char *name);
 TR_EXPORT TR_NAME *tr_dup_name (TR_NAME *from);
 TR_EXPORT void tr_free_name (TR_NAME *name);
 TR_EXPORT int tr_name_cmp (TR_NAME *one, TR_NAME *two);
+TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
+TR_EXPORT char *tr_name_strdup(TR_NAME *);
+
 #endif
