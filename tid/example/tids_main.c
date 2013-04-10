@@ -38,7 +38,7 @@
 #include <sqlite3.h>
 
 #include <trust_router/tid.h>
-#include <tr_dh.h>
+#include <trust_router/tr_dh.h>
 #include <openssl/rand.h>
 
 static sqlite3 *db = NULL;

@@ -37,7 +37,7 @@
 #include <jansson.h>
 
 #include <gsscon.h>
-#include <tr_dh.h>
+#include <trust_router/tr_dh.h>
 #include <trust_router/tid.h>
 #include <tr_msg.h>
 #include <gsscon.h>

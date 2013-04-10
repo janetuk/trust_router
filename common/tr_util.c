@@ -35,7 +35,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <tr_dh.h>
+#include <trust_router/tr_dh.h>
 
 void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
 		   char * hex_out, size_t hex_len)

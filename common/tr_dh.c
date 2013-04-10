@@ -33,7 +33,7 @@
  */
 
 #include <openssl/dh.h>
-#include <tr_dh.h>
+#include <trust_router/tr_dh.h>
 
 unsigned char tr_2048_dhprime[2048/8] = {
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
