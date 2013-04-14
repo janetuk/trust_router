@@ -208,6 +208,10 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
       continue;
     }
 
+    /* Put connection information into the request structure */
+    mreq->tid_req->conn = conn;
+    mreq->tid_req->gssctx = gssctx;
+
     /* Allocate a response structure and populate common fields */
     if ((NULL == (resp = calloc(sizeof(TID_RESP), 1)))) {
       fprintf(stderr, "Error allocating response structure.\n");
