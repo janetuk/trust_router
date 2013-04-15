@@ -39,8 +39,6 @@
 #include <trust_router/tid.h>
 #include <trust_router/tr_dh.h>
 
-static int tidc_response_received = 0;
-
 void static tidc_print_usage (const char *name)
 {
   printf("Usage: %s <server> <RP-realm> <target-realm> <community>\n", name);
@@ -56,7 +54,6 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
   int i;
 
   printf ("Response received! Realm = %s, Community = %s.\n", resp->realm->buf, resp->comm->buf);
-  tidc_response_received = 1;
 
   /* Generate the client key -- TBD, handle more than one server */
   if (TID_SUCCESS != resp->result) {
@@ -80,7 +77,7 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
   /* Print out the client key. */
   printf("Client Key Generated (len = %d):\n", c_keylen);
   for (i = 0; i < c_keylen; i++) {
-    printf("%x", c_keybuf[i]); 
+    printf("%.2x", c_keybuf[i]); 
   }
   printf("\n");
 
@@ -113,8 +110,12 @@ int main (int argc,
 
   printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s\n", server, rp_realm, realm, coi);
  
-  /* Create a TID client instance */
+  /* Create a TID client instance & the client DH */
   tidc = tidc_create();
+  if (NULL == (tidc->client_dh = tr_create_dh_params(NULL, 0))) {
+    printf("Error creating client DH params.\n");
+    return 1;
+  }
 
   /* Set-up TID connection */
   if (-1 == (conn = tidc_open_connection(tidc, server, &gssctx))) {
@@ -131,9 +132,6 @@ int main (int argc,
     return 1;
   }
     
-  /* Wait for a response */
-  while (!tidc_response_received);
-
   /* Clean-up the TID client instance, and exit */
   tidc_destroy(tidc);
 

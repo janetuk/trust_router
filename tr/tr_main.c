@@ -92,6 +92,9 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
     return -1;
   }
 
+  /* Use the DH parameters from the original request */
+  tidc->client_dh = req->tidc_dh;
+
   /* Set-up TID connection */
   /* TBD -- version of open_connection that takes an inaddr */
   if (-1 == (conn = tidc_open_connection(tidc, inet_ntoa(aaa_servers->aaa_server_addr), &gssctx))) {
@@ -103,7 +106,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
   resp_cookie.tr = tr;
   resp_cookie.orig_req = req;
 
-  /* TBD -- version of send request that takes TR_NAMES */
+  /* TBD -- version of send request that takes TR_NAMES? */
   if (0 > (rc = tidc_send_request(tidc, conn, gssctx, req->rp_realm->buf, req->realm->buf, req->comm->buf, &tr_tidc_resp_handler, (void *)&resp_cookie))) {
     printf("Error in tidc_send_request, rc = %d.\n", rc);
     return -1;
@@ -120,7 +123,7 @@ int main (int argc, const char *argv[])
   TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
   int err = 0, n = 0;;
 
-  /* parse command-line arguments -- TBD */
+  /* parse command-line arguments? -- TBD */
 
   /* create a Trust Router instance */
   if (NULL == (tr = tr_create())) {
@@ -156,9 +159,9 @@ int main (int argc, const char *argv[])
     exit(1);
   }
 
-  /* start the trust path query server, won't return unless error. */
+  /* start the trust path query server, won't return unless fatal error. */
   if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, (void *)tr))) {
-    printf ("Error starting Trust Path Query Server, err = %d.\n", err);
+    printf ("Error from Trust Path Query Server, err = %d.\n", err);
     exit(err);
   }
 
