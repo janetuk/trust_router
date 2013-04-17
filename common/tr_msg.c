@@ -245,7 +245,7 @@ static TID_SRVR_BLK *tr_msg_decode_servers(json_t *jservers)
   size_t i, num_servers;
 
   num_servers = json_array_size(jservers);
-  fprintf(stderr, "tr_msg_decode_servers(): Number of servers = %d.\n", num_servers);
+  fprintf(stderr, "tr_msg_decode_servers(): Number of servers = %u.\n", (unsigned) num_servers);
   
   if (0 == num_servers) {
     fprintf(stderr, "tr_msg_decode_servers(): Server array is empty.\n"); 

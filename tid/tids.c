@@ -49,8 +49,11 @@ static int tids_listen (TIDS_INSTANCE *tids, int port)
 {
     int rc = 0;
     int conn = -1;
-    struct sockaddr_storage addr;
-    struct sockaddr_in *saddr = (struct sockaddr_in *) &addr;
+    union {
+      struct sockaddr_storage storage;
+      struct sockaddr_in in4;
+    } addr;
+    struct sockaddr_in *saddr = (struct sockaddr_in *) &addr.in4;
     
     saddr->sin_port = htons (port);
     saddr->sin_family = AF_INET;
@@ -105,7 +108,7 @@ static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssct
     return -1;
   }
 
-  fprintf(stdout, "tids_read_request():Request Received, %d bytes.\n", buflen);
+  fprintf(stdout, "tids_read_request():Request Received, %u bytes.\n", (unsigned) buflen);
 
   /* Parse request */
   if (NULL == ((*mreq) = tr_msg_decode(buf, buflen))) {
