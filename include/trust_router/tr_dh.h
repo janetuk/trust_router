@@ -32,53 +32,20 @@
  *
  */
 
-#include <stdio.h>
+#ifndef TR_DH_H
+#define TR_DH_H
 
-#include <tpq.h>
+#include <openssl/dh.h>
+#include <openssl/bn.h>
+#include <trust_router/tr_versioning.h>
 
-int tpqs_req_handler (TPQS_INSTANCE * tpqs,
-		      TPQ_REQ *req, 
-		      TPQ_RESP *resp,
-		      void *cookie)
-{
-  printf("Request received! Realm = %s, COI = %s\n", req->realm->buf, req->coi->buf);
-  if (tpqs)
-    tpqs->req_count++;
-
-  if ((NULL == (resp->realm = tpq_dup_name(req->realm))) ||
-      (NULL == (resp->coi = tpq_dup_name(req->coi)))) {
-    printf ("Error in tpq_dup_name, not responding.\n");
-    return 1;
-  }
-
-  return 0;
-}
+TR_EXPORT DH *tr_create_dh_params(unsigned char *key, size_t len);
+TR_EXPORT DH *tr_create_matching_dh(unsigned char *key, size_t len, DH *in_dh);
+TR_EXPORT void tr_destroy_dh_params(DH *dh);
+TR_EXPORT int tr_compute_dh_key(unsigned char **pbuf,  BIGNUM *pub_key, DH *priv_dh);
 
 
-int main (int argc, 
-	  const char *argv[]) 
-{
-  static TPQS_INSTANCE *tpqs;
-  int rc = 0;
+TR_EXPORT void tr_bin_to_hex(const unsigned char * bin, size_t binlen,
+			     char * hex_out, size_t hex_len);
 
-  /* Parse command-line arguments */ 
-  if (argc != 1)
-    printf("Unexpected arguments, ignored.\n");
-
-  /* Create a TPQ server instance */
-  if (NULL == (tpqs = tpqs_create())) {
-    printf("Error in tpqs_create().  Exiting.\n");
-    return 1;
-  }
-
-  /* Start-up the server, won't return unless there is an error. */
-  rc = tpqs_start(tpqs, &tpqs_req_handler , NULL);
-  
-  printf("Error in tpqs_start(), rc = %d. Exiting.\n");
-
-  /* Clean-up the TPQ server instance */
-  tpqs_destroy(tpqs);
-
-  return 1;
-}
-
+#endif

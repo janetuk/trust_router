@@ -32,33 +32,47 @@
  *
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <jansson.h>
-
 #include <gsscon.h>
-#include <tpq.h>
 
-TPQC_INSTANCE *tpqc_create ()
+#include <trust_router/tr_dh.h>
+#include <trust_router/tid.h>
+#include <tr_msg.h>
+#include <gsscon.h>
+
+int tmp_len = 32;
+
+TIDC_INSTANCE *tidc_create ()
 {
-  TPQC_INSTANCE *tpqc = NULL;
+  TIDC_INSTANCE *tidc = NULL;
 
-  if (tpqc = malloc(sizeof(TPQC_INSTANCE)))
-    memset(tpqc, 0, sizeof(TPQC_INSTANCE));
+  if (tidc = malloc(sizeof(TIDC_INSTANCE))) 
+    memset(tidc, 0, sizeof(TIDC_INSTANCE));
+  else
+    return NULL;
 
-  return tpqc;
+  return tidc;
 }
 
-int tpqc_open_connection (TPQC_INSTANCE *tpqc, 
+void tidc_destroy (TIDC_INSTANCE *tidc)
+{
+  if (tidc)
+    free(tidc);
+}
+
+int tidc_open_connection (TIDC_INSTANCE *tidc, 
 			  char *server,
 			  gss_ctx_id_t *gssctx)
 {
   int err = 0;
   int conn = -1;
 
-  err = gsscon_connect(server, TPQ_PORT, &conn);
+  err = gsscon_connect(server, TID_PORT, &conn);
 
   if (!err)
-    err = gsscon_active_authenticate(conn, NULL, "trustquery", gssctx);
+    err = gsscon_active_authenticate(conn, NULL, "trustidentity", gssctx);
 
   if (!err)
     return conn;
@@ -66,63 +80,66 @@ int tpqc_open_connection (TPQC_INSTANCE *tpqc,
     return -1;
 }
 
-int tpqc_send_request (TPQC_INSTANCE *tpqc, 
+int tidc_send_request (TIDC_INSTANCE *tidc, 
 		       int conn, 
 		       gss_ctx_id_t gssctx,
+		       char *rp_realm,
 		       char *realm, 
-		       char *coi,
-		       TPQC_RESP_FUNC *resp_handler,
+		       char *comm,
+		       TIDC_RESP_FUNC *resp_handler,
 		       void *cookie)
 
 {
-  json_t *jreq;
-  int err;
-  char *req_buf;
-  char *resp_buf;
+  int err = 0;
+  char *req_buf = NULL;
+  char *resp_buf = NULL;
   size_t resp_buflen = 0;
+  TR_MSG *msg = NULL;
+  TID_REQ *tid_req = NULL;
+  TR_MSG *resp_msg = NULL;
 
-  /* Create a json TPQ request */
-  if (NULL == (jreq = json_object())) {
-    fprintf(stderr,"Error creating json object.\n");
+  /* Create and populate a TID msg structure */
+  if ((!(msg = malloc(sizeof(TR_MSG)))) ||
+      (!(tid_req = malloc(sizeof(TID_REQ)))))
+    return -1;
+
+  memset(tid_req, 0, sizeof(tid_req));
+
+  msg->msg_type = TID_REQUEST;
+
+  msg->tid_req = tid_req;
+
+  tid_req->conn = conn;
+  tid_req->gssctx = gssctx;
+
+  /* TBD -- error handling */
+  tid_req->rp_realm = tr_new_name(rp_realm);
+  tid_req->realm = tr_new_name(realm);
+  tid_req->comm = tr_new_name(comm);
+
+  tid_req->tidc_dh = tidc->client_dh;
+
+  tid_req->resp_func = resp_handler;
+  tid_req->cookie = cookie;
+
+  /* Encode the request into a json string */
+  if (!(req_buf = tr_msg_encode(msg))) {
+    printf("Error encoding TID request.\n");
     return -1;
   }
 
-  if (0 > (err = json_object_set_new(jreq, "type", json_string("tpq_request")))) {
-    fprintf(stderr, "Error adding type to request.\n");
-    return -1;
-  }
+  printf ("Sending TID request:\n");
+  printf ("%s\n", req_buf);
 
-  /* Insert realm and coi into the json request */
-  if (0 > (err = json_object_set_new(jreq, "realm", json_string(realm)))) {
-    fprintf(stderr, "Error adding realm to request.\n");
-    return -1;
-  }
-  if (0 > (err = json_object_set_new(jreq, "coi", json_string(coi)))) {
-    fprintf(stderr, "Error adding coi to request.\n");
-    return -1;
-  }
-
-  /* Generate half of a D-H exchange -- TBD */
-  /* Insert D-H information into the request -- TBD */
-
-  /* Encode the json request */
-  if (NULL == (req_buf = json_dumps(jreq, 0))) {
-    fprintf(stderr, "Error encoding json request.\n");
-    return -1;
-  }
-  
-  printf("Encoded request:\n%s\n", req_buf);
-  
   /* Send the request over the connection */
   if (err = gsscon_write_encrypted_token (conn, gssctx, req_buf, 
-					  strlen(req_buf) + 1)) {
+					  strlen(req_buf))) {
     fprintf(stderr, "Error sending request over connection.\n");
     return -1;
   }
 
-  free(req_buf);
-
-  /* read the response from the connection */
+  /* TBD -- should queue request on instance, resps read in separate thread */
+  /* Read the response from the connection */
 
   if (err = gsscon_read_encrypted_token(conn, gssctx, &resp_buf, &resp_buflen)) {
     if (resp_buf)
@@ -130,24 +147,38 @@ int tpqc_send_request (TPQC_INSTANCE *tpqc,
     return -1;
   }
 
-  fprintf(stdout, "Response Received, %d bytes.\n", resp_buflen);
+  fprintf(stdout, "Response Received (%u bytes).\n", (unsigned) resp_buflen);
+  fprintf(stdout, "%s\n", resp_buf);
 
-  /* Parse response -- TBD */
+  if (NULL == (resp_msg = tr_msg_decode(resp_buf, resp_buflen))) {
+    fprintf(stderr, "Error decoding response.\n");
+    return -1;
+  }
 
+  /* TBD -- Check if this is actually a valid response */
+  if (!resp_msg->tid_resp) {
+    fprintf(stderr, "Error: No response in the response!\n");
+    return -1;
+  }
+  
   /* Call the caller's response function */
-  (*resp_handler)(tpqc, NULL, cookie);
+  (*tid_req->resp_func)(tidc, tid_req, resp_msg->tid_resp, cookie);
 
+
+  if (msg)
+    free(msg);
+  if (tid_req)
+    free(tid_req);
+  if (req_buf)
+    free(req_buf);
   if (resp_buf)
     free(resp_buf);
+
+  /* TBD -- free the decoded response */
 
   return 0;
 }
 
-void tpqc_destroy (TPQC_INSTANCE *tpqc)
-{
-  if (tpqc)
-    free(tpqc);
-}
 
 
 

@@ -121,7 +121,7 @@ int gsscon_passive_authenticate (int           inSocket,
              * EOF, and the user wouldn't know what went wrong.
              */
             
-            printf ("Calling gss_accept_sec_context...\n");
+	    // printf ("Calling gss_accept_sec_context...\n");
             majorStatus = gss_accept_sec_context (&minorStatus, 
                                                   &gssContext, 
                                                   GSS_C_NO_CREDENTIAL, 
@@ -207,20 +207,6 @@ static int ServicePrincipalIsValidForService (const char *inServicePrincipal)
 static int ClientPrincipalIsAuthorizedForService (const char *inClientPrincipal)
 {
     int err = 0;
-    krb5_context context = NULL;
-    krb5_principal principal = NULL;
-    
-    if (!inClientPrincipal) { err = EINVAL; }
-    
-    if (!err) {
-        err = krb5_init_context (&context);
-    }
-    
-    if (!err) {
-        err = krb5_parse_name (context, inClientPrincipal, &principal);
-    }
-    
-    if (!err) {
         /* 
          * Here is where the server checks to see if the client principal should 
          * be allowed to use your service. Typically it should check both the name 
@@ -228,10 +214,8 @@ static int ClientPrincipalIsAuthorizedForService (const char *inClientPrincipal)
          * realm may be trying to contact your service.  
          */
         err = 0;
-    }
+
     
-    if (principal) { krb5_free_principal (context, principal); }
-    if (context  ) { krb5_free_context (context); }
     
     return err;
 }
@@ -304,7 +288,7 @@ int gsscon_authorize (gss_ctx_id_t  inContext,
     //    }
     //    
     //    if (!err) {
-    //        servicePrincipal = malloc (nameToken.length + 1);
+    //        servic7ePrincipal = malloc (nameToken.length + 1);
     //        if (servicePrincipal == NULL) { err = ENOMEM; }
     //    }
     //    

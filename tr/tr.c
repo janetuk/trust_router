@@ -32,9 +32,17 @@
  *
  */
 
-#ifndef TIDR_H
-#define TIDR_H
+#include <stdlib.h>
+#include <string.h>
+#include <tr.h>
 
-#define TEMP_ID_REQ_PORT	12310
+TR_INSTANCE *tr_create() {
+  TR_INSTANCE *tr = NULL;
+  if (tr = malloc(sizeof(TR_INSTANCE)))
+    memset(tr, 0, sizeof(TR_INSTANCE));
+  return tr;
+}
 
-#endif
+void tr_destroy(TR_INSTANCE *tr) {
+  free (tr);
+}

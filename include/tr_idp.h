@@ -32,29 +32,30 @@
  *
  */
 
-#include <string.h>
-#include <jansson.h>
+#ifndef TR_IDP_H
+#define TR_IDP_H
 
-#include <tpq.h>
+#include <trust_router/tr_name.h>
+#include <tr.h>
 
-char *tpq_req_encode(TPQ_REQ *req) 
-{
-  return NULL;
-}
+typedef struct tr_apc {
+  struct tr_apc *next;
+  TR_NAME *apc;
+} TR_APC;
 
-TPQ_REQ *tpq_req_decode(char *jreq)
-{
-  return NULL;
-}
+typedef struct tr_aaa_server {
+  struct tr_aaa_server *next;
+  struct in_addr aaa_server_addr;
+} TR_AAA_SERVER;
 
-char *tpq_resp_encode(TPQ_REQ *resp) 
-{
-  return NULL;
-}
+typedef struct tr_idp_realm {
+  struct tr_idp_realm *next;
+  TR_NAME *realm_id;
+  int shared_config;
+  TR_AAA_SERVER *aaa_servers;
+  TR_APC *apcs;
+} TR_IDP_REALM;
+  
+TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_NAME *comm);
 
-TPQ_RESP *tpq_resp_decode(char *jresp)
-{
-  return NULL;
-}
-
-
+#endif

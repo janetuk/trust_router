@@ -1,0 +1,46 @@
+Eventually this document may go away or hold README information for
+the trust router.  Right now, it serves as a to-do list for work that
+needs to be done on the trust router code before various releases:
+
+TO-DO FOR BETA RELEASE (originally due Jan 2013)
+======================
+DONE - GSS connection API (based on MIT example code)
+DONE - DH implementation and test code (based on openssl)
+DONE - TID server and client implementation (API & example code)
+DONE - Add DH server-side code to TIDS
+DONE - JSON encode/decode of TID requests/responses (jansson)
+DONE - Eliminate bulk of info/debug messages (mostly from GSS code)
+DONE - Generate a real random number for DH (in common/tr_dh.c)
+DONE - Read TR portal/manual config from files at start-up (non-dynamic)
+DONE - Look-up code to find correct AAA Server for a Comm/Realm
+DONE - TR TID request & response handlers
+- Check gss_name on incoming TID request in TR (in TIDS, too?)
+- Check rp_realm COI membership in TR 
+- Check idp_realm APC membership in TR 
+- Map a COI to an APC in TR (incl config & lookup code)
+IN PROGRESS - TIDS integration with freeradius server (Sam)
+IN PROGRESS - TIDC integration with freeradius proxy (w/default comm config)
+- Handle per-request community configuration in AAA proxy
+- Resolve TBDs for error handling and memory deallocation
+
+TO-DO FOR FULL PILOT VERSION (~2 months after beta release)
+============================
+- Move to better tasking model for TR (needed for dyn cfg and TR protocol)
+- Dynamically re-read TR configuration file at runtime
+- Keep single connection open between AAA proxy & TR for TID requests
+- Handle multiple simultaneous TID requests in AAA proxy (reqs req ID in the protocol)
+- Add TR support for multiple AAA servers in an IDP
+- Normalize/configure logging for info msgs, warnings and errors (log4c)
+- Clean-up gsscon API and messages
+- Figure out what to do about commented-out checks in gsscon_passive.c
+- Handle IPv6 addresses in TID req/resp (use getaddrinfo())
+- Implement rp_permitted filters (incl. general filtering mechanism)
+- Add constraints to TID req in TR, store and use them in AAA Server
+- Use valgrind to check for memory leaks, other issues
+- Full functional testing
+
+TO-DO FOR PRODUCTION VERSION (August 2013)
+============================
+- Multiple Trust Router support including implementation of TR protocol
+- Consider standard encoding of DH info (from jose WG)
+- Algorithm agility in TID protocol?
