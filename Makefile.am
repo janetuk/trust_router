@@ -40,5 +40,9 @@ include/trust_router/tr_versioning.h
 
 noinst_HEADERS = include/gsscon.h include/tr_config.h \
 include/tr_msg.h \
-include/tr.h
+include/tr.h \
+	include/tr_idp.h include/tr_rp.h \
+	include/tr_comm.h
 
+
+EXTRA_DIST = trust_router.spec
