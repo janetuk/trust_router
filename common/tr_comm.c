@@ -32,28 +32,11 @@
  *
  */
 
-#ifndef TR_COMM_H
-#define TR_COMM_H
+#include <trust_router/tr_name.h>
+#include <tr.h>
+#include <tr_comm.h>
 
-#include <tr_idp.h>
-#include <tr_rp.h>
-#include <tr_apc.h>
-
-typedef enum tr_comm_type {
-  TR_COMM_UNKNOWN,
-  TR_COMM_APC,
-  TR_COMM_COI
-} TR_COMM_TYPE;
-
-typedef struct tr_comm {
-  struct tr_comm *next;
-  TR_NAME *id;
-  TR_COMM_TYPE type;
-  TR_APC *apcs;
-  TR_IDP_REALM *idp_realms;
-  TR_RP_REALM *rp_realms;
-} TR_COMM;
-
-TR_COMM *tr_comm_lookup(TR_INSTANCE *tr, TR_NAME *comm);
-
-#endif
+TR_COMM *tr_comm_lookup(TR_INSTANCE *tr, TR_NAME *comm) 
+{
+  return NULL;
+}
