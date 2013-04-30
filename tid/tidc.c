@@ -179,7 +179,7 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
     return -1;
   }
 
-  fprintf(stdout, "Response Received (%d bytes).\n", resp_buflen);
+  fprintf(stdout, "Response Received (%u bytes).\n", (unsigned) resp_buflen);
   fprintf(stdout, "%s\n", resp_buf);
 
   if (NULL == (resp_msg = tr_msg_decode(resp_buf, resp_buflen))) {

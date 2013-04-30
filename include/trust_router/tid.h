@@ -40,10 +40,11 @@
 
 #include <trust_router/tr_name.h>
 #include <trust_router/tr_versioning.h>
+#include <gssapi.h>
 
 #define TID_PORT	12309
 
-typedef struct gss_ctx_id_struct *gss_ctx_id_t;
+
 
 typedef enum tid_rc {
   TID_SUCCESS = 0,
