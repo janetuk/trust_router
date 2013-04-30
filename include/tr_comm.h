@@ -37,6 +37,7 @@
 
 #include <tr_idp.h>
 #include <tr_rp.h>
+#include <tr_apc.h>
 
 typedef enum tr_comm_type {
   TR_COMM_UNKNOWN,
@@ -46,10 +47,11 @@ typedef enum tr_comm_type {
 
 typedef struct tr_comm {
   struct tr_comm *next;
+  TR_NAME *id;
   TR_COMM_TYPE type;
-  char *id;
+  TR_APC *apcs;
   TR_IDP_REALM *idp_realms;
-  TR_RP_CLIENT *rp_clients;
+  TR_RP_REALM *rp_realms;
 } TR_COMM;
 
 #endif

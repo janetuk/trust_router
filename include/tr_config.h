@@ -62,7 +62,7 @@ typedef struct tr_cfg {
   TR_CFG_INTERNAL *internal;	/* internal trust router config */
   TR_IDP_REALM *idp_realms;	/* locally associated IDP Realms */
   TR_RP_CLIENT *rp_clients;	/* locally associated RP Clients */
-  //  TR_COMM *comms;		/* locally-known communities */
+  TR_COMM *comms;		/* locally-known communities */
   /* TBD -- Global Filters */
   /* TBD -- Trust Router Peers */
   /* TBD -- Trust Links */

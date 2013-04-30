@@ -37,11 +37,7 @@
 
 #include <trust_router/tr_name.h>
 #include <tr.h>
-
-typedef struct tr_apc {
-  struct tr_apc *next;
-  TR_NAME *apc;
-} TR_APC;
+#include <tr_apc.h>
 
 typedef struct tr_aaa_server {
   struct tr_aaa_server *next;
