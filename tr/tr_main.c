@@ -52,11 +52,13 @@ static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc,
 			TID_RESP *resp, 
 			void *resp_cookie) 
 {
-  fprintf(stderr, "tr_tidc_resp_handler: Response received! Realm = %s, Community = %s.\n", resp->realm->buf, resp->comm->buf);
+  fprintf(stderr, "tr_tidc_resp_handler: Response received (conn = %d)! Realm = %s, Community = %s.\n", ((TR_RESP_COOKIE *)resp_cookie)->orig_req->conn, resp->realm->buf, resp->comm->buf);
   req->resp_rcvd = 1;
 
   /* TBD -- handle concatentation of multiple responses to single req */
-  tids_send_response(((TR_RESP_COOKIE *)resp_cookie)->tr->tids, ((TR_RESP_COOKIE *)resp_cookie)->orig_req->conn, &((TR_RESP_COOKIE *)resp_cookie)->orig_req->gssctx, resp);
+  tids_send_response(((TR_RESP_COOKIE *)resp_cookie)->tr->tids, 
+		     ((TR_RESP_COOKIE *)resp_cookie)->orig_req, 
+		     resp);
   
   return;
 }
@@ -70,73 +72,89 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
   TR_RESP_COOKIE resp_cookie;
   TR_AAA_SERVER *aaa_servers = NULL;
   TR_NAME *apc = NULL;
-  TID_REQ *req = NULL;
+  TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   int rc;
 
   if ((!tids) || (!orig_req) || (!resp) || (!(*resp))) {
-    printf("tids_req_handler: Bad parameters\n");
+    fprintf(stderr, "tids_req_handler: Bad parameters\n");
     return -1;
   }
 
-  printf("Request received! Realm = %s, Comm = %s\n", orig_req->realm->buf, orig_req->comm->buf);
+  fprintf(stdout, "tr_tids_req_handler: Request received (conn = %d)! Realm = %s, Comm = %s\n", orig_req->conn, 
+	 orig_req->realm->buf, orig_req->comm->buf);
   if (tids)
     tids->req_count++;
 
-  /* Save tr and request info for the response */
-  resp_cookie.tr = tr;
-  resp_cookie.orig_req = req;
-
   /* Duplicate the request, so we can modify and forward it */
-  if (NULL == (req = tid_dup_req(orig_req))) {
+  if (NULL == (fwd_req = tid_dup_req(orig_req))) {
     fprintf(stderr, "tr_tids_req_handler: Unable to duplicate request.\n");
     return -1;
   }
 
   /* Map the comm in the request from a COI to an APC, if needed */
-  if (NULL == (cfg_comm = tr_comm_lookup((TR_INSTANCE *)tids->cookie, req->comm))) {
-    fprintf(stderr, "tr_tids_req_hander: Request for unknown comm: %s.\n", req->comm->buf);
+  if (NULL == (cfg_comm = tr_comm_lookup((TR_INSTANCE *)tids->cookie, orig_req->comm))) {
+    fprintf(stderr, "tr_tids_req_hander: Request for unknown comm: %s.\n", orig_req->comm->buf);
+    tids_send_err_response(tids, orig_req, "Unknown community");
+    return -1;
   }
 
   /* TBD -- check that the rp_realm is a member of the original community */
 
+  /* If the community is a COI, switch to the apc */
   if (TR_COMM_COI == cfg_comm->type) {
+    fprintf(stderr, "tr_tids_req_handler: Community was a COI, switching.\n");
     /* TBD -- In theory there can be more than one?  How would that work? */
+    if ((!cfg_comm->apcs) || (!cfg_comm->apcs->id)) {
+      fprintf(stderr, "No valid APC for COI %s.\n", orig_req->comm->buf);
+      tids_send_err_response(tids, orig_req, "No valid APC for community");
+      return -1;
+    }
     apc = tr_dup_name(cfg_comm->apcs->id);
-    req->orig_coi = req->comm;
-    req->comm = apc;
+    fwd_req->comm = apc;
+    fwd_req->orig_coi = orig_req->comm;
   }
 
   /* Find the AAA server(s) for this request */
-  aaa_servers = tr_idp_aaa_server_lookup((TR_INSTANCE *)tids->cookie, req->realm, apc);
+  if (NULL == (aaa_servers = tr_idp_aaa_server_lookup((TR_INSTANCE *)tids->cookie, 
+						      orig_req->realm, 
+						      orig_req->comm))) {
+      fprintf(stderr, "tr_tids_req_handler: No AAA Servers for realm %s.\n", orig_req->realm->buf);
+      tids_send_err_response(tids, orig_req, "No path to AAA Servers for realm");
+      return -1;
+    }
   /* send a TID request to the AAA server(s), and get the answer(s) */
   /* TBD -- Handle multiple servers */
 
   /* Create a TID client instance */
   if (NULL == (tidc = tidc_create())) {
     fprintf(stderr, "tr_tids_req_hander: Unable to allocate TIDC instance.\n");
+    tids_send_err_response(tids, orig_req, "Memory allocation failure");
     return -1;
   }
 
   /* Use the DH parameters from the original request */
   /* TBD -- this needs to be fixed when we handle more than one req per conn */
-  tidc->client_dh = req->tidc_dh;
+  tidc->client_dh = orig_req->tidc_dh;
 
   /* Save information about this request for the response */
   resp_cookie.tr = tr;
-  resp_cookie.orig_req = req;
+  resp_cookie.orig_req = orig_req;
 
   /* Set-up TID connection */
   /* TBD -- handle IPv6 Addresses */
-  if (-1 == (req->conn = tidc_open_connection(tidc, inet_ntoa(aaa_servers->aaa_server_addr), &(req->gssctx)))) {
-    printf("tr_tids_req_handler: Error in tidc_open_connection.\n");
+  if (-1 == (fwd_req->conn = tidc_open_connection(tidc, 
+					      inet_ntoa(aaa_servers->aaa_server_addr), 
+					      &(fwd_req->gssctx)))) {
+    fprintf(stderr, "tr_tids_req_handler: Error in tidc_open_connection.\n");
+    tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS");
     return -1;
   };
 
   /* Send a TID request */
-
-  if (0 > (rc = tidc_fwd_request(tidc, req, &tr_tidc_resp_handler, (void *)&resp_cookie))) {
-    printf("Error from tidc_fwd_request, rc = %d.\n", rc);
+  if (0 > (rc = tidc_fwd_request(tidc, fwd_req, &tr_tidc_resp_handler, (void *)&resp_cookie))) {
+    fprintf(stderr, "Error from tidc_fwd_request, rc = %d.\n", rc);
+    tids_send_err_response(tids, orig_req, "Can't forward request to next hop TIDS");
     return -1;
   }
     
@@ -183,13 +201,13 @@ int main (int argc, const char *argv[])
 
   /* initialize the trust path query server instance */
   if (0 == (tr->tids = tids_create ())) {
-    printf ("Error initializing Trust Path Query Server instance.\n");
+    fprintf (stderr, "Error initializing Trust Path Query Server instance.\n");
     exit(1);
   }
 
   /* start the trust path query server, won't return unless fatal error. */
   if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, (void *)tr))) {
-    printf ("Error from Trust Path Query Server, err = %d.\n", err);
+    fprintf (stderr, "Error from Trust Path Query Server, err = %d.\n", err);
     exit(err);
   }
 

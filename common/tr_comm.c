@@ -33,10 +33,18 @@
  */
 
 #include <trust_router/tr_name.h>
+#include <tr_config.h>
 #include <tr.h>
 #include <tr_comm.h>
 
 TR_COMM *tr_comm_lookup(TR_INSTANCE *tr, TR_NAME *comm) 
 {
+  TR_COMM *cfg_comm = NULL;
+
+  for (cfg_comm = tr->active_cfg->comms; NULL != cfg_comm; cfg_comm = cfg_comm->next) {
+    if ((cfg_comm->id->len == comm->len) &&
+	(!strncmp(cfg_comm->id->buf, comm->buf, comm->len)))
+      return cfg_comm;
+  }
   return NULL;
 }
