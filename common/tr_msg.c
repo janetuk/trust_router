@@ -112,6 +112,11 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
 
   jstr = json_string(req->comm->buf);
   json_object_set_new(jreq, "community", jstr);
+  
+  if (req->orig_coi) {
+    jstr = json_string(req->orig_coi->buf);
+    json_object_set_new(jreq, "orig_coi", jstr);
+  }
 
   json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tidc_dh));
   

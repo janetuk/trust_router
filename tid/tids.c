@@ -235,7 +235,7 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
 
   /* Never send a second response if we already sent one. */
   if (req->resp_sent)
-    return -1;
+    return 0;
 
   mresp.msg_type = TID_RESPONSE;
   mresp.tid_resp = resp;
