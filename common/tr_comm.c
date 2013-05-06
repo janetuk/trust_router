@@ -32,81 +32,19 @@
  *
  */
 
-#include <stdlib.h>
-#include <string.h>
-
 #include <trust_router/tr_name.h>
+#include <tr_config.h>
+#include <tr.h>
+#include <tr_comm.h>
 
-void tr_free_name (TR_NAME *name)
+TR_COMM *tr_comm_lookup(TR_INSTANCE *tr, TR_NAME *comm) 
 {
-  if (name->buf) {
-    free (name->buf);
-    name->buf = NULL;
+  TR_COMM *cfg_comm = NULL;
+
+  for (cfg_comm = tr->active_cfg->comms; NULL != cfg_comm; cfg_comm = cfg_comm->next) {
+    if ((cfg_comm->id->len == comm->len) &&
+	(!strncmp(cfg_comm->id->buf, comm->buf, comm->len)))
+      return cfg_comm;
   }
-  
-  free(name);
+  return NULL;
 }
-
-TR_NAME *tr_new_name (char *name) 
-{
-  TR_NAME *new;
-
-  if (new = malloc(sizeof(TR_NAME))) { 
-    new->len = strlen(name);
-    if (new->buf = malloc((new->len)+1)) {
-      strcpy(new->buf, name);
-    }
-  }
-  return new;
-}
-
-TR_NAME *tr_dup_name (TR_NAME *from) 
-{
-  TR_NAME *to;
-
-  if (!from) {
-    return NULL;
-  }
-
-  if (NULL != (to = malloc(sizeof(TR_NAME)))) {
-    to->len = from->len;
-    if (NULL != (to->buf = malloc(to->len+1))) {
-      strncpy(to->buf, from->buf, from->len);
-      to->buf[to->len] = 0;	/* NULL terminate for debugging printf()s */
-    }
-  }
-  return to;
-}
-
-int tr_name_cmp(TR_NAME *one, TR_NAME *two)
-{
-  if (one->len != two->len)
-    return 1;
-  else 
-    /* TBD -- should really do a length-based comparison */
-    return strcmp(one->buf, two->buf);
-}
-
-void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
-{
-  size_t used_len;
-  if (src->len >= len)
-    used_len = len-1;
-  else used_len = src->len;
-  if (used_len > 0)
-    strncat(dest, src->buf, used_len);
-  else dest[0] = '\0';
-}
-
-  
-char * tr_name_strdup(TR_NAME *src)
-{
-  char *s = calloc(src->len+1, 1);
-  if (s) {
-    memcpy(s, src->buf, src->len);
-    s[src->len] = '\0';
-  }
-  return s;
-}
-
-  

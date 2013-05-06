@@ -70,22 +70,21 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
 {
   unsigned char *s_keybuf = NULL;
   int s_keylen = 0;
-  int i = 0;
   char key_id[12];
   
 
-  printf("Request received! target_realm = %s, community = %s\n", req->realm->buf, req->comm->buf);
+  fprintf(stdout, "tids_req_handler: Request received! target_realm = %s, community = %s\n", req->realm->buf, req->comm->buf);
   if (tids)
     tids->req_count++;
 
   if (!(resp) || !(*resp)) {
-    printf("tids_req_handler: No response structure.\n");
+    fprintf(stderr, "tids_req_handler: No response structure.\n");
     return -1;
   }
 
   /* Allocate a new server block */
   if (NULL == ((*resp)->servers = malloc(sizeof(TID_SRVR_BLK)))){
-    printf("tids_req_handler(): malloc failed.\n");
+    fprintf(stderr, "tids_req_handler(): malloc failed.\n");
     return -1;
   }
   memset((*resp)->servers, 0, sizeof(TID_SRVR_BLK));
@@ -93,26 +92,26 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
   /* TBD -- Set up the server IP Address */
 
   if (!(req) || !(req->tidc_dh)) {
-    printf("tids_req_handler(): No client DH info.\n");
+    fprintf(stderr, "tids_req_handler(): No client DH info.\n");
     return -1;
   }
 
   if ((!req->tidc_dh->p) || (!req->tidc_dh->g)) {
-    printf("tids_req_handler(): NULL dh values.\n");
+    fprintf(stderr, "tids_req_handler(): NULL dh values.\n");
     return -1;
   }
 
   /* Generate the server DH block based on the client DH block */
-  printf("Generating the server DH block.\n");
-  printf("...from client DH block, dh_g = %s, dh_p = %s.\n", BN_bn2hex(req->tidc_dh->g), BN_bn2hex(req->tidc_dh->p));
+  // fprintf(stderr, "Generating the server DH block.\n");
+  // fprintf(stderr, "...from client DH block, dh_g = %s, dh_p = %s.\n", BN_bn2hex(req->tidc_dh->g), BN_bn2hex(req->tidc_dh->p));
 
   if (NULL == ((*resp)->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
-    printf("tids_req_handler(): Can't create server DH params.\n");
+    fprintf(stderr, "tids_req_handler(): Can't create server DH params.\n");
     return -1;
   }
 
   if (0 == inet_aton(tids->ipaddr, &((*resp)->servers->aaa_server_addr))) {
-    printf("tids_req_handler(): inet_aton() failed.\n");
+    fprintf(stderr, "tids_req_handler(): inet_aton() failed.\n");
     return -1;
   }
 
@@ -122,30 +121,31 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
   (*resp)->servers->key_name = tr_new_name(key_id);
 
   /* Generate the server key */
-  printf("Generating the server key.\n");
+  // fprintf(stderr, "Generating the server key.\n");
 
   if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, 
 					req->tidc_dh->pub_key, 
 				        (*resp)->servers->aaa_server_dh))) {
-    printf("tids_req_handler(): Key computation failed.");
+    fprintf(stderr, "tids_req_handler(): Key computation failed.");
     return -1;
   }
-      if (NULL != insert_stmt) {
-	int sqlite3_result;
-	sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
-	sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
-	sqlite3_result = sqlite3_step(insert_stmt);
-	if (SQLITE_DONE != sqlite3_result)
-	  printf("sqlite3: failed to write to database\n");
-	sqlite3_reset(insert_stmt);
-      }
-      
-  /* Print out the key.  If this were a AAA server, we'd store the key. */
-  printf("tids_req_handler(): Server Key Generated (len = %d):\n", s_keylen);
-  for (i = 0; i < s_keylen; i++) {
-    printf("%x", s_keybuf[i]); 
+  if (NULL != insert_stmt) {
+    int sqlite3_result;
+    sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
+    sqlite3_result = sqlite3_step(insert_stmt);
+    if (SQLITE_DONE != sqlite3_result)
+      printf("sqlite3: failed to write to database\n");
+    sqlite3_reset(insert_stmt);
   }
-  printf("\n");
+  
+  /* Print out the key. */
+  // fprintf(stderr, "tids_req_handler(): Server Key Generated (len = %d):\n", s_keylen);
+  // for (i = 0; i < s_keylen; i++) {
+  // fprintf(stderr, "%x", s_keybuf[i]); 
+  // }
+  // fprintf(stderr, "\n");
+
   return s_keylen;
 }
 
@@ -158,7 +158,7 @@ int main (int argc,
 
   /* Parse command-line arguments */ 
   if (argc > 3)
-    printf("Usage: %s [<ip-address> [<database-name>]]\n", argv[0]);
+    fprintf(stdout, "Usage: %s [<ip-address> [<database-name>]]\n", argv[0]);
 
   if (argc >= 2) {
     ipaddr = (char *)argv[1];
@@ -171,7 +171,7 @@ int main (int argc,
   /*If we have a database, open and prepare*/
   if (argc == 3) {
     if (SQLITE_OK != sqlite3_open(argv[2], &db)) {
-      printf("Error opening database %s\n", argv[2]);
+      fprintf(stdout, "Error opening database %s\n", argv[2]);
       exit(1);
     }
     sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key) values(?, ?)",
@@ -180,7 +180,7 @@ int main (int argc,
 
   /* Create a TID server instance */
   if (NULL == (tids = tids_create())) {
-    printf("Unable to create TIDS instance,exiting.\n");
+    fprintf(stdout, "Unable to create TIDS instance,exiting.\n");
     return 1;
   }
 
@@ -189,7 +189,7 @@ int main (int argc,
   /* Start-up the server, won't return unless there is an error. */
   rc = tids_start(tids, &tids_req_handler , NULL);
   
-  printf("Error in tids_start(), rc = %d. Exiting.\n", rc);
+  fprintf(stdout, "Error in tids_start(), rc = %d. Exiting.\n", rc);
 
   /* Clean-up the TID server instance */
   tids_destroy(tids);

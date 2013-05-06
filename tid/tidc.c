@@ -62,6 +62,33 @@ void tidc_destroy (TIDC_INSTANCE *tidc)
     free(tidc);
 }
 
+TID_REQ *tid_dup_req (TID_REQ *orig_req) 
+{
+  TID_REQ *new_req = NULL;
+
+  if (NULL == (new_req = malloc(sizeof(TID_REQ)))) {
+    fprintf(stderr, "tid_dup_req: Can't allocated duplicate request.\n");
+    return NULL;
+  }
+
+  /* Memcpy for flat fields, not valid until names are duped. */
+  memcpy(new_req, orig_req, sizeof(TID_REQ));
+  
+  if ((NULL == (new_req->rp_realm = tr_dup_name(orig_req->rp_realm))) ||
+      (NULL == (new_req->realm = tr_dup_name(orig_req->realm))) ||
+      (NULL == (new_req->comm = tr_dup_name(orig_req->comm)))) {
+	fprintf(stderr, "tid_dup_req: Can't duplicate request (names).\n");
+  }
+
+  if (orig_req->orig_coi) {
+    if (NULL == (new_req->orig_coi = tr_dup_name(orig_req->orig_coi))) {
+      fprintf(stderr, "tid_dup_req: Can't duplicate request (orig_coi).\n");
+    }
+  }
+  
+  return new_req;
+}
+
 int tidc_open_connection (TIDC_INSTANCE *tidc, 
 			  char *server,
 			  gss_ctx_id_t *gssctx)
@@ -90,80 +117,99 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
 		       void *cookie)
 
 {
-  int err = 0;
-  char *req_buf = NULL;
-  char *resp_buf = NULL;
-  size_t resp_buflen = 0;
-  TR_MSG *msg = NULL;
   TID_REQ *tid_req = NULL;
-  TR_MSG *resp_msg = NULL;
 
-  /* Create and populate a TID msg structure */
-  if ((!(msg = malloc(sizeof(TR_MSG)))) ||
-      (!(tid_req = malloc(sizeof(TID_REQ)))))
+  /* Create and populate a TID req structure */
+  if (!(tid_req = malloc(sizeof(TID_REQ))))
     return -1;
 
   memset(tid_req, 0, sizeof(tid_req));
 
-  msg->msg_type = TID_REQUEST;
-
-  msg->tid_req = tid_req;
-
   tid_req->conn = conn;
   tid_req->gssctx = gssctx;
 
-  /* TBD -- error handling */
-  tid_req->rp_realm = tr_new_name(rp_realm);
-  tid_req->realm = tr_new_name(realm);
-  tid_req->comm = tr_new_name(comm);
+  if ((NULL == (tid_req->rp_realm = tr_new_name(rp_realm))) ||
+      (NULL == (tid_req->realm = tr_new_name(realm))) ||
+      (NULL == (tid_req->comm = tr_new_name(comm)))) {
+    fprintf (stderr, "tidc_send_request: Error duplicating names.\n");
+    return -1;
+  }
 
   tid_req->tidc_dh = tidc->client_dh;
 
-  tid_req->resp_func = resp_handler;
-  tid_req->cookie = cookie;
+  return (tidc_fwd_request(tidc, tid_req, resp_handler, cookie));
+}
+
+int tidc_fwd_request (TIDC_INSTANCE *tidc, 
+		      TID_REQ *tid_req, 
+		      TIDC_RESP_FUNC *resp_handler,
+		      void *cookie)
+
+{
+  char *req_buf = NULL;
+  char *resp_buf = NULL;
+  size_t resp_buflen = 0;
+  TR_MSG *msg = NULL;
+  TR_MSG *resp_msg = NULL;
+  int err;
+
+  /* Create and populate a TID msg structure */
+  if (!(msg = malloc(sizeof(TR_MSG))))
+    return -1;
+
+  msg->msg_type = TID_REQUEST;
+  msg->tid_req = tid_req;
+
+  /* store the response function and cookie */
+  // tid_req->resp_func = resp_handler;
+  // tid_req->cookie = cookie;
+  
 
   /* Encode the request into a json string */
   if (!(req_buf = tr_msg_encode(msg))) {
-    printf("Error encoding TID request.\n");
+    fprintf(stderr, "tidc_fwd_request: Error encoding TID request.\n");
     return -1;
   }
 
-  printf ("Sending TID request:\n");
-  printf ("%s\n", req_buf);
+  fprintf (stderr, "tidc_fwd_request: Sending TID request:\n");
+  fprintf (stderr, "%s\n", req_buf);
 
   /* Send the request over the connection */
-  if (err = gsscon_write_encrypted_token (conn, gssctx, req_buf, 
+  if (err = gsscon_write_encrypted_token (tid_req->conn, tid_req->gssctx, req_buf, 
 					  strlen(req_buf))) {
-    fprintf(stderr, "Error sending request over connection.\n");
+    fprintf(stderr, "tidc_fwd_request: Error sending request over connection.\n");
     return -1;
   }
 
-  /* TBD -- should queue request on instance, resps read in separate thread */
-  /* Read the response from the connection */
+  /* TBD -- queue request on instance, read resps in separate thread */
 
-  if (err = gsscon_read_encrypted_token(conn, gssctx, &resp_buf, &resp_buflen)) {
+  /* Read the response from the connection */
+  /* TBD -- timeout? */
+  if (err = gsscon_read_encrypted_token(tid_req->conn, tid_req->gssctx, &resp_buf, &resp_buflen)) {
     if (resp_buf)
       free(resp_buf);
     return -1;
   }
 
-  fprintf(stdout, "Response Received (%u bytes).\n", (unsigned) resp_buflen);
+  fprintf(stdout, "tidc_fwd_request: Response Received (%u bytes).\n", (unsigned) resp_buflen);
   fprintf(stdout, "%s\n", resp_buf);
 
   if (NULL == (resp_msg = tr_msg_decode(resp_buf, resp_buflen))) {
-    fprintf(stderr, "Error decoding response.\n");
+    fprintf(stderr, "tidc_fwd_request: Error decoding response.\n");
     return -1;
   }
 
   /* TBD -- Check if this is actually a valid response */
   if (!resp_msg->tid_resp) {
-    fprintf(stderr, "Error: No response in the response!\n");
+    fprintf(stderr, "tidc_fwd_request: Error, no response in the response!\n");
     return -1;
   }
   
-  /* Call the caller's response function */
-  (*tid_req->resp_func)(tidc, tid_req, resp_msg->tid_resp, cookie);
-
+  if (resp_handler)
+    /* Call the caller's response function */
+    (*resp_handler)(tidc, tid_req, resp_msg->tid_resp, cookie);
+  else
+    fprintf(stderr, "tidc_fwd_request: NULL response function.\n");
 
   if (msg)
     free(msg);
