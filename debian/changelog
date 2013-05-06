@@ -1,3 +1,9 @@
+moonshot-trust-router (0.2+20130506-1) unstable; urgency=low
+
+  * New upstream version, beta release
+
+ -- Margaret Wasserman <margaret@moonshot-proxy>  Mon, 06 May 2013 15:40:43 -0400
+
 moonshot-trust-router (0.1+20130418-1) unstable; urgency=low
 
   * New upstream version
