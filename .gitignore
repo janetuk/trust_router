@@ -1,4 +1,6 @@
 *~
+\#*\#
+.\#*
 *.o
 *.la
 *.lo
@@ -15,3 +17,7 @@ m4
 ltmain.sh
 libtool
 config.*
+tr/trust_router
+common/dh_test/tr_dh_test
+tid/example/tids
+tid/example/tidc
