@@ -2,7 +2,7 @@ Eventually this document may go away or hold README information for
 the trust router.  Right now, it serves as a to-do list for work that
 needs to be done on the trust router code before various releases:
 
-TO-DO FOR BETA RELEASE (originally due Jan 2013)
+TO-DO FOR BETA RELEASE (May 2013)
 ======================
 DONE - GSS connection API (based on MIT example code)
 DONE - DH implementation and test code (based on openssl)
@@ -19,37 +19,36 @@ DONE - TIDC integration with freeradius proxy
 DONE - Map a COI to an APC in TR (incl config & lookup code)
 DONE - Resolve TBDs for error handling and deallocation
 
-TO-DO FOR FULL PILOT VERSION (~2 months after beta release)
+TO-DO FOR FULL PILOT VERSION (by July 1, 2013)
 ============================
 - Check rp_realm COI membership in TR 
 - Check idp_realm APC membership in TR 
 - Add key confirmation to TID protocol
 - Check gss_name on incoming TID request in TR (in TIDS, too?)
-- Keep single connection open between AAA proxy & TR for TID requests
 - Add Request ID to TID messages (req'd for mult simultaneous reqs)
-- Handle multiple simultaneous TID requests in AAA proxy 
 - Fix issue with how DH params are handled in the TR (API clean-up)
 - Handle per-request community configuration in AAA proxy
-- Add TR support for multiple AAA servers in an IDP
-- Move to better tasking model for TR (for dyn cfg and TR protocol)
-- Dynamically re-read TR configuration file at runtime
 - Normalize/configure logging for info, warnings and errors (log4c)
 - Clean-up gsscon API and messages
 - Add accessors for all externally accessible data structures, etc.
 - Formalize API for integration with RADIUS servers
-- More fully integrate TIDS with AAA Server? (Tradeoffs?)
 - Figure out what to do about commented-out checks in gsscon_passive.c
 - Handle IPv6 addresses in TID req/resp (use getaddrinfo())
 - Implement rp_permitted filters (incl. general filtering mechanism)
-- Add 
 - Add constraints to TID req in TR, store and use them in AAA Server
 - Use valgrind to check for memory leaks, other issues
 - Resolve remaining TBDs
 - Full functional testing
 
-TO-DO FOR PRODUCTION VERSION (August 2013)
+TO-DO FOR PRODUCTION VERSION (expected in August 2013)
 ============================
+- Keep single connection open between AAA proxy & TR for TID requests
+- Handle multiple simultaneous TID requests in AAA proxy 
+- Move to better tasking model for TR (for dyn cfg and TR protocol)
+- Dynamically re-read TR configuration file at runtime
 - Multiple Trust Router support including implementation of TR protocol
+- Add TR support for multiple non-shared AAA servers in an IDP
+- More fully integrate TIDS with AAA Server? (Tradeoffs?)
 - Consider standard encoding of DH info (from jose WG)
 - Algorithm agility in TID protocol?
 - Handle more than one APC per COI? (How would this work?)
