@@ -91,10 +91,13 @@ static int tids_listen (TIDS_INSTANCE *tids, int port)
 {
     int rc = 0;
     int conn = -1;
+    int optval = 1;
+
     union {
       struct sockaddr_storage storage;
       struct sockaddr_in in4;
     } addr;
+
     struct sockaddr_in *saddr = (struct sockaddr_in *) &addr.in4;
     
     saddr->sin_port = htons (port);
@@ -104,6 +107,8 @@ static int tids_listen (TIDS_INSTANCE *tids, int port)
     if (0 > (conn = socket (AF_INET, SOCK_STREAM, 0)))
       return conn;
         
+    setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+
     if (0 > (rc = bind (conn, (struct sockaddr *) saddr, sizeof(struct sockaddr_in))))
       return rc;
         
@@ -331,12 +336,9 @@ int tids_start (TIDS_INSTANCE *tids,
   int listen = -1;
   int conn = -1;
   pid_t pid;
-  int optval = 1;
 
   if (0 > (listen = tids_listen(tids, TID_PORT)))
     perror ("Error from tids_listen()");
-
-  setsockopt(listen, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
   /* store the caller's request handler & cookie */
   tids->req_handler = req_handler;
