@@ -92,16 +92,19 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
     return -1;
   }
 
-  /* Map the comm in the request from a COI to an APC, if needed */
   if (NULL == (cfg_comm = tr_comm_lookup((TR_INSTANCE *)tids->cookie, orig_req->comm))) {
     fprintf(stderr, "tr_tids_req_hander: Request for unknown comm: %s.\n", orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "Unknown community");
     return -1;
   }
 
-  /* TBD -- check that the rp_realm is a member of the original community */
+  /* Check that the rp_realm is a member of the community in the request */
+  if (NULL == (tr_find_comm_rp(cfg_comm, orig_req->rp_realm))) {
+    fprintf(stderr, "tr_tids_req_hander: RP Realm (%s) not member of community (%s).\n", orig_req->rp_realm->buf, orig_req->comm->buf);
+    tids_send_err_response(tids, orig_req, "RP community membership error");
+  }
 
-  /* If the community is a COI, switch to the apc */
+  /* Map the comm in the request from a COI to an APC, if needed */
   if (TR_COMM_COI == cfg_comm->type) {
     fprintf(stderr, "tr_tids_req_handler: Community was a COI, switching.\n");
     /* TBD -- In theory there can be more than one?  How would that work? */
@@ -115,12 +118,18 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
     fwd_req->orig_coi = orig_req->comm;
   }
 
+  /* Check that target realm is a valid IDP Realm for this APC */
+  if (NULL == (tr_find_comm_idp(cfg_comm, orig_req->realm))) {
+    fprintf(stderr, "tr_tids_req_hander: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
+    tids_send_err_response(tids, orig_req, "IDP APC membership error");
+  }
+
   /* Find the AAA server(s) for this request */
   if (NULL == (aaa_servers = tr_idp_aaa_server_lookup((TR_INSTANCE *)tids->cookie, 
 						      orig_req->realm, 
 						      orig_req->comm))) {
       fprintf(stderr, "tr_tids_req_handler: No AAA Servers for realm %s.\n", orig_req->realm->buf);
-      tids_send_err_response(tids, orig_req, "No path to AAA Servers for realm");
+      tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
       return -1;
     }
   /* send a TID request to the AAA server(s), and get the answer(s) */
