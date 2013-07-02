@@ -32,20 +32,9 @@
  *
  */
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include <trust_router/tr_dh.h>
+#ifndef TR_CONFIG_H
+#define TR_CONFIG_H
 
-void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
-		   char * hex_out, size_t hex_len)
-{
-  assert(hex_len >= 2*bin_len);
-  while (bin_len >0) {
-    snprintf(hex_out, hex_len, "%.2x", bin[0]);
-    bin++, hex_out += 2;
-    bin_len--;
-    hex_len -= 2;
-  }
-}
+int tr_prefix_wildcard_match (char *str, char *wc_str);
 
+#endif

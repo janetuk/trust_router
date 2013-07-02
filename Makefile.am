@@ -13,6 +13,7 @@ tr_trust_router_SOURCES = tr/tr_main.c \
 common/tr_config.c \
 common/tr_idp.c \
 common/tr_comm.c \
+common/tr_filter.c \
 tr/tr.c
 
 tr_trust_router_LDADD = gsscon/libgsscon.la libtr_tid.la
@@ -43,7 +44,8 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 include/tr_msg.h \
 include/tr.h \
 	include/tr_idp.h include/tr_rp.h \
-	include/tr_comm.h include/tr_apc.h
+	include/tr_comm.h include/tr_apc.h \
+	include/tr_filter.h
 
 
 EXTRA_DIST = trust_router.spec

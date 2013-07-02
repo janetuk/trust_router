@@ -32,20 +32,33 @@
  *
  */
 
-#include <assert.h>
-#include <stdio.h>
 #include <string.h>
-#include <trust_router/tr_dh.h>
+#include <tr_filter.h>
 
-void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
-		   char * hex_out, size_t hex_len)
-{
-  assert(hex_len >= 2*bin_len);
-  while (bin_len >0) {
-    snprintf(hex_out, hex_len, "%.2x", bin[0]);
-    bin++, hex_out += 2;
-    bin_len--;
-    hex_len -= 2;
+/* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
+ */
+int tr_prefix_wildcard_match (char *str, char *wc_str) {
+  char *wc_post = wc_str;
+  size_t len = 0;
+  size_t wc_len = 0;
+
+  if ((!str) || (!wc_str))
+    return 0;
+
+  /* TBD -- skip leading white space? */
+  if ('*' == wc_str[0])
+    wc_post = &(wc_str[1]);
+
+  len = strlen(str);
+  /* Everything matches an empty string or "*" */
+  if (0 == (wc_len = strlen(wc_post))) 
+    return 1;
+  if (wc_len > len)
+    return 0;
+
+  if (!strcmp(&(str[len-wc_len]), wc_post)) {
+    return 1;
   }
-}
-
+  else
+    return 0;
+  }
