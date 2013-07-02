@@ -74,4 +74,6 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, json_t *jcfg);
 TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
 void tr_cfg_free(TR_CFG *cfg);
 void tr_print_config(FILE *stream, TR_CFG *cfg);
+
+TR_RP_CLIENT *tr_cfg_find_rp (TR_INSTANCE *tr, TR_NAME *rp_gss, TR_CFG_RC *rc);
 #endif

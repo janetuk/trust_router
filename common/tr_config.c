@@ -146,8 +146,8 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_INSTANCE *tr, json_t *jrp, T
 
 static TR_CFG_RC tr_cfg_parse_rp_clients (TR_INSTANCE *tr, json_t *jcfg) {
   json_t *jrps = NULL;
-  TR_CFG_RC rc = TR_CFG_SUCCESS;
   TR_RP_CLIENT *rp = NULL;
+  TR_CFG_RC rc = TR_CFG_SUCCESS;
   int i = 0;
 
   if ((!tr) || (!tr->new_cfg) || (!jcfg))
@@ -363,29 +363,6 @@ static TR_IDP_REALM *tr_cfg_find_idp (TR_INSTANCE *tr, TR_NAME *idp_id, TR_CFG_R
   return NULL;
 }
 
-static TR_RP_CLIENT *tr_cfg_find_rp (TR_INSTANCE *tr, TR_NAME *rp_id, TR_CFG_RC *rc)
-{
-  TR_RP_CLIENT *cfg_rp;
-  int i;
-
-  if ((!tr) || (!rp_id)) {
-    if (rc)
-      *rc = TR_CFG_BAD_PARAMS;
-    return NULL;
-  }
-
-  for (cfg_rp = tr->active_cfg->rp_clients; NULL != cfg_rp; cfg_rp = cfg_rp->next) {
-    for (i = 0; i < TR_MAX_GSS_NAMES; i++) {
-      if (!tr_name_cmp (rp_id, cfg_rp->gss_names[i])) {
-	fprintf(stderr, "tr_cfg_find_rp: Found %s.\n", rp_id->buf);
-	return cfg_rp;
-      }
-    }
-  }
-  /* if we didn't find one, return NULL */ 
-  return NULL;
-}
-
 static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_INSTANCE *tr, json_t *jidps, TR_CFG_RC *rc)
 {
   TR_IDP_REALM *idp = NULL;
@@ -416,10 +393,10 @@ static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_INSTANCE *tr, json_t *jidps, TR_
   return idp;
 }
 
-static TR_RP_CLIENT *tr_cfg_parse_comm_rps (TR_INSTANCE *tr, json_t *jrps, TR_CFG_RC *rc)
+static TR_RP_REALM *tr_cfg_parse_comm_rps (TR_INSTANCE *tr, json_t *jrps, TR_CFG_RC *rc)
 {
-  TR_RP_CLIENT *rp = NULL;
-  TR_RP_CLIENT *temp_rp = NULL;
+  TR_RP_REALM *rp = NULL;
+  TR_RP_REALM *temp_rp = NULL;
   int i = 0;
 
   if ((!tr) ||
@@ -430,16 +407,23 @@ static TR_RP_CLIENT *tr_cfg_parse_comm_rps (TR_INSTANCE *tr, json_t *jrps, TR_CF
     return NULL;
   }
 
-  for (i = 0; i < json_array_size(jrps); i++) {
-    if (NULL == (temp_rp = (tr_cfg_find_rp(tr, 
-					   tr_new_name((char *)json_string_value(json_array_get(jrps, i))), 
-					   rc)))) {
-      fprintf(stderr, "tr_cfg_parse_comm_rps: Unknown RP %s.\n", 
-	      (char *)json_string_value(json_array_get(jrps, i)));
+  for (i = (json_array_size(jrps)-1); i >= 0; i++) {
+    if (NULL == (temp_rp = malloc(sizeof(TR_RP_REALM)))) {
+      fprintf(stderr, "tr_cfg_parse_comm_rps: Can't allocate memory for RP Realm.\n");
+      if (rc)
+	*rc = TR_CFG_NOMEM;
+      return NULL;
+    }
+    memset (temp_rp, 0, sizeof(TR_RP_REALM));
+
+    if (NULL == (temp_rp->realm_name = tr_new_name((char *)json_string_value(json_array_get(jrps, i))))) {
+      fprintf(stderr, "tr_cfg_parse_comm_rps: No memory for RP Realm Name.\n");
+      if (rc)
+	*rc = TR_CFG_NOMEM;
       return NULL;
     }
 
-    temp_rp->comm_next = rp;
+    temp_rp->next = rp;
     rp = temp_rp;
   }
 
@@ -586,6 +570,29 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, json_t *jcfg) {
     return TR_CFG_ERROR;
   }
   return TR_CFG_SUCCESS;
+}
+
+TR_RP_CLIENT *tr_cfg_find_rp (TR_INSTANCE *tr, TR_NAME *rp_gss, TR_CFG_RC *rc)
+{
+  TR_RP_CLIENT *cfg_rp;
+  int i;
+
+  if ((!tr) || (!rp_gss)) {
+    if (rc)
+      *rc = TR_CFG_BAD_PARAMS;
+    return NULL;
+  }
+
+  for (cfg_rp = tr->active_cfg->rp_clients; NULL != cfg_rp; cfg_rp = cfg_rp->next) {
+    for (i = 0; i < TR_MAX_GSS_NAMES; i++) {
+      if (!tr_name_cmp (rp_gss, cfg_rp->gss_names[i])) {
+	fprintf(stderr, "tr_cfg_find_rp: Found %s.\n", rp_gss->buf);
+	return cfg_rp;
+      }
+    }
+  }
+  /* if we didn't find one, return NULL */ 
+  return NULL;
 }
 
 json_t *tr_read_config (int n, struct dirent **cfg_files) {
