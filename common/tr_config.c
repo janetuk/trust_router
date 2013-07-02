@@ -595,6 +595,26 @@ TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc)
   return NULL;
 }
 
+TR_COMM *tr_cfg_find_comm (TR_CFG *tr_cfg, TR_NAME *comm_name, TR_CFG_RC *rc)
+{
+  TR_COMM *comm;
+
+  if ((!tr_cfg) || (!comm_name)) {
+    if (rc)
+      *rc = TR_CFG_BAD_PARAMS;
+    return NULL;
+  }
+
+  for (comm = tr_cfg->comms; NULL != comm; comm = comm->next) {
+    if (!tr_name_cmp (comm_name, comm->id)) {
+      fprintf(stderr, "tr_cfg_find_comm: Found %s.\n", comm_name->buf);
+      return comm;
+    }
+  }
+  /* if we didn't find one, return NULL */ 
+  return NULL;
+}
+
 json_t *tr_read_config (int n, struct dirent **cfg_files) {
   json_t *jcfg = NULL;
   json_t *temp = NULL;

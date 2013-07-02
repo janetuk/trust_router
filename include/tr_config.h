@@ -75,6 +75,7 @@ TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
 void tr_cfg_free(TR_CFG *cfg);
 void tr_print_config(FILE *stream, TR_CFG *cfg);
 
+TR_COMM *tr_cfg_find_comm (TR_CFG *tr_cfg, TR_NAME *comm_name, TR_CFG_RC *rc);
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
 TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
 #endif
