@@ -386,7 +386,7 @@ static TR_RP_REALM *tr_cfg_parse_comm_rps (TR_INSTANCE *tr, json_t *jrps, TR_CFG
     return NULL;
   }
 
-  for (i = (json_array_size(jrps)-1); i >= 0; i++) {
+  for (i = (json_array_size(jrps)-1); i >= 0; i--) {
     if (NULL == (temp_rp = malloc(sizeof(TR_RP_REALM)))) {
       fprintf(stderr, "tr_cfg_parse_comm_rps: Can't allocate memory for RP Realm.\n");
       if (rc)
