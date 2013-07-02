@@ -342,27 +342,6 @@ static TR_CFG_RC tr_cfg_parse_idp_realms (TR_INSTANCE *tr, json_t *jcfg)
   return rc;
 }
 
-static TR_IDP_REALM *tr_cfg_find_idp (TR_INSTANCE *tr, TR_NAME *idp_id, TR_CFG_RC *rc)
-{
-
-  TR_IDP_REALM *cfg_idp;
-
-  if ((!tr) || (!idp_id)) {
-    if (rc)
-      *rc = TR_CFG_BAD_PARAMS;
-    return NULL;
-  }
-
-  for (cfg_idp = tr->active_cfg->idp_realms; NULL != cfg_idp; cfg_idp = cfg_idp->next) {
-    if (!tr_name_cmp (idp_id, cfg_idp->realm_id)) {
-      fprintf(stderr, "tr_cfg_find_idp: Found %s.\n", idp_id->buf);
-      return cfg_idp;
-    }
-  }
-  /* if we didn't find one, return NULL */ 
-  return NULL;
-}
-
 static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_INSTANCE *tr, json_t *jidps, TR_CFG_RC *rc)
 {
   TR_IDP_REALM *idp = NULL;
@@ -378,7 +357,7 @@ static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_INSTANCE *tr, json_t *jidps, TR_
   }
 
   for (i = 0; i < json_array_size(jidps); i++) {
-    if (NULL == (temp_idp = (tr_cfg_find_idp(tr, 
+    if (NULL == (temp_idp = (tr_cfg_find_idp(tr->new_cfg, 
 					     tr_new_name((char *)json_string_value(json_array_get(jidps, i))), 
 					     rc)))) {
       fprintf(stderr, "tr_cfg_parse_comm_idps: Unknown IDP %s.\n", 
@@ -572,18 +551,39 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, json_t *jcfg) {
   return TR_CFG_SUCCESS;
 }
 
-TR_RP_CLIENT *tr_cfg_find_rp (TR_INSTANCE *tr, TR_NAME *rp_gss, TR_CFG_RC *rc)
+TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc)
 {
-  TR_RP_CLIENT *cfg_rp;
-  int i;
 
-  if ((!tr) || (!rp_gss)) {
+  TR_IDP_REALM *cfg_idp;
+
+  if ((!tr_cfg) || (!idp_id)) {
     if (rc)
       *rc = TR_CFG_BAD_PARAMS;
     return NULL;
   }
 
-  for (cfg_rp = tr->active_cfg->rp_clients; NULL != cfg_rp; cfg_rp = cfg_rp->next) {
+  for (cfg_idp = tr_cfg->idp_realms; NULL != cfg_idp; cfg_idp = cfg_idp->next) {
+    if (!tr_name_cmp (idp_id, cfg_idp->realm_id)) {
+      fprintf(stderr, "tr_cfg_find_idp: Found %s.\n", idp_id->buf);
+      return cfg_idp;
+    }
+  }
+  /* if we didn't find one, return NULL */ 
+  return NULL;
+}
+
+TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc)
+{
+  TR_RP_CLIENT *cfg_rp;
+  int i;
+
+  if ((!tr_cfg) || (!rp_gss)) {
+    if (rc)
+      *rc = TR_CFG_BAD_PARAMS;
+    return NULL;
+  }
+
+  for (cfg_rp = tr_cfg->rp_clients; NULL != cfg_rp; cfg_rp = cfg_rp->next) {
     for (i = 0; i < TR_MAX_GSS_NAMES; i++) {
       if (!tr_name_cmp (rp_gss, cfg_rp->gss_names[i])) {
 	fprintf(stderr, "tr_cfg_find_rp: Found %s.\n", rp_gss->buf);
