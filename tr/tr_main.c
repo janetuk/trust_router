@@ -74,6 +74,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
   TR_NAME *apc = NULL;
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
+  TR_COMM *cfg_apc = NULL;
   int rc;
 
   if ((!tids) || (!orig_req) || (!resp) || (!(*resp))) {
