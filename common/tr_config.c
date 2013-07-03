@@ -610,6 +610,7 @@ json_t *tr_read_config (int n, struct dirent **cfg_files) {
       return NULL;
     }
 
+    /* TBD -- instead of using json_object_update, iterate through files for non-overlap config? */
     if (!jcfg) {
       jcfg = temp;
     }else {
