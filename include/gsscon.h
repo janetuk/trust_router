@@ -100,12 +100,9 @@ void gsscon_print_gss_errors (const char *inRoutineName,
 
 int gsscon_connect (const char *inHost, 
 		    int inPort, 
-		    int *outFD);
-
-int gsscon_active_authenticate (int           inSocket, 
-				const char   *inClientName, 
-				const char   *inServiceName, 
-				gss_ctx_id_t *outGSSContext);
+		    const char *inServiceName,
+		    int *outFD,
+		    gss_ctx_id_t *outGSSContext);
 
 int gsscon_passive_authenticate (int           inSocket, 
 				 gss_ctx_id_t *outGSSContext);
