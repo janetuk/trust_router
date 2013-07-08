@@ -57,17 +57,22 @@
 const char *gServiceName = NULL;
 
 int gsscon_passive_authenticate (int           inSocket, 
-                         gss_ctx_id_t *outGSSContext)
+				 gss_ctx_id_t *outGSSContext,
+				 client_cb_fn clientCb,
+				 void *clientCbData)
 {
     int err = 0;
     OM_uint32 majorStatus;
     OM_uint32 minorStatus = 0;
     gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
+    gss_name_t clientName = GSS_C_NO_NAME;
+    gss_buffer_desc clientDisplayName = {0, NULL};
     
     char *inputTokenBuffer = NULL;
     size_t inputTokenBufferLength = 0;
     gss_buffer_desc inputToken;  /* buffer received from the server */
     
+
     if (inSocket <  0 ) { err = EINVAL; }
     if (!outGSSContext) { err = EINVAL; }
     
@@ -107,28 +112,16 @@ int gsscon_passive_authenticate (int           inSocket,
             /*
              * accept_sec_context does the actual work of taking the client's 
              * request and generating an appropriate reply.  Note that we pass 
-             * GSS_C_NO_CREDENTIAL for the service principal.  This causes the 
-             * server to accept any service principal in the server's keytab, 
-             * which enables you to support multihomed hosts by having one key 
-             * in the keytab for each host identity the server responds on.  
-             *
-             * However, since we may have more keys in the keytab than we want 
-             * the server to actually use, we will need to check which service 
-             * principal the client used after authentication succeeds.  See 
-             * ServicePrincipalIsValidForService() for where you would put these 
-             * checks.  We don't check here since if we stopped responding in the 
-             * middle of the authentication negotiation, the client would get an 
-             * EOF, and the user wouldn't know what went wrong.
-             */
-            
+             * GSS_C_NO_CREDENTIAL for the service principal.
+            */
 	    // printf ("Calling gss_accept_sec_context...\n");
             majorStatus = gss_accept_sec_context (&minorStatus, 
                                                   &gssContext, 
                                                   GSS_C_NO_CREDENTIAL, 
                                                   &inputToken, 
                                                   GSS_C_NO_CHANNEL_BINDINGS, 
-                                                  NULL /* client_name */, 
-                                                  NULL /* actual_mech_type */, 
+                                                  &clientName,
+                                                  NULL /* actual_mech_type */,
                                                   &outputToken, 
                                                   NULL /* req_flags */, 
                                                   NULL /* time_rec */, 
@@ -148,7 +141,17 @@ int gsscon_passive_authenticate (int           inSocket,
             err = minorStatus ? minorStatus : majorStatus; 
         }            
     }
-    
+
+    if (!err) {
+      majorStatus = gss_display_name(&minorStatus, clientName, &clientDisplayName, NULL);
+      if (GSS_ERROR(majorStatus)) {
+	gsscon_print_gss_errors("gss_display_name", majorStatus, minorStatus);
+	err = EINVAL;
+      }
+      if (!err)
+	err = clientCb(clientName, &clientDisplayName, clientCbData);
+    }
+
     if (!err) { 
         *outGSSContext = gssContext;
         gssContext = NULL;
@@ -159,6 +162,10 @@ int gsscon_passive_authenticate (int           inSocket,
     if (inputTokenBuffer) { free (inputTokenBuffer); }
     if (gssContext != GSS_C_NO_CONTEXT) { 
         gss_delete_sec_context (&minorStatus, &gssContext, GSS_C_NO_BUFFER); }
+if (clientName != GSS_C_NO_NAME)
+  gss_release_name(&minorStatus, &clientName);
+if (clientDisplayName.value != NULL)
+  gss_release_buffer(&minorStatus, &clientDisplayName);
         
     return err;
 }

@@ -53,7 +53,20 @@
  */
 
 #include <gsscon.h>
+#include <assert.h>
 
+static int cb_print_names(gss_name_t clientName,
+			  gss_buffer_t displayName,
+			  void *data)
+{
+  assert(clientName != NULL);
+  assert(data == NULL);
+  printf("Gss name: %-*s\n",
+	 displayName->length, displayName->value);
+  return 0;
+}
+
+  
 /* --------------------------------------------------------------------------- */
 
 static int SetupListeningSocket (int  inPort, 
@@ -153,7 +166,8 @@ int main (int argc, const char *argv[])
         }
         
         printf ("Accepting new connection...\n");
-        connectionErr = gsscon_passive_authenticate (connectionFD, &gssContext);
+        connectionErr = gsscon_passive_authenticate (connectionFD, &gssContext,
+						     cb_print_names, NULL);
         
         if (!connectionErr) {
             connectionErr = gsscon_authorize (gssContext, 
