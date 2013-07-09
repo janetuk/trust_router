@@ -32,6 +32,7 @@
  *
  */
 
+#include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -119,12 +120,21 @@ static int tids_listen (TIDS_INSTANCE *tids, int port)
     return conn; 
 }
 
+static int tids_auth_cb(gss_name_t clientName, gss_buffer_t displayName,
+			void *data)
+{
+  assert(data == NULL);
+  assert (clientName != NULL);
+  assert(displayName->value != NULL);
+  return 0;
+}
+
 static int tids_auth_connection (int conn, gss_ctx_id_t *gssctx)
 {
   int rc = 0;
   int auth, autherr = 0;
 
-  if (rc = gsscon_passive_authenticate(conn, gssctx)) {
+  if (rc = gsscon_passive_authenticate(conn, gssctx, tids_auth_cb, NULL)) {
     fprintf(stderr, "tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.\n", rc);
     return -1;
   }
