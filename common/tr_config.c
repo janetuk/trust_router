@@ -172,7 +172,7 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_INSTANCE *tr, json_t *jrp, T
       return NULL;
   }
 
-  rp->rp_match = tr_new_name(json_string_value(jfrealm));
+  rp->rp_match = tr_new_name((char *)json_string_value(jfrealm));
 
   if (0 == json_array_size(jgns)) {
     fprintf(stderr, "tr_cfg_parse_one_rp_client: RP Client has no GSS Names.\n");
