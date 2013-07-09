@@ -99,12 +99,15 @@ struct tidc_instance {
 };
 
 typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP **, void *);
+typedef int (tids_auth_func)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
+
 
 struct tids_instance {
   int req_count;
   char *priv_key;
   char *ipaddr;
   TIDS_REQ_FUNC *req_handler;
+  tids_auth_func *auth_handler;
   void *cookie;
 };
 
@@ -117,7 +120,9 @@ TR_EXPORT int tidc_fwd_request (TIDC_INSTANCE *tidc, TID_REQ *req, TIDC_RESP_FUN
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
 TR_EXPORT TIDS_INSTANCE *tids_create (void);
-TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler, void *cookie);
+TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
+			  tids_auth_func *auth_handler,
+			  void *cookie);
 TR_EXPORT int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp);
 TR_EXPORT int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_msg);
 TR_EXPORT void tids_destroy (TIDS_INSTANCE *tids);

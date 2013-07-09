@@ -123,18 +123,19 @@ static int tids_listen (TIDS_INSTANCE *tids, int port)
 static int tids_auth_cb(gss_name_t clientName, gss_buffer_t displayName,
 			void *data)
 {
-  assert(data == NULL);
-  assert (clientName != NULL);
-  assert(displayName->value != NULL);
-  return 0;
+  struct tids_instance *inst = (struct tids_instance *) data;
+  TR_NAME name ={(char *) displayName->value,
+		 displayName->length};
+  return inst->auth_handler(clientName, &name, inst->cookie);
 }
 
-static int tids_auth_connection (int conn, gss_ctx_id_t *gssctx)
+static int tids_auth_connection (struct tids_instance *inst,
+				 int conn, gss_ctx_id_t *gssctx)
 {
   int rc = 0;
   int auth, autherr = 0;
 
-  if (rc = gsscon_passive_authenticate(conn, gssctx, tids_auth_cb, NULL)) {
+  if (rc = gsscon_passive_authenticate(conn, gssctx, tids_auth_cb, inst)) {
     fprintf(stderr, "tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.\n", rc);
     return -1;
   }
@@ -284,7 +285,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
   int rc = 0;
   gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
 
-  if (tids_auth_connection(conn, &gssctx)) {
+  if (tids_auth_connection(tids, conn, &gssctx)) {
     fprintf(stderr, "tids_handle_connection: Error authorizing TID Server connection.\n");
     close(conn);
     return;
@@ -341,6 +342,7 @@ TIDS_INSTANCE *tids_create (void)
 
 int tids_start (TIDS_INSTANCE *tids, 
 		TIDS_REQ_FUNC *req_handler,
+		tids_auth_func *auth_handler,
 		void *cookie)
 {
   int listen = -1;
@@ -352,6 +354,7 @@ int tids_start (TIDS_INSTANCE *tids,
 
   /* store the caller's request handler & cookie */
   tids->req_handler = req_handler;
+  tids->auth_handler = auth_handler;
   tids->cookie = cookie;
 
   while(1) {	/* accept incoming conns until we are stopped */
