@@ -36,10 +36,12 @@
 #include <jansson.h>
 
 #include <tr.h>
+#include <tr_filter.h>
 #include <trust_router/tid.h>
 #include <tr_config.h>
 #include <tr_comm.h>
 #include <tr_idp.h>
+#include <tr_rp.h>
 
 /* Structure to hold TR instance and original request in one cookie */
 typedef struct tr_resp_cookie {
@@ -192,12 +194,13 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
   return 0;
 }
 
-static int tr_tidc_gss_handler(gss_name_t *clientName, TR_NAME *displayName,
+static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
 			void *tr)
 {
-  RP_CLIENT *rp;
+  TR_RP_CLIENT *rp;
+  int i = 0;
 
-  if ((!client_name) || (!display_name) || (!tr)) {
+  if ((!client_name) || (!gss_name) || (!tr)) {
     fprintf(stderr, "tr_tidc_gss_handler: Bad parameters.\n");
     return -1;
   }
@@ -209,8 +212,8 @@ static int tr_tidc_gss_handler(gss_name_t *clientName, TR_NAME *displayName,
   }
 
   /* check if the gss name matches the filter in the rp realm */
-  if (!tr_prefix_wildcard_match(gss_name->buf, rp->rp_match->buf)) {
-    fprintf(stderr, "tr_tids_gss_handler: RP realm does not match, realm %s, math %s\n", gss_name_buf, rp->rp_match->buf);
+  if (!(i = tr_prefix_wildcard_match(gss_name->buf, rp->rp_match->buf))) {
+    fprintf(stderr, "tr_tids_gss_handler: RP realm does not match, realm %s, math %s\n", gss_name->buf, rp->rp_match->buf);
     return -1;
   }
 

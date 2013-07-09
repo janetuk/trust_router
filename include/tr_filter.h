@@ -32,8 +32,8 @@
  *
  */
 
-#ifndef TR_CONFIG_H
-#define TR_CONFIG_H
+#ifndef TR_FILTER_H
+#define TR_FILTER_H
 
 int tr_prefix_wildcard_match (char *str, char *wc_str);
 
