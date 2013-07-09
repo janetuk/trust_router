@@ -47,6 +47,7 @@ typedef struct tr_resp_cookie {
   TID_REQ *orig_req;
 } TR_RESP_COOKIE;
 
+
 static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc, 
 			TID_REQ *req,
 			TID_RESP *resp, 
@@ -191,6 +192,33 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
   return 0;
 }
 
+static int tr_tidc_gss_handler(gss_name_t *clientName, TR_NAME *displayName,
+			void *tr)
+{
+  RP_CLIENT *rp;
+
+  if ((!client_name) || (!display_name) || (!tr)) {
+    fprintf(stderr, "tr_tidc_gss_handler: Bad parameters.\n");
+    return -1;
+  }
+  
+  /* look up the RP client matching the GSS name */
+  if ((NULL == (rp = tr_rp_client_lookup(tr, gss_name)))) {
+    fprintf(stderr, "tr_tids_gss_handler: Unknown GSS name %s", gss_name->buf);
+    return -1;
+  }
+
+  /* check if the gss name matches the filter in the rp realm */
+  if (!tr_prefix_wildcard_match(gss_name->buf, rp->rp_match->buf)) {
+    fprintf(stderr, "tr_tids_gss_handler: RP realm does not match, realm %s, math %s\n", gss_name_buf, rp->rp_match->buf);
+    return -1;
+  }
+
+  /* Otherwise, all is well... */
+  return 0;
+}
+
+
 int main (int argc, const char *argv[])
 {
   TR_INSTANCE *tr = NULL;
@@ -236,7 +264,7 @@ int main (int argc, const char *argv[])
   }
 
   /* start the trust path query server, won't return unless fatal error. */
-  if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, (void *)tr))) {
+  if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, &tr_tids_gss_handler, (void *)tr))) {
     fprintf (stderr, "Error from Trust Path Query Server, err = %d.\n", err);
     exit(err);
   }
