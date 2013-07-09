@@ -47,8 +47,8 @@ TR_RP_CLIENT *tr_rp_client_lookup(TR_INSTANCE *tr, TR_NAME *gss_name) {
   }
 
   for (rp = tr->active_cfg->rp_clients; NULL != rp; rp = rp->next) {
-    for (i = 0; i < TR_MAX_GSS_NAMES; i++) {
-      if (!strcmp(gss_name->buf, rp->gss_names[i]->buf)) {
+    for (i = 0; ((i < TR_MAX_GSS_NAMES) && (NULL == (rp->gss_names[i]))); i++) {
+	if (!tr_name_cmp(gss_name, rp->gss_names[i])) {
 	return rp;
       }
     }
