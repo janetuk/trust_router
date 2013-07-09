@@ -32,6 +32,7 @@
  *
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <tr_filter.h>
 
@@ -45,16 +46,14 @@ int tr_prefix_wildcard_match (char *str, char *wc_str) {
   if ((!str) || (!wc_str))
     return 0;
 
+  fprintf(stderr, "tr_prefix_wildcard_match: str = %s, wc_str = %s\n", str, wc_str);
+
   /* TBD -- skip leading white space? */
   if ('*' == wc_str[0])
     wc_post = &(wc_str[1]);
 
   len = strlen(str);
-  /* Everything matches an empty string or "*" */
-  if (0 == (wc_len = strlen(wc_post))) 
-    return 1;
-  if (wc_len > len)
-    return 0;
+  wc_len = strlen(wc_post);
 
   if (!strcmp(&(str[len-wc_len]), wc_post)) {
     return 1;
