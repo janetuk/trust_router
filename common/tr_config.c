@@ -94,6 +94,13 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_INSTANCE *tr, json_t *jrp, T
 {
   TR_RP_CLIENT *rp = NULL;
   json_t *jgns = NULL;
+  json_t *jfilt = NULL;
+  json_t *jfls = NULL;
+  json_t *jftype = NULL;
+  json_t *jfact = NULL;
+  json_t *jfspecs = NULL;
+  json_t *jffield = NULL;
+  json_t *jfrealm = NULL;
   int i = 0;
 
   if ((!jrp) || (!rc)) {
@@ -110,16 +117,62 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_INSTANCE *tr, json_t *jrp, T
   }
   
   memset(rp, 0, sizeof(TR_RP_CLIENT));
-	 
-  /* TBD parse filters and constraints */
 
-  if ((NULL == (jgns = json_object_get(jrp, "gss_names"))) ||
+  if ((NULL == (jfilt = json_object_get(jrp, "filter"))) || 
+      (NULL == (jfls = json_object_get(jfilt, "filter_lines"))) ||
+      (!json_is_array(jfls)) ||
+      (NULL == (jgns = json_object_get(jrp, "gss_names"))) ||
       (!json_is_array(jgns))) {
     fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client configuration.\n");
     free(rp);
     *rc = TR_CFG_NOPARSE;
     return NULL;
   }
+
+  if (0 == json_array_size(jfls)) {
+    fprintf(stderr, "tr_cfg_parse_one_rp_client: RP Client has no filter lines.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  if ((NULL == (jftype = json_object_get(jfilt, "type"))) ||
+      (!json_is_string(jftype)) ||
+      (strcmp(json_string_value(jftype), "rp_permitted"))) {
+    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter type.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+
+  /* Right now, we only accept one type of filter, and we only care
+   * about one per rp_client. */
+  if ((NULL == (jfact = json_object_get(json_array_get(jfls, 0), "action"))) ||
+      (!json_is_string(jfact)) ||
+      (strcmp(json_string_value(jfact), "accept"))) {
+    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter action.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+      }
+
+  if ((NULL == (jfspecs = json_object_get(json_array_get(jfls, 0), "filter_specs"))) ||
+      (!json_is_array(jfspecs)) ||
+      (0 == json_array_size(jfspecs))) {
+      fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter specs.\n");
+      *rc = TR_CFG_NOPARSE;
+      return NULL;
+  }
+
+  if ((NULL == (jffield = json_object_get(json_array_get(jfspecs, 0), "field"))) ||
+      (!json_is_string(jffield)) ||
+      (strcmp(json_string_value(jffield), "rp_realm")) ||
+      (NULL == (jfrealm = json_object_get(json_array_get(jfspecs, 0), "match"))) ||
+      (!json_is_string(jfrealm))) {
+      fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter field and match.\n");
+      *rc = TR_CFG_NOPARSE;
+      return NULL;
+  }
+
+  rp->rp_match = tr_new_name(json_string_value(jfrealm));
 
   if (0 == json_array_size(jgns)) {
     fprintf(stderr, "tr_cfg_parse_one_rp_client: RP Client has no GSS Names.\n");
@@ -164,7 +217,7 @@ static TR_CFG_RC tr_cfg_parse_rp_clients (TR_INSTANCE *tr, json_t *jcfg) {
 						 &rc))) {
        return rc;
     }
-    fprintf(stderr, "tr_cfg_parse_rp_clients: RP client configured: %s.\n", rp->gss_names[0]->buf);
+    fprintf(stderr, "tr_cfg_parse_rp_clients: RP client configured -- first gss: %s, rp_realm: %s\n", rp->gss_names[0]->buf, rp->rp_match->buf);
     rp->next = tr->new_cfg->rp_clients;
     tr->new_cfg->rp_clients = rp;
   }

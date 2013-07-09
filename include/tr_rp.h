@@ -40,6 +40,7 @@
 typedef struct tr_rp_client {
   struct tr_rp_client *next;
   struct tr_rp_client *comm_next;
+  TR_NAME *rp_match;
   TR_NAME *gss_names[TR_MAX_GSS_NAMES];
   // TR_FILTER *filters;
 } TR_RP_CLIENT;
