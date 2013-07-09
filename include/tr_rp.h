@@ -35,9 +35,11 @@
 #ifndef TR_RP_H
 #define TR_RP_H
 
+#include <tr.h>
+
 #define TR_MAX_GSS_NAMES 5
 
-#include <tr.h>
+typedef struct tr_instance TR_INSTANCE;
 
 typedef struct tr_rp_client {
   struct tr_rp_client *next;

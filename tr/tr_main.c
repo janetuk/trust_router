@@ -66,7 +66,7 @@ static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc,
   return;
 }
 
-static int tr_tids_req_handler (TIDS_INSTANCE * tids,
+static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 		      TID_REQ *orig_req, 
 		      TID_RESP **resp,
 		      void *tr)
@@ -80,7 +80,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
   TR_COMM *cfg_apc = NULL;
   int rc;
 
-  if ((!tids) || (!orig_req) || (!resp) || (!(*resp))) {
+  if ((!tids) || (!orig_req) || (!resp) || (!(*resp)) || (!tr)) {
     fprintf(stderr, "tids_req_handler: Bad parameters\n");
     return -1;
   }
@@ -99,6 +99,23 @@ static int tr_tids_req_handler (TIDS_INSTANCE * tids,
   if (NULL == (cfg_comm = tr_comm_lookup((TR_INSTANCE *)tids->cookie, orig_req->comm))) {
     fprintf(stderr, "tr_tids_req_hander: Request for unknown comm: %s.\n", orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "Unknown community");
+    return -1;
+  }
+
+  /* Check that the rp_realm matches the filter for the GSS name that 
+   * was received. */
+
+  if ((!((TR_INSTANCE *)tr)->rp_gss) || 
+      (!((TR_INSTANCE *)tr)->rp_gss->rp_match)) {
+    fprintf(stderr, "tr_tids_req_handler: No GSS name for incoming request.\n");
+    tids_send_err_response(tids, orig_req, "No GSS name for request");
+    return -1;
+  }
+
+  if (!tr_prefix_wildcard_match(((TR_INSTANCE *)tr)->rp_gss->rp_match->buf, 
+				orig_req->rp_realm->buf)) {
+    fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name (%s)\n", orig_req->rp_realm->buf, ((TR_INSTANCE *)tr)->rp_gss->rp_match->buf);
+    tids_send_err_response(tids, orig_req, "RP Realm filter error");
     return -1;
   }
 
@@ -198,7 +215,6 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
 			void *tr)
 {
   TR_RP_CLIENT *rp;
-  int i = 0;
 
   if ((!client_name) || (!gss_name) || (!tr)) {
     fprintf(stderr, "tr_tidc_gss_handler: Bad parameters.\n");
@@ -211,13 +227,9 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
     return -1;
   }
 
-  /* check if the gss name matches the filter in the rp realm */
-  if (!(i = tr_prefix_wildcard_match(gss_name->buf, rp->rp_match->buf))) {
-    fprintf(stderr, "tr_tids_gss_handler: RP realm does not match, realm %s, math %s\n", gss_name->buf, rp->rp_match->buf);
-    return -1;
-  }
-
-  /* Otherwise, all is well... */
+  /* Store the rp client in the TR_INSTANCE structure for now... 
+   * TBD -- fix me for new tasking model. */
+  ((TR_INSTANCE *)tr)->rp_gss = rp;
   return 0;
 }
 
