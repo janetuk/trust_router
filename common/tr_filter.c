@@ -46,16 +46,20 @@ int tr_prefix_wildcard_match (char *str, char *wc_str) {
   if ((!str) || (!wc_str))
     return 0;
 
-  fprintf(stderr, "tr_prefix_wildcard_match: str = %s, wc_str = %s\n", str, wc_str);
+  len = strlen(str);
+  if (0 == (wc_len = strlen(wc_str)))
+    return 0;
 
   /* TBD -- skip leading white space? */
-  if ('*' == wc_str[0])
+  if ('*' == wc_str[0]) {
     wc_post = &(wc_str[1]);
+    wc_len--;
+  }
 
-  len = strlen(str);
-  wc_len = strlen(wc_post);
-
-  if (!strcmp(&(str[len-wc_len]), wc_post)) {
+  if (wc_len > len)
+    return 0;
+  
+  if (0 == strcmp(&(str[len-wc_len]), wc_post)) {
     return 1;
   }
   else

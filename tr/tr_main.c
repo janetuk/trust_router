@@ -112,8 +112,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if (!tr_prefix_wildcard_match(((TR_INSTANCE *)tr)->rp_gss->rp_match->buf, 
-				orig_req->rp_realm->buf)) {
+  if (!tr_prefix_wildcard_match(orig_req->rp_realm->buf, ((TR_INSTANCE *)tr)->rp_gss->rp_match->buf)) { 
     fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name (%s)\n", orig_req->rp_realm->buf, ((TR_INSTANCE *)tr)->rp_gss->rp_match->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
     return -1;
@@ -223,7 +222,7 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   
   /* look up the RP client matching the GSS name */
   if ((NULL == (rp = tr_rp_client_lookup(tr, gss_name)))) {
-    fprintf(stderr, "tr_tids_gss_handler: Unknown GSS name %s", gss_name->buf);
+    fprintf(stderr, "tr_tids_gss_handler: Unknown GSS name %s\n", gss_name->buf);
     return -1;
   }
 
