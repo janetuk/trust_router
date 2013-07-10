@@ -328,9 +328,7 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_INSTANCE *tr, json_t *jidp, 
       (NULL == (jscfg = json_object_get(jidp, "shared_config"))) ||
       (!json_is_string(jscfg)) ||
       (NULL == (jsrvrs = json_object_get(jidp, "aaa_servers"))) ||
-      (!json_is_array(jsrvrs)) ||
-      (NULL == (japcs = json_object_get(jidp, "apcs"))) ||
-      (!json_is_array(japcs))) {
+      (!json_is_array(jsrvrs))) {
     fprintf(stderr, "tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration.\n");
     free(idp);
     *rc = TR_CFG_NOPARSE;
@@ -356,15 +354,18 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_INSTANCE *tr, json_t *jidp, 
     free(idp);
     return NULL;
   }
-  if (NULL == (idp->apcs = tr_cfg_parse_apcs(tr, japcs, rc))) {
-    fprintf(stderr, "tr_cfg_parse_one_idp_realm: Can't parse APCs for realm %s .\n", idp->realm_id->buf);
-    tr_free_name(idp->realm_id);
-    /* TBD -- free aaa_servers */;
-    free(idp);
-    return NULL;
-  }
 
-return idp;
+  if ((NULL != (japcs = json_object_get(jidp, "apcs"))) &&
+      (json_is_array(japcs))) {
+    if (NULL != (idp->apcs = tr_cfg_parse_apcs(tr, japcs, rc))) {
+      fprintf(stderr, "tr_cfg_parse_one_idp_realm: Can't parse APCs for realm %s .\n", idp->realm_id->buf);
+      tr_free_name(idp->realm_id);
+      /* TBD -- free aaa_servers */;
+      free(idp);
+      return NULL;
+    }
+  } 
+  return idp;
 }
 
 static TR_CFG_RC tr_cfg_parse_idp_realms (TR_INSTANCE *tr, json_t *jcfg) 
