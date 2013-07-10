@@ -357,7 +357,7 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_INSTANCE *tr, json_t *jidp, 
 
   if ((NULL != (japcs = json_object_get(jidp, "apcs"))) &&
       (json_is_array(japcs))) {
-    if (NULL != (idp->apcs = tr_cfg_parse_apcs(tr, japcs, rc))) {
+    if (NULL == (idp->apcs = tr_cfg_parse_apcs(tr, japcs, rc))) {
       fprintf(stderr, "tr_cfg_parse_one_idp_realm: Can't parse APCs for realm %s .\n", idp->realm_id->buf);
       tr_free_name(idp->realm_id);
       /* TBD -- free aaa_servers */;
