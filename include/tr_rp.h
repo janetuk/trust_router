@@ -39,8 +39,6 @@
 
 #define TR_MAX_GSS_NAMES 5
 
-typedef struct tr_instance TR_INSTANCE;
-
 typedef struct tr_rp_client {
   struct tr_rp_client *next;
   struct tr_rp_client *comm_next;
@@ -54,7 +52,5 @@ typedef struct tr_rp_realm {
   struct tr_rp_realm *next;
   TR_NAME *realm_name;
 } TR_RP_REALM;
-
-TR_RP_CLIENT *tr_rp_client_lookup(TR_INSTANCE *tr, TR_NAME *gss_name);
 
 #endif
