@@ -1,3 +1,9 @@
+moonshot-trust-router (1.0-1) unstable; urgency=low
+
+  * New upstream version, 1.0 release
+
+ -- Mark Donnelly <mark@mark-VirtualBox.painless-security.com>  Thu, 18 Jul 2013 11:00:32 -0400
+
 moonshot-trust-router (0.2+20130506-1) unstable; urgency=low
 
   * New upstream version, beta release
