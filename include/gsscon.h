@@ -73,6 +73,10 @@
 #define kDefaultPort 2000
 extern const char *gServiceName;
 
+typedef int (*client_cb_fn)(
+			    gss_name_t client_name, gss_buffer_t client_display_name,
+			    void *);
+
 int gsscon_read_token (int      inSocket, 
                char   **outTokenValue, 
                size_t  *outTokenLength);
@@ -100,15 +104,14 @@ void gsscon_print_gss_errors (const char *inRoutineName,
 
 int gsscon_connect (const char *inHost, 
 		    int inPort, 
-		    int *outFD);
-
-int gsscon_active_authenticate (int           inSocket, 
-				const char   *inClientName, 
-				const char   *inServiceName, 
-				gss_ctx_id_t *outGSSContext);
+		    const char *inServiceName,
+		    int *outFD,
+		    gss_ctx_id_t *outGSSContext);
 
 int gsscon_passive_authenticate (int           inSocket, 
-				 gss_ctx_id_t *outGSSContext);
+				 gss_ctx_id_t *outGSSContext,
+				 client_cb_fn client_cb,
+				 void *client_cb_data);
 
 int gsscon_authorize (gss_ctx_id_t  inContext, 
                       int          *outAuthorized, 

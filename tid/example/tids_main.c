@@ -148,6 +148,13 @@ static int tids_req_handler (TIDS_INSTANCE * tids,
 
   return s_keylen;
 }
+static int auth_handler(gss_name_t gss_name, TR_NAME *client,
+			void *expected_client)
+{
+  TR_NAME *expected_client_trname = (TR_NAME*) expected_client;
+  return tr_name_cmp(client, expected_client_trname);
+}
+
 
 int main (int argc, 
 	  const char *argv[]) 
@@ -155,22 +162,24 @@ int main (int argc,
   TIDS_INSTANCE *tids;
   int rc = 0;
   char *ipaddr = NULL;
+  TR_NAME *gssname = NULL;
 
   /* Parse command-line arguments */ 
-  if (argc > 3)
-    fprintf(stdout, "Usage: %s [<ip-address> [<database-name>]]\n", argv[0]);
+  if (argc > 4)
+    fprintf(stdout, "Usage: %s [<ip-address> <gss-name> [<database-name>]]\n", argv[0]);
 
   if (argc >= 2) {
     ipaddr = (char *)argv[1];
   } else {
     ipaddr = "127.0.0.1";
   }
+  gssname = tr_new_name((char *) argv[2]);
 
   /* TBD -- check that input is a valid IP address? */
 
   /*If we have a database, open and prepare*/
-  if (argc == 3) {
-    if (SQLITE_OK != sqlite3_open(argv[2], &db)) {
+  if (argc == 4) {
+    if (SQLITE_OK != sqlite3_open(argv[3], &db)) {
       fprintf(stdout, "Error opening database %s\n", argv[2]);
       exit(1);
     }
@@ -187,7 +196,7 @@ int main (int argc,
   tids->ipaddr = ipaddr;
 
   /* Start-up the server, won't return unless there is an error. */
-  rc = tids_start(tids, &tids_req_handler , NULL);
+  rc = tids_start(tids, &tids_req_handler , auth_handler, gssname);
   
   fprintf(stdout, "Error in tids_start(), rc = %d. Exiting.\n", rc);
 

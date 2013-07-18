@@ -56,13 +56,27 @@
 
 /* --------------------------------------------------------------------------- */
 
-int gsscon_connect (const char *inHost, int inPort, int *outFD)
+int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, int *outFD, gss_ctx_id_t *outGSSContext)
 {
     int err = 0;
     int fd = -1;
+    OM_uint32 majorStatus;
+    OM_uint32 minorStatus = 0;
     struct hostent *hp = NULL;
     struct sockaddr_in saddr;
-	
+    gss_name_t serviceName = NULL;
+    gss_name_t clientName = NULL;
+    gss_cred_id_t clientCredentials = GSS_C_NO_CREDENTIAL;
+    gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
+    OM_uint32 actualFlags = 0;
+    char *inputTokenBuffer = NULL;
+    size_t inputTokenBufferLength = 0;
+    gss_buffer_desc inputToken;  /* buffer received from the server */
+    gss_buffer_t inputTokenPtr = GSS_C_NO_BUFFER;
+
+    if (!inServiceName) { err = EINVAL; }
+    if (!outGSSContext) { err = EINVAL; }
+    
     if (!err) {
         hp = gethostbyname (inHost);
         if (hp == NULL) { err = errno; }
@@ -91,129 +105,89 @@ int gsscon_connect (const char *inHost, int inPort, int *outFD)
     }
     
     if (fd >= 0) { close (fd); }
-    
-    return err; 
-}
 
-/* --------------------------------------------------------------------------- */
-
-int gsscon_active_authenticate (int   inSocket, 
-                         const char   *inClientName, 
-                         const char   *inServiceName, 
-                         gss_ctx_id_t *outGSSContext)
-{
-    int err = 0;
-    OM_uint32 majorStatus;
-    OM_uint32 minorStatus = 0;
-    gss_name_t serviceName = NULL;
-    gss_name_t clientName = NULL;
-    gss_cred_id_t clientCredentials = GSS_C_NO_CREDENTIAL;
-    gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
-    OM_uint32 actualFlags = 0;
-
-    char *inputTokenBuffer = NULL;
-    size_t inputTokenBufferLength = 0;
-    gss_buffer_desc inputToken;  /* buffer received from the server */
-    gss_buffer_t inputTokenPtr = GSS_C_NO_BUFFER;
-    
-    if (inSocket < 0  ) { err = EINVAL; }
-    if (!inServiceName) { err = EINVAL; }
-    if (!outGSSContext) { err = EINVAL; }
-    
-    /*
-     * Here is where the client picks the client principal it wants to use.  
-     * If your application knows what the user's client principal should be,
-     * it should set that here. Otherwise leave clientCredentials set to NULL
-     * and Kerberos will attempt to use the client principal in the default
-     * ccache.
-     */
-    
     if (!err) {
-        if (inClientName != NULL) {
-            gss_buffer_desc nameBuffer = { strlen (inClientName), (char *) inClientName };
-            
-            majorStatus = gss_import_name (&minorStatus, &nameBuffer, GSS_C_NT_USER_NAME, &clientName); 
-            if (majorStatus != GSS_S_COMPLETE) { 
-                gsscon_print_gss_errors ("gss_import_name(inClientName)", majorStatus, minorStatus);
-                err = minorStatus ? minorStatus : majorStatus; 
-            }
-        
-            if (!err) {
-                majorStatus = gss_acquire_cred (&minorStatus, clientName, GSS_C_INDEFINITE, GSS_C_NO_OID_SET, 
+      majorStatus = gss_acquire_cred (&minorStatus, clientName, GSS_C_INDEFINITE, GSS_C_NO_OID_SET, 
                                                 GSS_C_INITIATE, &clientCredentials, NULL, NULL); 
-                if (majorStatus != GSS_S_COMPLETE) { 
-                    gsscon_print_gss_errors ("gss_acquire_cred", majorStatus, minorStatus);
-                    err = minorStatus ? minorStatus : majorStatus; 
-                }
-            }
-        }
+      if (majorStatus != GSS_S_COMPLETE) { 
+	gsscon_print_gss_errors ("gss_acquire_cred", majorStatus, minorStatus);
+	err = minorStatus ? minorStatus : majorStatus; 
+      }
     }
     
     /*
-     * Here is where the client picks the service principal it will try to use to
-     * connect to the server.  In the case of the gssClientSample, the service
-     * principal is passed in on the command line, however, in a real world example,
-     * this would be unacceptable from a user interface standpoint since the user
+     * Here is where the client picks the service principal it will
+     * try to use to connect to the server.  In the case of the
+     * gssClientSample, the service principal is passed in on the
+     * command line, however, in a real world example, this would be
+     * unacceptable from a user interface standpoint since the user
      * shouldn't need to know the server's service principal.
      * 
-     * In traditional Kerberos setups, the service principal would be constructed from
-     * the type of the service (eg: "imap"), the DNS hostname of the server 
-     * (eg: "mailserver.domain.com") and the client's local realm (eg: "DOMAIN.COM") 
-     * to form a full principal string (eg: "imap/mailserver.domain.com@DOMAIN.COM").  
+     * In traditional Kerberos setups, the service principal would be
+     * constructed from the type of the service (eg: "imap"), the DNS
+     * hostname of the server (eg: "mailserver.domain.com") and the
+     * client's local realm (eg: "DOMAIN.COM") to form a full
+     * principal string (eg: "imap/mailserver.domain.com@DOMAIN.COM").
      *
-     * Now that many sites do not have DNS, this setup is becoming less common.  
-     * However you decide to generate the service principal, you need to adhere
-     * to the following constraint:  The service principal must be constructed 
-     * by the client, typed in by the user or administrator, or transmitted to 
-     * the client in a secure manner from a trusted third party -- such as 
-     * through an encrypted connection to a directory server.  You should not
-     * have the server send the client the service principal name as part of
-     * the authentication negotiation.
+     * Now that many sites do not have DNS, this setup is becoming
+     * less common.  However you decide to generate the service
+     * principal, you need to adhere to the following constraint: The
+     * service principal must be constructed by the client, typed in
+     * by the user or administrator, or transmitted to the client in a
+     * secure manner from a trusted third party -- such as through an
+     * encrypted connection to a directory server.  You should not
+     * have the server send the client the service principal name as
+     * part of the authentication negotiation.
      *
-     * The reason you can't let the server tell the client which principal to 
-     * use is that many machines at a site will have their own service principal   
-     * and keytab which identifies the machine -- in a Windows Active Directory
-     * environment all machines have a service principal and keytab.  Some of these
-     * machines (such as a financial services server) will be more trustworthy than 
-     * others (such as a random machine on a coworker's desk).  If the owner of  
-     * one of these untrustworthy machines can trick the client into using the
-     * untrustworthy machine's principal instead of the financial services 
-     * server's principal, then he can trick the client into authenticating
-     * and connecting to the untrustworthy machine.  The untrustworthy machine can
-     * then harvest any confidential information the client sends to it, such as
-     * credit card information or social security numbers.
+     * The reason you can't let the server tell the client which
+     * principal to use is that many machines at a site will have
+     * their own service principal and keytab which identifies the
+     * machine -- in a Windows Active Directory environment all
+     * machines have a service principal and keytab.  Some of these
+     * machines (such as a financial services server) will be more
+     * trustworthy than others (such as a random machine on a
+     * coworker's desk).  If the owner of one of these untrustworthy
+     * machines can trick the client into using the untrustworthy
+     * machine's principal instead of the financial services server's
+     * principal, then he can trick the client into authenticating and
+     * connecting to the untrustworthy machine.  The untrustworthy
+     * machine can then harvest any confidential information the
+     * client sends to it, such as credit card information or social
+     * security numbers.
      *
-     * If your protocol already involves sending the service principal as part of
-     * your authentication negotiation, your client should cache the name it gets
-     * after the first successful authentication so that the problem above can 
-     * only happen on the first connection attempt -- similar to what ssh does with 
-     * host keys. 
+     * If your protocol already involves sending the service principal
+     * as part of your authentication negotiation, your client should
+     * cache the name it gets after the first successful
+     * authentication so that the problem above can only happen on the
+     * first connection attempt -- similar to what ssh does with host
+     * keys.
      */
     
     if (!err) {
-        gss_buffer_desc nameBuffer = { strlen (inServiceName), (char *) inServiceName };
+      gss_buffer_desc nameBuffer = { strlen (inServiceName), (char *) inServiceName };
         
-        majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_KRB5_NT_PRINCIPAL_NAME, &serviceName); 
-        if (majorStatus != GSS_S_COMPLETE) { 
-            gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
-            err = minorStatus ? minorStatus : majorStatus; 
-        }
+      majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_KRB5_NT_PRINCIPAL_NAME, &serviceName); 
+      if (majorStatus != GSS_S_COMPLETE) { 
+	gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
+	err = minorStatus ? minorStatus : majorStatus; 
+      }
     }
     
     /* 
      * The main authentication loop:
      *
-     * GSS is a multimechanism API.  Because the number of packet exchanges required to  
-     * authenticate can vary between mechanisms, we need to loop calling 
-     * gss_init_sec_context,  passing the "input tokens" received from the server and 
-     * send the resulting "output tokens" back until we get GSS_S_COMPLETE or an error.
+     * GSS is a multimechanism API.  Because the number of packet
+     * exchanges required to authenticate can vary between mechanisms,
+     * we need to loop calling gss_init_sec_context, passing the
+     * "input tokens" received from the server and send the resulting
+     * "output tokens" back until we get GSS_S_COMPLETE or an error.
      */
 
     majorStatus = GSS_S_CONTINUE_NEEDED;
 
     gss_OID_desc EAP_OID = { 9, "\x2B\x06\x01\x05\x05\x0F\x01\x01\x11" };
  
-   while (!err && (majorStatus != GSS_S_COMPLETE)) {
+    while (!err && (majorStatus != GSS_S_COMPLETE)) {
         gss_buffer_desc outputToken = { 0, NULL }; /* buffer to send to the server */
         OM_uint32 requestedFlags = (GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG | GSS_C_SEQUENCE_FLAG | 
                                     GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG);
@@ -235,7 +209,7 @@ int gsscon_active_authenticate (int   inSocket,
         
         /* Send the output token to the server (even on error) */
         if ((outputToken.length > 0) && (outputToken.value != NULL)) {
-            err = gsscon_write_token (inSocket, outputToken.value, outputToken.length);
+            err = gsscon_write_token (*outFD, outputToken.value, outputToken.length);
             
             /* free the output token */
             gss_release_buffer (&minorStatus, &outputToken);
@@ -252,7 +226,7 @@ int gsscon_active_authenticate (int   inSocket,
                 }
                 
                 /* Read another input token from the server */
-                err = gsscon_read_token (inSocket, &inputTokenBuffer, &inputTokenBufferLength);
+                err = gsscon_read_token (*outFD, &inputTokenBuffer, &inputTokenBufferLength);
                 
                 if (!err) {
                     /* Set up input buffers for the next run through the loop */

@@ -35,19 +35,22 @@
 #ifndef TR_RP_H
 #define TR_RP_H
 
-#define TR_MAX_GSS_NAMES 5
+#include <tr.h>
 
-/* TBD -- should these two structures be unified or linked? */
+#define TR_MAX_GSS_NAMES 5
 
 typedef struct tr_rp_client {
   struct tr_rp_client *next;
-  TR_NAME gss_name[TR_MAX_GSS_NAMES];
+  struct tr_rp_client *comm_next;
+  TR_NAME *rp_match;
+  TR_NAME *gss_names[TR_MAX_GSS_NAMES];
   // TR_FILTER *filters;
 } TR_RP_CLIENT;
 
+/* Structure to make a link list of RP realms by name for community config */
 typedef struct tr_rp_realm {
   struct tr_rp_realm *next;
-  TR_NAME *realm_id;
+  TR_NAME *realm_name;
 } TR_RP_REALM;
 
 #endif

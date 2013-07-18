@@ -93,11 +93,7 @@ int main (int argc, const char *argv[])
     if (!err) {
         printf ("%s: Starting up...\n", argv[0]);
         
-        err = gsscon_connect (server, port, &fd);
-    }
-    
-    if (!err) {
-        err = gsscon_active_authenticate (fd, clientName, serviceName, &gssContext);
+        err = gsscon_connect (server, port, serviceName, &fd, &gssContext);
     }
     
     if (!err) {

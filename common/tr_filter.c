@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2013, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,51 +32,36 @@
  *
  */
 
-#ifndef TR_CONFIG_H
-#define TR_CONFIG_H
-
 #include <stdio.h>
-#include <dirent.h>
-#include <jansson.h>
+#include <string.h>
+#include <tr_filter.h>
 
-#include <tr.h>
-#include <tr_rp.h>
-#include <tr_idp.h>
-#include <tr_comm.h>
+/* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
+ */
+int tr_prefix_wildcard_match (char *str, char *wc_str) {
+  char *wc_post = wc_str;
+  size_t len = 0;
+  size_t wc_len = 0;
 
-#define TR_DEFAULT_MAX_TREE_DEPTH 12
+  if ((!str) || (!wc_str))
+    return 0;
 
-typedef enum tr_cfg_rc {
-  TR_CFG_SUCCESS = 0,	/* No error */
-  TR_CFG_ERROR,		/* General processing error */
-  TR_CFG_BAD_PARAMS,	/* Bad parameters passed to tr_config function */
-  TR_CFG_NOPARSE,	/* Parsing error */
-  TR_CFG_NOMEM		/* Memory allocation error */
-} TR_CFG_RC;
+  len = strlen(str);
+  if (0 == (wc_len = strlen(wc_str)))
+    return 0;
 
-typedef struct tr_cfg_internal {
-  unsigned int max_tree_depth;
-} TR_CFG_INTERNAL;
+  /* TBD -- skip leading white space? */
+  if ('*' == wc_str[0]) {
+    wc_post = &(wc_str[1]);
+    wc_len--;
+  }
 
-typedef struct tr_cfg {
-  TR_CFG_INTERNAL *internal;	/* internal trust router config */
-  TR_IDP_REALM *idp_realms;	/* locally associated IDP Realms */
-  TR_RP_CLIENT *rp_clients;	/* locally associated RP Clients */
-  TR_COMM *comms;		/* locally-known communities */
-  /* TBD -- Global Filters */
-  /* TBD -- Trust Router Peers */
-  /* TBD -- Trust Links */
-} TR_CFG;
-
-int tr_find_config_files (struct dirent ***cfg_files);
-json_t *tr_read_config (int n, struct dirent **cfgfiles);
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, json_t *jcfg);
-TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
-void tr_cfg_free(TR_CFG *cfg);
-void tr_print_config(FILE *stream, TR_CFG *cfg);
-
-TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
-TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
-TR_RP_CLIENT *tr_rp_client_lookup(TR_INSTANCE *tr, TR_NAME *gss_name);
-
-#endif
+  if (wc_len > len)
+    return 0;
+  
+  if (0 == strcmp(&(str[len-wc_len]), wc_post)) {
+    return 1;
+  }
+  else
+    return 0;
+  }

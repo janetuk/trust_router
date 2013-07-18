@@ -96,10 +96,7 @@ int tidc_open_connection (TIDC_INSTANCE *tidc,
   int err = 0;
   int conn = -1;
 
-  err = gsscon_connect(server, TID_PORT, &conn);
-
-  if (!err)
-    err = gsscon_active_authenticate(conn, NULL, "trustidentity", gssctx);
+  err = gsscon_connect(server, TID_PORT, "trustidentity", &conn, gssctx);
 
   if (!err)
     return conn;
@@ -123,7 +120,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   if (!(tid_req = malloc(sizeof(TID_REQ))))
     return -1;
 
-  memset(tid_req, 0, sizeof(tid_req));
+  memset(tid_req, 0, sizeof(TID_REQ));
 
   tid_req->conn = conn;
   tid_req->gssctx = gssctx;

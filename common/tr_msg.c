@@ -326,12 +326,12 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
 {
   TID_RESP *tresp = NULL;
   json_t *jresult = NULL;
-  json_t *jerr_msg = NULL;
   json_t *jrp_realm = NULL;
   json_t *jrealm = NULL;
   json_t *jcomm = NULL;
   json_t *jorig_coi = NULL;
   json_t *jservers = NULL;
+  json_t *jerr_msg = NULL;
 
   if (!(tresp = malloc(sizeof(TID_RESP)))) {
     fprintf (stderr, "tr_msg_decode_tidresp(): Error allocating TID_RESP structure.\n");
@@ -340,12 +340,15 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
  
   memset(tresp, 0, sizeof(TID_RESP));
 
-  /* store required fields from request */
+  /* store required fields from response */
   if ((NULL == (jresult = json_object_get(jresp, "result"))) ||
+      (!json_is_string(jresult)) ||
       (NULL == (jrp_realm = json_object_get(jresp, "rp_realm"))) ||
+      (!json_is_string(jrp_realm)) ||
       (NULL == (jrealm = json_object_get(jresp, "target_realm"))) ||
+      (!json_is_string(jrealm)) ||
       (NULL == (jcomm = json_object_get(jresp, "comm"))) ||
-      (NULL == (jservers = json_object_get(jresp, "servers")))) {
+      (!json_is_string(jcomm))) {
     fprintf (stderr, "tr_msg_decode_tidresp(): Error parsing response.\n");
     free(tresp);
     return NULL;
@@ -353,12 +356,20 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
 
   if (0 == (strcmp(json_string_value(jresult), "success"))) {
     fprintf(stderr, "tr_msg_decode_tidresp(): Success! result = %s.\n", json_string_value(jresult));
+    if ((NULL != (jservers = json_object_get(jresp, "servers"))) ||
+	(!json_is_array(jservers))) {
+      tresp->servers = tr_msg_decode_servers(jservers); 
+    } 
+    else {
+      return NULL;
+    }
     tresp->result = TID_SUCCESS;
   }
   else {
     tresp->result = TID_ERROR;
     fprintf(stderr, "tr_msg_decode_tidresp(): Error! result = %s.\n", json_string_value(jresult));
-    if (NULL != (jerr_msg = json_object_get(jresp, "err_msg"))) {
+    if ((NULL != (jerr_msg = json_object_get(jresp, "err_msg"))) ||
+	(!json_is_string(jerr_msg))) {
       tresp->err_msg = tr_new_name((char *)json_string_value(jerr_msg));
     }
   }
@@ -372,9 +383,7 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
       (!json_is_object(jorig_coi))) {
     tresp->orig_coi = tr_new_name((char *)json_string_value(jorig_coi));
   }
-
-  tresp->servers = tr_msg_decode_servers(jservers); 
-  
+     
   return tresp;
 }
 

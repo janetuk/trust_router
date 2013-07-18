@@ -48,3 +48,4 @@ void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
     hex_len -= 2;
   }
 }
+

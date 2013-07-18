@@ -46,6 +46,7 @@ typedef struct tr_aaa_server {
 
 typedef struct tr_idp_realm {
   struct tr_idp_realm *next;
+  struct tr_idp_realm *comm_next; /* for link list in comm config */
   TR_NAME *realm_id;
   int shared_config;
   TR_AAA_SERVER *aaa_servers;
