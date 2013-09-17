@@ -38,6 +38,8 @@
 #include <jansson.h>
 #include <trust_router/tid.h>
 
+typedef struct tr_msg TR_MSG;
+
 enum msg_type {
   TR_UNKNOWN = 0,
   TID_REQUEST,
@@ -53,9 +55,19 @@ typedef struct tr_msg {
   };
 } TR_MSG;
 
+/* Accessors */
+enum msg_type tr_msg_get_msg_type(TR_MSG *msg);
+void tr_msg_set_msg_type(TR_MSG *msg, enum msg_type type);
+TID_REQ *tr_msg_get_req(TR_MSG *msg);
+void tr_msg_set_req(TR_MSG *msg, TID_REQ *req);
+TID_RESP *tr_msg_get_resp(TR_MSG *msg);
+void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp);
+
+/* Encoders/Decoders */
 char *tr_msg_encode(TR_MSG *msg);
 TR_MSG *tr_msg_decode(char *jmsg, size_t len);
 void tr_msg_free_encoded(char *jmsg);
 void tr_msg_free_decoded(TR_MSG *msg);
+
 
 #endif
