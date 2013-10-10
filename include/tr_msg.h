@@ -47,13 +47,13 @@ enum msg_type {
 };
 
 /* Union of TR message types to hold message of any type. */
-typedef struct tr_msg {
+struct tr_msg {
   enum msg_type msg_type;
   union {
     TID_REQ *tid_req;
     TID_RESP *tid_resp;
   };
-} TR_MSG;
+};
 
 /* Accessors */
 enum msg_type tr_msg_get_msg_type(TR_MSG *msg);
