@@ -1,6 +1,6 @@
 Name:           trust_router
 Version:        1.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Moonshot Trust Router
 
 Group:          System Environment/Libraries
@@ -11,6 +11,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:  krb5-devel 
 BuildRequires: jansson-devel >= 2.4
+BuildRequires: sqlite3-devel, openssl-devel
 Requires:       moonshot-gss-eap
 
 %description
