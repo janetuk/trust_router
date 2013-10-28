@@ -11,7 +11,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:  krb5-devel 
 BuildRequires: jansson-devel >= 2.4
-BuildRequires: sqlite3-devel, openssl-devel
+BuildRequires: sqlite-devel, openssl-devel
 Requires:       moonshot-gss-eap
 
 %description
