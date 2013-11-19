@@ -30,7 +30,7 @@ tid_example_tids_LDADD = gsscon/libgsscon.la libtr_tid.la
 common_dh_test_tr_dh_test_SOURCES = common/tr_dh.c \
 common/dh_test/dh_test.c
 
-libtr_tid_la_SOURCES = tid/tids.c tid/tidc.c tid/tid_req.c\
+libtr_tid_la_SOURCES = tid/tids.c tid/tidc.c tid/tid_req.c tid/tid_resp.c \
 $(common_srcs)
 
 libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
