@@ -137,6 +137,21 @@ void tid_req_set_cookie(TID_REQ *req, void *cookie);
 TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
+TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp);
+void tid_resp_set_result(TID_RESP *resp, TID_RC result);
+TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp);
+void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg);
+TR_EXPORT TR_NAME *tid_resp_get_rp_realm(TID_RESP *resp);
+void tid_resp_set_rp_realm(TID_RESP *resp, TR_NAME *rp_realm);
+TR_EXPORT TR_NAME *tid_resp_get_realm(TID_RESP *resp);
+void tid_resp_set_realm(TID_RESP *resp, TR_NAME *realm);
+TR_EXPORT TR_NAME *tid_resp_get_comm(TID_RESP *resp);
+void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm);
+TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp);
+void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi);
+TR_EXPORT TID_SRVR_BLK *tid_resp_get_servers(TID_RESP *resp);
+void tid_resp_set_servers(TID_RESP *resp, TID_SRVR_BLK *servers);
+// TBD -- add function to add/remove items from linked list of servers?
 
 /* TID Client functions, in tid/tidc.c */
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);
