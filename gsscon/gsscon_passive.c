@@ -65,17 +65,38 @@ int gsscon_passive_authenticate (int           inSocket,
     OM_uint32 majorStatus;
     OM_uint32 minorStatus = 0;
     gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
-    gss_name_t clientName = GSS_C_NO_NAME;
+    gss_name_t clientName = GSS_C_NO_NAME, serviceName = GSS_C_NO_NAME;
+    gss_cred_id_t acceptorCredentials = NULL;
     gss_buffer_desc clientDisplayName = {0, NULL};
+    gss_buffer_desc nameBuffer = {0, "trustidentity"};
     
     char *inputTokenBuffer = NULL;
     size_t inputTokenBufferLength = 0;
     gss_buffer_desc inputToken;  /* buffer received from the server */
     
 
+    nameBuffer.length = strlen(nameBuffer.value);
     if (inSocket <  0 ) { err = EINVAL; }
     if (!outGSSContext) { err = EINVAL; }
-    
+
+    if (!err)
+      majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_KRB5_NT_PRINCIPAL_NAME, &serviceName); 
+    if (majorStatus != GSS_S_COMPLETE) {
+	gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
+	err = minorStatus ? minorStatus : majorStatus; 
+      }
+
+    if (!err) {
+      majorStatus = gss_acquire_cred ( &minorStatus, serviceName,
+				       GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+				       GSS_C_ACCEPT, &acceptorCredentials,
+				       NULL /*mechs out*/, NULL /*time out*/);
+      if (majorStatus != GSS_S_COMPLETE) { 
+	gsscon_print_gss_errors ("gss_acquire_cred", majorStatus, minorStatus);
+	err = minorStatus ? minorStatus : majorStatus; 
+      }
+    }
+
     /* 
      * The main authentication loop:
      *
@@ -111,13 +132,10 @@ int gsscon_passive_authenticate (int           inSocket,
             
             /*
              * accept_sec_context does the actual work of taking the client's 
-             * request and generating an appropriate reply.  Note that we pass 
-             * GSS_C_NO_CREDENTIAL for the service principal.
-            */
-	    // printf ("Calling gss_accept_sec_context...\n");
+             * request and generating an appropriate reply.              */
             majorStatus = gss_accept_sec_context (&minorStatus, 
                                                   &gssContext, 
-                                                  GSS_C_NO_CREDENTIAL, 
+						  acceptorCredentials,
                                                   &inputToken, 
                                                   GSS_C_NO_CHANNEL_BINDINGS, 
                                                   &clientName,
@@ -166,6 +184,8 @@ if (clientName != GSS_C_NO_NAME)
   gss_release_name(&minorStatus, &clientName);
 if (clientDisplayName.value != NULL)
   gss_release_buffer(&minorStatus, &clientDisplayName);
+ gss_release_name( &minorStatus, &serviceName);
+ gss_release_cred( &minorStatus, &acceptorCredentials);
         
     return err;
 }

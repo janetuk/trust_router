@@ -42,6 +42,36 @@
 #include <trust_router/tr_name.h>
 #include <trust_router/tid.h>
 
+enum msg_type tr_msg_get_msg_type(TR_MSG *msg) 
+{
+  return msg->msg_type;
+}
+
+void tr_msg_set_msg_type(TR_MSG *msg, enum msg_type type)
+{
+  msg->msg_type = type;
+}
+
+TID_REQ *tr_msg_get_req(TR_MSG *msg)
+{
+  return msg->tid_req;
+}
+
+void tr_msg_set_req(TR_MSG *msg, TID_REQ *req)
+{
+  msg->tid_req = req;
+}
+
+TID_RESP *tr_msg_get_resp(TR_MSG *msg)
+{
+  return msg->tid_resp;
+}
+
+void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp)
+{
+  msg->tid_resp = resp;
+}
+
 static json_t *tr_msg_encode_dh(DH *dh)
 {
   json_t *jdh = NULL;
