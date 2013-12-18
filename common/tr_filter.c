@@ -33,8 +33,28 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <tr_filter.h>
+
+void tr_filter_free (TR_FILTER *filt) {
+  int i = 0, j = 0;
+
+  if (!filt)
+    return;
+
+  for (i = 0; i < TR_MAX_FILTER_LINES; i++) {
+    if (filt->lines[i]) {
+      for (j = 0; j < TR_MAX_FILTER_SPECS; j++) {
+	if (filt->lines[i]->specs[j])
+	  free(filt->lines[i]->specs[j]);
+      }
+      free(filt->lines[i]);
+    }
+  }
+
+  free (filt);
+}
 
 /* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
  */

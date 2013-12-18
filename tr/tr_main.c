@@ -105,6 +105,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   /* Check that the rp_realm matches the filter for the GSS name that 
    * was received. */
 
+  /* TBD -- rewrite for new filtering system.
   if ((!((TR_INSTANCE *)tr)->rp_gss) || 
       (!((TR_INSTANCE *)tr)->rp_gss->rp_match)) {
     fprintf(stderr, "tr_tids_req_handler: No GSS name for incoming request.\n");
@@ -117,6 +118,8 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
     return -1;
   }
+
+  */
 
   /* Check that the rp_realm and target_realm are members of the community in the request */
   if (NULL == (tr_find_comm_rp(cfg_comm, orig_req->rp_realm))) {

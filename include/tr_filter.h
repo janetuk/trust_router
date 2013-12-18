@@ -35,6 +35,45 @@
 #ifndef TR_FILTER_H
 #define TR_FILTER_H
 
+#include <trust_router/tr_name.h>
+#include <jansson.h>
+
+#define TR_MAX_FILTERS	5
+#define TR_MAX_FILTER_LINES 8
+#define TR_MAX_FILTER_SPECS 8
+
+/* Filter actions */
+#define TR_FILTER_ACTION_REJECT 0
+#define TR_FILTER_ACTION_ACCEPT 1
+
+/* Filter types */
+#define TR_FILTER_TYPE_RP_PERMITTED 0
+/* Other types TBD */
+
+typedef struct tr_constraint {
+  struct tr_constraint *next;
+  TR_NAME values[];
+} TR_CONSTRAINT;
+
+typedef struct tr_fspec {
+  TR_NAME *field;
+  TR_NAME *match;
+} TR_FSPEC;
+
+typedef struct tr_fline {
+  int action;
+  TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
+  TR_CONSTRAINT *realm_cons;
+  TR_CONSTRAINT *domain_cons;
+  json_t *j_constraints;
+} TR_FLINE;
+  
+typedef struct tr_filter {
+  int type;
+  TR_FLINE *lines[TR_MAX_FILTER_LINES];
+} TR_FILTER;
+
+void tr_filter_free (TR_FILTER *filt);
 int tr_prefix_wildcard_match (char *str, char *wc_str);
 
 #endif

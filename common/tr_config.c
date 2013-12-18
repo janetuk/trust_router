@@ -39,6 +39,7 @@
 
 #include <tr_config.h>
 #include <tr.h>
+#include <tr_filter.h>
 
 void tr_print_config (FILE *stream, TR_CFG *cfg) {
   fprintf(stream, "tr_print_config: Not yet implemented.\n");
@@ -90,23 +91,183 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
   return TR_CFG_SUCCESS;
 }
 
-static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_INSTANCE *tr, json_t *jrp, TR_CFG_RC *rc) 
+static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CFG_RC *rc)
+{
+  TR_FILTER *filt = NULL;
+  json_t *jftype = NULL;
+  json_t *jfls = NULL;
+  json_t *jfaction = NULL;
+  json_t *jfspecs = NULL;
+  json_t *jffield = NULL;
+  json_t *jfmatch = NULL;
+  int i = 0, j = 0;
+
+  if ((NULL == (jftype = json_object_get(jfilt, "type"))) ||
+      (!json_is_string(jftype))) {
+    fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing filter type.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  if ((NULL == (jfls = json_object_get(jfilt, "filter_lines"))) ||
+      (!json_is_array(jfls))) {
+    fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing filter type.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  if (TR_MAX_FILTER_LINES < json_array_size(jfls)) {
+    fprintf(stderr, "tr_cfg_parse_one_filter: Filter has too many filter_lines, maximimum of %d.\n", TR_MAX_FILTER_LINES);
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  /* TBD -- optionally parse realm and domain constraints */
+
+  if (NULL == (filt = malloc(sizeof(TR_FILTER)))) {
+    fprintf(stderr, "tr_config_parse_one_filter: Out of memory.\n");
+    *rc = TR_CFG_NOMEM;
+    return NULL;
+  }
+
+  memset(filt, 0, sizeof(TR_FILTER));
+
+  if (!strcmp(json_string_value(jftype), "rp_permitted")) {
+    filt->type = TR_FILTER_TYPE_RP_PERMITTED;
+  }
+  else {
+    fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing filter type, unknown type '%s'.\n", json_string_value(jftype));
+    *rc = TR_CFG_NOPARSE;
+    tr_filter_free(filt);
+    return NULL;
+  }
+  
+  /* For each filter line... */
+  for (i = 0; i < json_array_size(jfls); i++) {
+
+    if ((NULL == (jfaction = json_object_get(json_array_get(jfls, i), "action"))) ||
+	(!json_is_string(jfaction))) {
+      fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing filter action.\n");
+      *rc = TR_CFG_NOPARSE;
+      tr_filter_free(filt);
+      return NULL;
+    }
+ 
+    /* TBD -- parse constraints */
+
+    if ((NULL == (jfspecs = json_object_get(json_array_get(jfls, i), "filter_specs"))) ||
+	(!json_is_array(jfspecs)) ||
+	(0 == json_array_size(jfspecs))) {
+      fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing filter specs.\n");
+      *rc = TR_CFG_NOPARSE;
+      tr_filter_free(filt);
+      return NULL;
+    }
+  
+    if (TR_MAX_FILTER_SPECS < json_array_size(jfspecs)) {
+      fprintf(stderr, "tr_cfg_parse_one_filter: Filter has too many filter_specs, maximimum of %d.\n", TR_MAX_FILTER_SPECS);
+      *rc = TR_CFG_NOPARSE;
+      tr_filter_free(filt);
+      return NULL;
+    }
+
+    if (NULL == (filt->lines[i] = malloc(sizeof(TR_FLINE)))) {
+      fprintf(stderr, "tr_config_parse_one_filter: Out of memory.\n");
+      *rc = TR_CFG_NOMEM;
+      tr_filter_free(filt);
+      return NULL;
+    }
+
+    memset(filt->lines[i], 0, sizeof(TR_FLINE));
+
+    if (!strcmp(json_string_value(jfaction), "accept")) {
+	filt->lines[i]->action = TR_FILTER_ACTION_ACCEPT;
+    }
+    else if (!strcmp(json_string_value(jfaction), "reject")) {
+      filt->lines[i]->action = TR_FILTER_ACTION_REJECT;
+    }
+    else {
+      fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing filter action, unknown action' %s'.\n", json_string_value(jfaction));
+      *rc = TR_CFG_NOPARSE;
+      tr_filter_free(filt);
+      return NULL;
+    }
+      
+    /*For each filter spec within the filter line... */
+    for (j = 0; j <json_array_size(jfspecs); j++) {
+      
+      if ((NULL == (jffield = json_object_get(json_array_get(jfspecs, j), "field"))) ||
+	  (!json_is_string(jffield)) ||
+	  (NULL == (jfmatch = json_object_get(json_array_get(jfspecs, j), "match"))) ||
+	  (!json_is_string(jfmatch))) {
+	fprintf (stderr, "tr_cfg_parse_one_filter: Error parsing filter field and match for filter spec %d, filter line %d.\n", i, j);
+	*rc = TR_CFG_NOPARSE;
+	tr_filter_free(filt);
+	return NULL;
+      }
+
+      if (NULL == (filt->lines[i]->specs[j] = malloc(sizeof(TR_FSPEC)))) {
+	fprintf(stderr, "tr_config_parse_one_filter: Out of memory.\n");
+	*rc = TR_CFG_NOMEM;
+	tr_filter_free(filt);
+	return NULL;
+      }
+
+      memset(filt->lines[i]->specs[j], 0, sizeof(TR_FSPEC));
+    
+      if ((NULL == (filt->lines[i]->specs[j]->field = tr_new_name((char *)json_string_value(jffield)))) ||
+	  (NULL == (filt->lines[i]->specs[j]->match = tr_new_name((char *)json_string_value(jfmatch))))) {
+	fprintf(stderr, "tr_config_parse_one_filter: Out of memory.\n");
+	*rc = TR_CFG_NOMEM;
+	tr_filter_free(filt);
+	return NULL;
+      }
+    }
+  }
+  return filt;
+}
+
+static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_INSTANCE *tr, json_t *jrp, TR_CFG_RC *rc)
 {
   TR_RP_CLIENT *rp = NULL;
   json_t *jgns = NULL;
   json_t *jfilt = NULL;
-  json_t *jfls = NULL;
   json_t *jftype = NULL;
-  json_t *jfact = NULL;
-  json_t *jfspecs = NULL;
-  json_t *jffield = NULL;
-  json_t *jfrealm = NULL;
   int i = 0;
 
   if ((!jrp) || (!rc)) {
     fprintf(stderr, "tr_cfg_parse_one_rp_realm: Bad parameters.\n");
     if (rc)
       *rc = TR_CFG_BAD_PARAMS;
+    return NULL;
+  }
+
+  if ((NULL == (jgns = json_object_get(jrp, "gss_names"))) ||
+      (!json_is_array(jgns))) {
+    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client configuration, no GSS names.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  /* TBD -- Support more than one filter per RP client? */
+  if (NULL == (jfilt = json_object_get(jrp, "filter"))) {
+    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client configuration, no filter.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  /* We only support rp_permitted filters for RP clients */
+  if ((NULL == (jftype = json_object_get(jfilt, "type"))) ||
+      (!json_is_string(jftype)) ||
+      (strcmp(json_string_value(jftype), "rp_permitted"))) {
+    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter type.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  if (TR_MAX_GSS_NAMES < json_array_size(jgns)) {
+    fprintf(stderr, "tr_cfg_parse_one_rp_client: RP Client has too many GSS Names.\n");
+    *rc = TR_CFG_NOPARSE;
     return NULL;
   }
 
@@ -118,77 +279,18 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_INSTANCE *tr, json_t *jrp, T
   
   memset(rp, 0, sizeof(TR_RP_CLIENT));
 
-  if ((NULL == (jfilt = json_object_get(jrp, "filter"))) || 
-      (NULL == (jfls = json_object_get(jfilt, "filter_lines"))) ||
-      (!json_is_array(jfls)) ||
-      (NULL == (jgns = json_object_get(jrp, "gss_names"))) ||
-      (!json_is_array(jgns))) {
-    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client configuration.\n");
+  /* TBD -- support more than one filter entry per RP Client? */
+  if (NULL == (rp->filters[0] = tr_cfg_parse_one_filter(tr, jfilt, rc))) {
+    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing filter.\n");
     free(rp);
     *rc = TR_CFG_NOPARSE;
     return NULL;
   }
-
-  if (0 == json_array_size(jfls)) {
-    fprintf(stderr, "tr_cfg_parse_one_rp_client: RP Client has no filter lines.\n");
-    *rc = TR_CFG_NOPARSE;
-    return NULL;
-  }
-
-  if ((NULL == (jftype = json_object_get(jfilt, "type"))) ||
-      (!json_is_string(jftype)) ||
-      (strcmp(json_string_value(jftype), "rp_permitted"))) {
-    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter type.\n");
-    *rc = TR_CFG_NOPARSE;
-    return NULL;
-  }
-
-
-  /* Right now, we only accept one type of filter, and we only care
-   * about one per rp_client. */
-  if ((NULL == (jfact = json_object_get(json_array_get(jfls, 0), "action"))) ||
-      (!json_is_string(jfact)) ||
-      (strcmp(json_string_value(jfact), "accept"))) {
-    fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter action.\n");
-    *rc = TR_CFG_NOPARSE;
-    return NULL;
-      }
-
-  if ((NULL == (jfspecs = json_object_get(json_array_get(jfls, 0), "filter_specs"))) ||
-      (!json_is_array(jfspecs)) ||
-      (0 == json_array_size(jfspecs))) {
-      fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter specs.\n");
-      *rc = TR_CFG_NOPARSE;
-      return NULL;
-  }
-
-  if ((NULL == (jffield = json_object_get(json_array_get(jfspecs, 0), "field"))) ||
-      (!json_is_string(jffield)) ||
-      (strcmp(json_string_value(jffield), "rp_realm")) ||
-      (NULL == (jfrealm = json_object_get(json_array_get(jfspecs, 0), "match"))) ||
-      (!json_is_string(jfrealm))) {
-      fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing RP client filter field and match.\n");
-      *rc = TR_CFG_NOPARSE;
-      return NULL;
-  }
-
-  rp->rp_match = tr_new_name((char *)json_string_value(jfrealm));
-
-  if (0 == json_array_size(jgns)) {
-    fprintf(stderr, "tr_cfg_parse_one_rp_client: RP Client has no GSS Names.\n");
-    *rc = TR_CFG_NOPARSE;
-    return NULL;
-  }
-
-  if (TR_MAX_GSS_NAMES < json_array_size(jgns)) {
-    fprintf(stderr, "tr_cfg_parse_one_rp_client: RP Client has too many GSS Names.\n");
-    *rc = TR_CFG_NOPARSE;
-    return NULL;
-  }
-
+    
   for (i = 0; i < json_array_size(jgns); i++) {
     if (NULL == (rp->gss_names[i] = tr_new_name ((char *)json_string_value(json_array_get(jgns, i))))) {
       fprintf(stderr, "tr_cfg_parse_one_rp_client: No memory for GSS Name.\n");
+      free(rp);
       *rc = TR_CFG_NOMEM;
       return NULL;
     }
@@ -217,7 +319,7 @@ static TR_CFG_RC tr_cfg_parse_rp_clients (TR_INSTANCE *tr, json_t *jcfg) {
 						 &rc))) {
        return rc;
     }
-    fprintf(stderr, "tr_cfg_parse_rp_clients: RP client configured -- first gss: %s, rp_realm: %s\n", rp->gss_names[0]->buf, rp->rp_match->buf);
+    fprintf(stderr, "tr_cfg_parse_rp_clients: RP client configured -- first gss: %s", rp->gss_names[0]->buf);
     rp->next = tr->new_cfg->rp_clients;
     tr->new_cfg->rp_clients = rp;
   }
