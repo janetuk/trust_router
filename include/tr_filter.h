@@ -41,18 +41,24 @@
 #define TR_MAX_FILTERS	5
 #define TR_MAX_FILTER_LINES 8
 #define TR_MAX_FILTER_SPECS 8
+#define TR_MAX_CONS_VALUES  8
 
 /* Filter actions */
 #define TR_FILTER_ACTION_REJECT 0
 #define TR_FILTER_ACTION_ACCEPT 1
 
+/* Match codes */
+#define TR_FILTER_MATCH 0
+#define TR_FILTER_NO_MATCH 1
+
 /* Filter types */
 #define TR_FILTER_TYPE_RP_PERMITTED 0
 /* Other types TBD */
 
+typedef json_t TR_CONSTRAINT_SET;
+
 typedef struct tr_constraint {
-  struct tr_constraint *next;
-  TR_NAME values[];
+  TR_NAME values[TR_MAX_CONS_VALUES];
 } TR_CONSTRAINT;
 
 typedef struct tr_fspec {
@@ -63,9 +69,7 @@ typedef struct tr_fspec {
 typedef struct tr_fline {
   int action;
   TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
-  TR_CONSTRAINT *realm_cons;
-  TR_CONSTRAINT *domain_cons;
-  json_t *j_constraints;
+  TR_CONSTRAINT_SET *constraints;
 } TR_FLINE;
   
 typedef struct tr_filter {
@@ -75,5 +79,5 @@ typedef struct tr_filter {
 
 void tr_filter_free (TR_FILTER *filt);
 int tr_prefix_wildcard_match (char *str, char *wc_str);
-
+int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints, TR_CONSTRAINT_SET **out_constraints, int *out_action);
 #endif

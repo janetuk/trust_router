@@ -78,7 +78,9 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   TR_COMM *cfg_apc = NULL;
-  int rc;
+  TR_CONSTRAINT *ocons = NULL;
+  int oaction = TR_FILTER_ACTION_REJECT;
+  int rc = 0;
 
   if ((!tids) || (!orig_req) || (!resp) || (!(*resp)) || (!tr)) {
     fprintf(stderr, "tids_req_handler: Bad parameters\n");
@@ -105,21 +107,20 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   /* Check that the rp_realm matches the filter for the GSS name that 
    * was received. */
 
-  /* TBD -- rewrite for new filtering system.
   if ((!((TR_INSTANCE *)tr)->rp_gss) || 
-      (!((TR_INSTANCE *)tr)->rp_gss->rp_match)) {
+      (!((TR_INSTANCE *)tr)->rp_gss->filter)) {
     fprintf(stderr, "tr_tids_req_handler: No GSS name for incoming request.\n");
     tids_send_err_response(tids, orig_req, "No GSS name for request");
     return -1;
   }
 
-  if (!tr_prefix_wildcard_match(orig_req->rp_realm->buf, ((TR_INSTANCE *)tr)->rp_gss->rp_match->buf)) { 
-    fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name (%s)\n", orig_req->rp_realm->buf, ((TR_INSTANCE *)tr)->rp_gss->rp_match->buf);
+  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, ((TR_INSTANCE *)tr)->rp_gss->filter, NULL, &ocons, &oaction)) ||
+      (TR_FILTER_ACTION_REJECT == oaction)) {
+    fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name\n");
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
-    return -1;
   }
 
-  */
+  /* TBD -- add constraints to request for further forwarding. */
 
   /* Check that the rp_realm and target_realm are members of the community in the request */
   if (NULL == (tr_find_comm_rp(cfg_comm, orig_req->rp_realm))) {

@@ -44,7 +44,7 @@ typedef struct tr_rp_client {
   struct tr_rp_client *next;
   struct tr_rp_client *comm_next;
   TR_NAME *gss_names[TR_MAX_GSS_NAMES];
-  TR_FILTER *filters[TR_MAX_FILTERS];
+  TR_FILTER *filter;
 } TR_RP_CLIENT;
 
 /* Structure to make a linked list of RP realms by name for community config */

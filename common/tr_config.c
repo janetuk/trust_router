@@ -280,7 +280,7 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_INSTANCE *tr, json_t *jrp, T
   memset(rp, 0, sizeof(TR_RP_CLIENT));
 
   /* TBD -- support more than one filter entry per RP Client? */
-  if (NULL == (rp->filters[0] = tr_cfg_parse_one_filter(tr, jfilt, rc))) {
+  if (NULL == (rp->filter = tr_cfg_parse_one_filter(tr, jfilt, rc))) {
     fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing filter.\n");
     free(rp);
     *rc = TR_CFG_NOPARSE;

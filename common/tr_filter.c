@@ -37,25 +37,6 @@
 #include <string.h>
 #include <tr_filter.h>
 
-void tr_filter_free (TR_FILTER *filt) {
-  int i = 0, j = 0;
-
-  if (!filt)
-    return;
-
-  for (i = 0; i < TR_MAX_FILTER_LINES; i++) {
-    if (filt->lines[i]) {
-      for (j = 0; j < TR_MAX_FILTER_SPECS; j++) {
-	if (filt->lines[i]->specs[j])
-	  free(filt->lines[i]->specs[j]);
-      }
-      free(filt->lines[i]);
-    }
-  }
-
-  free (filt);
-}
-
 /* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
  */
 int tr_prefix_wildcard_match (char *str, char *wc_str) {
@@ -85,3 +66,50 @@ int tr_prefix_wildcard_match (char *str, char *wc_str) {
   else
     return 0;
   }
+
+int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints, TR_CONSTRAINT_SET **out_constraints, int *out_action) 
+{
+  int i = 0, j = 0;
+
+  *out_action = TR_FILTER_ACTION_REJECT;
+  *out_constraints = NULL;
+
+  /* If this isn't a valid rp_permitted filter, return no match. */
+  if ((!rpp_filter) ||
+      (TR_FILTER_TYPE_RP_PERMITTED != rpp_filter->type)) {
+    return TR_FILTER_NO_MATCH;
+  }
+  
+  /* Check if there is a match for this filter. */
+  for (i = 0; i < TR_MAX_FILTER_LINES; i++) {
+    for (j = 0; j < TR_MAX_FILTER_SPECS; j++) {
+      if (tr_prefix_wildcard_match(rp_realm->buf, rpp_filter->lines[i]->specs[j]->match)) {
+	*out_action = rpp_filter->lines[i]->action;
+	*out_constraints = &(rpp_filter->lines[i]->constraints);
+	return TR_FILTER_MATCH;
+      }
+    }
+  }
+  /* If there is no match, indicate that. */
+  return TR_FILTER_NO_MATCH;
+}
+
+void tr_filter_free (TR_FILTER *filt) {
+  int i = 0, j = 0;
+
+  if (!filt)
+    return;
+
+  for (i = 0; i < TR_MAX_FILTER_LINES; i++) {
+    if (filt->lines[i]) {
+      for (j = 0; j < TR_MAX_FILTER_SPECS; j++) {
+	if (filt->lines[i]->specs[j])
+	  free(filt->lines[i]->specs[j]);
+      }
+      free(filt->lines[i]);
+    }
+  }
+
+  free (filt);
+}
+
