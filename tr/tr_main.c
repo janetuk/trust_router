@@ -78,7 +78,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   TR_COMM *cfg_apc = NULL;
-  TR_CONSTRAINT *ocons = NULL;
+  TR_CONSTRAINT_SET *ocons = NULL;
   int oaction = TR_FILTER_ACTION_REJECT;
   int rc = 0;
 
@@ -116,7 +116,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 
   if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, ((TR_INSTANCE *)tr)->rp_gss->filter, NULL, &ocons, &oaction)) ||
       (TR_FILTER_ACTION_REJECT == oaction)) {
-    fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name\n");
+    fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name\n", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
   }
 
