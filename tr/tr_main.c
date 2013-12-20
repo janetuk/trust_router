@@ -118,6 +118,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
       (TR_FILTER_ACTION_REJECT == oaction)) {
     fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name\n", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
+    return -1;
   }
 
   /* TBD -- add constraints to request for further forwarding. */

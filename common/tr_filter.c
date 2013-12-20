@@ -83,7 +83,10 @@ int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR
   /* Check if there is a match for this filter. */
   for (i = 0; i < TR_MAX_FILTER_LINES; i++) {
     for (j = 0; j < TR_MAX_FILTER_SPECS; j++) {
-      if (tr_prefix_wildcard_match(rp_realm->buf, rpp_filter->lines[i]->specs[j]->match->buf)) {
+
+      if ((rpp_filter->lines[i]) && 
+	  (rpp_filter->lines[i]->specs[j]) && 
+	  (tr_prefix_wildcard_match(rp_realm->buf, rpp_filter->lines[i]->specs[j]->match->buf))) {
 	*out_action = rpp_filter->lines[i]->action;
 	*out_constraints = rpp_filter->lines[i]->constraints;
 	return TR_FILTER_MATCH;
