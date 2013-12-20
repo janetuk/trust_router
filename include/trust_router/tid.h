@@ -111,14 +111,56 @@ struct tids_instance {
   void *cookie;
 };
 
+/* Utility funciton for TID_REQ structures, in tid/tid_req.c */
+TR_EXPORT TID_REQ *tid_req_get_next_req(TID_REQ *req);
+void tid_req_set_next_req(TID_REQ *req, TID_REQ *next_req);
+TR_EXPORT int tid_req_get_resp_sent(TID_REQ *req);
+void tid_req_set_resp_sent(TID_REQ *req, int resp_sent);
+TR_EXPORT int tid_req_get_conn(TID_REQ *req);
+void tid_req_set_conn(TID_REQ *req, int conn);
+TR_EXPORT gss_ctx_id_t tid_req_get_gssctx(TID_REQ *req);
+void tid_req_set_gssctx(TID_REQ *req, gss_ctx_id_t gssctx);
+TR_EXPORT int tid_req_get_resp_rcvd(TID_REQ *req);
+void tid_req_set_resp_rcvd(TID_REQ *req, int resp_rcvd);
+TR_EXPORT TR_NAME *tid_req_get_rp_realm(TID_REQ *req);
+void tid_req_set_rp_realm(TID_REQ *req, TR_NAME *rp_realm);
+TR_EXPORT TR_NAME *tid_req_get_realm(TID_REQ *req);
+void tid_req_set_realm(TID_REQ *req, TR_NAME *realm);
+TR_EXPORT TR_NAME *tid_req_get_comm(TID_REQ *req);
+void tid_req_set_comm(TID_REQ *req, TR_NAME *comm);
+TR_EXPORT TR_NAME *tid_req_get_orig_coi(TID_REQ *req);
+void tid_req_set_rp_orig_coi(TID_REQ *req, TR_NAME *orig_coi);
+TR_EXPORT TIDC_RESP_FUNC *tid_req_get_resp_func(TID_REQ *req);
+void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
+TR_EXPORT void *tid_req_get_cookie(TID_REQ *req);
+void tid_req_set_cookie(TID_REQ *req, void *cookie);
 TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
 
+/* Utility functions for TID_RESP structure, in tid/tid_resp.c */
+TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp);
+void tid_resp_set_result(TID_RESP *resp, TID_RC result);
+TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp);
+void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg);
+TR_EXPORT TR_NAME *tid_resp_get_rp_realm(TID_RESP *resp);
+void tid_resp_set_rp_realm(TID_RESP *resp, TR_NAME *rp_realm);
+TR_EXPORT TR_NAME *tid_resp_get_realm(TID_RESP *resp);
+void tid_resp_set_realm(TID_RESP *resp, TR_NAME *realm);
+TR_EXPORT TR_NAME *tid_resp_get_comm(TID_RESP *resp);
+void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm);
+TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp);
+void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi);
+TR_EXPORT TID_SRVR_BLK *tid_resp_get_servers(TID_RESP *resp);
+void tid_resp_set_servers(TID_RESP *resp, TID_SRVR_BLK *servers);
+// TBD -- add function to add/remove items from linked list of servers?
+
+/* TID Client functions, in tid/tidc.c */
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);
 TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, gss_ctx_id_t *gssctx);
 TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT int tidc_fwd_request (TIDC_INSTANCE *tidc, TID_REQ *req, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
+/* TID Server functions, in tid/tids.c */
 TR_EXPORT TIDS_INSTANCE *tids_create (void);
 TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
 			  tids_auth_func *auth_handler,

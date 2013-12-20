@@ -373,7 +373,7 @@ int tids_start (TIDS_INSTANCE *tids,
       close(listen);
       tids_handle_connection(tids, conn);
       close(conn);
-      exit(0);
+      return 0;
     } else {
       close(conn);
     }

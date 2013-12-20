@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013, JANET(UK)
+ * Copyright (c) 2012, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,52 +32,77 @@
  *
  */
 
-#ifndef TR_FILTER_H
-#define TR_FILTER_H
+#include <stdio.h>
+#include <stdlib.h>
 
-#include <trust_router/tr_name.h>
-#include <jansson.h>
+#include <trust_router/tid.h>
 
-#define TR_MAX_FILTERS	5
-#define TR_MAX_FILTER_LINES 8
-#define TR_MAX_FILTER_SPECS 8
-#define TR_MAX_CONS_VALUES  8
+TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp)
+{
+  return(resp->result);
+}
 
-/* Filter actions */
-#define TR_FILTER_ACTION_REJECT 0
-#define TR_FILTER_ACTION_ACCEPT 1
+void tid_resp_set_result(TID_RESP *resp, TID_RC result)
+{
+  resp->result = result;
+}
 
-/* Match codes */
-#define TR_FILTER_MATCH 0
-#define TR_FILTER_NO_MATCH 1
+TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp)
+{
+  return(resp->err_msg);
+}
 
-/* Filter types */
-#define TR_FILTER_TYPE_RP_PERMITTED 0
-/* Other types TBD */
+void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg)
+{
+  resp->err_msg = err_msg;
+}
 
-typedef json_t TR_CONSTRAINT_SET;
+TR_EXPORT TR_NAME *tid_resp_get_rp_realm(TID_RESP *resp)
+{
+  return(resp->rp_realm);
+}
 
-typedef struct tr_constraint {
-  TR_NAME values[TR_MAX_CONS_VALUES];
-} TR_CONSTRAINT;
+void tid_resp_set_rp_realm(TID_RESP *resp, TR_NAME *rp_realm)
+{
+  resp->rp_realm = rp_realm;
+}
 
-typedef struct tr_fspec {
-  TR_NAME *field;
-  TR_NAME *match;
-} TR_FSPEC;
+TR_EXPORT TR_NAME *tid_resp_get_realm(TID_RESP *resp)
+{
+  return(resp->realm);
+}
 
-typedef struct tr_fline {
-  int action;
-  TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
-  TR_CONSTRAINT_SET *constraints;
-} TR_FLINE;
-  
-typedef struct tr_filter {
-  int type;
-  TR_FLINE *lines[TR_MAX_FILTER_LINES];
-} TR_FILTER;
+void tid_resp_set_realm(TID_RESP *resp, TR_NAME *realm)
+{
+  resp->realm = realm;
+}
 
-void tr_filter_free (TR_FILTER *filt);
-int tr_prefix_wildcard_match (char *str, char *wc_str);
-int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints, TR_CONSTRAINT_SET **out_constraints, int *out_action);
-#endif
+TR_EXPORT TR_NAME *tid_resp_get_comm(TID_RESP *resp)
+{
+  return(resp->comm);
+}
+
+void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm)
+{
+  resp->comm = comm;
+}
+
+TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp)
+{
+  return(resp->orig_coi);
+}
+
+void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi)
+{
+  resp->orig_coi = orig_coi;
+}
+
+TR_EXPORT TID_SRVR_BLK *tid_resp_get_servers(TID_RESP *resp)
+{
+  return(resp->servers);
+}
+
+void tid_resp_set_servers(TID_RESP *resp, TID_SRVR_BLK *servers)
+{
+  resp->servers = servers;
+}

@@ -35,7 +35,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <jansson.h>
-#include <gsscon.h>
 
 #include <trust_router/tr_dh.h>
 #include <trust_router/tid.h>
@@ -60,33 +59,6 @@ void tidc_destroy (TIDC_INSTANCE *tidc)
 {
   if (tidc)
     free(tidc);
-}
-
-TID_REQ *tid_dup_req (TID_REQ *orig_req) 
-{
-  TID_REQ *new_req = NULL;
-
-  if (NULL == (new_req = malloc(sizeof(TID_REQ)))) {
-    fprintf(stderr, "tid_dup_req: Can't allocated duplicate request.\n");
-    return NULL;
-  }
-
-  /* Memcpy for flat fields, not valid until names are duped. */
-  memcpy(new_req, orig_req, sizeof(TID_REQ));
-  
-  if ((NULL == (new_req->rp_realm = tr_dup_name(orig_req->rp_realm))) ||
-      (NULL == (new_req->realm = tr_dup_name(orig_req->realm))) ||
-      (NULL == (new_req->comm = tr_dup_name(orig_req->comm)))) {
-	fprintf(stderr, "tid_dup_req: Can't duplicate request (names).\n");
-  }
-
-  if (orig_req->orig_coi) {
-    if (NULL == (new_req->orig_coi = tr_dup_name(orig_req->orig_coi))) {
-      fprintf(stderr, "tid_dup_req: Can't duplicate request (orig_coi).\n");
-    }
-  }
-  
-  return new_req;
 }
 
 int tidc_open_connection (TIDC_INSTANCE *tidc, 
