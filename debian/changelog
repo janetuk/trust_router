@@ -1,3 +1,9 @@
+moonshot-trust-router (1.0.1-1) unstable; urgency=low
+
+  * New upstream version
+
+ -- Sam Hartman <hartmans@debian.org>  Fri, 20 Dec 2013 15:17:17 -0500
+
 moonshot-trust-router (1.0-2) unstable; urgency=low
 
   * New release including trustidentity for acceptor
