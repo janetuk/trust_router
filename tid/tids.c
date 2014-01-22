@@ -134,9 +134,14 @@ static int tids_auth_connection (struct tids_instance *inst,
 {
   int rc = 0;
   int auth, autherr = 0;
-  gss_buffer_desc nameBuffer = {NULL, 0};
+  gss_buffer_desc nameBuffer = {0, NULL};
+  char *name = 0;
+  int nameLen = 0;
 
-
+  nameLen = sprintf(name, "trustidentity@%s", inst->hostname);
+  nameBuffer.length = nameLen;
+  nameBuffer.value = name;
+  
   if (rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tids_auth_cb, inst)) {
     fprintf(stderr, "tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.\n", rc);
     return -1;
@@ -345,6 +350,7 @@ TIDS_INSTANCE *tids_create (void)
 int tids_start (TIDS_INSTANCE *tids, 
 		TIDS_REQ_FUNC *req_handler,
 		tids_auth_func *auth_handler,
+	        const char *hostname,
 		void *cookie)
 {
   int listen = -1;
@@ -357,6 +363,7 @@ int tids_start (TIDS_INSTANCE *tids,
   /* store the caller's request handler & cookie */
   tids->req_handler = req_handler;
   tids->auth_handler = auth_handler;
+  tids->hostname = hostname;
   tids->cookie = cookie;
 
   while(1) {	/* accept incoming conns until we are stopped */

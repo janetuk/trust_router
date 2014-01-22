@@ -283,7 +283,7 @@ int main (int argc, const char *argv[])
   }
 
   /* start the trust path query server, won't return unless fatal error. */
-  if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, &tr_tids_gss_handler, (void *)tr))) {
+  if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, &tr_tids_gss_handler, tr->active_cfg->internal->hostname, (void *)tr))) {
     fprintf (stderr, "Error from Trust Path Query Server, err = %d.\n", err);
     exit(err);
   }

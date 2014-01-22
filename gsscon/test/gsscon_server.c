@@ -132,7 +132,8 @@ int main (int argc, const char *argv[])
     int listenFD = -1;
     gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
     int i = 0;
-        
+    gss_buffer_desc nameBuffer = {0, "trustidentity"};
+
     for (i = 1; (i < argc) && !err; i++) {
         if ((strcmp (argv[i], "--port") == 0) && (i < (argc - 1))) {
             port = strtol (argv[++i], NULL, 0);
@@ -166,7 +167,7 @@ int main (int argc, const char *argv[])
         }
         
         printf ("Accepting new connection...\n");
-        connectionErr = gsscon_passive_authenticate (connectionFD, &gssContext,
+        connectionErr = gsscon_passive_authenticate (connectionFD, nameBuffer, &gssContext,
 						     cb_print_names, NULL);
         
         if (!connectionErr) {

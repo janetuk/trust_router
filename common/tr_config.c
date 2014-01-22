@@ -66,6 +66,7 @@ TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr) {
 static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
   json_t *jint = NULL;
   json_t *jmtd = NULL;
+  json_t *jhname = NULL;
 
   if ((!tr) || (!tr->new_cfg) || (!jcfg))
     return TR_CFG_BAD_PARAMS;
@@ -87,16 +88,16 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
       /* If not configured, use the default */
       tr->new_cfg->internal->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
     }
-    if (NULL != (jrname = json_object_get(jint, "realm_name"))) {
-      if (json_is_string(jrname)) {
-	tr->new_cfg->internal->realm_name = json_integer_value(jrname);
+    if (NULL != (jhname = json_object_get(jint, "hostname"))) {
+      if (json_is_string(jhname)) {
+	tr->new_cfg->internal->hostname = json_string_value(jhname);
       } else {
-	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, realm_name is not a string.\n");
+	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, hostname is not a string.\n");
 	return TR_CFG_NOPARSE;
       }
     }
     else {
-      fprintf(stderr, "tr_cfg_parse_internal: Parsing error, realm_name is not found.\n");
+      fprintf(stderr, "tr_cfg_parse_internal: Parsing error, hostname is not found.\n");
       return TR_CFG_NOPARSE;
     }
   fprintf(stderr, "tr_cfg_parse_internal: Internal config parsed.\n");
@@ -105,6 +106,7 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
   else {
     fprintf(stderr, "tr_cfg_parse_internal: Parsing error, tr_internal configuration section not found.\n");
     return TR_CFG_NOPARSE;
+  }
 }
 
 static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CFG_RC *rc)

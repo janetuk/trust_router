@@ -56,7 +56,7 @@ typedef enum tr_cfg_rc {
 
 typedef struct tr_cfg_internal {
   unsigned int max_tree_depth;
-  char *realm_name;
+  const char *hostname;
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {
