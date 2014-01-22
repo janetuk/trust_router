@@ -109,6 +109,7 @@ int gsscon_connect (const char *inHost,
 		    gss_ctx_id_t *outGSSContext);
 
 int gsscon_passive_authenticate (int           inSocket, 
+				 gss_buffer_desc inNameBuffer,
 				 gss_ctx_id_t *outGSSContext,
 				 client_cb_fn client_cb,
 				 void *client_cb_data);
