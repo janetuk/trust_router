@@ -134,8 +134,10 @@ static int tids_auth_connection (struct tids_instance *inst,
 {
   int rc = 0;
   int auth, autherr = 0;
+  gss_buffer_desc nameBuffer = {NULL, 0};
 
-  if (rc = gsscon_passive_authenticate(conn, gssctx, tids_auth_cb, inst)) {
+
+  if (rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tids_auth_cb, inst)) {
     fprintf(stderr, "tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.\n", rc);
     return -1;
   }

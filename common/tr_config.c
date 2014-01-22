@@ -75,20 +75,36 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
 
   memset(tr->new_cfg->internal, 0, sizeof(TR_CFG_INTERNAL));
 
-  if ((NULL != (jint = json_object_get(jcfg, "tr_internal"))) &&
-      (NULL != (jmtd = json_object_get(jint, "max_tree_depth")))) {
-    if (json_is_number(jmtd)) {
-      tr->new_cfg->internal->max_tree_depth = json_integer_value(jmtd);
+  if (NULL != (jint = json_object_get(jcfg, "tr_internal"))) {
+    if (NULL != (jmtd = json_object_get(jint, "max_tree_depth"))) {
+      if (json_is_number(jmtd)) {
+	tr->new_cfg->internal->max_tree_depth = json_integer_value(jmtd);
+      } else {
+	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, max_tree_depth is not a number.\n");
+	return TR_CFG_NOPARSE;
+      }
     } else {
-      fprintf(stderr,"tr_cfg_parse_internal: Parsing error, max_tree_depth is not a number.\n");
+      /* If not configured, use the default */
+      tr->new_cfg->internal->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
+    }
+    if (NULL != (jrname = json_object_get(jint, "realm_name"))) {
+      if (json_is_string(jrname)) {
+	tr->new_cfg->internal->realm_name = json_integer_value(jrname);
+      } else {
+	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, realm_name is not a string.\n");
+	return TR_CFG_NOPARSE;
+      }
+    }
+    else {
+      fprintf(stderr, "tr_cfg_parse_internal: Parsing error, realm_name is not found.\n");
       return TR_CFG_NOPARSE;
     }
-  } else {
-    /* If not configured, use the default */
-    tr->new_cfg->internal->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
-  }
   fprintf(stderr, "tr_cfg_parse_internal: Internal config parsed.\n");
   return TR_CFG_SUCCESS;
+  }
+  else {
+    fprintf(stderr, "tr_cfg_parse_internal: Parsing error, tr_internal configuration section not found.\n");
+    return TR_CFG_NOPARSE;
 }
 
 static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CFG_RC *rc)
