@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013, JANET(UK)
+ * Copyright (c) 2012, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,47 +32,13 @@
  *
  */
 
-#ifndef TR_FILTER_H
-#define TR_FILTER_H
-
-#include <trust_router/tr_name.h>
-#include <tr_constraint.h>
 #include <jansson.h>
 
-#define TR_MAX_FILTERS	5
-#define TR_MAX_FILTER_LINES 8
-#define TR_MAX_FILTER_SPECS 8
+#define TR_MAX_CONST_MATCHES 24;
 
-/* Filter actions */
-#define TR_FILTER_ACTION_REJECT 0
-#define TR_FILTER_ACTION_ACCEPT 1
+typedef json_t TR_CONSTRAINT_SET;
 
-/* Match codes */
-#define TR_FILTER_MATCH 0
-#define TR_FILTER_NO_MATCH 1
-
-/* Filter types */
-#define TR_FILTER_TYPE_RP_PERMITTED 0
-/* Other types TBD */
-
-typedef struct tr_fspec {
-  TR_NAME *field;
-  TR_NAME *match;
-} TR_FSPEC;
-
-typedef struct tr_fline {
-  int action;
-  TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
-  TR_CONSTRAINT realm_cons;
-  TR_CONSTRAINT domain_cons;
-} TR_FLINE;
-  
-typedef struct tr_filter {
-  int type;
-  TR_FLINE *lines[TR_MAX_FILTER_LINES];
-} TR_FILTER;
-
-void tr_filter_free (TR_FILTER *filt);
-int tr_prefix_wildcard_match (char *str, char *wc_str);
-int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints, TR_CONSTRAINT_SET **out_constraints, int *out_action);
-#endif
+typedef tr_constraint {
+  TR_NAME type;
+  TR_NAME matches[TR_MAX_CONST_MATCHES];
+} TR_CONSTRAINT;

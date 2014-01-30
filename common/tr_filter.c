@@ -109,6 +109,11 @@ void tr_filter_free (TR_FILTER *filt) {
 	if (filt->lines[i]->specs[j])
 	  free(filt->lines[i]->specs[j]);
       }
+      if (filt->lines[i]->realm_cons)
+	free(filt->lines[i]->realm_cons);
+      if (filt->lines[i]->domain_cons)
+	free(filt->lines[i]->domain_cons);
+
       free(filt->lines[i]);
     }
   }

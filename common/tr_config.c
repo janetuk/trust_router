@@ -109,6 +109,19 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
   }
 }
 
+static TR_CONSTRAINT *tr_cfg_parse_one_constraint (TR_INSTANCE *tr, const char *ctype, json_t *jdc, TR_CFG_RC *rc)
+{
+  if (NULL == (cons = malloc(sizeof(TR_CONSTRAINT)))) {
+    fprintf(stderr, "tr_cfg_parse_one_constraint: Out of memory.\n");
+    *rc = TR_CFG_NOMEM;
+    return NULL;
+  }
+
+  memset(filt, 0, sizeof(TR_FILTER));
+
+  
+}
+
 static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CFG_RC *rc)
 {
   TR_FILTER *filt = NULL;
@@ -118,6 +131,8 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
   json_t *jfspecs = NULL;
   json_t *jffield = NULL;
   json_t *jfmatch = NULL;
+  json_t *jrc = NULL;
+  json_t *jdc = NULL;
   int i = 0, j = 0;
 
   if ((NULL == (jftype = json_object_get(jfilt, "type"))) ||
@@ -139,8 +154,6 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
     *rc = TR_CFG_NOPARSE;
     return NULL;
   }
-
-  /* TBD -- optionally parse realm and domain constraints */
 
   if (NULL == (filt = malloc(sizeof(TR_FILTER)))) {
     fprintf(stderr, "tr_config_parse_one_filter: Out of memory.\n");
@@ -171,7 +184,25 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
       return NULL;
     }
  
-    /* TBD -- parse constraints */
+    if ((NULL != (jrc = json_object_get(json_array_get(jfls, i), "realm_constraints"))) &&
+	(json_is_array(jrc)) &&
+	(0 != json_array_size(jrc)) &&
+	(TR_MAX_CONST_MATCHES >= json_array_size(jrc))) {
+      if (NULL == (filt->realm_cons = tr_cfg_parse_one_constraint(tr, "realm", jrc, rc)))
+	fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing realm constraint");
+      tr_filter_free(filt);
+      return NULL;
+    }
+
+    if ((NULL != (jdc = json_object_get(json_array_get(jfls, i), "domain_constraints"))) &&
+	(json_is_array(jdc)) &&
+	(0 != json_array_size(jdc)) &&
+	(TR_MAX_CONST_MATCHES >= json_array_size(jdc))) {
+      if (NULL == (filt->realm_cons = tr_cfg_parse_one_constraint(tr, "domain", jdc, rc)))
+	fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing domain constraint");
+      tr_filter_free(filt);
+      return NULL;
+    }
 
     if ((NULL == (jfspecs = json_object_get(json_array_get(jfls, i), "filter_specs"))) ||
 	(!json_is_array(jfspecs)) ||
