@@ -234,6 +234,7 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   /* Store the rp client in the TR_INSTANCE structure for now... 
    * TBD -- fix me for new tasking model. */
   ((TR_INSTANCE *)tr)->rp_gss = rp;
+  fprintf( stderr, "Client's GSS Name: %s\n", gss_name->buf);
   return 0;
 }
 
