@@ -1,6 +1,6 @@
 Name:           trust_router
 Version:        1.0.1
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Moonshot Trust Router
 
 Group:          System Environment/Libraries
