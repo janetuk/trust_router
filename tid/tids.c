@@ -138,7 +138,7 @@ static int tids_auth_connection (struct tids_instance *inst,
   char *name = 0;
   int nameLen = 0;
 
-  nameLen = sprintf(name, "trustidentity@%s", inst->hostname);
+  nameLen = asprintf(&name, "trustidentity@%s", inst->hostname);
   nameBuffer.length = nameLen;
   nameBuffer.value = name;
   
