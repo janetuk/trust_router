@@ -192,9 +192,8 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   resp_cookie.orig_req = orig_req;
 
   /* Set-up TID connection */
-  /* TBD -- handle IPv6 Addresses */
   if (-1 == (fwd_req->conn = tidc_open_connection(tidc, 
-					      inet_ntoa(aaa_servers->aaa_server_addr), 
+						  aaa_servers->hostname->buf,
 					      &(fwd_req->gssctx)))) {
     fprintf(stderr, "tr_tids_req_handler: Error in tidc_open_connection.\n");
     tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS");
