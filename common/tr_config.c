@@ -420,8 +420,7 @@ static TR_AAA_SERVER *tr_cfg_parse_one_aaa_server (TR_INSTANCE *tr, json_t *jadd
 
   memset(aaa, 0, sizeof(TR_AAA_SERVER));
 
-  /* TBD -- Handle IPv6 addresses */
-  inet_aton(json_string_value(jaddr), &(aaa->aaa_server_addr));
+  aaa->hostname = tr_new_name((char *)(json_string_value(jaddr)));
 
   return aaa;
 }
