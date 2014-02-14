@@ -88,7 +88,14 @@ int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR
 	  (rpp_filter->lines[i]->specs[j]) && 
 	  (tr_prefix_wildcard_match(rp_realm->buf, rpp_filter->lines[i]->specs[j]->match->buf))) {
 	*out_action = rpp_filter->lines[i]->action;
-	*out_constraints = rpp_filter->lines[i]->constraints;
+	*out_constraints = in_constraints;
+	if (rpp_filter->lines[i]->realm_cons)
+	  tr_constraint_add_to_set(out_constraints, 
+				   rpp_filter->lines[i]->realm_cons);
+	if (rpp_filter->lines[i]->domain_cons)
+	  tr_constraint_add_to_set(out_constraints, 
+				   rpp_filter->lines[i]->domain_cons);
+
 	return TR_FILTER_MATCH;
       }
     }

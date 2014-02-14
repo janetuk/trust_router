@@ -40,11 +40,11 @@
 
 #include <trust_router/tr_name.h>
 #include <trust_router/tr_versioning.h>
+#include <tr_constraint.h>
+
 #include <gssapi.h>
 
 #define TID_PORT	12309
-
-
 
 typedef enum tid_rc {
   TID_SUCCESS = 0,
@@ -64,6 +64,7 @@ typedef struct tid_resp {
   TR_NAME *rp_realm;
   TR_NAME *realm;
   TR_NAME *comm;
+  TR_CONSTRAINT_SET *cons;
   TR_NAME *orig_coi;
   TID_SRVR_BLK *servers;       	/* Linked list of servers */
   /* TBD -- Trust Path Used */
@@ -84,6 +85,7 @@ struct tid_req {
   TR_NAME *rp_realm;
   TR_NAME *realm;
   TR_NAME *comm;
+  TR_CONSTRAINT_SET *cons;
   TR_NAME *orig_coi;
   DH *tidc_dh;			/* Client's public dh information */
   TIDC_RESP_FUNC *resp_func;

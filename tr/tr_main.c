@@ -78,7 +78,6 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   TR_COMM *cfg_apc = NULL;
-  TR_CONSTRAINT_SET *ocons = NULL;
   int oaction = TR_FILTER_ACTION_REJECT;
   int rc = 0;
 
@@ -114,15 +113,12 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, ((TR_INSTANCE *)tr)->rp_gss->filter, NULL, &ocons, &oaction)) ||
+  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, ((TR_INSTANCE *)tr)->rp_gss->filter, orig_req->cons, &fwd_req->cons, &oaction)) ||
       (TR_FILTER_ACTION_REJECT == oaction)) {
     fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name\n", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
     return -1;
   }
-
-  /* TBD -- add constraints to request for further forwarding. */
-
   /* Check that the rp_realm and target_realm are members of the community in the request */
   if (NULL == (tr_find_comm_rp(cfg_comm, orig_req->rp_realm))) {
     fprintf(stderr, "tr_tids_req_hander: RP Realm (%s) not member of community (%s).\n", orig_req->rp_realm->buf, orig_req->comm->buf);

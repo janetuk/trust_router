@@ -63,8 +63,8 @@ typedef struct tr_fspec {
 typedef struct tr_fline {
   int action;
   TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
-  TR_CONSTRAINT realm_cons;
-  TR_CONSTRAINT domain_cons;
+  TR_CONSTRAINT *realm_cons;
+  TR_CONSTRAINT *domain_cons;
 } TR_FLINE;
   
 typedef struct tr_filter {

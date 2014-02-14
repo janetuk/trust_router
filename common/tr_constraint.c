@@ -31,6 +31,58 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
 #include <jansson.h>
+
+#include <tr_filter.h>
+#include <tr_constraint.h>
+
+TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline)
+{
+  json_t *cset = NULL;
+
+  if (!fline)
+    return NULL;
+
+  if (fline->realm_cons)
+    tr_constraint_add_to_set(&cset, fline->realm_cons);
+  if (fline->domain_cons)
+    tr_constraint_add_to_set(&cset, fline->domain_cons);
+  
+   return cset;
+}
+
+/* A constraint set is represented in json as an array of constraint
+ * objects.  So, a constraint set (cset) that consists of one realm
+ * constraint and one domain constraint might look like:
+ *
+ *	{cset: [{domain: [a.com, b.co.uk]},
+ *	        {realm: [c.net, d.org]}]}
+ */
+
+void tr_constraint_add_to_set (TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
+{
+  json_t *jcons = NULL;
+  json_t *jmatches = NULL;
+  int i = 0;
+
+  if ((!cset) || (!cons))
+    return;
+
+  /* If we don't already have a json object, create one */
+  if (!(*cset))
+    *cset = json_array();
+
+  /* Create a json object representing cons */
+  jmatches = json_array();
+  jcons = json_object();
+
+  for (i = 0; ((i < TR_MAX_CONST_MATCHES) && (NULL != cons->matches[i])); i++) {
+    json_array_append_new(jmatches, json_string(cons->matches[i]->buf));
+  }
+
+  json_object_set_new(jcons, cons->type->buf, jmatches);
+  
+  /* Add the created object to the cset object */
+  json_array_append_new(*cset, jcons);
+} 
 
