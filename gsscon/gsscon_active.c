@@ -74,6 +74,7 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
     gss_buffer_desc inputToken;  /* buffer received from the server */
     gss_buffer_desc nameBuffer;
     gss_buffer_t inputTokenPtr = GSS_C_NO_BUFFER;
+    char *name;
 
     if (!inServiceName) { err = EINVAL; }
     if (!outGSSContext) { err = EINVAL; }
