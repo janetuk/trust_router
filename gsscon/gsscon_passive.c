@@ -64,7 +64,7 @@ int gsscon_passive_authenticate (int	            inSocket,
 {
     int err = 0;
     OM_uint32 majorStatus;
-    OM_uint32 minorStatus = 0;
+    OM_uint32 minorStatus = 0, minorStatusToo = 0;
     gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
     gss_name_t clientName = GSS_C_NO_NAME, serviceName = GSS_C_NO_NAME;
     gss_cred_id_t acceptorCredentials = NULL;
@@ -73,6 +73,8 @@ int gsscon_passive_authenticate (int	            inSocket,
     size_t inputTokenBufferLength = 0;
     gss_buffer_desc inputToken;  /* buffer received from the server */
     
+    printf("In gsscon_passive_authenticate(), inNameBuffer = %s\n", inNameBuffer.value);
+
     if (inSocket <  0 ) { err = EINVAL; }
     if (!outGSSContext) { err = EINVAL; }
 
@@ -147,7 +149,7 @@ int gsscon_passive_authenticate (int	            inSocket,
                 err = gsscon_write_token (inSocket, outputToken.value, outputToken.length);
                 
                 /* free the output token */
-                gss_release_buffer (&minorStatus, &outputToken);
+                gss_release_buffer (&minorStatusToo, &outputToken);
             }
         }
         
