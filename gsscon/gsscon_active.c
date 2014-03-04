@@ -72,6 +72,7 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
     char *inputTokenBuffer = NULL;
     size_t inputTokenBufferLength = 0;
     gss_buffer_desc inputToken;  /* buffer received from the server */
+    gss_buffer_desc nameBuffer;
     gss_buffer_t inputTokenPtr = GSS_C_NO_BUFFER;
 
     if (!inServiceName) { err = EINVAL; }
@@ -164,8 +165,9 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
      */
     
     if (!err) {
-      gss_buffer_desc nameBuffer = { strlen (inServiceName), (char *) inServiceName };
-        
+      nameBuffer.length = asprintf(&name, "%s@%s", inServiceName, inHost);
+      nameBuffer.value = name;
+
       majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_KRB5_NT_PRINCIPAL_NAME, &serviceName); 
       if (majorStatus != GSS_S_COMPLETE) { 
 	gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
