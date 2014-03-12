@@ -351,13 +351,14 @@ int tids_start (TIDS_INSTANCE *tids,
 		TIDS_REQ_FUNC *req_handler,
 		tids_auth_func *auth_handler,
 	        const char *hostname,
+		unsigned int port,
 		void *cookie)
 {
   int listen = -1;
   int conn = -1;
   pid_t pid;
 
-  if (0 > (listen = tids_listen(tids, TID_PORT)))
+  if (0 > (listen = tids_listen(tids, port)))
     perror ("Error from tids_listen()");
 
   /* store the caller's request handler & cookie */

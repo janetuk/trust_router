@@ -66,6 +66,7 @@ TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr) {
 static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
   json_t *jint = NULL;
   json_t *jmtd = NULL;
+  json_t *jtp = NULL;
   json_t *jhname = NULL;
 
   if ((!tr) || (!tr->new_cfg) || (!jcfg))
@@ -87,6 +88,17 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
     } else {
       /* If not configured, use the default */
       tr->new_cfg->internal->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
+    }
+    if (NULL != (jtp = json_object_get(jint, "tids_port"))) {
+      if (json_is_number(jtp)) {
+	tr->new_cfg->internal->tids_port = json_integer_value(jtp);
+      } else {
+	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, port is not a number.\n");
+	return TR_CFG_NOPARSE;
+      }
+    } else {
+      /* If not configured, use the default */
+      tr->new_cfg->internal->tids_port = TR_DEFAULT_TIDS_PORT;
     }
     if (NULL != (jhname = json_object_get(jint, "hostname"))) {
       if (json_is_string(jhname)) {

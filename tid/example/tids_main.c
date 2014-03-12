@@ -189,7 +189,7 @@ int main (int argc,
   tids->ipaddr = ipaddr;
 
   /* Start-up the server, won't return unless there is an error. */
-  rc = tids_start(tids, &tids_req_handler , auth_handler, hostname, gssname);
+  rc = tids_start(tids, &tids_req_handler , auth_handler, hostname, TID_PORT, gssname);
   
   fprintf(stdout, "Error in tids_start(), rc = %d. Exiting.\n", rc);
 
