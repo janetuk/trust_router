@@ -61,7 +61,7 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
     int err = 0;
     int fd = -1;
     OM_uint32 majorStatus;
-    OM_uint32 minorStatus = 0;
+    OM_uint32 minorStatus = 0, minorStatusToo = 0;
     struct hostent *hp = NULL;
     struct sockaddr_in saddr;
     gss_name_t serviceName = NULL;
@@ -215,7 +215,7 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
             err = gsscon_write_token (*outFD, outputToken.value, outputToken.length);
             
             /* free the output token */
-            gss_release_buffer (&minorStatus, &outputToken);
+            gss_release_buffer (&minorStatusToo, &outputToken);
         }
         
         if (!err) {
