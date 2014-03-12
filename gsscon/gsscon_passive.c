@@ -79,7 +79,7 @@ int gsscon_passive_authenticate (int	            inSocket,
     if (!outGSSContext) { err = EINVAL; }
 
     if (!err)
-      majorStatus = gss_import_name (&minorStatus, &inNameBuffer, (gss_OID) GSS_KRB5_NT_PRINCIPAL_NAME, &serviceName); 
+      majorStatus = gss_import_name (&minorStatus, &inNameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName); 
     if (majorStatus != GSS_S_COMPLETE) {
 	gsscon_print_gss_errors ("gss_import_name(serviceName)", majorStatus, minorStatus);
 	err = minorStatus ? minorStatus : majorStatus; 

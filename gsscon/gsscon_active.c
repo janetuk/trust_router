@@ -169,7 +169,7 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
       nameBuffer.length = asprintf(&name, "%s@%s", inServiceName, inHost);
       nameBuffer.value = name;
 
-      majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_KRB5_NT_PRINCIPAL_NAME, &serviceName); 
+      majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName); 
       if (majorStatus != GSS_S_COMPLETE) { 
 	gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
 	err = minorStatus ? minorStatus : majorStatus; 
