@@ -34,7 +34,7 @@
 #include <jansson.h>
 
 #include <tr_filter.h>
-#include <tr_constraint.h>
+#include <trust_router/tr_constraint.h>
 
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline)
 {

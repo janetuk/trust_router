@@ -63,12 +63,13 @@ void tidc_destroy (TIDC_INSTANCE *tidc)
 
 int tidc_open_connection (TIDC_INSTANCE *tidc, 
 			  char *server,
+			  unsigned int port,
 			  gss_ctx_id_t *gssctx)
 {
   int err = 0;
   int conn = -1;
 
-  err = gsscon_connect(server, TID_PORT, "trustidentity", &conn, gssctx);
+  err = gsscon_connect(server, port, "trustidentity", &conn, gssctx);
 
   if (!err)
     return conn;

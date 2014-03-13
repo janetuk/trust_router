@@ -40,7 +40,7 @@
 #include <tr_config.h>
 #include <tr.h>
 #include <tr_filter.h>
-#include <tr_constraint.h>
+#include <trust_router/tr_constraint.h>
 void tr_print_config (FILE *stream, TR_CFG *cfg) {
   fprintf(stream, "tr_print_config: Not yet implemented.\n");
   return;

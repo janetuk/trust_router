@@ -118,7 +118,7 @@ int main (int argc,
   }
 
   /* Set-up TID connection */
-  if (-1 == (conn = tidc_open_connection(tidc, server, &gssctx))) {
+  if (-1 == (conn = tidc_open_connection(tidc, server, TID_PORT, &gssctx))) {
     /* Handle error */
     printf("Error in tidc_open_connection.\n");
     return 1;

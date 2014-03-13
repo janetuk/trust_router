@@ -194,6 +194,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   /* Set-up TID connection */
   if (-1 == (fwd_req->conn = tidc_open_connection(tidc, 
 						  aaa_servers->hostname->buf,
+						  TID_PORT,
 					      &(fwd_req->gssctx)))) {
     fprintf(stderr, "tr_tids_req_handler: Error in tidc_open_connection.\n");
     tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS");

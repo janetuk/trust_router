@@ -36,7 +36,7 @@
 #define TR_FILTER_H
 
 #include <trust_router/tr_name.h>
-#include <tr_constraint.h>
+#include <trust_router/tr_constraint.h>
 #include <jansson.h>
 
 #define TR_MAX_FILTERS	5

@@ -40,7 +40,7 @@
 
 #include <trust_router/tr_name.h>
 #include <trust_router/tr_versioning.h>
-#include <tr_constraint.h>
+#include <trust_router/tr_constraint.h>
 
 #include <gssapi.h>
 
@@ -158,7 +158,7 @@ void tid_resp_set_servers(TID_RESP *resp, TID_SRVR_BLK *servers);
 
 /* TID Client functions, in tid/tidc.c */
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);
-TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, gss_ctx_id_t *gssctx);
+TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, unsigned int port, gss_ctx_id_t *gssctx);
 TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT int tidc_fwd_request (TIDC_INSTANCE *tidc, TID_REQ *req, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
