@@ -36,12 +36,11 @@
 #define TR_CONSTRAINT_H
 
 #include <trust_router/tr_name.h>
-#include <jansson.h>
 
 #define TR_MAX_CONST_MATCHES 24
 
 typedef struct tr_fline TR_FLINE;
-typedef json_t TR_CONSTRAINT_SET;
+typedef void TR_CONSTRAINT_SET;
 
 typedef struct tr_constraint {
   TR_NAME *type;

@@ -44,9 +44,9 @@ TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline)
     return NULL;
 
   if (fline->realm_cons)
-    tr_constraint_add_to_set(&cset, fline->realm_cons);
+    tr_constraint_add_to_set((TR_CONSTRAINT_SET **)&cset, fline->realm_cons);
   if (fline->domain_cons)
-    tr_constraint_add_to_set(&cset, fline->domain_cons);
+    tr_constraint_add_to_set((TR_CONSTRAINT_SET **)&cset, fline->domain_cons);
   
    return cset;
 }
