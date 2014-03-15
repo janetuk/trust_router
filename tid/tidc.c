@@ -33,7 +33,6 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <jansson.h>
 
 #include <trust_router/tr_dh.h>
@@ -69,6 +68,7 @@ int tidc_open_connection (TIDC_INSTANCE *tidc,
   int err = 0;
   int conn = -1;
 
+  fprintf(stderr, "tidc_open_connection: Opening GSS connection to %s:%u.", server, port);  
   err = gsscon_connect(server, port, "trustidentity", &conn, gssctx);
 
   if (!err)

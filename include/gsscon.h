@@ -103,7 +103,7 @@ void gsscon_print_gss_errors (const char *inRoutineName,
 			      OM_uint32   inMinorStatus);
 
 int gsscon_connect (const char *inHost, 
-		    int inPort, 
+		    unsigned int inPort, 
 		    const char *inServiceName,
 		    int *outFD,
 		    gss_ctx_id_t *outGSSContext);

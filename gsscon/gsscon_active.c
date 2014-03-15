@@ -52,11 +52,15 @@
  * or implied warranty.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #include <gsscon.h>
 
-/* --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+*/
 
-int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, int *outFD, gss_ctx_id_t *outGSSContext)
+int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServiceName, int *outFD, gss_ctx_id_t *outGSSContext)
 {
     int err = 0;
     int fd = -1;
@@ -94,16 +98,16 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
     }
     
     if (!err) {
+        fprintf (stderr, "gss_connect: Connecting to host '%s' on port %d\n", inHost, inPort);
         err = connect (fd, (struct sockaddr *) &saddr, sizeof (saddr));
         if (err < 0) { err = errno; }
     }
     
     if (!err) {
-        printf ("connecting to host '%s' on port %d\n", inHost, inPort);
         *outFD = fd;
         fd = -1; /* takes ownership */
     } else {
-         gsscon_print_error (err, "OpenConnection failed");
+        gsscon_print_error (err, "OpenConnection failed");
     }
     
     if (fd >= 0) { close (fd); }
