@@ -67,9 +67,15 @@ int tidc_open_connection (TIDC_INSTANCE *tidc,
 {
   int err = 0;
   int conn = -1;
+  unsigned int use_port = 0;
 
-  fprintf(stderr, "tidc_open_connection: Opening GSS connection to %s:%u.", server, port);  
-  err = gsscon_connect(server, port, "trustidentity", &conn, gssctx);
+  if (0 == port)
+    use_port = TID_PORT;
+  else 
+    use_port = port;
+
+  fprintf(stderr, "tidc_open_connection: Opening GSS connection to %s:%u.", server, use_port);  
+  err = gsscon_connect(server, use_port, "trustidentity", &conn, gssctx);
 
   if (!err)
     return conn;
