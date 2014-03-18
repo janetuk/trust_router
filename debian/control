@@ -15,11 +15,11 @@ Description: Moonshot Trust Router
 
 Package: moonshot-trust-router-dev
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libtr-tid0 (= ${binary:Version})
+Depends: ${shlibs:Depends}, ${misc:Depends}, libtr-tid1 (= ${binary:Version})
 Description: Development enviroment for the Trust Router
  Includes the trust router includes and libraries
 
-Package: libtr-tid0
+Package: libtr-tid1
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Trust Router Shared Libraries
