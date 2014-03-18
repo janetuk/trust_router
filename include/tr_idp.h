@@ -41,7 +41,7 @@
 
 typedef struct tr_aaa_server {
   struct tr_aaa_server *next;
-  struct in_addr aaa_server_addr;
+  TR_NAME *hostname;
 } TR_AAA_SERVER;
 
 typedef struct tr_idp_realm {

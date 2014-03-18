@@ -40,7 +40,7 @@
 #include <tr_config.h>
 #include <tr.h>
 #include <tr_filter.h>
-
+#include <trust_router/tr_constraint.h>
 void tr_print_config (FILE *stream, TR_CFG *cfg) {
   fprintf(stream, "tr_print_config: Not yet implemented.\n");
   return;
@@ -66,6 +66,8 @@ TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr) {
 static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
   json_t *jint = NULL;
   json_t *jmtd = NULL;
+  json_t *jtp = NULL;
+  json_t *jhname = NULL;
 
   if ((!tr) || (!tr->new_cfg) || (!jcfg))
     return TR_CFG_BAD_PARAMS;
@@ -75,20 +77,84 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_INSTANCE *tr, json_t *jcfg) {
 
   memset(tr->new_cfg->internal, 0, sizeof(TR_CFG_INTERNAL));
 
-  if ((NULL != (jint = json_object_get(jcfg, "tr_internal"))) &&
-      (NULL != (jmtd = json_object_get(jint, "max_tree_depth")))) {
-    if (json_is_number(jmtd)) {
-      tr->new_cfg->internal->max_tree_depth = json_integer_value(jmtd);
+  if (NULL != (jint = json_object_get(jcfg, "tr_internal"))) {
+    if (NULL != (jmtd = json_object_get(jint, "max_tree_depth"))) {
+      if (json_is_number(jmtd)) {
+	tr->new_cfg->internal->max_tree_depth = json_integer_value(jmtd);
+      } else {
+	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, max_tree_depth is not a number.\n");
+	return TR_CFG_NOPARSE;
+      }
     } else {
-      fprintf(stderr,"tr_cfg_parse_internal: Parsing error, max_tree_depth is not a number.\n");
+      /* If not configured, use the default */
+      tr->new_cfg->internal->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
+    }
+    if (NULL != (jtp = json_object_get(jint, "tids_port"))) {
+      if (json_is_number(jtp)) {
+	tr->new_cfg->internal->tids_port = json_integer_value(jtp);
+      } else {
+	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, port is not a number.\n");
+	return TR_CFG_NOPARSE;
+      }
+    } else {
+      /* If not configured, use the default */
+      tr->new_cfg->internal->tids_port = TR_DEFAULT_TIDS_PORT;
+    }
+    if (NULL != (jhname = json_object_get(jint, "hostname"))) {
+      if (json_is_string(jhname)) {
+	tr->new_cfg->internal->hostname = json_string_value(jhname);
+      } else {
+	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, hostname is not a string.\n");
+	return TR_CFG_NOPARSE;
+      }
+    }
+    else {
+      fprintf(stderr, "tr_cfg_parse_internal: Parsing error, hostname is not found.\n");
       return TR_CFG_NOPARSE;
     }
-  } else {
-    /* If not configured, use the default */
-    tr->new_cfg->internal->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
-  }
   fprintf(stderr, "tr_cfg_parse_internal: Internal config parsed.\n");
   return TR_CFG_SUCCESS;
+  }
+  else {
+    fprintf(stderr, "tr_cfg_parse_internal: Parsing error, tr_internal configuration section not found.\n");
+    return TR_CFG_NOPARSE;
+  }
+}
+
+static TR_CONSTRAINT *tr_cfg_parse_one_constraint (TR_INSTANCE *tr, char *ctype, json_t *jc, TR_CFG_RC *rc)
+{
+  TR_CONSTRAINT *cons;
+  int i;
+
+  if ((!tr) || (!ctype) || (!jc) || (!rc) ||
+      (!json_is_array(jc)) ||
+      (0 >= json_array_size(jc)) ||
+      (TR_MAX_CONST_MATCHES < json_array_size(jc)) ||
+      (!json_is_string(json_array_get(jc, 0)))) {
+    fprintf(stderr, "tr_cfg_parse_one_constraint: config error.\n");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  if (NULL == (cons = malloc(sizeof(TR_CONSTRAINT)))) {
+    fprintf(stderr, "tr_cfg_parse_one_constraint: Out of memory (cons).\n");
+    *rc = TR_CFG_NOMEM;
+    return NULL;
+  }
+
+  memset(cons, 0, sizeof(TR_CONSTRAINT));
+
+  if (NULL == (cons->type = tr_new_name(ctype))) {
+    fprintf(stderr, "tr_cfg_parse_one_constraint: Out of memory (type).\n");
+    *rc = TR_CFG_NOMEM;
+    return NULL;
+  }
+
+  for (i = 0; i < json_array_size(jc); i++) {
+    cons->matches[i] = tr_new_name((char *)(json_string_value(json_array_get(jc, i))));
+  }
+
+  return cons;
 }
 
 static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CFG_RC *rc)
@@ -100,6 +166,8 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
   json_t *jfspecs = NULL;
   json_t *jffield = NULL;
   json_t *jfmatch = NULL;
+  json_t *jrc = NULL;
+  json_t *jdc = NULL;
   int i = 0, j = 0;
 
   if ((NULL == (jftype = json_object_get(jfilt, "type"))) ||
@@ -122,8 +190,6 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
     return NULL;
   }
 
-  /* TBD -- optionally parse realm and domain constraints */
-
   if (NULL == (filt = malloc(sizeof(TR_FILTER)))) {
     fprintf(stderr, "tr_config_parse_one_filter: Out of memory.\n");
     *rc = TR_CFG_NOMEM;
@@ -141,7 +207,7 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
     tr_filter_free(filt);
     return NULL;
   }
-  
+
   /* For each filter line... */
   for (i = 0; i < json_array_size(jfls); i++) {
 
@@ -153,8 +219,6 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
       return NULL;
     }
  
-    /* TBD -- parse constraints */
-
     if ((NULL == (jfspecs = json_object_get(json_array_get(jfls, i), "filter_specs"))) ||
 	(!json_is_array(jfspecs)) ||
 	(0 == json_array_size(jfspecs))) {
@@ -172,7 +236,7 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
     }
 
     if (NULL == (filt->lines[i] = malloc(sizeof(TR_FLINE)))) {
-      fprintf(stderr, "tr_config_parse_one_filter: Out of memory.\n");
+      fprintf(stderr, "tr_config_parse_one_filter: Out of memory (fline).\n");
       *rc = TR_CFG_NOMEM;
       tr_filter_free(filt);
       return NULL;
@@ -192,7 +256,31 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
       tr_filter_free(filt);
       return NULL;
     }
-      
+
+    if ((NULL != (jrc = json_object_get(json_array_get(jfls, i), "realm_constraints"))) &&
+	(json_is_array(jrc)) &&
+	(0 != json_array_size(jrc)) &&
+	(TR_MAX_CONST_MATCHES >= json_array_size(jrc))) {
+
+      if (NULL == (filt->lines[i]->realm_cons = tr_cfg_parse_one_constraint(tr, "realm", jrc, rc))) {
+	fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing realm constraint");
+      tr_filter_free(filt);
+      return NULL;
+      }
+    }
+
+    if ((NULL != (jdc = json_object_get(json_array_get(jfls, i), "domain_constraints"))) &&
+	(json_is_array(jdc)) &&
+	(0 != json_array_size(jdc)) &&
+	(TR_MAX_CONST_MATCHES >= json_array_size(jdc))) {
+
+      if (NULL == (filt->lines[i]->domain_cons = tr_cfg_parse_one_constraint(tr, "domain", jdc, rc))) {
+	fprintf(stderr, "tr_cfg_parse_one_filter: Error parsing domain constraint");
+      tr_filter_free(filt);
+      return NULL;
+      }
+    }
+
     /*For each filter spec within the filter line... */
     for (j = 0; j <json_array_size(jfspecs); j++) {
       
@@ -224,6 +312,7 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_INSTANCE *tr, json_t *jfilt, TR_CF
       }
     }
   }
+
   return filt;
 }
 
@@ -343,8 +432,7 @@ static TR_AAA_SERVER *tr_cfg_parse_one_aaa_server (TR_INSTANCE *tr, json_t *jadd
 
   memset(aaa, 0, sizeof(TR_AAA_SERVER));
 
-  /* TBD -- Handle IPv6 addresses */
-  inet_aton(json_string_value(jaddr), &(aaa->aaa_server_addr));
+  aaa->hostname = tr_new_name((char *)(json_string_value(jaddr)));
 
   return aaa;
 }
@@ -777,7 +865,7 @@ json_t *tr_read_config (int n, struct dirent **cfg_files) {
     }
   }
 
-  //  fprintf(stderr, "tr_read_config: Merged configuration complete:\n%s\n", json_dumps(jcfg, 0));
+  fprintf(stderr, "tr_read_config: Merged configuration complete:\n%s\n", json_dumps(jcfg, 0));
 
   return jcfg;
 }

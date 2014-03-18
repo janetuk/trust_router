@@ -31,56 +31,58 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
-#ifndef TR_CONFIG_H
-#define TR_CONFIG_H
-
-#include <stdio.h>
-#include <dirent.h>
 #include <jansson.h>
 
-#include <tr.h>
-#include <tr_rp.h>
-#include <tr_idp.h>
-#include <tr_comm.h>
+#include <tr_filter.h>
+#include <trust_router/tr_constraint.h>
 
-#define TR_DEFAULT_MAX_TREE_DEPTH 12
-#define TR_DEFAULT_TR_PORT 12308
-#define TR_DEFAULT_TIDS_PORT 12309
+TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline)
+{
+  json_t *cset = NULL;
 
-typedef enum tr_cfg_rc {
-  TR_CFG_SUCCESS = 0,	/* No error */
-  TR_CFG_ERROR,		/* General processing error */
-  TR_CFG_BAD_PARAMS,	/* Bad parameters passed to tr_config function */
-  TR_CFG_NOPARSE,	/* Parsing error */
-  TR_CFG_NOMEM		/* Memory allocation error */
-} TR_CFG_RC;
+  if (!fline)
+    return NULL;
 
-typedef struct tr_cfg_internal {
-  unsigned int max_tree_depth;
-  unsigned int tids_port;
-  const char *hostname;
-} TR_CFG_INTERNAL;
+  if (fline->realm_cons)
+    tr_constraint_add_to_set((TR_CONSTRAINT_SET **)&cset, fline->realm_cons);
+  if (fline->domain_cons)
+    tr_constraint_add_to_set((TR_CONSTRAINT_SET **)&cset, fline->domain_cons);
+  
+   return cset;
+}
 
-typedef struct tr_cfg {
-  TR_CFG_INTERNAL *internal;	/* internal trust router config */
-  TR_IDP_REALM *idp_realms;	/* locally associated IDP Realms */
-  TR_RP_CLIENT *rp_clients;	/* locally associated RP Clients */
-  TR_COMM *comms;		/* locally-known communities */
-  /* TBD -- Global Filters */
-  /* TBD -- Trust Router Peers */
-  /* TBD -- Trust Links */
-} TR_CFG;
+/* A constraint set is represented in json as an array of constraint
+ * objects.  So, a constraint set (cset) that consists of one realm
+ * constraint and one domain constraint might look like:
+ *
+ *	{cset: [{domain: [a.com, b.co.uk]},
+ *	        {realm: [c.net, d.org]}]}
+ */
 
-int tr_find_config_files (struct dirent ***cfg_files);
-json_t *tr_read_config (int n, struct dirent **cfgfiles);
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, json_t *jcfg);
-TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
-void tr_cfg_free(TR_CFG *cfg);
-void tr_print_config(FILE *stream, TR_CFG *cfg);
+void tr_constraint_add_to_set (TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
+{
+  json_t *jcons = NULL;
+  json_t *jmatches = NULL;
+  int i = 0;
 
-TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
-TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
-TR_RP_CLIENT *tr_rp_client_lookup(TR_INSTANCE *tr, TR_NAME *gss_name);
+  if ((!cset) || (!cons))
+    return;
 
-#endif
+  /* If we don't already have a json object, create one */
+  if (!(*cset))
+    *cset = json_array();
+
+  /* Create a json object representing cons */
+  jmatches = json_array();
+  jcons = json_object();
+
+  for (i = 0; ((i < TR_MAX_CONST_MATCHES) && (NULL != cons->matches[i])); i++) {
+    json_array_append_new(jmatches, json_string(cons->matches[i]->buf));
+  }
+
+  json_object_set_new(jcons, cons->type->buf, jmatches);
+  
+  /* Add the created object to the cset object */
+  json_array_append_new(*cset, jcons);
+} 
+

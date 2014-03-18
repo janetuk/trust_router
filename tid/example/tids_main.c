@@ -63,7 +63,7 @@ static int  create_key_id(char *out_id, size_t len)
   return 0;
 }
   
-static int tids_req_handler (TIDS_INSTANCE * tids,
+static int tids_req_handler (TIDS_INSTANCE *tids,
 		      TID_REQ *req, 
 		      TID_RESP **resp,
 		      void *cookie)
@@ -162,41 +162,34 @@ int main (int argc,
   TIDS_INSTANCE *tids;
   int rc = 0;
   char *ipaddr = NULL;
+  const char *hostname = NULL;
   TR_NAME *gssname = NULL;
 
   /* Parse command-line arguments */ 
-  if (argc > 4)
-    fprintf(stdout, "Usage: %s [<ip-address> <gss-name> [<database-name>]]\n", argv[0]);
-
-  if (argc >= 2) {
-    ipaddr = (char *)argv[1];
-  } else {
-    ipaddr = "127.0.0.1";
+  if (argc != 5) {
+    fprintf(stdout, "Usage: %s <ip-address> <gss-name> <hostname> <database-name>\n", argv[0]);
+    exit(1);
   }
+  ipaddr = (char *)argv[1];
   gssname = tr_new_name((char *) argv[2]);
-
-  /* TBD -- check that input is a valid IP address? */
-
-  /*If we have a database, open and prepare*/
-  if (argc == 4) {
-    if (SQLITE_OK != sqlite3_open(argv[3], &db)) {
-      fprintf(stdout, "Error opening database %s\n", argv[2]);
-      exit(1);
-    }
-    sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key) values(?, ?)",
-		       -1, &insert_stmt, NULL);
+  hostname = argv[3];
+  if (SQLITE_OK != sqlite3_open(argv[4], &db)) {
+    fprintf(stdout, "Error opening database %s\n", argv[4]);
+    exit(1);
   }
+  sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key) values(?, ?)",
+		     -1, &insert_stmt, NULL);
 
   /* Create a TID server instance */
   if (NULL == (tids = tids_create())) {
-    fprintf(stdout, "Unable to create TIDS instance,exiting.\n");
+    fprintf(stdout, "Unable to create TIDS instance, exiting.\n");
     return 1;
   }
 
   tids->ipaddr = ipaddr;
 
   /* Start-up the server, won't return unless there is an error. */
-  rc = tids_start(tids, &tids_req_handler , auth_handler, gssname);
+  rc = tids_start(tids, &tids_req_handler , auth_handler, hostname, TID_PORT, gssname);
   
   fprintf(stdout, "Error in tids_start(), rc = %d. Exiting.\n", rc);
 

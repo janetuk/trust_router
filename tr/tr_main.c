@@ -78,7 +78,6 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   TR_COMM *cfg_apc = NULL;
-  TR_CONSTRAINT_SET *ocons = NULL;
   int oaction = TR_FILTER_ACTION_REJECT;
   int rc = 0;
 
@@ -114,15 +113,12 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, ((TR_INSTANCE *)tr)->rp_gss->filter, NULL, &ocons, &oaction)) ||
+  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, ((TR_INSTANCE *)tr)->rp_gss->filter, orig_req->cons, &fwd_req->cons, &oaction)) ||
       (TR_FILTER_ACTION_REJECT == oaction)) {
     fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name\n", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
     return -1;
   }
-
-  /* TBD -- add constraints to request for further forwarding. */
-
   /* Check that the rp_realm and target_realm are members of the community in the request */
   if (NULL == (tr_find_comm_rp(cfg_comm, orig_req->rp_realm))) {
     fprintf(stderr, "tr_tids_req_hander: RP Realm (%s) not member of community (%s).\n", orig_req->rp_realm->buf, orig_req->comm->buf);
@@ -196,9 +192,9 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   resp_cookie.orig_req = orig_req;
 
   /* Set-up TID connection */
-  /* TBD -- handle IPv6 Addresses */
   if (-1 == (fwd_req->conn = tidc_open_connection(tidc, 
-					      inet_ntoa(aaa_servers->aaa_server_addr), 
+						  aaa_servers->hostname->buf,
+						  TID_PORT,
 					      &(fwd_req->gssctx)))) {
     fprintf(stderr, "tr_tids_req_handler: Error in tidc_open_connection.\n");
     tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS");
@@ -234,6 +230,7 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   /* Store the rp client in the TR_INSTANCE structure for now... 
    * TBD -- fix me for new tasking model. */
   ((TR_INSTANCE *)tr)->rp_gss = rp;
+  fprintf( stderr, "Client's GSS Name: %s\n", gss_name->buf);
   return 0;
 }
 
@@ -283,7 +280,7 @@ int main (int argc, const char *argv[])
   }
 
   /* start the trust path query server, won't return unless fatal error. */
-  if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, &tr_tids_gss_handler, (void *)tr))) {
+  if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, &tr_tids_gss_handler, tr->active_cfg->internal->hostname, tr->active_cfg->internal->tids_port, (void *)tr))) {
     fprintf (stderr, "Error from Trust Path Query Server, err = %d.\n", err);
     exit(err);
   }

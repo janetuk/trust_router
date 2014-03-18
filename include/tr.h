@@ -40,8 +40,6 @@
 #include <tr_msg.h>
 #include <tr_rp.h>
 
-#define TRUST_ROUTER_PORT	12308
-
 typedef struct tr_instance {
   struct tr_cfg *new_cfg;	/* unapplied configuration */
   struct tr_cfg *active_cfg;

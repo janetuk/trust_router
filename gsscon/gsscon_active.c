@@ -52,16 +52,20 @@
  * or implied warranty.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #include <gsscon.h>
 
-/* --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+*/
 
-int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, int *outFD, gss_ctx_id_t *outGSSContext)
+int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServiceName, int *outFD, gss_ctx_id_t *outGSSContext)
 {
     int err = 0;
     int fd = -1;
     OM_uint32 majorStatus;
-    OM_uint32 minorStatus = 0;
+    OM_uint32 minorStatus = 0, minorStatusToo = 0;
     struct hostent *hp = NULL;
     struct sockaddr_in saddr;
     gss_name_t serviceName = NULL;
@@ -72,7 +76,9 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
     char *inputTokenBuffer = NULL;
     size_t inputTokenBufferLength = 0;
     gss_buffer_desc inputToken;  /* buffer received from the server */
+    gss_buffer_desc nameBuffer;
     gss_buffer_t inputTokenPtr = GSS_C_NO_BUFFER;
+    char *name;
 
     if (!inServiceName) { err = EINVAL; }
     if (!outGSSContext) { err = EINVAL; }
@@ -92,16 +98,16 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
     }
     
     if (!err) {
+        fprintf (stderr, "gss_connect: Connecting to host '%s' on port %d\n", inHost, inPort);
         err = connect (fd, (struct sockaddr *) &saddr, sizeof (saddr));
         if (err < 0) { err = errno; }
     }
     
     if (!err) {
-        printf ("connecting to host '%s' on port %d\n", inHost, inPort);
         *outFD = fd;
         fd = -1; /* takes ownership */
     } else {
-         gsscon_print_error (err, "OpenConnection failed");
+        gsscon_print_error (err, "OpenConnection failed");
     }
     
     if (fd >= 0) { close (fd); }
@@ -164,9 +170,10 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
      */
     
     if (!err) {
-      gss_buffer_desc nameBuffer = { strlen (inServiceName), (char *) inServiceName };
-        
-      majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_KRB5_NT_PRINCIPAL_NAME, &serviceName); 
+      nameBuffer.length = asprintf(&name, "%s@%s", inServiceName, inHost);
+      nameBuffer.value = name;
+
+      majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName); 
       if (majorStatus != GSS_S_COMPLETE) { 
 	gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
 	err = minorStatus ? minorStatus : majorStatus; 
@@ -212,7 +219,7 @@ int gsscon_connect (const char *inHost, int inPort, const char *inServiceName, i
             err = gsscon_write_token (*outFD, outputToken.value, outputToken.length);
             
             /* free the output token */
-            gss_release_buffer (&minorStatus, &outputToken);
+            gss_release_buffer (&minorStatusToo, &outputToken);
         }
         
         if (!err) {
