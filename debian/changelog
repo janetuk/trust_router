@@ -1,3 +1,10 @@
+moonshot-trust-router (1.2-1) unstable; urgency=low
+
+  * New upstream version.
+  * Includes constraints, gss-name change and settable port number. 
+
+ -- Margaret Wasserman <margaret@moonshot-proxy>  Tue, 18 Mar 2014 18:00:19 -0400
+
 moonshot-trust-router (1.0.1-1) unstable; urgency=low
 
   * New upstream version
