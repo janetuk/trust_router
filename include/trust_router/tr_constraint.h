@@ -39,7 +39,6 @@
 
 #define TR_MAX_CONST_MATCHES 24
 
-typedef struct tr_fline TR_FLINE;
 typedef void TR_CONSTRAINT_SET;
 
 typedef struct tr_constraint {
@@ -47,7 +46,6 @@ typedef struct tr_constraint {
   TR_NAME *matches[TR_MAX_CONST_MATCHES];
 } TR_CONSTRAINT;
 
-TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline);
 void tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
 
 #endif
