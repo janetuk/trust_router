@@ -10,3 +10,6 @@ Restart=always
 StandardOutput=syslog
 StandardError=inherit
 User=trustrouter
+
+[Unit]
+WantedBy=multi-user.target
