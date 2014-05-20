@@ -9,7 +9,7 @@ Vcs-Git: git://git.project-moonshot.org/trust_router.git
 
 Package: moonshot-trust-router
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, moonshot-gss-eap
+Depends: ${shlibs:Depends}, ${misc:Depends}, moonshot-gss-eap, adduser
 Description: Moonshot Trust Router
  This package is under construction
 

@@ -1,2 +1,4 @@
 usr/bin/*
+usr/share/trust_router/*
+lib/systemd/system/*
 
