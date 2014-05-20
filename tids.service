@@ -11,5 +11,5 @@ StandardOutput=syslog
 StandardError=inherit
 User=trustrouter
 
-[Unit]
+[Install]
 WantedBy=multi-user.target
