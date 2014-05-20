@@ -49,5 +49,10 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_comm.h include/tr_apc.h \
 	include/tr_filter.h
 
+pkgdata_DATA=schema.sql
+systemddir=/lib/systemd/system
+
+systemd_DATA=tids.service
+
 
 EXTRA_DIST = trust_router.spec

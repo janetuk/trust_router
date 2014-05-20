@@ -75,4 +75,5 @@ typedef struct tr_filter {
 void tr_filter_free (TR_FILTER *filt);
 int tr_prefix_wildcard_match (char *str, char *wc_str);
 int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints, TR_CONSTRAINT_SET **out_constraints, int *out_action);
+TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline);
 #endif
