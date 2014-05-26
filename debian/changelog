@@ -1,3 +1,9 @@
+moonshot-trust-router (1.2-4) unstable; urgency=medium
+
+  * Fix another bug in tids.service
+
+ -- Sam Hartman <hartmans@debian.org>  Mon, 26 May 2014 15:43:46 -0400
+
 moonshot-trust-router (1.2-3) unstable; urgency=medium
 
   * trust_router not trustrouter in tids.service
