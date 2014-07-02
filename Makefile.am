@@ -3,18 +3,24 @@ AM_CPPFLAGS=-I$(srcdir)/include
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror=strict-prototypes -Wno-parentheses
 SUBDIRS = gsscon 
 common_srcs = common/tr_name.c \
-common/tr_msg.c \
-common/tr_dh.c \
+	common/tr_constraint.c \
+	common/tr_msg.c \
+	common/tr_dh.c \
 	common/tr_util.c
 
+check_PROGRAMS = common/t_constraint
+
 lib_LTLIBRARIES = libtr_tid.la
+
+common_t_constraint_SOURCES = common/t_constraint.c
+common_t_constraint_CPPFLAGS = $(AM_CPPFLAGS) -DTESTS=\"$(srcdir)/common/tests.json\"
+common_t_constraint_LDADD = gsscon/libgsscon.la libtr_tid.la
 
 tr_trust_router_SOURCES = tr/tr_main.c \
 common/tr_config.c \
 common/tr_idp.c \
 common/tr_comm.c \
 common/tr_filter.c \
-common/tr_constraint.c \
 common/tr_rp.c \
 tr/tr.c
 
@@ -55,4 +61,4 @@ systemddir=/lib/systemd/system
 systemd_DATA=tids.service
 
 
-EXTRA_DIST = trust_router.spec
+EXTRA_DIST = trust_router.spec common/tests.json

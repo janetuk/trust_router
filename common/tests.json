@@ -1,0 +1,34 @@
+[
+    {
+	"constraints": [{}],
+	"valid": true,
+	"expected": [{}]
+	},
+    {
+	"constraints": [33],
+	"valid": false
+	},
+    {
+	"constraints": [{
+	    "domain": ["ja.net", "*.ja.net", "foo.ja.net"]
+	    }],
+	"valid": true,
+	"expected": [{
+	    "domain": ["ja.net", "*.ja.net"]
+	    }]
+	},
+    {
+	"constraints": [{
+	    "domain": ["*"],
+	    "realm": ["*"]
+	    },
+			{
+			    "domain": ["*.cam.ac.uk"]
+			    }],
+	"expected": [{
+	    "domain": ["*.cam.ac.uk"],
+	    "realm": []
+	    }],
+	"valid": true
+	}
+            ]

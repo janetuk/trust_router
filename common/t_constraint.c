@@ -32,33 +32,55 @@
  *
  */
 
-#ifndef TR_CONSTRAINT_H
-#define TR_CONSTRAINT_H
-#include <trust_router/tr_name.h>
+#include <jansson.h>
+#include <stdio.h>
+#include <assert.h>
+
 #include <trust_router/tid.h>
+#include <trust_router/tr_constraint.h>
+#include <tr_debug.h>
 
+static TID_REQ *request = NULL;
 
-#define TR_MAX_CONST_MATCHES 24
+static int handle_test_case(
+			     json_t *tc)
+{
+  json_t *constraints, *valid, *expected;
+  int validp;
+  json_t *result;
+  assert(constraints = json_object_get(tc, "constraints"));
+  assert( valid = json_object_get(tc, "valid"));
+  validp = tr_constraint_set_validate((TR_CONSTRAINT_SET *)constraints);
+  if (validp != json_is_true(valid)) {
+    tr_debug("Unexpected validation result for \n");
+    json_dumpf( constraints, stderr, JSON_INDENT(4));
+    return 0;
+  }
+  if (!validp)
+    return 1;
+  assert( expected = json_object_get(tc, "expected"));
+  result = (json_t *) tr_constraint_set_intersect(request, (TR_CONSTRAINT_SET *) constraints);
+  if (!json_equal(result, expected)) {
+    tr_debug("Unexpected intersection; actual:\n");
+    json_dumpf(result, stderr, JSON_INDENT(4));
+    tr_debug("Expected: \n");
+    json_dumpf(expected, stderr, JSON_INDENT(4));
+    return 0;
+  }
+  return 1;
+}
 
-
-typedef struct tr_constraint {
-  TR_NAME *type;
-  TR_NAME *matches[TR_MAX_CONST_MATCHES];
-} TR_CONSTRAINT;
-
-void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
-
-int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
-/**
- * Create a new constraint set containing all constraints from #orig
- * with constraint_type #constraint_type and no others.  This constraint set is
- * live until #request is freed.
- */
-TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
-				   TR_CONSTRAINT_SET *orig,
-				   const char * constraint_type);
-
-TR_EXPORT TR_CONSTRAINT_SET
-*tr_constraint_set_intersect(TID_REQ *request,
-			     TR_CONSTRAINT_SET *input);
-#endif
+int main(void) {
+  json_t *tests;
+  int error=0;
+  json_t *tc;
+  size_t index;
+  request = tid_req_new();
+  tests = json_load_file(TESTS, JSON_REJECT_DUPLICATES|JSON_DISABLE_EOF_CHECK, NULL);
+  json_array_foreach(tests, index, tc)
+    if (!handle_test_case(tc))
+      error = 1;
+  if (error)
+    return 1;
+  return 0;
+}

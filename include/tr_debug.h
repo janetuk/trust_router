@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2014, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,33 +32,9 @@
  *
  */
 
-#ifndef TR_CONSTRAINT_H
-#define TR_CONSTRAINT_H
-#include <trust_router/tr_name.h>
-#include <trust_router/tid.h>
+#ifndef _TR_DEBUG_H
+#define _TR_DEBUG_H
 
+#define tr_debug(...) fprintf( stderr, __VA_ARGS__)
 
-#define TR_MAX_CONST_MATCHES 24
-
-
-typedef struct tr_constraint {
-  TR_NAME *type;
-  TR_NAME *matches[TR_MAX_CONST_MATCHES];
-} TR_CONSTRAINT;
-
-void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
-
-int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
-/**
- * Create a new constraint set containing all constraints from #orig
- * with constraint_type #constraint_type and no others.  This constraint set is
- * live until #request is freed.
- */
-TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
-				   TR_CONSTRAINT_SET *orig,
-				   const char * constraint_type);
-
-TR_EXPORT TR_CONSTRAINT_SET
-*tr_constraint_set_intersect(TID_REQ *request,
-			     TR_CONSTRAINT_SET *input);
 #endif

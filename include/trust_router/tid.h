@@ -40,7 +40,6 @@
 
 #include <trust_router/tr_name.h>
 #include <trust_router/tr_versioning.h>
-#include <trust_router/tr_constraint.h>
 
 #include <gssapi.h>
 
@@ -58,6 +57,8 @@ typedef struct tid_srvr_blk {
   DH *aaa_server_dh;		/* AAA server's public dh information */
 } TID_SRVR_BLK;
   
+typedef struct _tr_constraint_set  TR_CONSTRAINT_SET;
+
 typedef struct tid_resp {
   TID_RC result;
   TR_NAME *err_msg;
