@@ -36,6 +36,38 @@
 #include <tr_filter.h>
 #include <trust_router/tr_constraint.h>
 
+/* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
+ */
+int tr_prefix_wildcard_match (const char *str, const char *wc_str) {
+  const char *wc_post = wc_str;
+  size_t len = 0;
+  size_t wc_len = 0;
+
+  if ((!str) || (!wc_str))
+    return 0;
+
+  len = strlen(str);
+  if (0 == (wc_len = strlen(wc_str)))
+    return 0;
+
+  /* TBD -- skip leading white space? */
+  if ('*' == wc_str[0]) {
+    wc_post = &(wc_str[1]);
+    wc_len--;
+  }else if (len != wc_len)
+    return 0;
+
+
+  if (wc_len > len)
+    return 0;
+  
+  if (0 == strcmp(&(str[len-wc_len]), wc_post)) {
+    return 1;
+  }
+  else
+    return 0;
+  }
+
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline)
 {
   json_t *cset = NULL;
