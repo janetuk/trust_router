@@ -34,8 +34,22 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <trust_router/tid.h>
+#include <jansson.h>
+
+TID_REQ *tid_req_new()
+{
+  TID_REQ *req = calloc(sizeof(TID_REQ), 1);
+  if(!req)
+    return NULL;
+  req->json_references = json_array();
+  assert(req->json_references);
+  req->conn = -1;
+  return req;
+}
+
 TID_REQ *tid_req_get_next_req(TID_REQ *req)
 {
   return(req->next_req);
@@ -157,6 +171,7 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
 
   /* Memcpy for flat fields, not valid until names are duped. */
   memcpy(new_req, orig_req, sizeof(TID_REQ));
+  json_incref(new_req->json_references);
   
   if ((NULL == (new_req->rp_realm = tr_dup_name(orig_req->rp_realm))) ||
       (NULL == (new_req->realm = tr_dup_name(orig_req->realm))) ||
@@ -173,3 +188,8 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
   return new_req;
 }
 
+
+void tid_req_cleanup_json( TID_REQ *req, json_t *ref)
+{
+  (void) json_array_append_new(req->json_references, ref);
+}

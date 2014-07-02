@@ -73,6 +73,7 @@ typedef struct tid_resp {
 typedef struct tidc_instance TIDC_INSTANCE;
 typedef struct tids_instance TIDS_INSTANCE;
 typedef struct tid_req TID_REQ;
+typedef struct json_t json_t;
 
 typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
@@ -90,6 +91,7 @@ struct tid_req {
   DH *tidc_dh;			/* Client's public dh information */
   TIDC_RESP_FUNC *resp_func;
   void *cookie;
+  json_t *json_references; /** References to objects dereferenced on request destruction*/
 };
 
 struct tidc_instance {
@@ -114,7 +116,8 @@ struct tids_instance {
   void *cookie;
 };
 
-/* Utility funciton for TID_REQ structures, in tid/tid_req.c */
+/* Utility functions for TID_REQ structures, in tid/tid_req.c */
+TR_EXPORT TID_REQ *tid_req_new(void);
 TR_EXPORT TID_REQ *tid_req_get_next_req(TID_REQ *req);
 void tid_req_set_next_req(TID_REQ *req, TID_REQ *next_req);
 TR_EXPORT int tid_req_get_resp_sent(TID_REQ *req);
@@ -138,6 +141,11 @@ void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
 TR_EXPORT void *tid_req_get_cookie(TID_REQ *req);
 void tid_req_set_cookie(TID_REQ *req, void *cookie);
 TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
+
+/** Decrement a reference to #json when this tid_req is cleaned up. A
+    new reference is not created; in effect the caller is handing a
+    reference they already hold to the TID_REQ.*/
+void tid_req_cleanup_json(TID_REQ *, json_t *json);
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
 TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp);
