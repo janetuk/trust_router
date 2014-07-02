@@ -1,6 +1,6 @@
 bin_PROGRAMS= tr/trust_router tid/example/tidc tid/example/tids common/dh_test/tr_dh_test
 AM_CPPFLAGS=-I$(srcdir)/include
-AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror=strict-prototypes -Wno-parentheses
+AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses
 SUBDIRS = gsscon 
 common_srcs = common/tr_name.c \
 	common/tr_constraint.c \
@@ -9,6 +9,7 @@ common_srcs = common/tr_name.c \
 	common/tr_util.c
 
 check_PROGRAMS = common/t_constraint
+TESTS = common/t_constraint
 
 lib_LTLIBRARIES = libtr_tid.la
 
