@@ -37,6 +37,8 @@
 #include <string.h>
 #include <trust_router/tr_versioning.h>
 
+typedef const char *tr_const_string;
+
 typedef struct tr__name {
   char *buf;
   int len;

@@ -61,4 +61,18 @@ TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
 TR_EXPORT TR_CONSTRAINT_SET
 *tr_constraint_set_intersect(TID_REQ *request,
 			     TR_CONSTRAINT_SET *input);
+
+/** Get the set of wildcard strings that matches a fully intersected
+ * constraint set.  Requires that the constraint set only have one
+ * constraint in it, but the constraint may have multiple matches for
+ * a given type.  Returns true on success false on failure.  The
+ * output is live as long as the request is live.
+ */
+int TR_EXPORT tr_constraint_set_get_match_strings(TID_REQ *,
+					    TR_CONSTRAINT_SET *,
+						  const char * constraint_type,
+						  tr_const_string **output,
+					    size_t *output_len);
+
+ 
 #endif

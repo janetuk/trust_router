@@ -190,7 +190,7 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   if (msg)
     free(msg);
   if (tid_req)
-    free(tid_req);
+    tid_req_free(tid_req);
   if (req_buf)
     free(req_buf);
   if (resp_buf)
@@ -200,8 +200,4 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
 
   return 0;
 }
-
-
-
-
 

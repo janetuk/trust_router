@@ -33,6 +33,7 @@
  */
 #include <jansson.h>
 #include <assert.h>
+#include <talloc.h>
 
 #include <tr_filter.h>
 #include <tr_debug.h>
@@ -277,4 +278,36 @@ TR_CONSTRAINT_SET *tr_constraint_set_intersect( TID_REQ *request,
   json_array_append_new(result_array, result);
   tid_req_cleanup_json( request, result_array);
   return (TR_CONSTRAINT_SET *) result_array;
+}
+
+
+int tr_constraint_set_get_match_strings(
+					TID_REQ *request,
+					TR_CONSTRAINT_SET *constraints,
+					const char *constraint_type,
+					tr_const_string **output,
+					size_t *output_len)
+{
+  json_t *cset = (json_t *) constraints;
+  json_t *member, *matches, *value;;
+  size_t index, array_size;
+  assert (output && output_len);
+  *output = NULL;
+  *output_len = 0;
+  if (json_array_size(cset) != 1) {
+    tr_debug("Constraint set for get_match_strings has more than one member\n");
+    return -1;
+  }
+  member = json_array_get(cset, 0);
+  matches = json_object_get(member, constraint_type);
+  if (!matches)
+    return -1;
+  array_size = json_array_size(matches);
+  if (array_size == 0)
+    return -1;
+  *output = talloc_array_ptrtype(request, *output, array_size);
+  json_array_foreach( matches, index, value)
+    (*output)[index] = json_string_value(value);
+  *output_len = array_size;
+  return 0;
 }

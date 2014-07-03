@@ -35,15 +35,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <talloc.h>
 
 #include <trust_router/tid.h>
 #include <jansson.h>
 
+static int destroy_tid_req(TID_REQ *req)
+{
+  if (req->json_references)
+    json_decref(req->json_references);
+  return 0;
+}
+
 TID_REQ *tid_req_new()
 {
-  TID_REQ *req = calloc(sizeof(TID_REQ), 1);
+  TID_REQ *req = talloc_zero(NULL, TID_REQ);
   if(!req)
     return NULL;
+  talloc_set_destructor(req, destroy_tid_req);
   req->json_references = json_array();
   assert(req->json_references);
   req->conn = -1;
@@ -192,4 +201,9 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
 void tid_req_cleanup_json( TID_REQ *req, json_t *ref)
 {
   (void) json_array_append_new(req->json_references, ref);
+}
+
+void tid_req_free(TID_REQ *req)
+{
+  talloc_free(req);
 }
