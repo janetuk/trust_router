@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <sqlite3.h>
 
+#include <tr_debug.h>
 #include <trust_router/tid.h>
 #include <trust_router/tr_dh.h>
 #include <openssl/rand.h>
@@ -71,6 +72,8 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   unsigned char *s_keybuf = NULL;
   int s_keylen = 0;
   char key_id[12];
+  unsigned char *pub_digest;
+  size_t pub_digest_len;
   
 
   fprintf(stdout, "tids_req_handler: Request received! target_realm = %s, community = %s\n", req->realm->buf, req->comm->buf);
@@ -129,10 +132,17 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     fprintf(stderr, "tids_req_handler(): Key computation failed.");
     return -1;
   }
+  if (0 != tr_dh_pub_hash(req,
+			  &pub_digest, &pub_digest_len)) {
+    tr_debug("Unable to digest client public key\n");
+    return -1;
+  }
+
   if (NULL != insert_stmt) {
     int sqlite3_result;
     sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
+    sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
     sqlite3_result = sqlite3_step(insert_stmt);
     if (SQLITE_DONE != sqlite3_result)
       printf("sqlite3: failed to write to database\n");
@@ -177,7 +187,7 @@ int main (int argc,
     fprintf(stdout, "Error opening database %s\n", argv[4]);
     exit(1);
   }
-  sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key) values(?, ?)",
+  sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key, client_dh_pub) values(?, ?, ?)",
 		     -1, &insert_stmt, NULL);
 
   /* Create a TID server instance */

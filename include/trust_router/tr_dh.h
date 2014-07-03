@@ -38,11 +38,17 @@
 #include <openssl/dh.h>
 #include <openssl/bn.h>
 #include <trust_router/tr_versioning.h>
+#include <trust_router/tid.h>
+
 
 TR_EXPORT DH *tr_create_dh_params(unsigned char *key, size_t len);
 TR_EXPORT DH *tr_create_matching_dh(unsigned char *key, size_t len, DH *in_dh);
 TR_EXPORT void tr_destroy_dh_params(DH *dh);
 TR_EXPORT int tr_compute_dh_key(unsigned char **pbuf,  BIGNUM *pub_key, DH *priv_dh);
+
+int TR_EXPORT tr_dh_pub_hash(TID_REQ *request,
+			     unsigned char **out_digest,
+			     size_t *out_llen);
 
 
 TR_EXPORT void tr_bin_to_hex(const unsigned char * bin, size_t binlen,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2014, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,6 +34,11 @@
 
 #include <openssl/dh.h>
 #include <trust_router/tr_dh.h>
+#include <openssl/bn.h>
+#include <openssl/sha.h>
+#include <talloc.h>
+#include <assert.h>
+
 
 unsigned char tr_2048_dhprime[2048/8] = {
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -197,3 +202,17 @@ int tr_compute_dh_key(unsigned char **pbuf,
 
 
 
+int tr_dh_pub_hash(TID_REQ *request,
+		   unsigned char **out_digest,
+		   size_t *out_len)
+{
+  const BIGNUM *pub = request->tidc_dh->pub_key;
+  unsigned char *bn_bytes = talloc_zero_size(request, BN_num_bytes(pub));
+  unsigned char *digest = talloc_zero_size(request, SHA_DIGEST_LENGTH+1);
+  assert(bn_bytes && digest);
+				    BN_bn2bin(pub, bn_bytes);
+				    SHA1(bn_bytes, BN_num_bytes(pub), digest);
+				    *out_digest = digest;
+				    *out_len = SHA_DIGEST_LENGTH;
+				    return 0;
+}
