@@ -147,6 +147,7 @@ TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
     new reference is not created; in effect the caller is handing a
     reference they already hold to the TID_REQ.*/
 void tid_req_cleanup_json(TID_REQ *, json_t *json);
+#define tid_req_free free
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
 TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp);

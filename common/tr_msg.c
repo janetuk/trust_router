@@ -37,10 +37,13 @@
 #include <string.h>
 #include <openssl/dh.h>
 #include <jansson.h>
+#include <assert.h>
 
 #include <tr_msg.h>
 #include <trust_router/tr_name.h>
 #include <trust_router/tid.h>
+#include <trust_router/tr_constraint.h>
+#include <tr_debug.h>
 
 enum msg_type tr_msg_get_msg_type(TR_MSG *msg) 
 {
@@ -132,7 +135,7 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
   if ((!req) || (!req->rp_realm) || (!req->realm) || !(req->comm))
     return NULL;
 
-  jreq = json_object();
+  assert(jreq = json_object());
 
   jstr = json_string(req->rp_realm->buf);
   json_object_set_new(jreq, "rp_realm", jstr);
@@ -149,7 +152,10 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
   }
 
   json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tidc_dh));
-  
+
+  if (req->cons)
+    json_object_set(jreq, "constraints", (json_t *) req->cons);
+
   return jreq;
 }
 
@@ -162,19 +168,17 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
   json_t *jorig_coi = NULL;
   json_t *jdh = NULL;
 
-  if (!(treq = malloc(sizeof(TID_REQ)))) {
+  if (!(treq =tid_req_new())) {
     fprintf (stderr, "tr_msg_decode_tidreq(): Error allocating TID_REQ structure.\n");
     return NULL;
   }
  
-  memset(treq, 0, sizeof(TID_REQ));
-
   /* store required fields from request */
   if ((NULL == (jrp_realm = json_object_get(jreq, "rp_realm"))) ||
       (NULL == (jrealm = json_object_get(jreq, "target_realm"))) ||
       (NULL == (jcomm = json_object_get(jreq, "community")))) {
     fprintf (stderr, "tr_msg_decode(): Error parsing required fields.\n");
-    free(treq);
+    tid_req_free(treq);
     return NULL;
   }
 
@@ -185,7 +189,7 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
   /* Get DH Info from the request */
   if (NULL == (jdh = json_object_get(jreq, "dh_info"))) {
     fprintf (stderr, "tr_msg_decode(): Error parsing dh_info.\n");
-    free(treq);
+    tid_req_free(treq);
     return NULL;
   }
   treq->tidc_dh = tr_msg_decode_dh(jdh);
@@ -195,6 +199,16 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
     treq->orig_coi = tr_new_name((char *)json_string_value(jorig_coi));
   }
 
+  treq->cons = (TR_CONSTRAINT_SET *) json_object_get(jreq, "constraints");
+  if (treq->cons) {
+    if (!tr_constraint_set_validate(treq->cons)) {
+      tr_debug("Constraint set validation failed\n");
+    tid_req_free(treq);
+    return NULL;
+    }
+    json_incref((json_t *) treq->cons);
+    tid_req_cleanup_json(treq, (json_t *) treq->cons);
+  }
   return treq;
 }
 
