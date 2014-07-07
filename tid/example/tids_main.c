@@ -35,15 +35,18 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <talloc.h>
 #include <sqlite3.h>
 
 #include <tr_debug.h>
 #include <trust_router/tid.h>
+#include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
 #include <openssl/rand.h>
 
 static sqlite3 *db = NULL;
 static sqlite3_stmt *insert_stmt = NULL;
+static sqlite3_stmt *authorization_insert = NULL;
 
 static int  create_key_id(char *out_id, size_t len)
 {
@@ -63,7 +66,90 @@ static int  create_key_id(char *out_id, size_t len)
   out_id[bin_len*2] = '\0';
   return 0;
 }
-  
+
+static int sqlify_wc(
+		     TID_REQ *req,
+		     const char **wc,
+		     size_t len,
+		     char **error)
+{
+  size_t lc;
+  *error = NULL;
+  for (lc = 0; lc < len; lc++) {
+    if (strchr(wc[lc], '%')) {
+      *error = talloc_asprintf( req, "Constraint match `%s' is not appropriate for SQL",
+				  wc[lc]);
+      return -1;
+    }
+    if ('*' ==wc[lc][0]) {
+      char *s;
+      s = talloc_strdup(req, wc[lc]);
+      s[0] = '%';
+      wc[lc] = s;
+    }
+  }
+  return 0;
+}
+
+	
+
+static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
+				 size_t hash_len)
+{
+  TR_CONSTRAINT_SET *intersected = NULL;
+  const char **domain_wc, **realm_wc;
+  size_t domain_len, realm_len;
+  size_t domain_index, realm_index;
+  char *error;
+  int sqlite3_result;
+
+  if (!req->cons) {
+    tr_debug("Request has no constraints, so no authorizations.\n");
+    return -1;
+  }
+  intersected = tr_constraint_set_intersect(req, req->cons);
+  if (!intersected)
+    return -1;
+  if (0 != tr_constraint_set_get_match_strings(req,
+					       intersected, "domain",
+					       &domain_wc, &domain_len))
+    return -1;
+  if (0 != tr_constraint_set_get_match_strings(req,
+					       intersected, "realm",
+					       &realm_wc, &realm_len))
+    return -1;
+  tr_debug(" %u domain constraint matches and %u realm constraint matches\n",
+	   (unsigned) domain_len, (unsigned) realm_len);
+  if (0 != sqlify_wc(req, domain_wc, domain_len, &error)) {
+    tr_debug("Processing domain constraints: %s\n", error);
+    return -1;
+  }else if (0 != sqlify_wc(req, realm_wc, realm_len, &error)) {
+    tr_debug("Processing realm constraints: %s\n", error);
+    return -1;
+  }
+  if (!authorization_insert) {
+    tr_debug( " No database, no authorizations inserted\n");
+    return 0;
+  }
+  for (domain_index = 0; domain_index < domain_len; domain_index++)
+    for (realm_index = 0; realm_index < realm_len; realm_index++) {
+      TR_NAME *community = req->orig_coi;
+      if (!community)
+	community = req->comm;
+      sqlite3_bind_blob(authorization_insert, 1, dh_hash, hash_len, SQLITE_TRANSIENT);
+      sqlite3_bind_text(authorization_insert, 2, community->buf, community->len, SQLITE_TRANSIENT);
+      sqlite3_bind_text(authorization_insert, 3, realm_wc[realm_index], -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text(authorization_insert, 4, domain_wc[domain_index], -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text(authorization_insert, 5, req->comm->buf, req->comm->len, SQLITE_TRANSIENT);
+      sqlite3_result = sqlite3_step(authorization_insert);
+      if (SQLITE_DONE != sqlite3_result)
+	printf("sqlite3: failed to write to database\n");
+      sqlite3_reset(authorization_insert);
+    }
+  return 0;
+}
+
+
 static int tids_req_handler (TIDS_INSTANCE *tids,
 		      TID_REQ *req, 
 		      TID_RESP **resp,
@@ -137,7 +223,8 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     tr_debug("Unable to digest client public key\n");
     return -1;
   }
-
+  if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
+    return -1;
   if (NULL != insert_stmt) {
     int sqlite3_result;
     sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
@@ -189,6 +276,8 @@ int main (int argc,
   }
   sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key, client_dh_pub) values(?, ?, ?)",
 		     -1, &insert_stmt, NULL);
+  sqlite3_prepare_v2(db, "insert into authorizations (client_dh_pub, coi, acceptor_realm, hostname, apc) values(?, ?, ?, ?, ?)",
+		     -1, &authorization_insert, NULL);
 
   /* Create a TID server instance */
   if (NULL == (tids = tids_create())) {
