@@ -32,6 +32,7 @@
  *
  */
 #include <jansson.h>
+#include "jansson_iterators.h"
 #include <assert.h>
 #include <talloc.h>
 

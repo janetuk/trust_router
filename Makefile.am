@@ -4,6 +4,7 @@ AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses
 SUBDIRS = gsscon 
 common_srcs = common/tr_name.c \
 	common/tr_constraint.c \
+	common/jansson_iterators.h \
 	common/tr_msg.c \
 	common/tr_dh.c \
 	common/tr_util.c
