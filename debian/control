@@ -2,7 +2,7 @@ Source: moonshot-trust-router
 Section: net
 Priority: extra
 Maintainer: Sam Hartman <hartmans@debian.org>
-Build-Depends: debhelper (>= 7.0.50~), autotools-dev, automake, autoconf, libtool, libjansson-dev, libkrb5-dev (>= 1.10~), dh-autoreconf, libssl-dev, libsqlite3-dev
+Build-Depends: debhelper (>= 7.0.50~), autotools-dev, automake, autoconf, libtool, libjansson-dev, libkrb5-dev (>= 1.10~), dh-autoreconf, libssl-dev, libsqlite3-dev, libtalloc-dev
 Standards-Version: 3.9.1
 Homepage: http://www.project-moonshot.org/
 Vcs-Git: git://git.project-moonshot.org/trust_router.git
