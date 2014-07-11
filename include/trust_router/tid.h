@@ -42,6 +42,8 @@
 #include <trust_router/tr_versioning.h>
 
 #include <gssapi.h>
+#include <jansson.h>
+
 
 #define TID_PORT	12309
 
@@ -74,7 +76,7 @@ typedef struct tid_resp {
 typedef struct tidc_instance TIDC_INSTANCE;
 typedef struct tids_instance TIDS_INSTANCE;
 typedef struct tid_req TID_REQ;
-typedef struct json_t json_t;
+
 
 typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
