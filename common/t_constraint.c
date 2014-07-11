@@ -33,6 +33,7 @@
  */
 
 #include <jansson.h>
+#include "jansson_iterators.h"
 #include <stdio.h>
 #include <assert.h>
 
