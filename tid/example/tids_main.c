@@ -105,7 +105,7 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
 
   if (!req->cons) {
     tr_debug("Request has no constraints, so no authorizations.\n");
-    return -1;
+    return 0;
   }
   intersected = tr_constraint_set_intersect(req, req->cons);
   if (!intersected)
