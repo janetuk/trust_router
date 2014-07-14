@@ -234,6 +234,13 @@ static json_t *constraint_intersect_internal( TR_CONSTRAINT_SET *constraints,
       json_t *intersect, *value_1, *value_2;
       size_t index_1, index_2;
       intersect = json_object_get(constraint, constraint_type);
+      /*If an element of the constraint set doesn't have a particular
+       * constraint type, we ignore that element of the constraint set.
+       * However, if no element of the constraint set has a particular
+       *     constraint type we return empty (no access) rather than universal
+       * access.*/
+      if (!intersect)
+	continue;
     result_loop:
       json_array_foreach(result, index_1, value_1) {
 	json_array_foreach(intersect, index_2, value_2) {

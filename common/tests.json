@@ -27,8 +27,18 @@
 			    }],
 	"expected": [{
 	    "domain": ["*.cam.ac.uk"],
-	    "realm": []
+	    "realm": ['*']
 	    }],
 	"valid": true
-	}
+	},
+    {"constraints": [
+	{"realm": ["painless-security.com", "*.painless-security.com"]},
+	{"domain": ["painless-security.com"]
+	 }],
+     "expected": [{"realm": ["painless-security.com", "*.painless-security.com"],
+	 "domain": ["painless-security.com"]
+	 }],
+     "valid": true
+     }
+	 
             ]
