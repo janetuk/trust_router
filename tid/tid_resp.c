@@ -34,6 +34,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <tid_internal.h>
 
@@ -97,12 +98,17 @@ void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi)
   resp->orig_coi = orig_coi;
 }
 
-TR_EXPORT TID_SRVR_BLK *tid_resp_get_servers(TID_RESP *resp)
+TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp,
+					    size_t index)
 {
-  return(resp->servers);
+  assert(resp);
+  assert(index < resp->num_servers);
+  return(&(resp->servers[index]));
 }
 
-void tid_resp_set_servers(TID_RESP *resp, TID_SRVR_BLK *servers)
+size_t tid_resp_get_num_servers(const TID_RESP *resp)
 {
-  resp->servers = servers;
+  assert(resp);
+  return resp->num_servers;
 }
+

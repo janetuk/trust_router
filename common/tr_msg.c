@@ -38,6 +38,8 @@
 #include <openssl/dh.h>
 #include <jansson.h>
 #include <assert.h>
+#include <talloc.h>
+
 
 #include <tr_msg.h>
 #include <trust_router/tr_name.h>
@@ -235,45 +237,40 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
   return jsrvr;
 }
 
-static TID_SRVR_BLK *tr_msg_decode_one_server(json_t *jsrvr) 
+static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr) 
 {
-  TID_SRVR_BLK *srvr;
   json_t *jsrvr_addr = NULL;
   json_t *jsrvr_kn = NULL;
   json_t *jsrvr_dh = NULL;
 
   if (jsrvr == NULL)
-    return NULL;
+    return -1;
 
-  if (NULL == (srvr = malloc(sizeof(TID_SRVR_BLK)))) 
-    return NULL;
-  memset(srvr, 0, sizeof(TID_SRVR_BLK));
 
   if ((NULL == (jsrvr_addr = json_object_get(jsrvr, "server_addr"))) ||
       (NULL == (jsrvr_kn = json_object_get(jsrvr, "key_name"))) ||
       (NULL == (jsrvr_dh = json_object_get(jsrvr, "server_dh")))) {
-    fprintf (stderr, "tr_msg_decode_one_server(): Error parsing required fields.\n");
-    free(srvr);
-    return NULL;
+    tr_debug("tr_msg_decode_one_server(): Error parsing required fields.\n");
+    return -1;
   }
   
   /* TBD -- handle IPv6 Addresses */
   inet_aton(json_string_value(jsrvr_addr), &(srvr->aaa_server_addr));
   srvr->key_name = tr_new_name((char *)json_string_value(jsrvr_kn));
   srvr->aaa_server_dh = tr_msg_decode_dh(jsrvr_dh);
-
-  return srvr;
+  return 0;
 }
 
-static json_t *tr_msg_encode_servers(TID_SRVR_BLK *servers)
+static json_t *tr_msg_encode_servers(TID_RESP *resp)
 {
   json_t *jservers = NULL;
   json_t *jsrvr = NULL;
   TID_SRVR_BLK *srvr = NULL;
+  size_t index;
 
   jservers = json_array();
 
-  for (srvr = servers; srvr != NULL; srvr = srvr->next) {
+  tid_resp_servers_foreach(resp, srvr, index) {
     if ((NULL == (jsrvr = tr_msg_encode_one_server(srvr))) ||
 	(-1 == json_array_append_new(jservers, jsrvr))) {
       return NULL;
@@ -285,11 +282,9 @@ static json_t *tr_msg_encode_servers(TID_SRVR_BLK *servers)
   return jservers;
 }
 
-static TID_SRVR_BLK *tr_msg_decode_servers(json_t *jservers) 
+static TID_SRVR_BLK *tr_msg_decode_servers(void * ctx, json_t *jservers) 
 {
   TID_SRVR_BLK *servers = NULL;
-  TID_SRVR_BLK *next = NULL;
-  TID_SRVR_BLK *srvr = NULL;
   json_t *jsrvr;
   size_t i, num_servers;
 
@@ -300,19 +295,16 @@ static TID_SRVR_BLK *tr_msg_decode_servers(json_t *jservers)
     fprintf(stderr, "tr_msg_decode_servers(): Server array is empty.\n"); 
     return NULL;
   }
+    servers = talloc_zero_array(ctx, TID_SRVR_BLK, num_servers);
 
   for (i = 0; i < num_servers; i++) {
     jsrvr = json_array_get(jservers, i);
-    srvr = tr_msg_decode_one_server(jsrvr);
+    if (0 != tr_msg_decode_one_server(jsrvr, &servers[i])) {
+      talloc_free(servers);
+      return NULL;
+    }
 
-    /* skip to the end of the list, and add srvr to list of servers */
-    if (NULL == servers) {
-      servers = srvr;
-    }
-    else {
-      for (next = servers; next->next != NULL; next = next->next);
-      next->next = srvr;
-    }
+
   }
 
   return servers;
@@ -360,7 +352,7 @@ static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
     fprintf(stderr, "tr_msg_encode_tidresp(): No servers to encode.\n");
     return jresp;
   }
-  jservers = tr_msg_encode_servers(resp->servers);
+  jservers = tr_msg_encode_servers(resp);
   json_object_set_new(jresp, "servers", jservers);
   
   return jresp;
@@ -377,12 +369,11 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
   json_t *jservers = NULL;
   json_t *jerr_msg = NULL;
 
-  if (!(tresp = malloc(sizeof(TID_RESP)))) {
+  if (!(tresp = talloc_zero(NULL, TID_RESP))) {
     fprintf (stderr, "tr_msg_decode_tidresp(): Error allocating TID_RESP structure.\n");
     return NULL;
   }
  
-  memset(tresp, 0, sizeof(TID_RESP));
 
   /* store required fields from response */
   if ((NULL == (jresult = json_object_get(jresp, "result"))) ||
@@ -394,7 +385,7 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
       (NULL == (jcomm = json_object_get(jresp, "comm"))) ||
       (!json_is_string(jcomm))) {
     fprintf (stderr, "tr_msg_decode_tidresp(): Error parsing response.\n");
-    free(tresp);
+    talloc_free(tresp);
     return NULL;
   }
 
@@ -402,9 +393,10 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
     fprintf(stderr, "tr_msg_decode_tidresp(): Success! result = %s.\n", json_string_value(jresult));
     if ((NULL != (jservers = json_object_get(jresp, "servers"))) ||
 	(!json_is_array(jservers))) {
-      tresp->servers = tr_msg_decode_servers(jservers); 
+      tresp->servers = tr_msg_decode_servers(tresp, jservers); 
     } 
     else {
+      talloc_free(tresp);
       return NULL;
     }
     tresp->result = TID_SUCCESS;

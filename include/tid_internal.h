@@ -71,7 +71,6 @@
 
 #include <jansson.h>
 typedef struct tid_srvr_blk {
-  struct tid_srvr_blk *next;
   struct in_addr aaa_server_addr;
   TR_NAME *key_name;
   DH *aaa_server_dh;		/* AAA server's public dh information */
@@ -85,7 +84,8 @@ typedef struct tid_resp {
   TR_NAME *comm;
   TR_CONSTRAINT_SET *cons;
   TR_NAME *orig_coi;
-  TID_SRVR_BLK *servers;       	/* Linked list of servers */
+  TID_SRVR_BLK *servers;       	/* array of servers */
+  size_t num_servers;
   /* TBD -- Trust Path Used */
 } TID_RESP;
 struct tid_req {

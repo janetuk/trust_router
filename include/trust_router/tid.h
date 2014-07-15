@@ -112,16 +112,18 @@ TR_EXPORT TR_NAME *tid_resp_get_comm(TID_RESP *resp);
 void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm);
 TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp);
 void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi);
-TR_EXPORT TID_SRVR_BLK *tid_resp_get_servers(TID_RESP *resp);
-void tid_resp_set_servers(TID_RESP *resp, TID_SRVR_BLK *servers);
-
+TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp, size_t index);
+TR_EXPORT size_t tid_resp_get_num_servers(const TID_RESP *resp);
 /* Server blocks*/
 TR_EXPORT void tid_srvr_get_address(const TID_SRVR_BLK *,
 const struct sockaddr **out_addr);
 TR_EXPORT DH *tid_srvr_get_dh(TID_SRVR_BLK *);
 TR_EXPORT const TR_NAME *tid_srvr_get_key_name(const TID_SRVR_BLK *);
 
-
+#define tid_resp_servers_foreach(RESP, SERVER, INDEX) \
+  for (INDEX=0,SERVER=NULL;						\
+       ((INDEX < tid_resp_get_num_servers(RESP))&&(SERVER = tid_resp_get_server(resp, INDEX))); \
+       INDEX++)
 
 
 /* TID Client functions, in tid/tidc.c */

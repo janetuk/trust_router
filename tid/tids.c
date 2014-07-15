@@ -41,7 +41,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <jansson.h>
-
+#include <talloc.h>
 #include <tid_internal.h>
 #include <gsscon.h>
 #include <tr_msg.h>
@@ -50,7 +50,7 @@ static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req)
 {
   TID_RESP *resp;
 
-  if ((NULL == (resp = calloc(sizeof(TID_RESP), 1)))) {
+  if ((NULL == (resp = talloc_zero(req, TID_RESP)))) {
     fprintf(stderr, "tids_create_response: Error allocating response structure.\n");
     return NULL;
   }
@@ -84,7 +84,7 @@ static void tids_destroy_response(TIDS_INSTANCE *tids, TID_RESP *resp)
       tr_free_name(resp->comm);
     if (resp->orig_coi)
       tr_free_name(resp->orig_coi);
-    free (resp);
+    talloc_free(resp);
   }
 }
 
