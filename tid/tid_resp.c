@@ -35,7 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 
 TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp)
 {

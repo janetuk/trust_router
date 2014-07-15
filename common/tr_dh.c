@@ -38,6 +38,7 @@
 #include <openssl/sha.h>
 #include <talloc.h>
 #include <assert.h>
+#include <tid_internal.h>
 
 
 unsigned char tr_2048_dhprime[2048/8] = {

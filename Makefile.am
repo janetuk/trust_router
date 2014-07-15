@@ -55,7 +55,8 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_msg.h include/tr.h \
 	include/tr_idp.h include/tr_rp.h \
 	include/tr_comm.h include/tr_apc.h \
-	include/tr_filter.h
+	include/tr_filter.h \
+	include/tid_internal.h
 
 pkgdata_DATA=schema.sql
 systemddir=/lib/systemd/system

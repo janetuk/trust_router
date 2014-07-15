@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012-2014, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,6 @@
 #include <trust_router/tr_versioning.h>
 
 #include <gssapi.h>
-#include <jansson.h>
 
 
 #define TID_PORT	12309
@@ -52,26 +51,12 @@ typedef enum tid_rc {
   TID_ERROR
 } TID_RC;
 
-typedef struct tid_srvr_blk {
-  struct tid_srvr_blk *next;
-  struct in_addr aaa_server_addr;
-  TR_NAME *key_name;
-  DH *aaa_server_dh;		/* AAA server's public dh information */
-} TID_SRVR_BLK;
-  
+typedef struct tid_srvr_blk  TID_SRVR_BLK;
+
+
 typedef struct _tr_constraint_set  TR_CONSTRAINT_SET;
 
-typedef struct tid_resp {
-  TID_RC result;
-  TR_NAME *err_msg;
-  TR_NAME *rp_realm;
-  TR_NAME *realm;
-  TR_NAME *comm;
-  TR_CONSTRAINT_SET *cons;
-  TR_NAME *orig_coi;
-  TID_SRVR_BLK *servers;       	/* Linked list of servers */
-  /* TBD -- Trust Path Used */
-} TID_RESP;
+typedef struct tid_resp TID_RESP;
 
 typedef struct tidc_instance TIDC_INSTANCE;
 typedef struct tids_instance TIDS_INSTANCE;
@@ -80,44 +65,12 @@ typedef struct tid_req TID_REQ;
 
 typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
-struct tid_req {
-  struct tid_req *next_req;
-  int resp_sent;
-  int conn;
-  gss_ctx_id_t gssctx;
-  int resp_rcvd;
-  TR_NAME *rp_realm;
-  TR_NAME *realm;
-  TR_NAME *comm;
-  TR_CONSTRAINT_SET *cons;
-  TR_NAME *orig_coi;
-  DH *tidc_dh;			/* Client's public dh information */
-  TIDC_RESP_FUNC *resp_func;
-  void *cookie;
-  json_t *json_references; /** References to objects dereferenced on request destruction*/
-};
 
-struct tidc_instance {
-  TID_REQ *req_list;
-  // TBD -- Do we still need a separate private key */
-  // char *priv_key;
-  // int priv_len;
-  DH *client_dh;			/* Client's DH struct with priv and pub keys */
-};
 
 typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP **, void *);
 typedef int (tids_auth_func)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 
 
-struct tids_instance {
-  int req_count;
-  char *priv_key;
-  char *ipaddr;
-  const char *hostname;
-  TIDS_REQ_FUNC *req_handler;
-  tids_auth_func *auth_handler;
-  void *cookie;
-};
 
 /* Utility functions for TID_REQ structures, in tid/tid_req.c */
 TR_EXPORT TID_REQ *tid_req_new(void);
@@ -144,11 +97,6 @@ void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
 TR_EXPORT void *tid_req_get_cookie(TID_REQ *req);
 void tid_req_set_cookie(TID_REQ *req, void *cookie);
 TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
-
-/** Decrement a reference to #json when this tid_req is cleaned up. A
-    new reference is not created; in effect the caller is handing a
-    reference they already hold to the TID_REQ.*/
-void tid_req_cleanup_json(TID_REQ *, json_t *json);
 void TR_EXPORT tid_req_free( TID_REQ *req);
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
@@ -166,7 +114,15 @@ TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp);
 void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi);
 TR_EXPORT TID_SRVR_BLK *tid_resp_get_servers(TID_RESP *resp);
 void tid_resp_set_servers(TID_RESP *resp, TID_SRVR_BLK *servers);
-// TBD -- add function to add/remove items from linked list of servers?
+
+/* Server blocks*/
+TR_EXPORT void tid_srvr_get_address(const TID_SRVR_BLK *,
+const struct sockaddr **out_addr);
+TR_EXPORT DH *tid_srvr_get_dh(TID_SRVR_BLK *);
+TR_EXPORT const TR_NAME *tid_srvr_get_key_name(const TID_SRVR_BLK *);
+
+
+
 
 /* TID Client functions, in tid/tidc.c */
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);

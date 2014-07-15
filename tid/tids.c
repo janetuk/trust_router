@@ -42,7 +42,7 @@
 #include <netinet/in.h>
 #include <jansson.h>
 
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <gsscon.h>
 #include <tr_msg.h>
 

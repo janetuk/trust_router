@@ -37,7 +37,7 @@
 
 #include <tr.h>
 #include <tr_filter.h>
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <tr_config.h>
 #include <tr_comm.h>
 #include <tr_idp.h>

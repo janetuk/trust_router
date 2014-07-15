@@ -36,7 +36,7 @@
 #include <stdio.h>
 
 #include <gsscon.h>
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <trust_router/tr_dh.h>
 
 void static tidc_print_usage (const char *name)

@@ -41,7 +41,7 @@
 
 #include <tr_msg.h>
 #include <trust_router/tr_name.h>
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <tr_debug.h>
 

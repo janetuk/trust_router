@@ -39,7 +39,7 @@
 #include <sqlite3.h>
 
 #include <tr_debug.h>
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
 #include <openssl/rand.h>

@@ -40,6 +40,7 @@
 #include <tr_debug.h>
 
 #include <trust_router/tr_constraint.h>
+#include <tid_internal.h>
 
 /* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
  */

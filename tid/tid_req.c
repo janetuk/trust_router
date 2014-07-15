@@ -37,7 +37,7 @@
 #include <assert.h>
 #include <talloc.h>
 
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <jansson.h>
 
 static int destroy_tid_req(TID_REQ *req)
@@ -206,4 +206,30 @@ void tid_req_cleanup_json( TID_REQ *req, json_t *ref)
 void tid_req_free(TID_REQ *req)
 {
   talloc_free(req);
+}
+
+
+void tid_srvr_get_address(const TID_SRVR_BLK *blk,
+			  const struct sockaddr **out_addr)
+{
+  struct sockaddr_in *sa = NULL;
+    assert(blk);
+    sa = talloc_zero(blk, struct sockaddr_in);
+    sa->sin_family = AF_INET;
+    sa->sin_addr = blk->aaa_server_addr;
+    sa->sin_port = htons(2083);
+    *out_addr = (struct sockaddr *) sa;
+}
+
+DH *tid_srvr_get_dh( TID_SRVR_BLK *blk)
+{
+  assert(blk);
+  return blk->aaa_server_dh;
+}
+
+const TR_NAME *tid_srvr_get_key_name(
+				    const TID_SRVR_BLK *blk)
+{
+  assert(blk);
+  return blk->key_name;
 }
