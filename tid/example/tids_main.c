@@ -177,6 +177,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
   memset((*resp)->servers, 0, sizeof(TID_SRVR_BLK));
+  (*resp)->num_servers = 1;
 
   /* TBD -- Set up the server IP Address */
 

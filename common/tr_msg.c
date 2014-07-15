@@ -282,7 +282,7 @@ static json_t *tr_msg_encode_servers(TID_RESP *resp)
   return jservers;
 }
 
-static TID_SRVR_BLK *tr_msg_decode_servers(void * ctx, json_t *jservers) 
+static TID_SRVR_BLK *tr_msg_decode_servers(void * ctx, json_t *jservers, size_t *out_len)
 {
   TID_SRVR_BLK *servers = NULL;
   json_t *jsrvr;
@@ -306,7 +306,7 @@ static TID_SRVR_BLK *tr_msg_decode_servers(void * ctx, json_t *jservers)
 
 
   }
-
+  *out_len = num_servers;
   return servers;
 }
 
@@ -393,7 +393,7 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
     fprintf(stderr, "tr_msg_decode_tidresp(): Success! result = %s.\n", json_string_value(jresult));
     if ((NULL != (jservers = json_object_get(jresp, "servers"))) ||
 	(!json_is_array(jservers))) {
-      tresp->servers = tr_msg_decode_servers(tresp, jservers); 
+      tresp->servers = tr_msg_decode_servers(tresp, jservers, &tresp->num_servers); 
     } 
     else {
       talloc_free(tresp);
