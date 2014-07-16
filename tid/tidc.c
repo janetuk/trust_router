@@ -132,7 +132,7 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
     return -1;
 
   msg->msg_type = TID_REQUEST;
-  msg->tid_req = tid_req;
+  tr_msg_set_req(msg, tid_req);
 
   /* store the response function and cookie */
   // tid_req->resp_func = resp_handler;
@@ -174,14 +174,14 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   }
 
   /* TBD -- Check if this is actually a valid response */
-  if (!resp_msg->tid_resp) {
+  if (TID_RESPONSE != tr_msg_get_msg_type(resp_msg)) {
     fprintf(stderr, "tidc_fwd_request: Error, no response in the response!\n");
     return -1;
   }
   
   if (resp_handler)
     /* Call the caller's response function */
-    (*resp_handler)(tidc, tid_req, resp_msg->tid_resp, cookie);
+    (*resp_handler)(tidc, tid_req, tr_msg_get_resp(resp_msg), cookie);
   else
     fprintf(stderr, "tidc_fwd_request: NULL response function.\n");
 

@@ -59,22 +59,28 @@ void tr_msg_set_msg_type(TR_MSG *msg, enum msg_type type)
 
 TID_REQ *tr_msg_get_req(TR_MSG *msg)
 {
-  return msg->tid_req;
+  if (msg->msg_type == TID_REQUEST)
+    return (TID_REQ *)msg->msg_rep;
+  return NULL;
 }
 
 void tr_msg_set_req(TR_MSG *msg, TID_REQ *req)
 {
-  msg->tid_req = req;
+  msg->msg_rep = req;
+  msg->msg_type = TID_REQUEST;
 }
 
 TID_RESP *tr_msg_get_resp(TR_MSG *msg)
 {
-  return msg->tid_resp;
+  if (msg->msg_type == TID_RESPONSE)
+    return (TID_RESP *)msg->msg_rep;
+  return NULL;
 }
 
 void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp)
 {
-  msg->tid_resp = resp;
+  msg->msg_rep = resp;
+  msg->msg_type = TID_RESPONSE;
 }
 
 static json_t *tr_msg_encode_dh(DH *dh)
@@ -436,13 +442,13 @@ char *tr_msg_encode(TR_MSG *msg)
     case TID_REQUEST:
       jmsg_type = json_string("tid_request");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidreq(msg->tid_req));
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidreq(tr_msg_get_req(msg)));
       break;
 
     case TID_RESPONSE:
       jmsg_type = json_string("tid_response");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidresp(msg->tid_resp));
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidresp(tr_msg_get_resp(msg)));
       break;
 
       /* TBD -- Add TR message types */
@@ -489,15 +495,15 @@ TR_MSG *tr_msg_decode(char *jbuf, size_t buflen)
 
   if (0 == strcmp(mtype, "tid_request")) {
     msg->msg_type = TID_REQUEST;
-    msg->tid_req = tr_msg_decode_tidreq(jbody);
+    tr_msg_set_req(msg, tr_msg_decode_tidreq(jbody));
   }
   else if (0 == strcmp(mtype, "tid_response")) {
     msg->msg_type = TID_RESPONSE;
-    msg->tid_resp = tr_msg_decode_tidresp(jbody);
+    tr_msg_set_resp(msg, tr_msg_decode_tidresp(jbody));
   }
   else {
     msg->msg_type = TR_UNKNOWN;
-    msg->tid_req = NULL;
+    msg->msg_rep = NULL;
   }
   return msg;
 }
