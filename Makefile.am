@@ -44,7 +44,7 @@ $(common_srcs)
 
 libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
 libtr_tid_la_LIBADD = gsscon/libgsscon.la
-libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 1 -no-undefined
+libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 2 -no-undefined
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/trust_router/tr_dh.h \

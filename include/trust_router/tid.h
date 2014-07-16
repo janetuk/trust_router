@@ -67,7 +67,7 @@ typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
 
 
-typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP **, void *);
+typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 typedef int (tids_auth_func)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 
 

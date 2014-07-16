@@ -192,7 +192,7 @@ static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssct
   return buflen;
 }
 
-static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP **resp) 
+static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *resp) 
 {
   int rc;
 
@@ -202,23 +202,23 @@ static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP **re
       (!mreq->tid_req->realm) ||
       (!mreq->tid_req->comm)) {
     fprintf(stderr, "tids_handle_request():Not a valid TID Request.\n");
-    (*resp)->result = TID_ERROR;
-    (*resp)->err_msg = tr_new_name("Bad request format");
+    resp->result = TID_ERROR;
+    resp->err_msg = tr_new_name("Bad request format");
     return -1;
   }
 
   /* Call the caller's request handler */
   /* TBD -- Handle different error returns/msgs */
-  if (0 > (rc = (*tids->req_handler)(tids, mreq->tid_req, &(*resp), tids->cookie))) {
+  if (0 > (rc = (*tids->req_handler)(tids, mreq->tid_req, resp, tids->cookie))) {
     /* set-up an error response */
-    (*resp)->result = TID_ERROR;
-    if (!(*resp)->err_msg)	/* Use msg set by handler, if any */
-      (*resp)->err_msg = tr_new_name("Internal processing error");
+    resp->result = TID_ERROR;
+    if (!resp->err_msg)	/* Use msg set by handler, if any */
+      resp->err_msg = tr_new_name("Internal processing error");
   }
   else {
     /* set-up a success response */
-    (*resp)->result = TID_SUCCESS;
-    (*resp)->err_msg = NULL;	/* No error msg on successful return */
+    resp->result = TID_SUCCESS;
+    resp->err_msg = NULL;	/* No error msg on successful return */
   }
     
   return rc;
@@ -321,7 +321,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
       return;
     }
 
-    if (0 > (rc = tids_handle_request(tids, mreq, &resp))) {
+    if (0 > (rc = tids_handle_request(tids, mreq, resp))) {
       fprintf(stderr, "tids_handle_connection: Error from tids_handle_request(), rc = %d.\n", rc);
       /* Fall through, to send the response, either way */
     }

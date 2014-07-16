@@ -152,7 +152,7 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
 
 static int tids_req_handler (TIDS_INSTANCE *tids,
 		      TID_REQ *req, 
-		      TID_RESP **resp,
+		      TID_RESP *resp,
 		      void *cookie)
 {
   unsigned char *s_keybuf = NULL;
@@ -166,18 +166,18 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   if (tids)
     tids->req_count++;
 
-  if (!(resp) || !(*resp)) {
+  if (!(resp) || !resp) {
     fprintf(stderr, "tids_req_handler: No response structure.\n");
     return -1;
   }
 
   /* Allocate a new server block */
-  if (NULL == ((*resp)->servers = malloc(sizeof(TID_SRVR_BLK)))){
+  if (NULL == (resp->servers = malloc(sizeof(TID_SRVR_BLK)))){
     fprintf(stderr, "tids_req_handler(): malloc failed.\n");
     return -1;
   }
-  memset((*resp)->servers, 0, sizeof(TID_SRVR_BLK));
-  (*resp)->num_servers = 1;
+  memset(resp->servers, 0, sizeof(TID_SRVR_BLK));
+  resp->num_servers = 1;
 
   /* TBD -- Set up the server IP Address */
 
@@ -195,12 +195,12 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   // fprintf(stderr, "Generating the server DH block.\n");
   // fprintf(stderr, "...from client DH block, dh_g = %s, dh_p = %s.\n", BN_bn2hex(req->tidc_dh->g), BN_bn2hex(req->tidc_dh->p));
 
-  if (NULL == ((*resp)->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
+  if (NULL == (resp->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
     fprintf(stderr, "tids_req_handler(): Can't create server DH params.\n");
     return -1;
   }
 
-  if (0 == inet_aton(tids->ipaddr, &((*resp)->servers->aaa_server_addr))) {
+  if (0 == inet_aton(tids->ipaddr, &(resp->servers->aaa_server_addr))) {
     fprintf(stderr, "tids_req_handler(): inet_aton() failed.\n");
     return -1;
   }
@@ -208,14 +208,14 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   /* Set the key name */
   if (-1 == create_key_id(key_id, sizeof(key_id)))
     return -1;
-  (*resp)->servers->key_name = tr_new_name(key_id);
+  resp->servers->key_name = tr_new_name(key_id);
 
   /* Generate the server key */
   // fprintf(stderr, "Generating the server key.\n");
 
   if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, 
 					req->tidc_dh->pub_key, 
-				        (*resp)->servers->aaa_server_dh))) {
+				        resp->servers->aaa_server_dh))) {
     fprintf(stderr, "tids_req_handler(): Key computation failed.");
     return -1;
   }
