@@ -210,7 +210,8 @@ void tid_req_free(TID_REQ *req)
 
 
 void tid_srvr_get_address(const TID_SRVR_BLK *blk,
-			  const struct sockaddr **out_addr)
+			  const struct sockaddr **out_addr,
+			  size_t *out_len)
 {
   struct sockaddr_in *sa = NULL;
     assert(blk);
@@ -219,6 +220,7 @@ void tid_srvr_get_address(const TID_SRVR_BLK *blk,
     sa->sin_addr = blk->aaa_server_addr;
     sa->sin_port = htons(2083);
     *out_addr = (struct sockaddr *) sa;
+    *out_len = sizeof( struct sockaddr_in);
 }
 
 DH *tid_srvr_get_dh( TID_SRVR_BLK *blk)

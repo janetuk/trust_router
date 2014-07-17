@@ -100,8 +100,8 @@ TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
 void TR_EXPORT tid_req_free( TID_REQ *req);
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
-TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp);
-void tid_resp_set_result(TID_RESP *resp, TID_RC result);
+TR_EXPORT int tid_resp_get_result(TID_RESP *resp);
+void tid_resp_set_result(TID_RESP *resp, int result);
 TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp);
 void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg);
 TR_EXPORT TR_NAME *tid_resp_get_rp_realm(TID_RESP *resp);
@@ -116,7 +116,7 @@ TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp, size_t index);
 TR_EXPORT size_t tid_resp_get_num_servers(const TID_RESP *resp);
 /* Server blocks*/
 TR_EXPORT void tid_srvr_get_address(const TID_SRVR_BLK *,
-const struct sockaddr **out_addr);
+				    const struct sockaddr **out_addr, size_t *out_sa_len);
 TR_EXPORT DH *tid_srvr_get_dh(TID_SRVR_BLK *);
 TR_EXPORT const TR_NAME *tid_srvr_get_key_name(const TID_SRVR_BLK *);
 
@@ -131,6 +131,8 @@ TR_EXPORT TIDC_INSTANCE *tidc_create (void);
 TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, unsigned int port, gss_ctx_id_t *gssctx);
 TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT int tidc_fwd_request (TIDC_INSTANCE *tidc, TID_REQ *req, TIDC_RESP_FUNC *resp_handler, void *cookie);
+TR_EXPORT DH *tidc_get_dh(TIDC_INSTANCE *);
+TR_EXPORT DH *tidc_set_dh(TIDC_INSTANCE *, DH *);
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
 /* TID Server functions, in tid/tids.c */

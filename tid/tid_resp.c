@@ -38,12 +38,12 @@
 
 #include <tid_internal.h>
 
-TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp)
+TR_EXPORT int tid_resp_get_result(TID_RESP *resp)
 {
   return(resp->result);
 }
 
-void tid_resp_set_result(TID_RESP *resp, TID_RC result)
+void tid_resp_set_result(TID_RESP *resp, int result)
 {
   resp->result = result;
 }

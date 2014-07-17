@@ -217,3 +217,8 @@ int tr_dh_pub_hash(TID_REQ *request,
 				    *out_len = SHA_DIGEST_LENGTH;
 				    return 0;
 }
+
+void tr_dh_free(unsigned char *dh_buf)
+{
+  free(dh_buf);
+}

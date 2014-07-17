@@ -46,6 +46,7 @@ TR_EXPORT DH *tr_create_matching_dh(unsigned char *key, size_t len, DH *in_dh);
 TR_EXPORT void tr_destroy_dh_params(DH *dh);
 TR_EXPORT int tr_compute_dh_key(unsigned char **pbuf,  BIGNUM *pub_key, DH *priv_dh);
 
+TR_EXPORT void tr_dh_free(unsigned char *dh_buf);
 int TR_EXPORT tr_dh_pub_hash(TID_REQ *request,
 			     unsigned char **out_digest,
 			     size_t *out_llen);

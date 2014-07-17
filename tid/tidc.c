@@ -199,3 +199,14 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   return 0;
 }
 
+
+DH * tidc_get_dh(TIDC_INSTANCE *inst)
+{
+  return inst->client_dh;
+}
+
+DH *tidc_set_dh(TIDC_INSTANCE *inst, DH *dh)
+{
+  inst->client_dh = dh;
+  return dh;
+}
