@@ -96,10 +96,8 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   TID_REQ *tid_req = NULL;
 
   /* Create and populate a TID req structure */
-  if (!(tid_req = malloc(sizeof(TID_REQ))))
+  if (!(tid_req = tid_req_new()))
     return -1;
-
-  memset(tid_req, 0, sizeof(TID_REQ));
 
   tid_req->conn = conn;
   tid_req->gssctx = gssctx;
