@@ -263,6 +263,7 @@ int main (int argc,
   const char *hostname = NULL;
   TR_NAME *gssname = NULL;
 
+  talloc_set_log_stderr();
   /* Parse command-line arguments */ 
   if (argc != 5) {
     fprintf(stdout, "Usage: %s <ip-address> <gss-name> <hostname> <database-name>\n", argv[0]);

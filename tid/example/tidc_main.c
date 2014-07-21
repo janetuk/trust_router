@@ -34,6 +34,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <talloc.h>
 
 #include <gsscon.h>
 #include <tid_internal.h>
@@ -96,6 +97,7 @@ int main (int argc,
   int rc;
   gss_ctx_id_t gssctx;
 
+  talloc_set_log_stderr();
   /* Parse command-line arguments */ 
   if (argc != 5) {
     tidc_print_usage(argv[0]);
