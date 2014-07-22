@@ -11,3 +11,6 @@
 
 %:
 	dh $@ --with autoreconf
+
+override_dh_strip:
+	dh_strip --dbg-package=moonshot-trust-router-dbg

@@ -19,10 +19,15 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, libtr-tid1 (= ${binary:Version})
 Description: Development enviroment for the Trust Router
  Includes the trust router includes and libraries
 
-Package: libtr-tid1
+Package: libtr-tid2
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Trust Router Shared Libraries
  Includes runtime libraries for the Temporary Identity Protocol
 
 
+package: moonshot-trust-router-dbg
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Trust Router Debugging Symbols
+ This package includes debugging symbols for trust router libraries and binaries.
