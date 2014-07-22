@@ -26,7 +26,7 @@ Description: Trust Router Shared Libraries
  Includes runtime libraries for the Temporary Identity Protocol
 
 
-package: moonshot-trust-router-dbg
+Package: moonshot-trust-router-dbg
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Trust Router Debugging Symbols
