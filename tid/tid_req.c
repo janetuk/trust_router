@@ -34,8 +34,31 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
+#include <talloc.h>
 
-#include <trust_router/tid.h>
+#include <tid_internal.h>
+#include <jansson.h>
+
+static int destroy_tid_req(TID_REQ *req)
+{
+  if (req->json_references)
+    json_decref(req->json_references);
+  return 0;
+}
+
+TID_REQ *tid_req_new()
+{
+  TID_REQ *req = talloc_zero(NULL, TID_REQ);
+  if(!req)
+    return NULL;
+  talloc_set_destructor(req, destroy_tid_req);
+  req->json_references = json_array();
+  assert(req->json_references);
+  req->conn = -1;
+  return req;
+}
+
 TID_REQ *tid_req_get_next_req(TID_REQ *req)
 {
   return(req->next_req);
@@ -157,6 +180,7 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
 
   /* Memcpy for flat fields, not valid until names are duped. */
   memcpy(new_req, orig_req, sizeof(TID_REQ));
+  json_incref(new_req->json_references);
   
   if ((NULL == (new_req->rp_realm = tr_dup_name(orig_req->rp_realm))) ||
       (NULL == (new_req->realm = tr_dup_name(orig_req->realm))) ||
@@ -173,3 +197,41 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
   return new_req;
 }
 
+
+void tid_req_cleanup_json( TID_REQ *req, json_t *ref)
+{
+  (void) json_array_append_new(req->json_references, ref);
+}
+
+void tid_req_free(TID_REQ *req)
+{
+  talloc_free(req);
+}
+
+
+void tid_srvr_get_address(const TID_SRVR_BLK *blk,
+			  const struct sockaddr **out_addr,
+			  size_t *out_len)
+{
+  struct sockaddr_in *sa = NULL;
+    assert(blk);
+    sa = talloc_zero(blk, struct sockaddr_in);
+    sa->sin_family = AF_INET;
+    sa->sin_addr = blk->aaa_server_addr;
+    sa->sin_port = htons(2083);
+    *out_addr = (struct sockaddr *) sa;
+    *out_len = sizeof( struct sockaddr_in);
+}
+
+DH *tid_srvr_get_dh( TID_SRVR_BLK *blk)
+{
+  assert(blk);
+  return blk->aaa_server_dh;
+}
+
+const TR_NAME *tid_srvr_get_key_name(
+				    const TID_SRVR_BLK *blk)
+{
+  assert(blk);
+  return blk->key_name;
+}

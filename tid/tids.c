@@ -41,8 +41,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <jansson.h>
-
-#include <trust_router/tid.h>
+#include <talloc.h>
+#include <tid_internal.h>
 #include <gsscon.h>
 #include <tr_msg.h>
 
@@ -50,7 +50,7 @@ static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req)
 {
   TID_RESP *resp;
 
-  if ((NULL == (resp = calloc(sizeof(TID_RESP), 1)))) {
+  if ((NULL == (resp = talloc_zero(req, TID_RESP)))) {
     fprintf(stderr, "tids_create_response: Error allocating response structure.\n");
     return NULL;
   }
@@ -84,7 +84,7 @@ static void tids_destroy_response(TIDS_INSTANCE *tids, TID_RESP *resp)
       tr_free_name(resp->comm);
     if (resp->orig_coi)
       tr_free_name(resp->orig_coi);
-    free (resp);
+    talloc_free(resp);
   }
 }
 
@@ -192,33 +192,33 @@ static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssct
   return buflen;
 }
 
-static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP **resp) 
+static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *resp) 
 {
   int rc;
 
   /* Check that this is a valid TID Request.  If not, send an error return. */
-  if ((!mreq->tid_req) ||
-      (!mreq->tid_req->rp_realm) ||
-      (!mreq->tid_req->realm) ||
-      (!mreq->tid_req->comm)) {
+  if ((!tr_msg_get_req(mreq)) ||
+      (!tr_msg_get_req(mreq)->rp_realm) ||
+      (!tr_msg_get_req(mreq)->realm) ||
+      (!tr_msg_get_req(mreq)->comm)) {
     fprintf(stderr, "tids_handle_request():Not a valid TID Request.\n");
-    (*resp)->result = TID_ERROR;
-    (*resp)->err_msg = tr_new_name("Bad request format");
+    resp->result = TID_ERROR;
+    resp->err_msg = tr_new_name("Bad request format");
     return -1;
   }
 
   /* Call the caller's request handler */
   /* TBD -- Handle different error returns/msgs */
-  if (0 > (rc = (*tids->req_handler)(tids, mreq->tid_req, &(*resp), tids->cookie))) {
+  if (0 > (rc = (*tids->req_handler)(tids, tr_msg_get_req(mreq), resp, tids->cookie))) {
     /* set-up an error response */
-    (*resp)->result = TID_ERROR;
-    if (!(*resp)->err_msg)	/* Use msg set by handler, if any */
-      (*resp)->err_msg = tr_new_name("Internal processing error");
+    resp->result = TID_ERROR;
+    if (!resp->err_msg)	/* Use msg set by handler, if any */
+      resp->err_msg = tr_new_name("Internal processing error");
   }
   else {
     /* set-up a success response */
-    (*resp)->result = TID_SUCCESS;
-    (*resp)->err_msg = NULL;	/* No error msg on successful return */
+    resp->result = TID_SUCCESS;
+    resp->err_msg = NULL;	/* No error msg on successful return */
   }
     
   return rc;
@@ -261,7 +261,7 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
     return 0;
 
   mresp.msg_type = TID_RESPONSE;
-  mresp.tid_resp = resp;
+  tr_msg_set_resp(&mresp, resp);
   
   if (NULL == (resp_buf = tr_msg_encode(&mresp))) {
     fprintf(stderr, "tids_send_response: Error encoding json response.\n");
@@ -310,27 +310,27 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
     }
 
     /* Put connection information into the request structure */
-    mreq->tid_req->conn = conn;
-    mreq->tid_req->gssctx = gssctx;
+    tr_msg_get_req(mreq)->conn = conn;
+    tr_msg_get_req(mreq)->gssctx = gssctx;
 
     /* Allocate a response structure and populate common fields */
-    if (NULL == (resp = tids_create_response (tids, mreq->tid_req))) {
+    if (NULL == (resp = tids_create_response (tids, tr_msg_get_req(mreq)))) {
       fprintf(stderr, "tids_handle_connection: Error creating response structure.\n");
       /* try to send an error */
-      tids_send_err_response(tids, mreq->tid_req, "Error creating response.\n");
+      tids_send_err_response(tids, tr_msg_get_req(mreq), "Error creating response.\n");
       return;
     }
 
-    if (0 > (rc = tids_handle_request(tids, mreq, &resp))) {
+    if (0 > (rc = tids_handle_request(tids, mreq, resp))) {
       fprintf(stderr, "tids_handle_connection: Error from tids_handle_request(), rc = %d.\n", rc);
       /* Fall through, to send the response, either way */
     }
 
-    if (0 > (rc = tids_send_response(tids, mreq->tid_req, resp))) {
+    if (0 > (rc = tids_send_response(tids, tr_msg_get_req(mreq), resp))) {
       fprintf(stderr, "tids_handle_connection: Error from tids_send_response(), rc = %d.\n", rc);
       /* if we didn't already send a response, try to send a generic error. */
-      if (!mreq->tid_req->resp_sent)
-	tids_send_err_response(tids, mreq->tid_req, "Error sending response.\n");
+      if (!tr_msg_get_req(mreq)->resp_sent)
+	tids_send_err_response(tids, tr_msg_get_req(mreq), "Error sending response.\n");
       /* Fall through to free the response, either way. */
     }
     

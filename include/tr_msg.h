@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012-2014, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,10 +49,7 @@ enum msg_type {
 /* Union of TR message types to hold message of any type. */
 struct tr_msg {
   enum msg_type msg_type;
-  union {
-    TID_REQ *tid_req;
-    TID_RESP *tid_resp;
-  };
+  void *msg_rep;
 };
 
 /* Accessors */

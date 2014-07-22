@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012-2014, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,9 +40,9 @@
 
 #include <trust_router/tr_name.h>
 #include <trust_router/tr_versioning.h>
-#include <trust_router/tr_constraint.h>
 
 #include <gssapi.h>
+
 
 #define TID_PORT	12309
 
@@ -51,70 +51,29 @@ typedef enum tid_rc {
   TID_ERROR
 } TID_RC;
 
-typedef struct tid_srvr_blk {
-  struct tid_srvr_blk *next;
-  struct in_addr aaa_server_addr;
-  TR_NAME *key_name;
-  DH *aaa_server_dh;		/* AAA server's public dh information */
-} TID_SRVR_BLK;
-  
-typedef struct tid_resp {
-  TID_RC result;
-  TR_NAME *err_msg;
-  TR_NAME *rp_realm;
-  TR_NAME *realm;
-  TR_NAME *comm;
-  TR_CONSTRAINT_SET *cons;
-  TR_NAME *orig_coi;
-  TID_SRVR_BLK *servers;       	/* Linked list of servers */
-  /* TBD -- Trust Path Used */
-} TID_RESP;
+typedef struct tid_srvr_blk  TID_SRVR_BLK;
+
+
+typedef struct _tr_constraint_set  TR_CONSTRAINT_SET;
+
+typedef struct tid_resp TID_RESP;
 
 typedef struct tidc_instance TIDC_INSTANCE;
 typedef struct tids_instance TIDS_INSTANCE;
 typedef struct tid_req TID_REQ;
 
+
 typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
-struct tid_req {
-  struct tid_req *next_req;
-  int resp_sent;
-  int conn;
-  gss_ctx_id_t gssctx;
-  int resp_rcvd;
-  TR_NAME *rp_realm;
-  TR_NAME *realm;
-  TR_NAME *comm;
-  TR_CONSTRAINT_SET *cons;
-  TR_NAME *orig_coi;
-  DH *tidc_dh;			/* Client's public dh information */
-  TIDC_RESP_FUNC *resp_func;
-  void *cookie;
-};
 
-struct tidc_instance {
-  TID_REQ *req_list;
-  // TBD -- Do we still need a separate private key */
-  // char *priv_key;
-  // int priv_len;
-  DH *client_dh;			/* Client's DH struct with priv and pub keys */
-};
 
-typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP **, void *);
+typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 typedef int (tids_auth_func)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 
 
-struct tids_instance {
-  int req_count;
-  char *priv_key;
-  char *ipaddr;
-  const char *hostname;
-  TIDS_REQ_FUNC *req_handler;
-  tids_auth_func *auth_handler;
-  void *cookie;
-};
 
-/* Utility funciton for TID_REQ structures, in tid/tid_req.c */
+/* Utility functions for TID_REQ structures, in tid/tid_req.c */
+TR_EXPORT TID_REQ *tid_req_new(void);
 TR_EXPORT TID_REQ *tid_req_get_next_req(TID_REQ *req);
 void tid_req_set_next_req(TID_REQ *req, TID_REQ *next_req);
 TR_EXPORT int tid_req_get_resp_sent(TID_REQ *req);
@@ -138,10 +97,11 @@ void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
 TR_EXPORT void *tid_req_get_cookie(TID_REQ *req);
 void tid_req_set_cookie(TID_REQ *req, void *cookie);
 TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
+void TR_EXPORT tid_req_free( TID_REQ *req);
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
-TR_EXPORT TID_RC tid_resp_get_result(TID_RESP *resp);
-void tid_resp_set_result(TID_RESP *resp, TID_RC result);
+TR_EXPORT int tid_resp_get_result(TID_RESP *resp);
+void tid_resp_set_result(TID_RESP *resp, int result);
 TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp);
 void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg);
 TR_EXPORT TR_NAME *tid_resp_get_rp_realm(TID_RESP *resp);
@@ -152,15 +112,27 @@ TR_EXPORT TR_NAME *tid_resp_get_comm(TID_RESP *resp);
 void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm);
 TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp);
 void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi);
-TR_EXPORT TID_SRVR_BLK *tid_resp_get_servers(TID_RESP *resp);
-void tid_resp_set_servers(TID_RESP *resp, TID_SRVR_BLK *servers);
-// TBD -- add function to add/remove items from linked list of servers?
+TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp, size_t index);
+TR_EXPORT size_t tid_resp_get_num_servers(const TID_RESP *resp);
+/* Server blocks*/
+TR_EXPORT void tid_srvr_get_address(const TID_SRVR_BLK *,
+				    const struct sockaddr **out_addr, size_t *out_sa_len);
+TR_EXPORT DH *tid_srvr_get_dh(TID_SRVR_BLK *);
+TR_EXPORT const TR_NAME *tid_srvr_get_key_name(const TID_SRVR_BLK *);
+
+#define tid_resp_servers_foreach(RESP, SERVER, INDEX) \
+  for (INDEX=0,SERVER=NULL;						\
+       ((INDEX < tid_resp_get_num_servers(RESP))&&(SERVER = tid_resp_get_server(resp, INDEX))); \
+       INDEX++)
+
 
 /* TID Client functions, in tid/tidc.c */
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);
 TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, unsigned int port, gss_ctx_id_t *gssctx);
 TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT int tidc_fwd_request (TIDC_INSTANCE *tidc, TID_REQ *req, TIDC_RESP_FUNC *resp_handler, void *cookie);
+TR_EXPORT DH *tidc_get_dh(TIDC_INSTANCE *);
+TR_EXPORT DH *tidc_set_dh(TIDC_INSTANCE *, DH *);
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
 /* TID Server functions, in tid/tids.c */

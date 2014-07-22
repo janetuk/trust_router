@@ -32,83 +32,56 @@
  *
  */
 
+#include <jansson.h>
+#include "jansson_iterators.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
 
 #include <tid_internal.h>
+#include <trust_router/tr_constraint.h>
+#include <tr_debug.h>
 
-TR_EXPORT int tid_resp_get_result(TID_RESP *resp)
+static TID_REQ *request = NULL;
+
+static int handle_test_case(
+			     json_t *tc)
 {
-  return(resp->result);
+  json_t *constraints, *valid, *expected;
+  int validp;
+  json_t *result;
+  assert(constraints = json_object_get(tc, "constraints"));
+  assert( valid = json_object_get(tc, "valid"));
+  validp = tr_constraint_set_validate((TR_CONSTRAINT_SET *)constraints);
+  if (validp != json_is_true(valid)) {
+    tr_debug("Unexpected validation result for \n");
+    json_dumpf( constraints, stderr, JSON_INDENT(4));
+    return 0;
+  }
+  if (!validp)
+    return 1;
+  assert( expected = json_object_get(tc, "expected"));
+  result = (json_t *) tr_constraint_set_intersect(request, (TR_CONSTRAINT_SET *) constraints);
+  if (!json_equal(result, expected)) {
+    tr_debug("Unexpected intersection; actual:\n");
+    json_dumpf(result, stderr, JSON_INDENT(4));
+    tr_debug("Expected: \n");
+    json_dumpf(expected, stderr, JSON_INDENT(4));
+    return 0;
+  }
+  return 1;
 }
 
-void tid_resp_set_result(TID_RESP *resp, int result)
-{
-  resp->result = result;
+int main(void) {
+  json_t *tests;
+  int error=0;
+  json_t *tc;
+  size_t index;
+  request = tid_req_new();
+  tests = json_load_file(TESTS, JSON_REJECT_DUPLICATES|JSON_DISABLE_EOF_CHECK, NULL);
+  json_array_foreach(tests, index, tc)
+    if (!handle_test_case(tc))
+      error = 1;
+  if (error)
+    return 1;
+  return 0;
 }
-
-TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp)
-{
-  return(resp->err_msg);
-}
-
-void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg)
-{
-  resp->err_msg = err_msg;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_rp_realm(TID_RESP *resp)
-{
-  return(resp->rp_realm);
-}
-
-void tid_resp_set_rp_realm(TID_RESP *resp, TR_NAME *rp_realm)
-{
-  resp->rp_realm = rp_realm;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_realm(TID_RESP *resp)
-{
-  return(resp->realm);
-}
-
-void tid_resp_set_realm(TID_RESP *resp, TR_NAME *realm)
-{
-  resp->realm = realm;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_comm(TID_RESP *resp)
-{
-  return(resp->comm);
-}
-
-void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm)
-{
-  resp->comm = comm;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp)
-{
-  return(resp->orig_coi);
-}
-
-void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi)
-{
-  resp->orig_coi = orig_coi;
-}
-
-TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp,
-					    size_t index)
-{
-  assert(resp);
-  assert(index < resp->num_servers);
-  return(&(resp->servers[index]));
-}
-
-size_t tid_resp_get_num_servers(const TID_RESP *resp)
-{
-  assert(resp);
-  return resp->num_servers;
-}
-

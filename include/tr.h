@@ -35,7 +35,7 @@
 #ifndef TR_H
 #define TR_H
 
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <trust_router/tr_name.h>
 #include <tr_msg.h>
 #include <tr_rp.h>

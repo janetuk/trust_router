@@ -34,18 +34,45 @@
 
 #ifndef TR_CONSTRAINT_H
 #define TR_CONSTRAINT_H
-
 #include <trust_router/tr_name.h>
+#include <trust_router/tid.h>
+
 
 #define TR_MAX_CONST_MATCHES 24
 
-typedef void TR_CONSTRAINT_SET;
 
 typedef struct tr_constraint {
   TR_NAME *type;
   TR_NAME *matches[TR_MAX_CONST_MATCHES];
 } TR_CONSTRAINT;
 
-void tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
+void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
 
+int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
+/**
+ * Create a new constraint set containing all constraints from #orig
+ * with constraint_type #constraint_type and no others.  This constraint set is
+ * live until #request is freed.
+ */
+TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
+				   TR_CONSTRAINT_SET *orig,
+				   const char * constraint_type);
+
+TR_EXPORT TR_CONSTRAINT_SET
+*tr_constraint_set_intersect(TID_REQ *request,
+			     TR_CONSTRAINT_SET *input);
+
+/** Get the set of wildcard strings that matches a fully intersected
+ * constraint set.  Requires that the constraint set only have one
+ * constraint in it, but the constraint may have multiple matches for
+ * a given type.  Returns true on success false on failure.  The
+ * output is live as long as the request is live.
+ */
+int TR_EXPORT tr_constraint_set_get_match_strings(TID_REQ *,
+					    TR_CONSTRAINT_SET *,
+						  const char * constraint_type,
+						  tr_const_string **output,
+					    size_t *output_len);
+
+ 
 #endif

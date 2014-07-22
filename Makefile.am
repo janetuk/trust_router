@@ -1,20 +1,28 @@
 bin_PROGRAMS= tr/trust_router tid/example/tidc tid/example/tids common/dh_test/tr_dh_test
 AM_CPPFLAGS=-I$(srcdir)/include
-AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror=strict-prototypes -Wno-parentheses
+AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses
 SUBDIRS = gsscon 
 common_srcs = common/tr_name.c \
-common/tr_msg.c \
-common/tr_dh.c \
+	common/tr_constraint.c \
+	common/jansson_iterators.h \
+	common/tr_msg.c \
+	common/tr_dh.c \
 	common/tr_util.c
 
+check_PROGRAMS = common/t_constraint
+TESTS = common/t_constraint
+
 lib_LTLIBRARIES = libtr_tid.la
+
+common_t_constraint_SOURCES = common/t_constraint.c
+common_t_constraint_CPPFLAGS = $(AM_CPPFLAGS) -DTESTS=\"$(srcdir)/common/tests.json\"
+common_t_constraint_LDADD = gsscon/libgsscon.la libtr_tid.la
 
 tr_trust_router_SOURCES = tr/tr_main.c \
 common/tr_config.c \
 common/tr_idp.c \
 common/tr_comm.c \
 common/tr_filter.c \
-common/tr_constraint.c \
 common/tr_rp.c \
 tr/tr.c
 
@@ -36,7 +44,7 @@ $(common_srcs)
 
 libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
 libtr_tid_la_LIBADD = gsscon/libgsscon.la
-libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 1 -no-undefined
+libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 2 -no-undefined
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/trust_router/tr_dh.h \
@@ -47,7 +55,8 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_msg.h include/tr.h \
 	include/tr_idp.h include/tr_rp.h \
 	include/tr_comm.h include/tr_apc.h \
-	include/tr_filter.h
+	include/tr_filter.h \
+	include/tid_internal.h
 
 pkgdata_DATA=schema.sql
 systemddir=/lib/systemd/system
@@ -55,4 +64,4 @@ systemddir=/lib/systemd/system
 systemd_DATA=tids.service
 
 
-EXTRA_DIST = trust_router.spec
+EXTRA_DIST = trust_router.spec common/tests.json

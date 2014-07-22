@@ -73,7 +73,8 @@ typedef struct tr_filter {
 } TR_FILTER;
 
 void tr_filter_free (TR_FILTER *filt);
-int tr_prefix_wildcard_match (char *str, char *wc_str);
+/*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
+int TR_EXPORT tr_prefix_wildcard_match (const char *str, const char *wc_str);
 int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints, TR_CONSTRAINT_SET **out_constraints, int *out_action);
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline);
 #endif

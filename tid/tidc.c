@@ -36,7 +36,7 @@
 #include <jansson.h>
 
 #include <trust_router/tr_dh.h>
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <tr_msg.h>
 #include <gsscon.h>
 
@@ -96,10 +96,8 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   TID_REQ *tid_req = NULL;
 
   /* Create and populate a TID req structure */
-  if (!(tid_req = malloc(sizeof(TID_REQ))))
+  if (!(tid_req = tid_req_new()))
     return -1;
-
-  memset(tid_req, 0, sizeof(TID_REQ));
 
   tid_req->conn = conn;
   tid_req->gssctx = gssctx;
@@ -134,7 +132,7 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
     return -1;
 
   msg->msg_type = TID_REQUEST;
-  msg->tid_req = tid_req;
+  tr_msg_set_req(msg, tid_req);
 
   /* store the response function and cookie */
   // tid_req->resp_func = resp_handler;
@@ -176,21 +174,21 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   }
 
   /* TBD -- Check if this is actually a valid response */
-  if (!resp_msg->tid_resp) {
+  if (TID_RESPONSE != tr_msg_get_msg_type(resp_msg)) {
     fprintf(stderr, "tidc_fwd_request: Error, no response in the response!\n");
     return -1;
   }
   
   if (resp_handler)
     /* Call the caller's response function */
-    (*resp_handler)(tidc, tid_req, resp_msg->tid_resp, cookie);
+    (*resp_handler)(tidc, tid_req, tr_msg_get_resp(resp_msg), cookie);
   else
     fprintf(stderr, "tidc_fwd_request: NULL response function.\n");
 
   if (msg)
     free(msg);
   if (tid_req)
-    free(tid_req);
+    tid_req_free(tid_req);
   if (req_buf)
     free(req_buf);
   if (resp_buf)
@@ -202,6 +200,13 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
 }
 
 
+DH * tidc_get_dh(TIDC_INSTANCE *inst)
+{
+  return inst->client_dh;
+}
 
-
-
+DH *tidc_set_dh(TIDC_INSTANCE *inst, DH *dh)
+{
+  inst->client_dh = dh;
+  return dh;
+}

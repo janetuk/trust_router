@@ -37,7 +37,7 @@
 
 #include <tr.h>
 #include <tr_filter.h>
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <tr_config.h>
 #include <tr_comm.h>
 #include <tr_idp.h>
@@ -68,7 +68,7 @@ static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc,
 
 static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 		      TID_REQ *orig_req, 
-		      TID_RESP **resp,
+		      TID_RESP *resp,
 		      void *tr)
 {
   TIDC_INSTANCE *tidc = NULL;
@@ -81,7 +81,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   int oaction = TR_FILTER_ACTION_REJECT;
   int rc = 0;
 
-  if ((!tids) || (!orig_req) || (!resp) || (!(*resp)) || (!tr)) {
+  if ((!tids) || (!orig_req) || (!resp) ||  (!tr)) {
     fprintf(stderr, "tids_req_handler: Bad parameters\n");
     return -1;
   }

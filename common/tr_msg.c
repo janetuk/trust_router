@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012-2014 , JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,10 +37,15 @@
 #include <string.h>
 #include <openssl/dh.h>
 #include <jansson.h>
+#include <assert.h>
+#include <talloc.h>
+
 
 #include <tr_msg.h>
 #include <trust_router/tr_name.h>
-#include <trust_router/tid.h>
+#include <tid_internal.h>
+#include <trust_router/tr_constraint.h>
+#include <tr_debug.h>
 
 enum msg_type tr_msg_get_msg_type(TR_MSG *msg) 
 {
@@ -54,22 +59,28 @@ void tr_msg_set_msg_type(TR_MSG *msg, enum msg_type type)
 
 TID_REQ *tr_msg_get_req(TR_MSG *msg)
 {
-  return msg->tid_req;
+  if (msg->msg_type == TID_REQUEST)
+    return (TID_REQ *)msg->msg_rep;
+  return NULL;
 }
 
 void tr_msg_set_req(TR_MSG *msg, TID_REQ *req)
 {
-  msg->tid_req = req;
+  msg->msg_rep = req;
+  msg->msg_type = TID_REQUEST;
 }
 
 TID_RESP *tr_msg_get_resp(TR_MSG *msg)
 {
-  return msg->tid_resp;
+  if (msg->msg_type == TID_RESPONSE)
+    return (TID_RESP *)msg->msg_rep;
+  return NULL;
 }
 
 void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp)
 {
-  msg->tid_resp = resp;
+  msg->msg_rep = resp;
+  msg->msg_type = TID_RESPONSE;
 }
 
 static json_t *tr_msg_encode_dh(DH *dh)
@@ -132,7 +143,7 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
   if ((!req) || (!req->rp_realm) || (!req->realm) || !(req->comm))
     return NULL;
 
-  jreq = json_object();
+  assert(jreq = json_object());
 
   jstr = json_string(req->rp_realm->buf);
   json_object_set_new(jreq, "rp_realm", jstr);
@@ -149,7 +160,10 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
   }
 
   json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tidc_dh));
-  
+
+  if (req->cons)
+    json_object_set(jreq, "constraints", (json_t *) req->cons);
+
   return jreq;
 }
 
@@ -162,19 +176,17 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
   json_t *jorig_coi = NULL;
   json_t *jdh = NULL;
 
-  if (!(treq = malloc(sizeof(TID_REQ)))) {
+  if (!(treq =tid_req_new())) {
     fprintf (stderr, "tr_msg_decode_tidreq(): Error allocating TID_REQ structure.\n");
     return NULL;
   }
  
-  memset(treq, 0, sizeof(TID_REQ));
-
   /* store required fields from request */
   if ((NULL == (jrp_realm = json_object_get(jreq, "rp_realm"))) ||
       (NULL == (jrealm = json_object_get(jreq, "target_realm"))) ||
       (NULL == (jcomm = json_object_get(jreq, "community")))) {
     fprintf (stderr, "tr_msg_decode(): Error parsing required fields.\n");
-    free(treq);
+    tid_req_free(treq);
     return NULL;
   }
 
@@ -185,7 +197,7 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
   /* Get DH Info from the request */
   if (NULL == (jdh = json_object_get(jreq, "dh_info"))) {
     fprintf (stderr, "tr_msg_decode(): Error parsing dh_info.\n");
-    free(treq);
+    tid_req_free(treq);
     return NULL;
   }
   treq->tidc_dh = tr_msg_decode_dh(jdh);
@@ -195,6 +207,16 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
     treq->orig_coi = tr_new_name((char *)json_string_value(jorig_coi));
   }
 
+  treq->cons = (TR_CONSTRAINT_SET *) json_object_get(jreq, "constraints");
+  if (treq->cons) {
+    if (!tr_constraint_set_validate(treq->cons)) {
+      tr_debug("Constraint set validation failed\n");
+    tid_req_free(treq);
+    return NULL;
+    }
+    json_incref((json_t *) treq->cons);
+    tid_req_cleanup_json(treq, (json_t *) treq->cons);
+  }
   return treq;
 }
 
@@ -221,45 +243,40 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
   return jsrvr;
 }
 
-static TID_SRVR_BLK *tr_msg_decode_one_server(json_t *jsrvr) 
+static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr) 
 {
-  TID_SRVR_BLK *srvr;
   json_t *jsrvr_addr = NULL;
   json_t *jsrvr_kn = NULL;
   json_t *jsrvr_dh = NULL;
 
   if (jsrvr == NULL)
-    return NULL;
+    return -1;
 
-  if (NULL == (srvr = malloc(sizeof(TID_SRVR_BLK)))) 
-    return NULL;
-  memset(srvr, 0, sizeof(TID_SRVR_BLK));
 
   if ((NULL == (jsrvr_addr = json_object_get(jsrvr, "server_addr"))) ||
       (NULL == (jsrvr_kn = json_object_get(jsrvr, "key_name"))) ||
       (NULL == (jsrvr_dh = json_object_get(jsrvr, "server_dh")))) {
-    fprintf (stderr, "tr_msg_decode_one_server(): Error parsing required fields.\n");
-    free(srvr);
-    return NULL;
+    tr_debug("tr_msg_decode_one_server(): Error parsing required fields.\n");
+    return -1;
   }
   
   /* TBD -- handle IPv6 Addresses */
   inet_aton(json_string_value(jsrvr_addr), &(srvr->aaa_server_addr));
   srvr->key_name = tr_new_name((char *)json_string_value(jsrvr_kn));
   srvr->aaa_server_dh = tr_msg_decode_dh(jsrvr_dh);
-
-  return srvr;
+  return 0;
 }
 
-static json_t *tr_msg_encode_servers(TID_SRVR_BLK *servers)
+static json_t *tr_msg_encode_servers(TID_RESP *resp)
 {
   json_t *jservers = NULL;
   json_t *jsrvr = NULL;
   TID_SRVR_BLK *srvr = NULL;
+  size_t index;
 
   jservers = json_array();
 
-  for (srvr = servers; srvr != NULL; srvr = srvr->next) {
+  tid_resp_servers_foreach(resp, srvr, index) {
     if ((NULL == (jsrvr = tr_msg_encode_one_server(srvr))) ||
 	(-1 == json_array_append_new(jservers, jsrvr))) {
       return NULL;
@@ -271,11 +288,9 @@ static json_t *tr_msg_encode_servers(TID_SRVR_BLK *servers)
   return jservers;
 }
 
-static TID_SRVR_BLK *tr_msg_decode_servers(json_t *jservers) 
+static TID_SRVR_BLK *tr_msg_decode_servers(void * ctx, json_t *jservers, size_t *out_len)
 {
   TID_SRVR_BLK *servers = NULL;
-  TID_SRVR_BLK *next = NULL;
-  TID_SRVR_BLK *srvr = NULL;
   json_t *jsrvr;
   size_t i, num_servers;
 
@@ -286,21 +301,18 @@ static TID_SRVR_BLK *tr_msg_decode_servers(json_t *jservers)
     fprintf(stderr, "tr_msg_decode_servers(): Server array is empty.\n"); 
     return NULL;
   }
+    servers = talloc_zero_array(ctx, TID_SRVR_BLK, num_servers);
 
   for (i = 0; i < num_servers; i++) {
     jsrvr = json_array_get(jservers, i);
-    srvr = tr_msg_decode_one_server(jsrvr);
+    if (0 != tr_msg_decode_one_server(jsrvr, &servers[i])) {
+      talloc_free(servers);
+      return NULL;
+    }
 
-    /* skip to the end of the list, and add srvr to list of servers */
-    if (NULL == servers) {
-      servers = srvr;
-    }
-    else {
-      for (next = servers; next->next != NULL; next = next->next);
-      next->next = srvr;
-    }
+
   }
-
+  *out_len = num_servers;
   return servers;
 }
 
@@ -346,7 +358,7 @@ static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
     fprintf(stderr, "tr_msg_encode_tidresp(): No servers to encode.\n");
     return jresp;
   }
-  jservers = tr_msg_encode_servers(resp->servers);
+  jservers = tr_msg_encode_servers(resp);
   json_object_set_new(jresp, "servers", jservers);
   
   return jresp;
@@ -363,12 +375,11 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
   json_t *jservers = NULL;
   json_t *jerr_msg = NULL;
 
-  if (!(tresp = malloc(sizeof(TID_RESP)))) {
+  if (!(tresp = talloc_zero(NULL, TID_RESP))) {
     fprintf (stderr, "tr_msg_decode_tidresp(): Error allocating TID_RESP structure.\n");
     return NULL;
   }
  
-  memset(tresp, 0, sizeof(TID_RESP));
 
   /* store required fields from response */
   if ((NULL == (jresult = json_object_get(jresp, "result"))) ||
@@ -380,7 +391,7 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
       (NULL == (jcomm = json_object_get(jresp, "comm"))) ||
       (!json_is_string(jcomm))) {
     fprintf (stderr, "tr_msg_decode_tidresp(): Error parsing response.\n");
-    free(tresp);
+    talloc_free(tresp);
     return NULL;
   }
 
@@ -388,9 +399,10 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
     fprintf(stderr, "tr_msg_decode_tidresp(): Success! result = %s.\n", json_string_value(jresult));
     if ((NULL != (jservers = json_object_get(jresp, "servers"))) ||
 	(!json_is_array(jservers))) {
-      tresp->servers = tr_msg_decode_servers(jservers); 
+      tresp->servers = tr_msg_decode_servers(tresp, jservers, &tresp->num_servers); 
     } 
     else {
+      talloc_free(tresp);
       return NULL;
     }
     tresp->result = TID_SUCCESS;
@@ -430,13 +442,13 @@ char *tr_msg_encode(TR_MSG *msg)
     case TID_REQUEST:
       jmsg_type = json_string("tid_request");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidreq(msg->tid_req));
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidreq(tr_msg_get_req(msg)));
       break;
 
     case TID_RESPONSE:
       jmsg_type = json_string("tid_response");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidresp(msg->tid_resp));
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidresp(tr_msg_get_resp(msg)));
       break;
 
       /* TBD -- Add TR message types */
@@ -483,15 +495,15 @@ TR_MSG *tr_msg_decode(char *jbuf, size_t buflen)
 
   if (0 == strcmp(mtype, "tid_request")) {
     msg->msg_type = TID_REQUEST;
-    msg->tid_req = tr_msg_decode_tidreq(jbody);
+    tr_msg_set_req(msg, tr_msg_decode_tidreq(jbody));
   }
   else if (0 == strcmp(mtype, "tid_response")) {
     msg->msg_type = TID_RESPONSE;
-    msg->tid_resp = tr_msg_decode_tidresp(jbody);
+    tr_msg_set_resp(msg, tr_msg_decode_tidresp(jbody));
   }
   else {
     msg->msg_type = TR_UNKNOWN;
-    msg->tid_req = NULL;
+    msg->msg_rep = NULL;
   }
   return msg;
 }

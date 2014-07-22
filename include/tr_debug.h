@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2014, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,83 +32,9 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
+#ifndef _TR_DEBUG_H
+#define _TR_DEBUG_H
 
-#include <tid_internal.h>
+#define tr_debug(...) fprintf( stderr, __VA_ARGS__)
 
-TR_EXPORT int tid_resp_get_result(TID_RESP *resp)
-{
-  return(resp->result);
-}
-
-void tid_resp_set_result(TID_RESP *resp, int result)
-{
-  resp->result = result;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp)
-{
-  return(resp->err_msg);
-}
-
-void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg)
-{
-  resp->err_msg = err_msg;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_rp_realm(TID_RESP *resp)
-{
-  return(resp->rp_realm);
-}
-
-void tid_resp_set_rp_realm(TID_RESP *resp, TR_NAME *rp_realm)
-{
-  resp->rp_realm = rp_realm;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_realm(TID_RESP *resp)
-{
-  return(resp->realm);
-}
-
-void tid_resp_set_realm(TID_RESP *resp, TR_NAME *realm)
-{
-  resp->realm = realm;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_comm(TID_RESP *resp)
-{
-  return(resp->comm);
-}
-
-void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm)
-{
-  resp->comm = comm;
-}
-
-TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp)
-{
-  return(resp->orig_coi);
-}
-
-void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi)
-{
-  resp->orig_coi = orig_coi;
-}
-
-TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp,
-					    size_t index)
-{
-  assert(resp);
-  assert(index < resp->num_servers);
-  return(&(resp->servers[index]));
-}
-
-size_t tid_resp_get_num_servers(const TID_RESP *resp)
-{
-  assert(resp);
-  return resp->num_servers;
-}
-
+#endif

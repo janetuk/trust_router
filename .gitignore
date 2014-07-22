@@ -19,5 +19,6 @@ libtool
 config.*
 tr/trust_router
 common/dh_test/tr_dh_test
+common/t_constraint
 tid/example/tids
 tid/example/tidc

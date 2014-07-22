@@ -34,9 +34,10 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <talloc.h>
 
 #include <gsscon.h>
-#include <trust_router/tid.h>
+#include <tid_internal.h>
 #include <trust_router/tr_dh.h>
 
 void static tidc_print_usage (const char *name)
@@ -96,6 +97,7 @@ int main (int argc,
   int rc;
   gss_ctx_id_t gssctx;
 
+  talloc_set_log_stderr();
   /* Parse command-line arguments */ 
   if (argc != 5) {
     tidc_print_usage(argv[0]);
