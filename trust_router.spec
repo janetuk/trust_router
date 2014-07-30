@@ -12,8 +12,8 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:  krb5-devel 
 BuildRequires: jansson-devel >= 2.4
-BuildRequires: sqlite-devel, openssl-devel
-Requires:       moonshot-gss-eap
+BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
+Requires:       moonshot-gss-eap, sqlite
 
 %description
 The trust router provides a mechanism for discovering the topology of
@@ -62,6 +62,14 @@ rm -rf $RPM_BUILD_ROOT
 %post libs -p /sbin/ldconfig
 
 %postun libs -p /sbin/ldconfig
+
+%post
+id trustrouter 2>/dev/null || adduser --system  -d /var/lib/trust_router trustrouter
+test -d /var/lib/trust_router ||mkdir /var/lib/trust_router
+chown trustrouter:trustrouter /var/lib/trust_router
+sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys
+chown trustrouter:trustrouter /var/lib/trust_router/keys
+chmod 660 /var/lib/trust_router/keys
 
 
 %files
