@@ -1,3 +1,5 @@
+DISTCHECK_CONFIGURE_FLAGS = \
+	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
 bin_PROGRAMS= tr/trust_router tid/example/tidc tid/example/tids common/dh_test/tr_dh_test
 AM_CPPFLAGS=-I$(srcdir)/include
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses
@@ -60,9 +62,9 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tid_internal.h
 
 pkgdata_DATA=schema.sql
-systemddir=/lib/systemd/system
 
-systemd_DATA=tids.service
-
+if HAVE_SYSTEMD
+	systemdsystemunit_DATA = tids.service
+endif
 
 EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service

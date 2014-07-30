@@ -10,6 +10,14 @@ AM_MAINTAINER_MODE
 LT_INIT()
 
 AC_PROG_CC
+           PKG_PROG_PKG_CONFIG
+           AC_ARG_WITH([systemdsystemunitdir],
+                   AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files]),
+                   [], [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
+           if test "x$with_systemdsystemunitdir" != xno; then
+                   AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
+           fi
+           AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
 
 AC_CHECK_LIB([gssapi_krb5], [gss_init_sec_context])
 AC_CHECK_LIB([com_err], [error_message])
