@@ -67,6 +67,8 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root,-)
 %doc README
 %{_bindir}/*
+%{_datadir}/trust_router/schema.sql
+/lib/systemd/system/tids.service
 
 %files libs
 %defattr(-,root,root,-)
