@@ -64,4 +64,4 @@ systemddir=/lib/systemd/system
 systemd_DATA=tids.service
 
 
-EXTRA_DIST = trust_router.spec common/tests.json
+EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service
