@@ -77,7 +77,7 @@ chmod 660 /var/lib/trust_router/keys
 %doc README
 %{_bindir}/*
 %{_datadir}/trust_router/schema.sql
-/lib/systemd/system/tids.service
+#/lib/systemd/system/tids.service
 
 %files libs
 %defattr(-,root,root,-)
