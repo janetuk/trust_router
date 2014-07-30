@@ -52,6 +52,7 @@ pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/trust_router/tr_versioning.h 
 
 noinst_HEADERS = include/gsscon.h include/tr_config.h \
+	include/tr_debug.h \
 	include/tr_msg.h include/tr.h \
 	include/tr_idp.h include/tr_rp.h \
 	include/tr_comm.h include/tr_apc.h \
