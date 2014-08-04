@@ -70,13 +70,13 @@
 #include <trust_router/tid.h>
 
 #include <jansson.h>
-typedef struct tid_srvr_blk {
+struct tid_srvr_blk {
   struct in_addr aaa_server_addr;
   TR_NAME *key_name;
   DH *aaa_server_dh;		/* AAA server's public dh information */
-} TID_SRVR_BLK;
+};
 
-typedef struct tid_resp {
+struct tid_resp {
   TID_RC result;
   TR_NAME *err_msg;
   TR_NAME *rp_realm;
@@ -87,7 +87,7 @@ typedef struct tid_resp {
   TID_SRVR_BLK *servers;       	/* array of servers */
   size_t num_servers;
   /* TBD -- Trust Path Used */
-} TID_RESP;
+};
 struct tid_req {
   struct tid_req *next_req;
   int resp_sent;
