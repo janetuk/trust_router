@@ -2,8 +2,8 @@ Source: moonshot-trust-router
 Section: net
 Priority: extra
 Maintainer: Sam Hartman <hartmans@debian.org>
-Build-Depends: debhelper (>= 7.0.50~), autotools-dev, automake, autoconf, libtool, libjansson-dev, libkrb5-dev (>= 1.10~), dh-autoreconf, libssl-dev, libsqlite3-dev, libtalloc-dev
-Standards-Version: 3.9.1
+Build-Depends: debhelper (>= 9), autotools-dev, automake, autoconf, libtool, libjansson-dev, libkrb5-dev (>= 1.10~), dh-autoreconf, libssl-dev, libsqlite3-dev, libtalloc-dev
+Standards-Version: 3.9.5
 Homepage: http://www.project-moonshot.org/
 Vcs-Git: git://git.project-moonshot.org/trust_router.git
 
@@ -11,23 +11,54 @@ Package: moonshot-trust-router
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, moonshot-gss-eap, adduser, sqlite3
 Description: Moonshot Trust Router
- This package is under construction
+ Moonshot allows services using GSS-API applications to gain federated
+ access to identities provided by other organizations.  Moonshot uses
+ EAP and RADIUS over TLS for authentication and federation and SAML
+ for enhanced attribute exchange.
+ .
+ This package provides the trust router and associated commands.  The
+ trust router provides authenticated key exchange so that RADIUS
+ proxies in one organization can connect to RADIUS servers (providing
+ identities) in another organization.
 
 Package: moonshot-trust-router-dev
+Section: libdevel
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libtr-tid2 (= ${binary:Version})
 Description: Development enviroment for the Trust Router
- Includes the trust router includes and libraries
+ Moonshot allows services using GSS-API applications to gain federated
+ access to identities provided by other organizations.  Moonshot uses
+ EAP and RADIUS over TLS for authentication and federation and SAML
+ for enhanced attribute exchange.
+ .
+ This package provides the trust router development environment.  The
+ trust router provides authenticated key exchange so that RADIUS
+ proxies in one organization can connect to RADIUS servers (providing
+ identities) in another organization.
+
 
 Package: libtr-tid2
+Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: Trust Router Shared Libraries
- Includes runtime libraries for the Temporary Identity Protocol
+Pre-Depends: ${misc:Pre-Depends}
+Multi-Arch: same
+Description: Moonshot Temporary Identity  Shared Libraries
+ Moonshot allows services using GSS-API applications to gain federated
+ access to identities provided by other organizations.  Moonshot uses
+ EAP and RADIUS over TLS for authentication and federation and SAML
+ for enhanced attribute exchange.
+ .
+ This package provides the trust router's Temporary Identity Protocol
+ client and server library.  The trust router provides authenticated
+ key exchange so that RADIUS proxies in one organization can connect
+ to RADIUS servers (providing identities) in another organization.
 
 
 Package: moonshot-trust-router-dbg
+Section: debug
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Trust Router Debugging Symbols
- This package includes debugging symbols for trust router libraries and binaries.
+ This package includes debugging symbols for trust router libraries
+ and binaries.
