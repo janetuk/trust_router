@@ -3,7 +3,7 @@ moonshot-trust-router (1.3.1-1) UNRELEASED; urgency=medium
   * New Upstream Version
   * Initial Debian release, Closes: #759398
 
- --
+ -- Sam Hartman <hartmans@debian.org>  Wed, 27 Aug 2014 19:09:45 -0400
 
 moonshot-trust-router (1.3-1) unstable; urgency=medium
 

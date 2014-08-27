@@ -1,0 +1,7 @@
+* Service files and possibly init scripts for trust_router and tids (tids already has service file)
+
+Sadly, the code in its current state really works a lot better with
+journald than another logging approach, so there's a huge advantage to
+using systemd.
+
+* Include pointers to what we have for current documentation.
