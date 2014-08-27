@@ -1,0 +1,54 @@
+From f53b795b4219a0eb8a17615e22edb7e83dc95638 Mon Sep 17 00:00:00 2001
+From: Sam Hartman <hartmans@debian.org>
+Date: Wed, 27 Aug 2014 19:05:15 -0400
+Subject: gitignore
+
+INclude gitignore files not distributed in upstream tarball
+
+Patch-Name: gitignore
+---
+ .gitignore             | 24 ++++++++++++++++++++++++
+ gsscon/test/.gitignore |  2 ++
+ 2 files changed, 26 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 gsscon/test/.gitignore
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..7159568
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,24 @@
++*~
++\#*\#
++.\#*
++*.o
++*.la
++*.lo
++.deps
++.dirstamp
++.libs
++aclocal.m4
++build-aux
++configure
++Makefile.in
++Makefile
++autom4te.cache
++m4
++ltmain.sh
++libtool
++config.*
++tr/trust_router
++common/dh_test/tr_dh_test
++common/t_constraint
++tid/example/tids
++tid/example/tidc
+\ No newline at end of file
+diff --git a/gsscon/test/.gitignore b/gsscon/test/.gitignore
+new file mode 100644
+index 0000000..89859de
+--- /dev/null
++++ b/gsscon/test/.gitignore
+@@ -0,0 +1,2 @@
++gsscon_client
++gsscon_server
