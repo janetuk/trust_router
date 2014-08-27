@@ -42,7 +42,7 @@
 
 void static tidc_print_usage (const char *name)
 {
-  printf("Usage: %s <server> <RP-realm> <target-realm> <community>\n", name);
+  printf("Usage: %s <server> <RP-realm> <target-realm> <community> [<port>]\n", name);
 }
 
 static void tidc_resp_handler (TIDC_INSTANCE * tidc, 
@@ -93,13 +93,14 @@ int main (int argc,
   char *rp_realm = NULL;
   char *realm = NULL;
   char *coi = NULL;
+  int port = TID_PORT;
   int conn = 0;
   int rc;
   gss_ctx_id_t gssctx;
 
   talloc_set_log_stderr();
   /* Parse command-line arguments */ 
-  if (argc != 5) {
+  if (argc < 5 || argc > 6) {
     tidc_print_usage(argv[0]);
     exit(1);
   }
@@ -110,7 +111,11 @@ int main (int argc,
   realm = (char *)argv[3];
   coi = (char *)argv[4];
 
-  printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s\n", server, rp_realm, realm, coi);
+  if (argc > 5) {
+    port = strtol(argv[5], NULL, 10);
+  }
+
+  printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s, port = %i\n", server, rp_realm, realm, coi, port);
  
   /* Create a TID client instance & the client DH */
   tidc = tidc_create();
@@ -120,7 +125,7 @@ int main (int argc,
   }
 
   /* Set-up TID connection */
-  if (-1 == (conn = tidc_open_connection(tidc, server, TID_PORT, &gssctx))) {
+  if (-1 == (conn = tidc_open_connection(tidc, server, port, &gssctx))) {
     /* Handle error */
     printf("Error in tidc_open_connection.\n");
     return 1;
