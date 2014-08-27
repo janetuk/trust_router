@@ -189,43 +189,7 @@ if (clientDisplayName.value != NULL)
     return err;
 }
 
-/* --------------------------------------------------------------------------- */
-
-static int ServicePrincipalIsValidForService (const char *inServicePrincipal)
-{
-    int err = 0;
-    krb5_context context = NULL;
-    krb5_principal principal = NULL;
     
-    if (!inServicePrincipal) { err = EINVAL; }
-    
-    if (!err) {
-        err = krb5_init_context (&context);
-    }
-    
-    if (!err) {
-        err = krb5_parse_name (context, inServicePrincipal, &principal);
-    }
-    
-    if (!err) {
-        /* 
-         * Here is where we check to see if the service principal the client 
-         * used is valid.  Typically we would just check that the first component 
-         * is the name of the service provided by the server.  This check exists
-         * to make sure the server is using the correct key in its keytab since
-         * we passed GSS_C_NO_CREDENTIAL into gss_accept_sec_context().
-         */
-        if (gServiceName && strcmp (gServiceName, 
-                                    krb5_princ_name (context, principal)->data) != 0) {
-            err = KRB5KRB_AP_WRONG_PRINC;
-        }
-    }
-    
-    if (principal) { krb5_free_principal (context, principal); }
-    if (context  ) { krb5_free_context (context); }
-    
-    return err;
-}
 
 
 /* --------------------------------------------------------------------------- */
@@ -326,15 +290,11 @@ int gsscon_authorize (gss_ctx_id_t  inContext,
     //    if (nameToken.value) { gss_release_buffer (&minorStatus, &nameToken); }
     // }
     
-//    if (!err) {
-//        int authorizationErr = ServicePrincipalIsValidForService (servicePr// incipal);
-//        
-//        if (!authorizationErr) {
 
 	  int authorizationErr = 0;
 	  authorizationErr = ClientPrincipalIsAuthorizedForService (clientPrincipal);
 
-//        }
+
         
 //        printf ("'%s' is%s authorized for service '%s'\n", 
 //                clientPrincipal, authorizationErr ? " NOT" : "", servicePrincipal);            
