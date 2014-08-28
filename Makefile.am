@@ -64,7 +64,7 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 pkgdata_DATA=schema.sql
 
 if HAVE_SYSTEMD
-	systemdsystemunit_DATA = tids.service
+systemdsystemunit_DATA = tids.service
 endif
 
 EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service

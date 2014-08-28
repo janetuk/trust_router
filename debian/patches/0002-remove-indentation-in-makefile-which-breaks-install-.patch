@@ -1,0 +1,22 @@
+From 8ee1a1c9a537c2d4847571c6611f3f32187c5eff Mon Sep 17 00:00:00 2001
+From: Sam Hartman <hartmans@debian.org>
+Date: Wed, 27 Aug 2014 19:59:38 -0400
+Subject: remove indentation in makefile which breaks install rule
+
+---
+ Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 9f792a1..bcdf8ef 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -64,7 +64,7 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
+ pkgdata_DATA=schema.sql
+ 
+ if HAVE_SYSTEMD
+-	systemdsystemunit_DATA = tids.service
++systemdsystemunit_DATA = tids.service
+ endif
+ 
+ EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service
