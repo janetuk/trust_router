@@ -36,7 +36,7 @@ moonshot-trust-router (1.2-1) unstable; urgency=low
   * New upstream version.
   * Includes constraints, gss-name change and settable port number. 
 
- -- Margaret Wasserman <margaret@moonshot-proxy>  Tue, 18 Mar 2014 18:00:19 -0400
+ -- Margaret Wasserman <mrw@painless-security.com>  Tue, 18 Mar 2014 18:00:19 -0400
 
 moonshot-trust-router (1.0.1-1) unstable; urgency=low
 
@@ -60,7 +60,7 @@ moonshot-trust-router (0.2+20130506-1) unstable; urgency=low
 
   * New upstream version, beta release
 
- -- Margaret Wasserman <margaret@moonshot-proxy>  Mon, 06 May 2013 15:40:43 -0400
+ -- Margaret Wasserman <mrw@painless-security.com>  Mon, 06 May 2013 15:40:43 -0400
 
 moonshot-trust-router (0.1+20130418-1) unstable; urgency=low
 
