@@ -1,4 +1,5 @@
-usr/bin/*
+usr/bin/tid*
+usr/bin/trust_router
 usr/share/trust_router/*
 lib/systemd/system/*
 
