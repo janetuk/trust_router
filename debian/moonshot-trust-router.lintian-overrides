@@ -1,0 +1,3 @@
+moonshot-trust-router: binary-without-manpage usr/bin/tidc
+moonshot-trust-router: binary-without-manpage usr/bin/trust_router
+moonshot-trust-router: binary-without-manpage usr/bin/tids
