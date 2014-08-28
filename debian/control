@@ -58,7 +58,7 @@ Description: Moonshot Temporary Identity  Shared Libraries
 Package: moonshot-trust-router-dbg
 Section: debug
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, moonshot-trust-router (= ${binary:Version}) |libtr-tid2 (= ${binary:Version})
 Description: Trust Router Debugging Symbols
  This package includes debugging symbols for trust router libraries
  and binaries.
