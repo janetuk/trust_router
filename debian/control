@@ -25,7 +25,7 @@ Package: moonshot-trust-router-dev
 Section: libdevel
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libtr-tid2 (= ${binary:Version})
-Description: Development enviroment for the Trust Router
+Description: Development environment for the Trust Router
  Moonshot allows services using GSS-API applications to gain federated
  access to identities provided by other organizations.  Moonshot uses
  EAP and RADIUS over TLS for authentication and federation and SAML
