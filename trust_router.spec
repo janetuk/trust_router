@@ -96,7 +96,7 @@ chown trustrouter:trustrouter /var/lib/trust_router/keys
 chmod 660 /var/lib/trust_router/keys
 
 # Log Directory
-mkdir /var/log/trust_router
+test -d /var/log/trust_router ||mkdir /var/log/trust_router
 chown root:trustrouter /var/log/trust_router
 chmod 770 /var/log/trust_router
 
