@@ -54,6 +54,24 @@ rm -rf $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
 find $RPM_BUILD_ROOT -name '*.la' -exec rm -f {} ';'
 
+# Install config files
+install -D -m 755 redhat/init $RPM_BUILD_ROOT/%{_initrddir}/trust_router
+install -D -m 640 redhat/trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/trusts.cfg
+install -D -m 640 redhat/default-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/main.cfg
+install -D -m 640 redhat/tr-test-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/main.cfg
+install -D -m 640 redhat/sysconfig $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/trust_router
+
+# Link shared config
+ln -s ../../trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/trusts.cfg
+ln -s ../../trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/trusts.cfg
+
+# Install wrapper scripts
+install -D -m 755 redhat/tidc-wrapper $RPM_BUILD_ROOT/%{_bindir}/tidc-wrapper
+install -D -m 755 redhat/trust_router-wrapper $RPM_BUILD_ROOT/%{_bindir}/trust_router-wrapper
+
+# As we're building an RPM, we don't need the init scripts etc. in /usr/share
+rm -rf $RPM_BUILD_ROOT/%{_datadir}/trust_router/redhat
+
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -65,11 +83,19 @@ rm -rf $RPM_BUILD_ROOT
 
 %post
 id trustrouter 2>/dev/null || adduser --system  -d /var/lib/trust_router trustrouter
+
+# Data directory
 test -d /var/lib/trust_router ||mkdir /var/lib/trust_router
 chown trustrouter:trustrouter /var/lib/trust_router
 sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys
 chown trustrouter:trustrouter /var/lib/trust_router/keys
 chmod 660 /var/lib/trust_router/keys
+
+# Log Directory
+mkdir /var/log/trust_router
+chown root:trustrouter /var/log/trust_router
+chmod 770 /var/log/trust_router
+
 
 
 %files
@@ -78,6 +104,21 @@ chmod 660 /var/lib/trust_router/keys
 %{_bindir}/*
 %{_datadir}/trust_router/schema.sql
 #/lib/systemd/system/tids.service
+
+%{_initrddir}/trust_router
+
+%config(noreplace) %{_sysconfdir}/sysconfig/trust_router
+
+%dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router
+%dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router/conf.d/
+%dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router/conf.d/default
+%dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router/conf.d/tr-test
+
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/trusts.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/default/main.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/tr-test/main.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/default/trusts.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/tr-test/trusts.cfg
 
 %files libs
 %defattr(-,root,root,-)
