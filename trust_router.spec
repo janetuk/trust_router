@@ -77,13 +77,17 @@ rm -rf $RPM_BUILD_ROOT/%{_datadir}/trust_router/redhat
 rm -rf $RPM_BUILD_ROOT
 
 
+%pre
+getent group trustrouter > /dev/null || groupadd -r trustrouter
+getent passwd trustrouter > /dev/null || useradd -r -g trustrouter -d /var/lib/trustrouter -s /sbin/nologin -c "GSS-EAP Trust Router service account" trustrouter
+exit 0
+
+
 %post libs -p /sbin/ldconfig
 
 %postun libs -p /sbin/ldconfig
 
 %post
-id trustrouter 2>/dev/null || adduser --system  -d /var/lib/trust_router trustrouter
-
 # Data directory
 test -d /var/lib/trust_router ||mkdir /var/lib/trust_router
 chown trustrouter:trustrouter /var/lib/trust_router
