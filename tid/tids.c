@@ -387,9 +387,12 @@ int tids_start (TIDS_INSTANCE *tids,
     } else {
       close(conn);
     }
+
+    /* clean up any processes that have completed */
+    while (waitpid(-1, 0, WNOHANG) >= 0);
   }
 
-  return 1;	/* should never get here */
+  return 1;	/* should never get here, loops "forever" */
 }
 
 void tids_destroy (TIDS_INSTANCE *tids)
