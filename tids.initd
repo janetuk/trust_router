@@ -1,0 +1,90 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides: tids
+# Default-Start: 3 5
+# Default-Stop: 0 1 2 4 6
+# Required-Start: radiusd
+# Should-Start: $network
+# Short-Description: start the trust router service
+# Description: starts the trust router service for Moonshot
+### END INIT INFO
+# chkconfig: - 89 11
+# description: start the trust router service
+# Source function library.
+. /etc/init.d/functions
+
+[ -z "$HOME" ] && export HOME=/
+
+usage() {
+    echo "Usage: $0 {start|stop|status}"
+}
+
+#<ip-address> <gss-name> <hostname> <database-name>
+RADIUS_SERVER_IP="212.219.210.203"
+RADIUS_SERVER_NAME="ms-idp.dev.ja.net"
+TRUST_ROUTER_GSSNAME="trustrouter@apc.moonshot.ja.net"
+TRUST_ROUTER_USER="trustrouter"
+KEYFILE="/var/lib/trust_router/keys"
+
+# some variables
+prog=tids
+TIDS="/usr/bin/tids"
+PIDFILE="/var/run/${prog}/${prog}.pid"
+LOGFILE="/var/log/${prog}/${prog}.log"
+TIDSCOMMAND="${TIDS} ${RADIUS_SERVER_IP} ${TRUST_ROUTER_GSSNAME} ${RADIUS_SERVER_NAME} ${KEYFILE}"
+
+case "$1" in
+    start)
+        if [ -e ${PIDFILE} ] ; then
+                pgrep -f "${TIDSCOMMAND}" && (echo "Error: tids already running" ; exit 1) || rm ${PIDFILE}
+        fi
+        [ -d /var/run/${prog} ] || mkdir /var/run/${prog} && chown ${TRUST_ROUTER_USER} /var/run/${prog}
+        [ -d /var/log/${prog} ] || mkdir /var/log/${prog} && chown ${TRUST_ROUTER_USER} /var/log/${prog}
+        su --shell=/bin/bash -c "echo \"$(date) starting tids\" | tee -a ${LOGFILE}" ${TRUST_ROUTER_USER}
+        su --shell=/bin/bash -c "unset DISPLAY; ${TIDSCOMMAND} >> ${LOGFILE} 2>&1 &" ${TRUST_ROUTER_USER}
+        retval=$?
+        if [ ${retval} -eq 0 ] ; then
+            PID=$(pgrep -f "${TIDSCOMMAND}")
+            echo ${PID} > $PIDFILE
+            su --shell=/bin/bash -c "echo \"$(date) running (pid ${PID})\" | tee -a ${LOGFILE}" ${TRUST_ROUTER_USER}
+        fi
+        exit $retval
+        ;;
+    stop)
+        su --shell=/bin/bash -c "echo \"$(date) stopping tids\" | tee -a ${LOGFILE}" ${TRUST_ROUTER_USER}
+        pkill -f "${TIDSCOMMAND}"
+        sleep 2;
+        if [ -e ${PIDFILE} ] ; then
+                pkill -9 -f "${TIDSCOMMAND}"
+                sleep 2
+                pgrep -f "${TIDSCOMMAND}" && echo "Error: failed to kill tids" || rm ${PIDFILE}
+        fi
+        exit $?
+        ;;
+    #restart)
+        #su --shell=/bin/bash -c "echo \"$(date) restarting tids\" | tee -a ${LOGFILE}" ${TRUST_ROUTER_USER}
+        #stop
+        #start
+        #;;
+    status)
+        PID=$(pgrep -f "${TIDSCOMMAND}")
+        if [ ${PID} ] ; then
+                echo "tids is running (pid ${PID})"
+        else
+                if [ -e ${PIDFILE} ] ; then
+                        echo "tids appears to be dead but pid file exists"
+                else
+                        echo "tids appears to be stopped"
+                fi
+        fi
+        exit 0
+        ;;
+    reload | force-reload | condrestart | try-restart)
+        usage
+        exit 3
+        ;;
+    *)
+        usage
+        exit 2
+        ;;
+esac
