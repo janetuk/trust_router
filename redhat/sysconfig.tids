@@ -1,0 +1,17 @@
+## Define the variables needed to run TIDS
+##
+## /usr/bin/tids <ip-address> <gss-name> <hostname> <database-name>
+##
+
+TIDS_SERVER_IP="127.0.0.1"                              # IP address that the TIDS is reachable on
+TIDS_SERVER_NAME="localhost"                            # The host name that the TIDS is known as
+TIDS_USER="trustrouter"					# The user that the TIDS is running as
+TIDS_GROUP="trustrouter"				# The group that the TIDS is running as 
+
+TIDS_GSS_NAME="trustrouter@apc.moonshot.ja.net"		# The GSS service name for the TIDS APC
+KEYFILE="/var/lib/trust_router/keys"			# The key file that the TIDS will store keys in
+
+## Static variables that you can also adjust
+
+TIDS_PIDDIR="/var/run/tids"
+TIDS_LOGDIR="/var/log/tids"
