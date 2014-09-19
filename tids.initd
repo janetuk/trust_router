@@ -47,6 +47,7 @@ case "$1" in
         if [ -f ${PIDFILE} ] ;
         then
                 OLD_PID=$(cat "${PIDFILE}")
+
                 if [ -d "/proc/${OLD_PID}" ] ;
                 then
                         echo "Error: TIDS already running" ; exit 1
@@ -67,28 +68,32 @@ case "$1" in
         timestamp=$(date)
         echo "${timestamp} Stopping TIDS..." >> ${LOGFILE}
         echo -n "Stopping TIDS..."
-        
-        if [ -f "${PIDFILE}" ]  ;
+        if [ -f "${PIDFILE}" ] ;
         then
-            killproc -p "${PIDFILE}" "${prog}"
-            echo
-        else
-            echo "TIDS does not appear to be running..."
-        fi
+                killproc -p "${PIDFILE}" "${prog}"
+		echo
+	else
+		echo "TIDS does not appear to be running"
+	fi
         exit $?
         ;;
     status)
-        PID=$(cat "${PIDFILE}")
-
-        if [ -d "/proc/${PID}" ] ;
+        if [ -f ${PIDFILE} ] ;
         then
-                echo "TIDS is running (pid ${PID})"
-        else
-                if [ -e ${PIDFILE} ] ; then
-                        echo "TIDS appears to be dead but its PID file exists"
+                PID=$(cat "${PIDFILE}")
+
+                if [ -d "/proc/${PID}" ] ;
+                then
+                        echo "TIDS is running (pid ${PID})"
                 else
-                        echo "TIDS appears to be stopped"
+                        if [ -e ${PIDFILE} ] ; then
+                                echo "TIDS appears to be dead but its PID file exists"
+                        else
+                                echo "TIDS appears to be stopped"
+                        fi
                 fi
+        else
+                echo "TIDS appears to be stopped"
         fi
         exit 0
         ;;
