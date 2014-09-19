@@ -52,3 +52,11 @@ TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_
   else 
     return NULL;
 }
+
+TR_AAA_SERVER *tr_default_server_lookup(TR_INSTANCE *tr, TR_NAME *comm)
+{
+  if ((!tr) || (!(tr->active_cfg)))
+    return NULL;
+
+  return(tr->active_cfg->default_servers);
+}

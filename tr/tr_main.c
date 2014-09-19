@@ -169,10 +169,15 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   if (NULL == (aaa_servers = tr_idp_aaa_server_lookup((TR_INSTANCE *)tids->cookie, 
 						      orig_req->realm, 
 						      orig_req->comm))) {
-      fprintf(stderr, "tr_tids_req_handler: No AAA Servers for realm %s.\n", orig_req->realm->buf);
+      fprintf(stderr, "tr_tids_req_handler: No AAA Servers for realm %s, defaulting.\n", orig_req->realm->buf);
+      if (NULL == (aaa_servers = tr_default_server_lookup ((TR_INSTANCE *)tids->cookie,
+							   orig_req->comm))) {
+	fprintf(stderr, "tr_tids_req_handler: No default AAA servers, discarded.\n");
       tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
       return -1;
-    }
+      }
+  }
+
   /* send a TID request to the AAA server(s), and get the answer(s) */
   /* TBD -- Handle multiple servers */
 
@@ -257,12 +262,7 @@ int main (int argc, const char *argv[])
     exit(1);
   }
 
-  /* read and parse initial configuration */
-  if (NULL == (jcfg = tr_read_config (n, cfg_files))) {
-    fprintf (stderr, "Error reading or parsing configuration files, exiting.\n");
-    exit(1);
-  }
-  if (TR_CFG_SUCCESS != tr_parse_config(tr, jcfg)) {
+  if (TR_CFG_SUCCESS != tr_parse_config(tr, cfg_files)) {
     fprintf (stderr, "Error decoding configuration information, exiting.\n");
     exit(1);
   }

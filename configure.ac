@@ -21,13 +21,12 @@ AC_PROG_CC
 
 AC_CHECK_LIB([gssapi_krb5], [gss_init_sec_context])
 AC_CHECK_LIB([com_err], [error_message])
-AC_CHECK_LIB(talloc, talloc_asprintf,,
+AC_CHECK_LIB(talloc, talloc_init,,
 [AC_MSG_ERROR([Please install talloc development])])
 AC_CHECK_LIB([sqlite3], [sqlite3_open],,
     [AC_MSG_ERROR([Please install sqlite3 development])])
-
 AC_CHECK_LIB([jansson], [json_object])
 AC_CHECK_LIB([crypto], [DH_new])
-AC_CHECK_HEADERS(gssapi.h gssapi_ext.h jansson.h openssl/dh.h openssl/bn.h)
+AC_CHECK_HEADERS(gssapi.h gssapi_ext.h jansson.h talloc.h openssl/dh.h openssl/bn.h)
 AC_CONFIG_FILES([Makefile gsscon/Makefile])
 AC_OUTPUT

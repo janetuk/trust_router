@@ -63,19 +63,20 @@ typedef struct tr_cfg_internal {
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {
-  TR_CFG_INTERNAL *internal;	/* internal trust router config */
-  TR_IDP_REALM *idp_realms;	/* locally associated IDP Realms */
-  TR_RP_CLIENT *rp_clients;	/* locally associated RP Clients */
-  TR_COMM *comms;		/* locally-known communities */
+  TR_CFG_INTERNAL *internal;		/* internal trust router config */
+  TR_IDP_REALM *idp_realms;		/* locally associated IDP Realms */
+  TR_RP_CLIENT *rp_clients;		/* locally associated RP Clients */
+  TR_COMM *comms;			/* locally-known communities */
+  TR_AAA_SERVER *default_servers;	/* default server list */
   /* TBD -- Global Filters */
   /* TBD -- Trust Router Peers */
   /* TBD -- Trust Links */
 } TR_CFG;
 
 int tr_find_config_files (struct dirent ***cfg_files);
-json_t *tr_read_config (int n, struct dirent **cfgfiles);
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, json_t *jcfg);
+TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, struct dirent **cfg_files);
 TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
+TR_CFG_RC tr_cfg_validate (TR_CFG *trc);
 void tr_cfg_free(TR_CFG *cfg);
 void tr_print_config(FILE *stream, TR_CFG *cfg);
 
