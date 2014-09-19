@@ -56,12 +56,12 @@ find $RPM_BUILD_ROOT -name '*.la' -exec rm -f {} ';'
 
 # Install config files
 install -D -m 755 redhat/init $RPM_BUILD_ROOT/%{_initrddir}/trust_router
-install -D -m 755 tids.initd $RPM_BUILD_ROOT/%{_initrddir}/tids
 install -D -m 640 redhat/trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/trusts.cfg
 install -D -m 640 redhat/default-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/main.cfg
 install -D -m 640 redhat/tr-test-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/main.cfg
 install -D -m 640 redhat/sysconfig $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/trust_router
 install -D -m 640 redhat/sysconfig.tids $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/tids
+install -D -m 755 tids.initd $RPM_BUILD_ROOT/%{_initrddir}/tids
 
 # Link shared config
 ln -s ../../trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/trusts.cfg
@@ -112,11 +112,11 @@ chmod 770 /var/log/trust_router
 %{_datadir}/trust_router/schema.sql
 #/lib/systemd/system/tids.service
 
-%{_initrddir}/trust_router
 %{_initrddir}/tids
+%{_initrddir}/trust_router
 
-%config(noreplace) %{_sysconfdir}/sysconfig/trust_router
 %config(noreplace) %{_sysconfdir}/sysconfig/tids
+%config(noreplace) %{_sysconfdir}/sysconfig/trust_router
 
 %dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router
 %dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router/conf.d/
