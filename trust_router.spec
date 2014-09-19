@@ -56,10 +56,12 @@ find $RPM_BUILD_ROOT -name '*.la' -exec rm -f {} ';'
 
 # Install config files
 install -D -m 755 redhat/init $RPM_BUILD_ROOT/%{_initrddir}/trust_router
+install -D -m 755 tids.initd $RPM_BUILD_ROOT/%{_initrddir}/tids
 install -D -m 640 redhat/trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/trusts.cfg
 install -D -m 640 redhat/default-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/main.cfg
 install -D -m 640 redhat/tr-test-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/main.cfg
 install -D -m 640 redhat/sysconfig $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/trust_router
+install -D -m 640 redhat/sysconfig.tids $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/tids
 
 # Link shared config
 ln -s ../../trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/trusts.cfg
@@ -67,6 +69,7 @@ ln -s ../../trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-tes
 
 # Install wrapper scripts
 install -D -m 755 redhat/tidc-wrapper $RPM_BUILD_ROOT/%{_bindir}/tidc-wrapper
+install -D -m 755 redhat/tids-wrapper $RPM_BUILD_ROOT/%{_bindir}/tids-wrapper
 install -D -m 755 redhat/trust_router-wrapper $RPM_BUILD_ROOT/%{_bindir}/trust_router-wrapper
 
 # As we're building an RPM, we don't need the init scripts etc. in /usr/share
@@ -110,8 +113,10 @@ chmod 770 /var/log/trust_router
 #/lib/systemd/system/tids.service
 
 %{_initrddir}/trust_router
+%{_initrddir}/tids
 
 %config(noreplace) %{_sysconfdir}/sysconfig/trust_router
+%config(noreplace) %{_sysconfdir}/sysconfig/tids
 
 %dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router
 %dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router/conf.d/
@@ -132,6 +137,3 @@ chmod 770 /var/log/trust_router
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/*.so
-
-
-
