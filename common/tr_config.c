@@ -825,10 +825,9 @@ TR_CFG_RC tr_cfg_validate (TR_CFG *trc) {
   return rc;
 }
 
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, struct dirent **cfg_files) {
+TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, int n, struct dirent **cfg_files) {
   json_t *jcfg;
   json_error_t rc;
-  int n;
 
   if ((!tr) || (!cfg_files))
     return TR_CFG_BAD_PARAMS;
@@ -914,38 +913,6 @@ TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc)
   /* if we didn't find one, return NULL */ 
   return NULL;
 }
-
-#if 0
-json_t *tr_read_config (int n, struct dirent **cfg_files) {
-  json_t *jcfg = NULL;
-  json_t *temp = NULL;
-  json_error_t err;
-
-  if (!cfg_files)
-    return NULL;
-
-  while (n--) {
-    fprintf(stderr, "tr_read_config: Parsing %s.\n", cfg_files[n]->d_name);
-    if (NULL == (temp = json_load_file(cfg_files[n]->d_name, JSON_DISABLE_EOF_CHECK, &err))) {
-      fprintf (stderr, "tr_read_config: Error parsing config file %s.\n", cfg_files[n]->d_name);
-      return NULL;
-    }
-
-    if (!jcfg) {
-      jcfg = temp;
-    }else {
-      if (-1 == json_object_update(jcfg, temp)) {
-	fprintf(stderr, "tr_read_config: Error merging config information.\n");
-	return NULL;
-      }
-    }
-  }
-
-  fprintf(stderr, "tr_read_config: Merged configuration complete:\n%s\n", json_dumps(jcfg, 0));
-
-  return jcfg;
-}
-#endif 
 
 static int is_cfg_file(const struct dirent *dent) {
   int n;

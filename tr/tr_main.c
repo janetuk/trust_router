@@ -244,7 +244,6 @@ int main (int argc, const char *argv[])
 {
   TR_INSTANCE *tr = NULL;
   struct dirent **cfg_files = NULL;
-  json_t *jcfg = NULL;
   TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
   int err = 0, n = 0;;
 
@@ -262,7 +261,7 @@ int main (int argc, const char *argv[])
     exit(1);
   }
 
-  if (TR_CFG_SUCCESS != tr_parse_config(tr, cfg_files)) {
+  if (TR_CFG_SUCCESS != tr_parse_config(tr, n, cfg_files)) {
     fprintf (stderr, "Error decoding configuration information, exiting.\n");
     exit(1);
   }

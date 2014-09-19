@@ -74,7 +74,7 @@ typedef struct tr_cfg {
 } TR_CFG;
 
 int tr_find_config_files (struct dirent ***cfg_files);
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, struct dirent **cfg_files);
+TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, int n, struct dirent **cfg_files);
 TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
 TR_CFG_RC tr_cfg_validate (TR_CFG *trc);
 void tr_cfg_free(TR_CFG *cfg);

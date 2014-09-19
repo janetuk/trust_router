@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <jansson.h>
 #include <talloc.h>
