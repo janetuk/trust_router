@@ -390,7 +390,7 @@ int tids_start (TIDS_INSTANCE *tids,
     }
 
     /* clean up any processes that have completed */
-    while (waitpid(-1, 0, WNOHANG) >= 0);
+    while (waitpid(-1, 0, WNOHANG) > 0);
   }
 
   return 1;	/* should never get here, loops "forever" */
