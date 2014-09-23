@@ -405,7 +405,7 @@ static TR_CFG_RC tr_cfg_parse_rp_clients (TR_CFG *trc, json_t *jcfg) {
 						   &rc))) {
 	return rc;
       }
-      fprintf(stderr, "tr_cfg_parse_rp_clients: RP client configured -- first gss: %s", rp->gss_names[0]->buf);
+      fprintf(stderr, "tr_cfg_parse_rp_clients: RP client configured -- first gss: %s\n", rp->gss_names[0]->buf);
       rp->next = trc->rp_clients;
       trc->rp_clients = rp;
     }
