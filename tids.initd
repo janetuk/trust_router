@@ -1,0 +1,108 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides: tids
+# Default-Start: 3 5
+# Default-Stop: 0 1 2 4 6
+# Required-Start: radiusd
+# Should-Start: $network
+# Short-Description: Starts Moonshot TIDS
+# Description: Starts the Moonshot Temporary ID Service
+### END INIT INFO
+# chkconfig: - 89 11
+#
+# description: Starts the Moonshot Temporary ID Service
+#
+# Source function library.
+. /etc/init.d/functions
+
+[ -z "$HOME" ] && export HOME=/
+
+usage() {
+    echo "Usage: $0 {start|stop|status}"
+}
+
+# Load the configuration
+[ -f /etc/sysconfig/tids ] || exit 6
+. /etc/sysconfig/tids
+
+# Create the PID and LOG directories
+[ -d ${TIDS_PIDDIR} ] || mkdir -p ${TIDS_PIDDIR} && chown ${TIDS_USER}:${TIDS_GROUP} ${TIDS_PIDDIR}
+[ -d ${TIDS_LOGDIR} ] || mkdir -p ${TIDS_LOGDIR} && chown ${TIDS_USER}:${TIDS_GROUP} ${TIDS_LOGDIR}
+
+# Some variables
+prog=/usr/bin/tids-wrapper
+PIDFILE="${TIDS_PIDDIR}/tids.pid"
+LOGFILE="${TIDS_LOGDIR}/tids.log"
+
+# Does the trust router and wrapper exist
+[ -x /usr/bin/tids ] || exit 5
+[ -x /usr/bin/tids-wrapper ] || exit 5
+
+[ -f ${LOGFILE} ] || touch ${LOGFILE} && chown ${TIDS_USER}:${TIDS_GROUP} ${LOGFILE}
+
+OPTIONS="${PIDFILE} ${LOGFILE} ${TIDS_SERVER_IP} ${TIDS_GSS_NAME} ${TIDS_SERVER_NAME} ${KEYFILE}"
+
+case "$1" in
+    start)
+        if [ -f ${PIDFILE} ] ;
+        then
+                OLD_PID=$(cat "${PIDFILE}")
+
+                if [ -d "/proc/${OLD_PID}" ] ;
+                then
+                        echo "Error: TIDS already running" ; exit 1
+                else
+                        rm ${PIDFILE}
+                fi
+        fi
+
+        timestamp=$(date)
+        echo "${timestamp} Starting TIDS..." >> ${LOGFILE}
+        echo -n "Starting TIDS..."
+        daemon --user="${TIDS_USER}" --pidfile="{PIDFILE}" "${prog}" "${OPTIONS}"
+        echo
+
+        exit $?
+        ;;
+    stop)
+        timestamp=$(date)
+        echo "${timestamp} Stopping TIDS..." >> ${LOGFILE}
+        echo -n "Stopping TIDS..."
+        if [ -f "${PIDFILE}" ] ;
+        then
+                killproc -p "${PIDFILE}" "${prog}"
+		echo
+	else
+		echo "TIDS does not appear to be running"
+	fi
+        exit $?
+        ;;
+    status)
+        if [ -f ${PIDFILE} ] ;
+        then
+                PID=$(cat "${PIDFILE}")
+
+                if [ -d "/proc/${PID}" ] ;
+                then
+                        echo "TIDS is running (pid ${PID})"
+                else
+                        if [ -e ${PIDFILE} ] ; then
+                                echo "TIDS appears to be dead but its PID file exists"
+                        else
+                                echo "TIDS appears to be stopped"
+                        fi
+                fi
+        else
+                echo "TIDS appears to be stopped"
+        fi
+        exit 0
+        ;;
+    reload | force-reload | condrestart | try-restart)
+        usage
+        exit 3
+        ;;
+    *)
+        usage
+        exit 2
+        ;;
+esac
