@@ -59,7 +59,7 @@ case "$1" in
         timestamp=$(date)
         echo "${timestamp} Starting TIDS..." >> ${LOGFILE}
         echo -n "Starting TIDS..."
-        daemon --user="${TIDS_USER}" --pidfile="{PIDFILE}" "${prog}" "${OPTIONS}"
+        daemon --user="${TIDS_USER}" --pidfile="${PIDFILE}" "${prog}" "${OPTIONS}"
         echo
 
         exit $?
