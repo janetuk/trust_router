@@ -1,8 +1,9 @@
 moonshot-trust-router (1.4-1) unstable; urgency=medium
 
   * New Upstream version
+  * Install tids init script, thanks Stefan Paetow
 
- -- Sam Hartman <hartmans@debian.org>  Fri, 26 Sep 2014 10:02:06 -0400
+ -- Sam Hartman <hartmans@debian.org>  Fri, 26 Sep 2014 10:45:18 -0400
 
 moonshot-trust-router (1.3.1-1) unstable; urgency=medium
 

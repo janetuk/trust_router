@@ -18,3 +18,6 @@ override_dh_auto_configure:
 
 override_dh_strip:
 	dh_strip --dbg-package=moonshot-trust-router-dbg
+
+override_dh_installinit:
+	dh_installinit --name tids
