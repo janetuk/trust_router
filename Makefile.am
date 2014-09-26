@@ -68,4 +68,5 @@ if HAVE_SYSTEMD
 systemdsystemunit_DATA = tids.service
 endif
 
-EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service
+EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service \
+	tr/manual.cfg tr/portal.cfg
