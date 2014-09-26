@@ -61,7 +61,7 @@ install -D -m 640 redhat/default-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_r
 install -D -m 640 redhat/tr-test-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/main.cfg
 install -D -m 640 redhat/sysconfig $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/trust_router
 install -D -m 640 redhat/sysconfig.tids $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/tids
-install -D -m 755 redhat/tids.initd $RPM_BUILD_ROOT/%{_initrddir}/tids
+install -D -m 755 redhat/tids.init $RPM_BUILD_ROOT/%{_initrddir}/tids
 
 # Link shared config
 ln -s ../../trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/trusts.cfg
