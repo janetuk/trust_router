@@ -1,0 +1,308 @@
+#!/bin/bash
+#
+# ntpd		This shell script takes care of starting and stopping
+#		trust_router.
+#
+# chkconfig: - 58 74
+# description: trust_router is the GSS-EAP trust routing daemon. \
+# GSS-EAP is an IETF standard for providing authentication across \
+# an insecure WAN. \
+
+### BEGIN INIT INFO
+# Provides: trust_router
+# Required-Start: $network $local_fs $remote_fs
+# Required-Stop: $network $local_fs $remote_fs
+# Should-Start: $syslog $named ntpdate
+# Should-Stop: $syslog $named
+# Short-Description: start and stop trust_router
+# Description: trust_router is the GSS-EAP trust routing daemon.
+#              GSS-EAP is an IETF standard for providing authentication
+#              across an insecure WAN.
+### END INIT INFO
+
+# Source function library.
+. /etc/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Load the instance configuration
+[ -f /etc/sysconfig/trust_router ] || exit 6
+. /etc/sysconfig/trust_router
+
+# Create the pidfile directory
+mkdir -p /var/run/trust_router
+chown trustrouter:trustrouter /var/run/trust_router
+
+# Does the trust router and wrapper exist
+[ -x /usr/bin/trust_router ] || exit 5
+[ -x /usr/bin/trust_router-wrapper ] || exit 5
+
+# Does the tidc client exist
+[ -x /usr/bin/tidc ] || exit 5
+[ -x /usr/bin/tidc-wrapper ] || exit 5
+
+prog="trust_router-wrapper"
+
+array_contains() {
+	local i
+
+	for i in "${@:2}" ;
+	do
+		[ "${i}" == "${1}" ] && return 0
+	done
+
+	return 1
+}
+
+execute-tidc() {
+	echo -n "Attempting to authenticate to instance ${current_instance}:${current_port}"
+
+	daemon --user="${current_user}" /usr/bin/tidc-wrapper "${current_test_acceptor}" "${current_test_rprealm}" "${current_test_community}" "${current_test_realm}" "${current_port}"
+	tidc_ret=$?
+
+	echo
+
+	return ${tidc_ret}
+}
+
+get-config() {
+	current_instance=${1}
+
+	if [ "${TR_CONFIG_USER[${current_instance}]+abc}" ] ;
+	then
+		current_user=${TR_CONFIG_USER[${current_instance}]}
+	else
+		current_user=${TR_DEFAULT_USER}
+	fi
+
+	if [ "${TR_CONFIG_PIDDIR[${current_instance}]+abc}" ] ;
+	then
+		current_piddir=${TR_CONFIG_PIDDIR[${current_instance}]}
+	else
+		current_piddir=${TR_DEFAULT_PIDDIR}
+	fi
+
+	if [ "${TR_CONFIG_CFGDIR[${current_instance}]+abc}" ] ;
+	then
+		current_cfgdir=${TR_CONFIG_CFGDIR[${current_instance}]}
+	else
+		current_cfgdir=${TR_DEFAULT_CFGDIR}
+	fi
+
+	if [ "${TR_CONFIG_LOGDIR[${current_instance}]+abc}" ] ;
+	then
+		current_logdir=${TR_CONFIG_LOGDIR[${current_instance}]}
+	else
+		current_logdir=${TR_DEFAULT_LOGDIR}
+	fi
+
+	if [ "${TR_CONFIG_PORT[${current_instance}]+abc}" ] ;
+	then
+		current_port=${TR_CONFIG_PORT[${current_instance}]}
+	else
+		current_port=${TR_DEFAULT_PORT}
+	fi
+
+	if [ "${TR_CONFIG_AUTOSTART[${current_instance}]+abc}" ] ;
+	then
+		current_autostart=${TR_CONFIG_AUTOSTART[${current_instance}]}
+	else
+		current_autostart=${TR_DEFAULT_AUTOSTART}
+	fi
+
+	if [ "${TR_CONFIG_ACCEPTOR[${current_instance}]+abc}" ] ;
+	then
+		current_test_acceptor=${TR_CONFIG_TEST_ACCEPTOR[${current_instance}]}
+	else
+		current_test_acceptor=${TR_DEFAULT_TEST_ACCEPTOR}
+	fi
+
+	if [ "${TR_CONFIG_RPREALM[${current_instance}]+abc}" ] ;
+	then
+		current_test_rprealm=${TR_CONFIG_TEST_RPREALM[${current_instance}]}
+	else
+		current_test_rprealm=${TR_DEFAULT_TEST_RPREALM}
+	fi
+
+	if [ "${TR_CONFIG_TEST_COMMUNITY[${current_instance}]+abc}" ] ;
+	then
+		current_test_community=${TR_CONFIG_TEST_COMMUNITY[${current_instance}]}
+	else
+		current_test_community=${TR_DEFAULT_TEST_COMMUNITY}
+	fi
+
+	if [ "${TR_CONFIG_TEST_REALM[${current_instance}]+abc}" ] ;
+	then
+		current_test_realm=${TR_CONFIG_TEST_REALM[${current_instance}]}
+	else
+		current_test_realm=${TR_DEFAULT_TEST_REALM}
+	fi
+}
+
+get-pidfile() {
+	echo "${current_piddir}/${current_instance}.pid"
+}
+
+start() {
+	[ "${EUID}" != "0" ] && exit 4
+	[ "${NETWORKING}" = "no" ] && exit 1
+
+	start_ret=0
+
+	for i in "${TR_INSTANCES[@]}"
+	do
+		get-config "${i}"
+
+		if ${current_autostart} ;
+		then
+			start-instance
+			let "start_ret+=$?"
+		else
+			echo "Skipping instance ${current_instance}"
+		fi
+	done
+
+	return "${start_ret}"
+}
+
+start-single() {
+       	if array_contains "${1}" "${TR_INSTANCES[@]}" ;
+       	then
+            	get-config "${1}"
+
+		start-instance
+		return $?
+       	else
+               	echo "Instance ${1} not found..."
+
+                return 1
+       	fi
+}
+
+start-instance() {
+	pidfile=$(get-pidfile)
+	logfile="${current_logdir}/${current_instance}.log"
+	cfgdir="${current_cfgdir}/${current_instance}/"
+
+	OPTIONS="${pidfile} ${cfgdir} ${logfile}"
+
+	if [ -f "${pidfile}" ] ;
+	then
+		local OLD_PID=$(cat "${pidfile}")
+
+		if [ -d "/proc/${OLD_PID}" ] ;
+		then
+			echo "Instance ${current_instance} is already running..."
+		else
+			echo "Removing stale PID file..."
+			rm "${pidfile}"
+
+			start-instance
+			return $?
+		fi
+	else
+		echo -n "Starting instance ${current_instance}..."
+		daemon --user="${current_user}" --pidfile="${pidfile}" "${prog}" "${OPTIONS}"
+		echo
+	fi
+
+	# Give it a few seconds for things to settle
+	sleep 2
+
+	execute-tidc
+	return $?
+}
+
+stop() {
+	[ "${EUID}" != "0" ] && exit 4
+        [ "${NETWORKING}" = "no" ] && exit 1
+
+        for i in "${TR_INSTANCES[@]}"
+       	do
+               	get-config "${i}"
+
+		pidfile=$(get-pidfile)
+
+		if [ -f "${pidfile}" ] ;
+		then
+			stop-instance
+		else
+			echo "Instance ${i} does not appear to be running..."
+		fi
+	done
+}
+
+stop-single() {
+	if array_contains "${1}" "${TR_INSTANCES[@]}" ;
+	then
+		get-config "${1}"
+
+		stop-instance
+	else
+		echo "Instance ${1} not found..."
+
+		return 1
+	fi
+
+	return 0
+}
+
+stop-instance() {
+	if [ -f "$(get-pidfile)" ]  ;
+	then
+		echo -n "Stopping instance ${current_instance}..."
+
+		killproc -p "$(get-pidfile)" "${prog}"
+		echo
+	else
+		echo "Instance ${current_instance} does not appear to be running..."
+	fi
+}
+
+status() {
+       	[ "${EUID}" != "0" ] && exit 4
+       	[ "${NETWORKING}" = "no" ] && exit 1
+
+	start_ret=0
+
+       	for i in "${TR_INSTANCES[@]}"
+        do
+               	get-config "${i}"
+
+		execute-tidc
+                let "exec_ret+=$?"
+        done
+
+       	return "${exec_ret}"
+}
+
+
+# See how we were called.
+case "${1}" in
+  start)
+	start
+	;;
+  start-single)
+	start-single "${2}"
+	;;
+  stop)
+	stop
+	;;
+  stop-single)
+	stop-single "${2}"
+	;;
+  status)
+	status "${prog}"
+	;;
+  restart|force-reload)
+	stop
+	start
+	;;
+  reload)
+	exit 3
+	;;
+  *)
+	echo "Usage: ${0} {start|start-single|stop|stop-single|status|restart|force-reload}"
+	exit 2
+esac

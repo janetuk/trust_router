@@ -62,6 +62,7 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tid_internal.h
 
 pkgdata_DATA=schema.sql
+nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/trusts.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-main.cfg redhat/default-main.cfg
 
 if HAVE_SYSTEMD
 systemdsystemunit_DATA = tids.service

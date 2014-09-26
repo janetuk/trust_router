@@ -1,0 +1,44 @@
+##
+## Declare an id tag for each trust router instance
+##
+
+TR_INSTANCES[0]="default"
+TR_INSTANCES[1]="tr-test"
+
+##
+## Declare the default configuration
+##
+
+TR_DEFAULT_USER="trustrouter"                    # Username to execute the trust router as
+TR_DEFAULT_PIDDIR="/var/run/trust_router"        # Directory to store PIDFile in 
+TR_DEFAULT_CFGDIR="/etc/trust_router/conf.d"     # Config directory
+TR_DEFAULT_LOGDIR="/var/log/trust_router"        # Trust router log directories
+TR_DEFAULT_AUTOSTART=true                        # Default autostart state
+TR_DEFAULT_PORT=12309                            # Port instance should be running on
+TR_DEFAULT_TEST_ACCEPTOR="tr.moonshot.local"     # Acceptor name to expect when testing
+TR_DEFAULT_TEST_RPREALM="apc.moonshot.local"     # RP Realm to assert when testing
+TR_DEFAULT_TEST_COMMUNITY="apc.moonshot.local"   # Community to query when testing
+TR_DEFAULT_TEST_REALM="apc.moonshot.local"       # Realm to request when testing
+
+## 
+## Declare the configuration arrays
+##
+
+declare -A TR_CONFIG_USER
+declare -A TR_CONFIG_PIDDIR
+declare -A TR_CONFIG_CFGDIR
+declare -A TR_CONFIG_LOGDIR
+declare -A TR_CONFIG_PORT
+declare -A TR_CONFIG_AUTOSTART
+declare -A TR_CONFIG_TEST_ACCEPTOR
+declare -A TR_CONFIG_TEST_RPREALM
+declare -A TR_CONFIG_TEST_COMMUNITY
+declare -A TR_CONFIG_TEST_REALM
+ 
+##
+## Override the default configuation for each instance as required
+##
+
+TR_CONFIG_PORT[tr-test]=12345
+TR_CONFIG_AUTOSTART[tr-test]=false
+

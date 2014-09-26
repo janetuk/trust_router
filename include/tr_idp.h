@@ -46,7 +46,7 @@ typedef struct tr_aaa_server {
 
 typedef struct tr_idp_realm {
   struct tr_idp_realm *next;
-  struct tr_idp_realm *comm_next; /* for link list in comm config */
+  struct tr_idp_realm *comm_next; /* for linked list in comm config */
   TR_NAME *realm_id;
   int shared_config;
   TR_AAA_SERVER *aaa_servers;
@@ -54,5 +54,5 @@ typedef struct tr_idp_realm {
 } TR_IDP_REALM;
   
 TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_NAME *comm);
-
+TR_AAA_SERVER *tr_default_server_lookup(TR_INSTANCE *tr, TR_NAME *comm);
 #endif
