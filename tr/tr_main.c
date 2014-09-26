@@ -119,15 +119,10 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
     return -1;
   }
-  /* Check that the rp_realm and target_realm are members of the community in the request */
+  /* Check that the rp_realm is a member of the community in the request */
   if (NULL == (tr_find_comm_rp(cfg_comm, orig_req->rp_realm))) {
-    fprintf(stderr, "tr_tids_req_hander: RP Realm (%s) not member of community (%s).\n", orig_req->rp_realm->buf, orig_req->comm->buf);
+    fprintf(stderr, "tr_tids_req_handler: RP Realm (%s) not member of community (%s).\n", orig_req->rp_realm->buf, orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "RP COI membership error");
-    return -1;
-  }
-  if (NULL == (tr_find_comm_idp(cfg_comm, orig_req->realm))) {
-    fprintf(stderr, "tr_tids_req_hander: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "IDP COI membership error");
     return -1;
   }
 
@@ -152,15 +147,10 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     fwd_req->comm = apc;
     fwd_req->orig_coi = orig_req->comm;
 
-    /* Check that rp_realm and target_realm are members of this APC */
+    /* Check that rp_realm is a  member of this APC */
     if (NULL == (tr_find_comm_rp(cfg_apc, orig_req->rp_realm))) {
       fprintf(stderr, "tr_tids_req_hander: RP Realm (%s) not member of community (%s).\n", orig_req->rp_realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "RP APC membership error");
-      return -1;
-    }
-    if (NULL == (tr_find_comm_idp(cfg_apc, orig_req->realm))) {
-      fprintf(stderr, "tr_tids_req_hander: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
-      tids_send_err_response(tids, orig_req, "IDP APC membership error");
       return -1;
     }
   }
@@ -169,10 +159,27 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   if (NULL == (aaa_servers = tr_idp_aaa_server_lookup((TR_INSTANCE *)tids->cookie, 
 						      orig_req->realm, 
 						      orig_req->comm))) {
-      fprintf(stderr, "tr_tids_req_handler: No AAA Servers for realm %s.\n", orig_req->realm->buf);
+      fprintf(stderr, "tr_tids_req_handler: No AAA Servers for realm %s, defaulting.\n", orig_req->realm->buf);
+      if (NULL == (aaa_servers = tr_default_server_lookup ((TR_INSTANCE *)tids->cookie,
+							   orig_req->comm))) {
+	fprintf(stderr, "tr_tids_req_handler: No default AAA servers, discarded.\n");
       tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
       return -1;
+      }
+  } else {
+    /* if we aren't defaulting, check idp coi and apc membership */
+    if (NULL == (tr_find_comm_idp(cfg_comm, fwd_req->orig_coi))) {
+      fprintf(stderr, "tr_tids_req_hander: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
+      tids_send_err_response(tids, orig_req, "IDP COI membership error");
+      return -1;
     }
+    if (NULL == (tr_find_comm_idp(cfg_apc, fwd_req->comm))) {
+      fprintf(stderr, "tr_tids_req_hander: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
+      tids_send_err_response(tids, orig_req, "IDP APC membership error");
+      return -1;
+    }
+  }
+
   /* send a TID request to the AAA server(s), and get the answer(s) */
   /* TBD -- Handle multiple servers */
 
@@ -239,7 +246,6 @@ int main (int argc, const char *argv[])
 {
   TR_INSTANCE *tr = NULL;
   struct dirent **cfg_files = NULL;
-  json_t *jcfg = NULL;
   TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
   int err = 0, n = 0;;
 
@@ -257,12 +263,7 @@ int main (int argc, const char *argv[])
     exit(1);
   }
 
-  /* read and parse initial configuration */
-  if (NULL == (jcfg = tr_read_config (n, cfg_files))) {
-    fprintf (stderr, "Error reading or parsing configuration files, exiting.\n");
-    exit(1);
-  }
-  if (TR_CFG_SUCCESS != tr_parse_config(tr, jcfg)) {
+  if (TR_CFG_SUCCESS != tr_parse_config(tr, n, cfg_files)) {
     fprintf (stderr, "Error decoding configuration information, exiting.\n");
     exit(1);
   }

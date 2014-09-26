@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+
+cd "${2}"
+
+/usr/bin/trust_router > "${3}.$(date +'%Y%m%d%H%M')" 2>&1 &
+BGPID=$!
+RET=$?
+
+echo "${BGPID}" > "${1}"
+
+exit "${RET}"
