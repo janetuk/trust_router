@@ -1,3 +1,9 @@
+moonshot-trust-router (1.4-2) unstable; urgency=medium
+
+  * Update to fix bug in init script, Thanks Stefan
+
+ -- Sam Hartman <hartmans@debian.org>  Tue, 30 Sep 2014 14:53:39 -0400
+
 moonshot-trust-router (1.4-1) unstable; urgency=medium
 
   * New Upstream version
