@@ -20,7 +20,7 @@ case "$1" in
         if dpkg --compare-versions "$2" lt 1.2-2; then
 	    adduser --system --home /var/lib/trust_router --group --disabled-login trustrouter
 	    fi
-    
+	su -p -c "/usr/bin/sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys" trustrouter ||true
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
