@@ -1,3 +1,10 @@
+moonshot-trust-router (1.4-4) unstable; urgency=medium
+
+  * postinst quiet about user creation
+  * tids.init:fix run levels
+
+ -- Sam Hartman <hartmans@debian.org>  Wed, 01 Oct 2014 13:51:36 -0400
+
 moonshot-trust-router (1.4-3) unstable; urgency=medium
 
   * Create a schema on upgrade or install
