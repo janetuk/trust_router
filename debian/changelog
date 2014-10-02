@@ -1,3 +1,9 @@
+moonshot-trust-router (1.4-5) unstable; urgency=medium
+
+  * Even more debugging
+
+ -- Sam Hartman <hartmans@debian.org>  Thu, 02 Oct 2014 16:01:30 -0400
+
 moonshot-trust-router (1.4-4) unstable; urgency=medium
 
   * postinst quiet about user creation
