@@ -14,6 +14,9 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
+exec >/tr.log
+exec 2>&1
+env
 
 case "$1" in
     configure)
