@@ -14,15 +14,13 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-set -x
-env
 
 case "$1" in
     configure)
         if dpkg --compare-versions "$2" lt 1.2-2; then
 	    adduser --quiet --system --home /var/lib/trust_router --group --disabled-login trustrouter
 	    fi
-	strace -f -F su -p -c "/usr/bin/sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys" trustrouter ||bash
+	su -s /bin/sh  -c "/usr/bin/sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys" trustrouter ||true
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

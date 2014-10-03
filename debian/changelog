@@ -1,3 +1,9 @@
+moonshot-trust-router (1.4-7) unstable; urgency=medium
+
+  * Remove debugging and fix postinst script to work when SHELL is not set.
+
+ -- Sam Hartman <hartmans@debian.org>  Fri, 03 Oct 2014 10:20:15 -0400
+
 moonshot-trust-router (1.4-6) unstable; urgency=medium
 
   * Even more debugging
