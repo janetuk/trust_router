@@ -3,9 +3,9 @@
 # Provides: tids
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1  6
-# Required-Start: $freeradius
-# Required-Stop:
-# Should-Start: $network
+# Required-Start: $local_fs $remote_fs $network
+# Required-Stop:local_fs $remote_fs $network
+# Should-Start: freeradius
 # Short-Description: Starts Moonshot TIDS
 # Description: Starts the Moonshot Temporary ID Service
 ### END INIT INFO

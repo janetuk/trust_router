@@ -1,3 +1,12 @@
+moonshot-trust-router (1.4-9) unstable; urgency=medium
+
+  * Fix lintian errors:
+      - Update LSB header for tids init script
+      - Make tids wrapper executable
+      - Override things lintian gets wrong
+
+ -- Sam Hartman <hartmans@debian.org>  Fri, 03 Oct 2014 16:22:31 -0400
+
 moonshot-trust-router (1.4-8) unstable; urgency=medium
 
   * Fix umask of database

@@ -15,6 +15,9 @@
 override_dh_auto_configure:
 	dh_auto_configure -- --with-systemdsystemunitdir=/lib/systemd/system
 
+override_dh_install:
+	chmod a+x debian/tids-wrapper
+	dh_install
 
 override_dh_strip:
 	dh_strip --dbg-package=moonshot-trust-router-dbg
