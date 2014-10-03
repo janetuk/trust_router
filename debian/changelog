@@ -1,3 +1,9 @@
+moonshot-trust-router (1.4-8) unstable; urgency=medium
+
+  * Fix umask of database
+
+ -- Sam Hartman <hartmans@debian.org>  Fri, 03 Oct 2014 11:15:57 -0400
+
 moonshot-trust-router (1.4-7) unstable; urgency=medium
 
   * Remove debugging and fix postinst script to work when SHELL is not set.
