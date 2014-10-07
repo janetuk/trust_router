@@ -168,13 +168,13 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
       }
   } else {
     /* if we aren't defaulting, check idp coi and apc membership */
-    if (NULL == (tr_find_comm_idp(cfg_comm, fwd_req->orig_coi))) {
-      fprintf(stderr, "tr_tids_req_hander: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
-      tids_send_err_response(tids, orig_req, "IDP COI membership error");
+    if (NULL == (tr_find_comm_idp(cfg_comm, fwd_req->realm))) {
+      fprintf(stderr, "tr_tids_req_handler: IDP Realm (%s) not member of community (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
+      tids_send_err_response(tids, orig_req, "IDP community membership error");
       return -1;
     }
-    if (NULL == (tr_find_comm_idp(cfg_apc, fwd_req->comm))) {
-      fprintf(stderr, "tr_tids_req_hander: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
+    if ( cfg_apc && (NULL == (tr_find_comm_idp(cfg_apc, fwd_req->realm)))) {
+      fprintf(stderr, "tr_tids_req_handler: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "IDP APC membership error");
       return -1;
     }
