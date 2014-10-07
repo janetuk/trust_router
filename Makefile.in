@@ -658,9 +658,12 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tid_internal.h
 
 pkgdata_DATA = schema.sql
-nobase_dist_pkgdata_DATA = redhat/init redhat/sysconfig redhat/trusts.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-main.cfg redhat/default-main.cfg
+nobase_dist_pkgdata_DATA = redhat/init redhat/sysconfig redhat/trusts.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-main.cfg redhat/default-main.cfg redhat/tids-wrapper redhat/sysconfig.tids
 @HAVE_SYSTEMD_TRUE@systemdsystemunit_DATA = tids.service
-EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service
+EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service \
+	tr/manual.cfg tr/portal.cfg \
+	redhat/tids.init
+
 all: all-recursive
 
 .SUFFIXES:

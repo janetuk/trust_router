@@ -1,4 +1,4 @@
-From f160512b61d2358ed18641941dfaffe6ff780a9b Mon Sep 17 00:00:00 2001
+From cee86495bad5c1f6d019cfc73c47fb86562dc0b2 Mon Sep 17 00:00:00 2001
 From: Sam Hartman <hartmans@debian.org>
 Date: Wed, 27 Aug 2014 19:05:15 -0400
 Subject: gitignore
