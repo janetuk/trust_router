@@ -367,7 +367,6 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_CFG *trc, json_t *jrp, TR_CF
   /* TBD -- support more than one filter entry per RP Client? */
   if (NULL == (rp->filter = tr_cfg_parse_one_filter(trc, jfilt, rc))) {
     fprintf(stderr, "tr_cfg_parse_one_rp_client: Error parsing filter.\n");
-    free(rp);
     *rc = TR_CFG_NOPARSE;
     return NULL;
   }
@@ -375,7 +374,6 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_CFG *trc, json_t *jrp, TR_CF
   for (i = 0; i < json_array_size(jgns); i++) {
     if (NULL == (rp->gss_names[i] = tr_new_name ((char *)json_string_value(json_array_get(jgns, i))))) {
       fprintf(stderr, "tr_cfg_parse_one_rp_client: No memory for GSS Name.\n");
-      free(rp);
       *rc = TR_CFG_NOMEM;
       return NULL;
     }
@@ -517,7 +515,6 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
       (NULL == (jsrvrs = json_object_get(jidp, "aaa_servers"))) ||
       (!json_is_array(jsrvrs))) {
     fprintf(stderr, "tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration.\n");
-    free(idp);
     *rc = TR_CFG_NOPARSE;
     return NULL;
   }
@@ -529,7 +526,6 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
   }
 
   if (NULL == (idp->realm_id = tr_new_name((char *)json_string_value(jrid)))) {
-    free(idp);
     fprintf(stderr, "tr_cfg_parse_one_idp_realm: No memory for realm id.\n");
     *rc = TR_CFG_NOMEM;
     return NULL;
@@ -538,7 +534,6 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
   if (NULL == (idp->aaa_servers = tr_cfg_parse_aaa_servers(trc, jsrvrs, rc))) {
     fprintf(stderr, "tr_cfg_parse_one_idp_realm: Can't parse AAA servers for realm %s.\n", idp->realm_id->buf);
     tr_free_name(idp->realm_id);
-    free(idp);
     return NULL;
   }
 
@@ -548,7 +543,6 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
       fprintf(stderr, "tr_cfg_parse_one_idp_realm: Can't parse APCs for realm %s .\n", idp->realm_id->buf);
       tr_free_name(idp->realm_id);
       /* TBD -- free aaa_servers */;
-      free(idp);
       return NULL;
     }
   } 
@@ -714,13 +708,11 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
       (NULL == (jrps = json_object_get(jcomm, "rp_realms"))) ||
       (!json_is_array(jrps))) {
     fprintf(stderr, "tr_cfg_parse_one_comm: Error parsing Communities configuration.\n");
-    free(comm);
     *rc = TR_CFG_NOPARSE;
     return NULL;
   }
 
   if (NULL == (comm->id = tr_new_name((char *)json_string_value(jid)))) {
-    free(comm);
     fprintf(stderr, "tr_cfg_parse_one_comm: No memory for community id.\n");
     *rc = TR_CFG_NOMEM;
     return NULL;
@@ -733,13 +725,11 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
     if (NULL == (comm->apcs = tr_cfg_parse_apcs(trc, japcs, rc))) {
       fprintf(stderr, "tr_cfg_parse_one_comm: Can't parse APCs for COI %s.\n", comm->id->buf);
       tr_free_name(comm->id);
-      free(comm);
       return NULL;
     }
   } else {
     fprintf(stderr, "tr_cfg_parse_one_comm: Invalid community type, comm = %s, type = %s\n", comm->id->buf, json_string_value(jtype));
     tr_free_name(comm->id);
-    free(comm);
     *rc = TR_CFG_NOPARSE;
     return NULL;
   }
@@ -748,7 +738,6 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
   if (TR_CFG_SUCCESS != *rc) {
     fprintf(stderr, "tr_cfg_parse_one_comm: Can't parse IDP realms for comm %s.\n", comm->id->buf);
     tr_free_name(comm->id);
-    free(comm);
     return NULL;
   }
 
@@ -757,7 +746,6 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
     fprintf(stderr, "tr_cfg_parse_comm: Can't parse RP realms for comm %s .\n", comm->id->buf);
     tr_free_name(comm->id);
     /* TBD -- free idps? */;
-    free(comm);
     return NULL;
   }
 
