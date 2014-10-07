@@ -1,3 +1,10 @@
+moonshot-trust-router (1.4.1-1) unstable; urgency=medium
+
+  * New upstream version
+    * Fix major bug in handling of community lookups when defaulting is not used.
+
+ -- Sam Hartman <hartmans@debian.org>  Tue, 07 Oct 2014 07:19:13 -0400
+
 moonshot-trust-router (1.4-9) unstable; urgency=medium
 
   * Fix lintian errors:
