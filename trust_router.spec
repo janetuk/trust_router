@@ -1,6 +1,6 @@
 %global optflags %{optflags} -Wno-parentheses
 Name:           trust_router
-Version:        1.4
+Version:        1.4.1
 Release:        1%{?dist}
 Summary:        Moonshot Trust Router
 
