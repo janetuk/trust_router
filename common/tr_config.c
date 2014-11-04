@@ -570,7 +570,7 @@ static TR_CFG_RC tr_cfg_parse_default_servers (TR_CFG *trc, json_t *jcfg)
 						  &rc))) {
 	return rc;
       }
-      fprintf(stderr, "tr_cfg_parse_default_servers: Default server configured.\n");
+      fprintf(stderr, "tr_cfg_parse_default_servers: Default server configured: %s.\n", ds->hostname->buf);
       ds->next = trc->default_servers;
       trc->default_servers = ds;
     }
