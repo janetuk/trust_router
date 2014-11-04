@@ -1,3 +1,9 @@
+moonshot-trust-router (1.4.1-2) unstable; urgency=medium
+
+  * Print default realm from Config  (LP: #1386654)
+
+ -- Sam Hartman <hartmans@debian.org>  Tue, 04 Nov 2014 15:50:04 -0500
+
 moonshot-trust-router (1.4.1-1) unstable; urgency=medium
 
   * New upstream version
