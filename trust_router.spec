@@ -1,7 +1,7 @@
 %global optflags %{optflags} -Wno-parentheses
 Name:           trust_router
-Version:        1.4.1
-Release:        3%{?dist}
+Version:        1.4
+Release:        1%{?dist}
 Summary:        Moonshot Trust Router
 
 Group:          System Environment/Libraries
@@ -82,7 +82,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %pre
 getent group trustrouter > /dev/null || groupadd -r trustrouter
-getent passwd trustrouter > /dev/null || useradd -r -g trustrouter -d /var/lib/trust_router -s /sbin/nologin -c "GSS-EAP Trust Router service account" trustrouter
+getent passwd trustrouter > /dev/null || useradd -r -g trustrouter -d /var/lib/trustrouter -s /sbin/nologin -c "GSS-EAP Trust Router service account" trustrouter
 exit 0
 
 

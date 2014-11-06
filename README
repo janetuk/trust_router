@@ -21,22 +21,24 @@ DONE - Resolve TBDs for error handling and deallocation
 
 TO-DO FOR FULL PILOT VERSION (by July 1, 2013)
 ============================
-DONE Check rp_realm COI membership in TR 
-DONE Check idp_realm APC membership in TR 
-DONE Check gss_name on incoming TID request in TR (in TIDS, too?)
+- Check rp_realm COI membership in TR 
+- Check idp_realm APC membership in TR 
+- Add key confirmation to TID protocol
+- Check gss_name on incoming TID request in TR (in TIDS, too?)
 - Add Request ID to TID messages (req'd for mult simultaneous reqs)
+- Fix issue with how DH params are handled in the TR (API clean-up)
 - Handle per-request community configuration in AAA proxy
 - Normalize/configure logging for info, warnings and errors (log4c)
 - Clean-up gsscon API and messages
-DONE Add accessors for all externally accessible data structures, etc.
-DONE Formalize API for integration with RADIUS servers
-DONE Figure out what to do about commented-out checks in gsscon_passive.c
+- Add accessors for all externally accessible data structures, etc.
+- Formalize API for integration with RADIUS servers
+- Figure out what to do about commented-out checks in gsscon_passive.c
 - Handle IPv6 addresses in TID req/resp (use getaddrinfo())
-DONE Implement rp_permitted filters (incl. general filtering mechanism)
-DONE Add constraints to TID req in TR, store and use them in AAA Server
+- Implement rp_permitted filters (incl. general filtering mechanism)
+- Add constraints to TID req in TR, store and use them in AAA Server
 - Use valgrind to check for memory leaks, other issues
 - Resolve remaining TBDs
-DONE Full functional testing
+- Full functional testing
 
 TO-DO FOR PRODUCTION VERSION (expected in August 2013)
 ============================
