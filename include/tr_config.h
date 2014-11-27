@@ -47,6 +47,7 @@
 #define TR_DEFAULT_MAX_TREE_DEPTH 12
 #define TR_DEFAULT_TR_PORT 12308
 #define TR_DEFAULT_TIDS_PORT 12309
+#define TR_DEFAULT_EXTLOG 0
 
 typedef enum tr_cfg_rc {
   TR_CFG_SUCCESS = 0,	/* No error */
@@ -60,6 +61,7 @@ typedef struct tr_cfg_internal {
   unsigned int max_tree_depth;
   unsigned int tids_port;
   const char *hostname;
+  unsigned int extlog;
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {

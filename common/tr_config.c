@@ -39,6 +39,7 @@
 #include <talloc.h>
 
 #include <tr_config.h>
+#include <trust_router/tr_extlog.h>
 #include <tr.h>
 #include <tr_filter.h>
 #include <trust_router/tr_constraint.h>
@@ -61,6 +62,16 @@ TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr) {
     tr_cfg_free(tr->active_cfg);
 
   tr->active_cfg = tr->new_cfg;
+
+  /* flip external logging status */
+  if (tr->active_cfg->internal->extlog) {
+    tr_extlog_enable();
+    fprintf(stderr, "tr_apply_new_config: External logging enabled.\n");
+  } else {
+    tr_extlog_disable();
+    fprintf(stderr, "tr_apply_new_config: External logging disabled.\n");
+  }
+
   return TR_CFG_SUCCESS;
 }
 
@@ -69,6 +80,7 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
   json_t *jmtd = NULL;
   json_t *jtp = NULL;
   json_t *jhname = NULL;
+  json_t *jextlog = NULL;
 
   if ((!trc) || (!jcfg))
     return TR_CFG_BAD_PARAMS;
@@ -110,6 +122,17 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
 	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, hostname is not a string.\n");
 	return TR_CFG_NOPARSE;
       }
+    }
+    if (NULL != (jextlog = json_object_get(jint, "extlog"))) {
+      if (json_is_boolean(jextlog)) {
+        trc->internal->extlog = json_is_true(jextlog);
+      } else {
+	fprintf(stderr,"tr_cfg_parse_internal: Parsing error, extlog is not a boolean.\n");
+	return TR_CFG_NOPARSE;
+      }
+    } else {
+      /* If not configured, use the default */
+      trc->internal->extlog = TR_DEFAULT_EXTLOG;
     }
     fprintf(stderr, "tr_cfg_parse_internal: Internal config parsed.\n");
     return TR_CFG_SUCCESS;
