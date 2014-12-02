@@ -42,6 +42,7 @@
 #include <tr_comm.h>
 #include <tr_idp.h>
 #include <tr_rp.h>
+#include <trust_router/tr_extlog.h>
 
 /* Structure to hold TR instance and original request in one cookie */
 typedef struct tr_resp_cookie {
@@ -282,6 +283,7 @@ int main (int argc, const char *argv[])
 
   /* start the trust path query server, won't return unless fatal error. */
   if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, &tr_tids_gss_handler, tr->active_cfg->internal->hostname, tr->active_cfg->internal->tids_port, (void *)tr))) {
+    tr_extlog_simple("Trust Path Query Server failed on host %s:%d.", tr->active_cfg->internal->hostname, tr->active_cfg->internal->tids_port);
     fprintf (stderr, "Error from Trust Path Query Server, err = %d.\n", err);
     exit(err);
   }
