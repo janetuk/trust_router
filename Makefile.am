@@ -9,7 +9,8 @@ common_srcs = common/tr_name.c \
 	common/jansson_iterators.h \
 	common/tr_msg.c \
 	common/tr_dh.c \
-	common/tr_util.c
+	common/tr_util.c \
+        common/tr_extlog.c
 
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint
@@ -51,7 +52,8 @@ libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 2 -no-undefined
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/trust_router/tr_dh.h \
 	include/trust_router/tr_constraint.h \
-	include/trust_router/tr_versioning.h 
+	include/trust_router/tr_versioning.h \
+        include/trust_router/tr_extlog.h
 
 noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_debug.h \
