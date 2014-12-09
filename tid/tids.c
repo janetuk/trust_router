@@ -45,6 +45,7 @@
 #include <talloc.h>
 #include <tid_internal.h>
 #include <gsscon.h>
+#include <tr_debug.h>
 #include <tr_msg.h>
 
 static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req) 
@@ -266,15 +267,24 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
   
   if (NULL == (resp_buf = tr_msg_encode(&mresp))) {
     fprintf(stderr, "tids_send_response: Error encoding json response.\n");
+    tr_audit_req(req);
+
     return -1;
   }
 
   fprintf(stderr, "tids_send_response: Encoded response:\n%s\n", resp_buf);
   
+  /* If external logging is enabled, fire off a message */
+  /* TODO Can be moved to end once segfault in gsscon_write_encrypted_token fixed */
+  tr_audit_resp(resp);
+
   /* Send the response over the connection */
   if (err = gsscon_write_encrypted_token (req->conn, req->gssctx, resp_buf, 
 					  strlen(resp_buf) + 1)) {
     fprintf(stderr, "tids_send_response: Error sending response over connection.\n");
+
+    tr_audit_req(req);
+
     return -1;
   }
 
@@ -368,6 +378,8 @@ int tids_start (TIDS_INSTANCE *tids,
   tids->hostname = hostname;
   tids->cookie = cookie;
 
+  tr_info("Trust Path Query Server starting on host %s:%d.", hostname, port);
+
   while(1) {	/* accept incoming conns until we are stopped */
 
     if (0 > (conn = accept(listen, NULL, NULL))) {
@@ -398,6 +410,9 @@ int tids_start (TIDS_INSTANCE *tids,
 
 void tids_destroy (TIDS_INSTANCE *tids)
 {
+  /* close syslog connection if syslog is enabled */
+  tr_log_close();
+
   if (tids)
     free(tids);
 }
