@@ -37,6 +37,7 @@
 #include <talloc.h>
 
 #include <gsscon.h>
+#include <tr_debug.h>
 #include <tid_internal.h>
 #include <trust_router/tr_dh.h>
 
@@ -98,7 +99,11 @@ int main (int argc,
   int rc;
   gss_ctx_id_t gssctx;
 
+  /* set logging levels */
   talloc_set_log_stderr();
+  tr_log_threshold(LOG_CRIT);
+  tr_console_threshold(LOG_DEBUG);
+
   /* Parse command-line arguments */ 
   if (argc < 5 || argc > 6) {
     tidc_print_usage(argv[0]);

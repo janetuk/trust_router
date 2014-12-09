@@ -36,13 +36,14 @@
 #include <tr_rp.h>
 #include <tr_config.h>
 #include <tr.h>
+#include <tr_debug.h>
 
 TR_RP_CLIENT *tr_rp_client_lookup(TR_INSTANCE *tr, TR_NAME *gss_name) {
   TR_RP_CLIENT *rp = NULL;
   int i = 0;
 
   if ((!tr) || (!tr->active_cfg) || (!gss_name)) {
-    fprintf(stderr, "tr_rp_client_lookup: Bad parameters.\n");
+    tr_debug("tr_rp_client_lookup: Bad parameters.");
     return NULL;
   }
 

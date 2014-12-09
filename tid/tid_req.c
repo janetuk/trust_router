@@ -38,6 +38,8 @@
 #include <talloc.h>
 
 #include <tid_internal.h>
+#include <tr_debug.h>
+
 #include <jansson.h>
 
 static int destroy_tid_req(TID_REQ *req)
@@ -174,7 +176,7 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
   TID_REQ *new_req = NULL;
 
   if (NULL == (new_req = malloc(sizeof(TID_REQ)))) {
-    fprintf(stderr, "tid_dup_req: Can't allocated duplicate request.\n");
+    tr_crit("tid_dup_req: Can't allocated duplicate request.");
     return NULL;
   }
 
@@ -185,12 +187,12 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
   if ((NULL == (new_req->rp_realm = tr_dup_name(orig_req->rp_realm))) ||
       (NULL == (new_req->realm = tr_dup_name(orig_req->realm))) ||
       (NULL == (new_req->comm = tr_dup_name(orig_req->comm)))) {
-	fprintf(stderr, "tid_dup_req: Can't duplicate request (names).\n");
+	tr_crit("tid_dup_req: Can't duplicate request (names).");
   }
 
   if (orig_req->orig_coi) {
     if (NULL == (new_req->orig_coi = tr_dup_name(orig_req->orig_coi))) {
-      fprintf(stderr, "tid_dup_req: Can't duplicate request (orig_coi).\n");
+      tr_crit("tid_dup_req: Can't duplicate request (orig_coi).");
     }
   }
   

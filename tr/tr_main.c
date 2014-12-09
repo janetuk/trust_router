@@ -42,6 +42,7 @@
 #include <tr_comm.h>
 #include <tr_idp.h>
 #include <tr_rp.h>
+#include <tr_debug.h>
 
 /* Structure to hold TR instance and original request in one cookie */
 typedef struct tr_resp_cookie {
@@ -55,7 +56,7 @@ static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc,
 			TID_RESP *resp, 
 			void *resp_cookie) 
 {
-  fprintf(stderr, "tr_tidc_resp_handler: Response received (conn = %d)! Realm = %s, Community = %s.\n", ((TR_RESP_COOKIE *)resp_cookie)->orig_req->conn, resp->realm->buf, resp->comm->buf);
+  tr_debug("tr_tidc_resp_handler: Response received (conn = %d)! Realm = %s, Community = %s.", ((TR_RESP_COOKIE *)resp_cookie)->orig_req->conn, resp->realm->buf, resp->comm->buf);
   req->resp_rcvd = 1;
 
   /* TBD -- handle concatentation of multiple responses to single req */
@@ -82,23 +83,23 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   int rc = 0;
 
   if ((!tids) || (!orig_req) || (!resp) ||  (!tr)) {
-    fprintf(stderr, "tids_req_handler: Bad parameters\n");
+    tr_debug("tr_tids_req_handler: Bad parameters");
     return -1;
   }
 
-  fprintf(stdout, "tr_tids_req_handler: Request received (conn = %d)! Realm = %s, Comm = %s\n", orig_req->conn, 
+  tr_debug("tr_tids_req_handler: Request received (conn = %d)! Realm = %s, Comm = %s", orig_req->conn, 
 	 orig_req->realm->buf, orig_req->comm->buf);
   if (tids)
     tids->req_count++;
 
   /* Duplicate the request, so we can modify and forward it */
   if (NULL == (fwd_req = tid_dup_req(orig_req))) {
-    fprintf(stderr, "tr_tids_req_handler: Unable to duplicate request.\n");
+    tr_debug("tr_tids_req_handler: Unable to duplicate request.");
     return -1;
   }
 
   if (NULL == (cfg_comm = tr_comm_lookup((TR_INSTANCE *)tids->cookie, orig_req->comm))) {
-    fprintf(stderr, "tr_tids_req_hander: Request for unknown comm: %s.\n", orig_req->comm->buf);
+    tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "Unknown community");
     return -1;
   }
@@ -108,30 +109,30 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 
   if ((!((TR_INSTANCE *)tr)->rp_gss) || 
       (!((TR_INSTANCE *)tr)->rp_gss->filter)) {
-    fprintf(stderr, "tr_tids_req_handler: No GSS name for incoming request.\n");
+    tr_notice("tr_tids_req_handler: No GSS name for incoming request.");
     tids_send_err_response(tids, orig_req, "No GSS name for request");
     return -1;
   }
 
   if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, ((TR_INSTANCE *)tr)->rp_gss->filter, orig_req->cons, &fwd_req->cons, &oaction)) ||
       (TR_FILTER_ACTION_REJECT == oaction)) {
-    fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name\n", orig_req->rp_realm->buf);
+    tr_notice("tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
     return -1;
   }
   /* Check that the rp_realm is a member of the community in the request */
   if (NULL == (tr_find_comm_rp(cfg_comm, orig_req->rp_realm))) {
-    fprintf(stderr, "tr_tids_req_handler: RP Realm (%s) not member of community (%s).\n", orig_req->rp_realm->buf, orig_req->comm->buf);
+    tr_notice("tr_tids_req_handler: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "RP COI membership error");
     return -1;
   }
 
   /* Map the comm in the request from a COI to an APC, if needed */
   if (TR_COMM_COI == cfg_comm->type) {
-    fprintf(stderr, "tr_tids_req_handler: Community was a COI, switching.\n");
+    tr_debug("tr_tids_req_handler: Community was a COI, switching.");
     /* TBD -- In theory there can be more than one?  How would that work? */
     if ((!cfg_comm->apcs) || (!cfg_comm->apcs->id)) {
-      fprintf(stderr, "No valid APC for COI %s.\n", orig_req->comm->buf);
+      tr_notice("No valid APC for COI %s.", orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "No valid APC for community");
       return -1;
     }
@@ -139,7 +140,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 
     /* Check that the APC is configured */
     if (NULL == (cfg_apc = tr_comm_lookup((TR_INSTANCE *)tids->cookie, apc))) {
-      fprintf(stderr, "tr_tids_req_hander: Request for unknown comm: %s.\n", apc->buf);
+      tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", apc->buf);
       tids_send_err_response(tids, orig_req, "Unknown APC");
       return -1;
     }
@@ -149,7 +150,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 
     /* Check that rp_realm is a  member of this APC */
     if (NULL == (tr_find_comm_rp(cfg_apc, orig_req->rp_realm))) {
-      fprintf(stderr, "tr_tids_req_hander: RP Realm (%s) not member of community (%s).\n", orig_req->rp_realm->buf, orig_req->comm->buf);
+      tr_notice("tr_tids_req_hander: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "RP APC membership error");
       return -1;
     }
@@ -159,22 +160,22 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   if (NULL == (aaa_servers = tr_idp_aaa_server_lookup((TR_INSTANCE *)tids->cookie, 
 						      orig_req->realm, 
 						      orig_req->comm))) {
-      fprintf(stderr, "tr_tids_req_handler: No AAA Servers for realm %s, defaulting.\n", orig_req->realm->buf);
+      tr_debug("tr_tids_req_handler: No AAA Servers for realm %s, defaulting.", orig_req->realm->buf);
       if (NULL == (aaa_servers = tr_default_server_lookup ((TR_INSTANCE *)tids->cookie,
 							   orig_req->comm))) {
-	fprintf(stderr, "tr_tids_req_handler: No default AAA servers, discarded.\n");
-      tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
-      return -1;
+	tr_notice("tr_tids_req_handler: No default AAA servers, discarded.");
+        tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
+        return -1;
       }
   } else {
     /* if we aren't defaulting, check idp coi and apc membership */
     if (NULL == (tr_find_comm_idp(cfg_comm, fwd_req->realm))) {
-      fprintf(stderr, "tr_tids_req_handler: IDP Realm (%s) not member of community (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
+      tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of community (%s).", orig_req->realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "IDP community membership error");
       return -1;
     }
     if ( cfg_apc && (NULL == (tr_find_comm_idp(cfg_apc, fwd_req->realm)))) {
-      fprintf(stderr, "tr_tids_req_handler: IDP Realm (%s) not member of APC (%s).\n", orig_req->realm->buf, orig_req->comm->buf);
+      tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of APC (%s).", orig_req->realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "IDP APC membership error");
       return -1;
     }
@@ -185,7 +186,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 
   /* Create a TID client instance */
   if (NULL == (tidc = tidc_create())) {
-    fprintf(stderr, "tr_tids_req_hander: Unable to allocate TIDC instance.\n");
+    tr_crit("tr_tids_req_hander: Unable to allocate TIDC instance.");
     tids_send_err_response(tids, orig_req, "Memory allocation failure");
     return -1;
   }
@@ -203,14 +204,14 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 						  aaa_servers->hostname->buf,
 						  TID_PORT,
 					      &(fwd_req->gssctx)))) {
-    fprintf(stderr, "tr_tids_req_handler: Error in tidc_open_connection.\n");
+    tr_notice("tr_tids_req_handler: Error in tidc_open_connection.");
     tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS");
     return -1;
   };
 
   /* Send a TID request */
   if (0 > (rc = tidc_fwd_request(tidc, fwd_req, &tr_tidc_resp_handler, (void *)&resp_cookie))) {
-    fprintf(stderr, "Error from tidc_fwd_request, rc = %d.\n", rc);
+    tr_notice("Error from tidc_fwd_request, rc = %d.", rc);
     tids_send_err_response(tids, orig_req, "Can't forward request to next hop TIDS");
     return -1;
   }
@@ -224,20 +225,20 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   TR_RP_CLIENT *rp;
 
   if ((!client_name) || (!gss_name) || (!tr)) {
-    fprintf(stderr, "tr_tidc_gss_handler: Bad parameters.\n");
+    tr_debug("tr_tidc_gss_handler: Bad parameters.");
     return -1;
   }
   
   /* look up the RP client matching the GSS name */
   if ((NULL == (rp = tr_rp_client_lookup(tr, gss_name)))) {
-    fprintf(stderr, "tr_tids_gss_handler: Unknown GSS name %s\n", gss_name->buf);
+    tr_debug("tr_tids_gss_handler: Unknown GSS name %s", gss_name->buf);
     return -1;
   }
 
   /* Store the rp client in the TR_INSTANCE structure for now... 
    * TBD -- fix me for new tasking model. */
   ((TR_INSTANCE *)tr)->rp_gss = rp;
-  fprintf( stderr, "Client's GSS Name: %s\n", gss_name->buf);
+  tr_debug("Client's GSS Name: %s", gss_name->buf);
   return 0;
 }
 
@@ -253,36 +254,36 @@ int main (int argc, const char *argv[])
 
   /* create a Trust Router instance */
   if (NULL == (tr = tr_create())) {
-    fprintf(stderr, "Unable to create Trust Router instance, exiting.\n");
+    tr_crit("Unable to create Trust Router instance, exiting.");
     return 1;
   }
 
   /* find the configuration files */
   if (0 == (n = tr_find_config_files(&cfg_files))) {
-    fprintf (stderr, "Can't locate configuration files, exiting.\n");
+    tr_crit("Can't locate configuration files, exiting.");
     exit(1);
   }
 
   if (TR_CFG_SUCCESS != tr_parse_config(tr, n, cfg_files)) {
-    fprintf (stderr, "Error decoding configuration information, exiting.\n");
+    tr_crit("Error decoding configuration information, exiting.");
     exit(1);
   }
 
   /* apply initial configuration */
   if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(tr))) {
-    fprintf (stderr, "Error applying configuration, rc = %d.\n", rc);
+    tr_crit("Error applying configuration, rc = %d.", rc);
     exit(1);
   }
 
   /* initialize the trust path query server instance */
   if (0 == (tr->tids = tids_create ())) {
-    fprintf (stderr, "Error initializing Trust Path Query Server instance.\n");
+    tr_crit("Error initializing Trust Path Query Server instance.");
     exit(1);
   }
 
   /* start the trust path query server, won't return unless fatal error. */
   if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, &tr_tids_gss_handler, tr->active_cfg->internal->hostname, tr->active_cfg->internal->tids_port, (void *)tr))) {
-    fprintf (stderr, "Error from Trust Path Query Server, err = %d.\n", err);
+    tr_crit("Error from Trust Path Query Server, err = %d.", err);
     exit(err);
   }
 
