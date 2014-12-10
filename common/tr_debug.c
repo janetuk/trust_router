@@ -73,7 +73,11 @@ static void vfire_log(const int sev, const int facility, const char *fmt, va_lis
     char *buf = malloc(LOG_MAX_MESSAGE_SIZE);
     vsnprintf(buf, LOG_MAX_MESSAGE_SIZE, fmt, ap_copy);
 
-    syslog(LOG_MAKEPRI(facility, sev), "%s", buf);
+    /* syslog.h provides a macro for generating priorities, however in versions of glibc < 2.17 it is
+       broken if you use it as documented: https://sourceware.org/bugzilla/show_bug.cgi?id=14347
+       RHEL6 uses glibc 2.12, so do not use LOG_MAKEPRI until around 2020.
+    */
+    syslog((facility|sev), "%s", buf);
 
     free(buf);
   }
