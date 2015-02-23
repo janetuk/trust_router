@@ -42,8 +42,11 @@
 
 static int destroy_tid_req(TID_REQ *req)
 {
+  OM_uint32 minor;
   if (req->json_references)
     json_decref(req->json_references);
+  if (req->gssctx)
+    gss_delete_sec_context( &minor, &req->gssctx, NULL);
   return 0;
 }
 
