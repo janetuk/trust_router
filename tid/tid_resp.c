@@ -112,3 +112,36 @@ size_t tid_resp_get_num_servers(const TID_RESP *resp)
   return resp->num_servers;
 }
 
+
+const TID_PATH *tid_srvr_get_path( const TID_SRVR_BLK *block)
+{
+  if (!block)
+    return NULL;
+  return (const TID_PATH *) block->path;
+}
+
+const TID_PATH *tid_resp_get_error_path( const TID_RESP *resp)
+{
+  if (!resp)
+    return NULL;
+  return (const TID_PATH *) resp->error_path;
+}
+
+const TID_PATH *tid_resp_get_a_path( const TID_RESP *const_resp)
+{
+  size_t index;
+  TID_SRVR_BLK *server;
+  TID_RESP *resp = (TID_RESP *) const_resp;
+  if (!resp)
+    return NULL;
+
+
+  if (resp->error_path)
+    return (const TID_PATH *) resp->error_path;
+  tid_resp_servers_foreach( resp, server, index) {
+    if (server->path)
+      return (const TID_PATH *) server->path;
+  }
+  return NULL;
+  
+}

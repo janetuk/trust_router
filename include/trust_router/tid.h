@@ -55,6 +55,7 @@ typedef struct tid_srvr_blk  TID_SRVR_BLK;
 
 
 typedef struct _tr_constraint_set  TR_CONSTRAINT_SET;
+typedef struct _tid_path TID_PATH;
 
 typedef struct tid_resp TID_RESP;
 
@@ -114,11 +115,18 @@ TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp);
 void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi);
 TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp, size_t index);
 TR_EXPORT size_t tid_resp_get_num_servers(const TID_RESP *resp);
+TR_EXPORT const TID_PATH *tid_resp_get_error_path(const TID_RESP *);
+
+/** Get either the error_path or the path of the first server block for
+ * a successful response*/
+TR_EXPORT const TID_PATH *tid_resp_get_a_path(const TID_RESP *);
 /* Server blocks*/
 TR_EXPORT void tid_srvr_get_address(const TID_SRVR_BLK *,
 				    const struct sockaddr **out_addr, size_t *out_sa_len);
 TR_EXPORT DH *tid_srvr_get_dh(TID_SRVR_BLK *);
 TR_EXPORT const TR_NAME *tid_srvr_get_key_name(const TID_SRVR_BLK *);
+TR_EXPORT const TID_PATH *tid_srvr_get_path(const TID_SRVR_BLK *);
+
 
 #define tid_resp_servers_foreach(RESP, SERVER, INDEX) \
   for (INDEX=0,SERVER=NULL;						\

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2014-2015, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -210,6 +210,21 @@ void tid_req_free(TID_REQ *req)
 {
   talloc_free(req);
 }
+
+int tid_req_add_path(TID_REQ *req,
+		     const char *this_system, unsigned port)
+{
+  char *path_element = talloc_asprintf(req, "%s:%u",
+				       this_system, port);
+  if (!req->path) {
+    req->path = json_array();
+    if (!req->path)
+      return -1;
+    tid_req_cleanup_json(req, req->path);
+  }
+  return json_array_append( req->path, json_string(path_element));
+}
+
 
 
 void tid_srvr_get_address(const TID_SRVR_BLK *blk,
