@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2015, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -69,7 +69,7 @@ static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc,
 static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 		      TID_REQ *orig_req, 
 		      TID_RESP *resp,
-		      void *tr)
+		      void *tr_in)
 {
   TIDC_INSTANCE *tidc = NULL;
   TR_RESP_COOKIE resp_cookie;
@@ -78,6 +78,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   TR_COMM *cfg_apc = NULL;
+  TR_INSTANCE *tr = (TR_INSTANCE *) tr_in;
   int oaction = TR_FILTER_ACTION_REJECT;
   int rc = 0;
 
@@ -97,7 +98,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if (NULL == (cfg_comm = tr_comm_lookup((TR_INSTANCE *)tids->cookie, orig_req->comm))) {
+  if (NULL == (cfg_comm = tr_comm_lookup(tids->cookie, orig_req->comm))) {
     fprintf(stderr, "tr_tids_req_hander: Request for unknown comm: %s.\n", orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "Unknown community");
     return -1;
@@ -106,14 +107,14 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   /* Check that the rp_realm matches the filter for the GSS name that 
    * was received. */
 
-  if ((!((TR_INSTANCE *)tr)->rp_gss) || 
-      (!((TR_INSTANCE *)tr)->rp_gss->filter)) {
+  if ((!(tr)->rp_gss) || 
+      (!(tr)->rp_gss->filter)) {
     fprintf(stderr, "tr_tids_req_handler: No GSS name for incoming request.\n");
     tids_send_err_response(tids, orig_req, "No GSS name for request");
     return -1;
   }
 
-  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, ((TR_INSTANCE *)tr)->rp_gss->filter, orig_req->cons, &fwd_req->cons, &oaction)) ||
+  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, (tr)->rp_gss->filter, orig_req->cons, &fwd_req->cons, &oaction)) ||
       (TR_FILTER_ACTION_REJECT == oaction)) {
     fprintf(stderr, "tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name\n", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
@@ -138,7 +139,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     apc = tr_dup_name(cfg_comm->apcs->id);
 
     /* Check that the APC is configured */
-    if (NULL == (cfg_apc = tr_comm_lookup((TR_INSTANCE *)tids->cookie, apc))) {
+    if (NULL == (cfg_apc = tr_comm_lookup(tids->cookie, apc))) {
       fprintf(stderr, "tr_tids_req_hander: Request for unknown comm: %s.\n", apc->buf);
       tids_send_err_response(tids, orig_req, "Unknown APC");
       return -1;
@@ -219,9 +220,10 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 }
 
 static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
-			void *tr)
+			void *tr_in)
 {
   TR_RP_CLIENT *rp;
+  TR_INSTANCE *tr = (TR_INSTANCE *) tr_in;
 
   if ((!client_name) || (!gss_name) || (!tr)) {
     fprintf(stderr, "tr_tidc_gss_handler: Bad parameters.\n");
@@ -236,7 +238,7 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
 
   /* Store the rp client in the TR_INSTANCE structure for now... 
    * TBD -- fix me for new tasking model. */
-  ((TR_INSTANCE *)tr)->rp_gss = rp;
+  (tr)->rp_gss = rp;
   fprintf( stderr, "Client's GSS Name: %s\n", gss_name->buf);
   return 0;
 }
