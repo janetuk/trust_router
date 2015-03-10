@@ -164,6 +164,12 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
   if (req->cons)
     json_object_set(jreq, "constraints", (json_t *) req->cons);
 
+  if (req->path)
+    json_object_set(jreq, "path", req->path);
+  if (req->expiration_interval)
+    json_object_set_new(jreq, "expiration_interval",
+			json_integer(req->expiration_interval));
+  
   return jreq;
 }
 
@@ -175,6 +181,8 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
   json_t *jcomm = NULL;
   json_t *jorig_coi = NULL;
   json_t *jdh = NULL;
+  json_t *jpath = NULL;
+  json_t *jexpire_interval = NULL;
 
   if (!(treq =tid_req_new())) {
     tr_crit("tr_msg_decode_tidreq(): Error allocating TID_REQ structure.");
@@ -185,10 +193,13 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
   if ((NULL == (jrp_realm = json_object_get(jreq, "rp_realm"))) ||
       (NULL == (jrealm = json_object_get(jreq, "target_realm"))) ||
       (NULL == (jcomm = json_object_get(jreq, "community")))) {
-    tr_debug("tr_msg_decode(): Error parsing required fields.");
+    tr_notice("tr_msg_decode(): Error parsing required fields.");
     tid_req_free(treq);
     return NULL;
   }
+
+  jpath = json_object_get(jreq, "path");
+  jexpire_interval = json_object_get(jreq, "expiration_interval");
 
   treq->rp_realm = tr_new_name((char *)json_string_value(jrp_realm));
   treq->realm = tr_new_name((char *)json_string_value(jrealm));
@@ -217,6 +228,14 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
     json_incref((json_t *) treq->cons);
     tid_req_cleanup_json(treq, (json_t *) treq->cons);
   }
+  if (jpath) {
+    json_incref(jpath);
+    treq->path = jpath;
+    tid_req_cleanup_json(treq, jpath);
+  }
+  if (jexpire_interval)
+    treq->expiration_interval = json_integer_value(jexpire_interval);
+  
   return treq;
 }
 
@@ -252,6 +271,7 @@ static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
   json_t *jsrvr_addr = NULL;
   json_t *jsrvr_kn = NULL;
   json_t *jsrvr_dh = NULL;
+  json_t *jsrvr_expire = NULL;
 
   if (jsrvr == NULL)
     return -1;
@@ -260,7 +280,7 @@ static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
   if ((NULL == (jsrvr_addr = json_object_get(jsrvr, "server_addr"))) ||
       (NULL == (jsrvr_kn = json_object_get(jsrvr, "key_name"))) ||
       (NULL == (jsrvr_dh = json_object_get(jsrvr, "server_dh")))) {
-    tr_debug("tr_msg_decode_one_server(): Error parsing required fields.");
+    tr_notice("tr_msg_decode_one_server(): Error parsing required fields.");
     return -1;
   }
   
@@ -268,6 +288,14 @@ static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
   inet_aton(json_string_value(jsrvr_addr), &(srvr->aaa_server_addr));
   srvr->key_name = tr_new_name((char *)json_string_value(jsrvr_kn));
   srvr->aaa_server_dh = tr_msg_decode_dh(jsrvr_dh);
+  srvr->path = json_object_get(jsrvr, "path");
+  jsrvr_expire = json_object_get(jsrvr, "key_expiration");
+  if (jsrvr_expire && json_is_string(jsrvr_expire)) {
+    if (!g_time_val_from_iso8601(json_string_value(jsrvr_expire),
+				 &srvr->key_expiration))
+      tr_notice("Key expiration %s cannot be parsed", json_string_value(jsrvr_expire));
+  }
+  
   return 0;
 }
 
@@ -360,10 +388,14 @@ static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
 
   if (NULL == resp->servers) {
     tr_debug("tr_msg_encode_tidresp(): No servers to encode.");
-    return jresp;
   }
-  jservers = tr_msg_encode_servers(resp);
-  json_object_set_new(jresp, "servers", jservers);
+  else {
+    jservers = tr_msg_encode_servers(resp);
+    json_object_set_new(jresp, "servers", jservers);
+  }
+  if (resp->error_path)
+    json_object_set(jresp, "error_path", resp->error_path);
+  
   
   return jresp;
 }
