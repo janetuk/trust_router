@@ -689,13 +689,12 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
     return NULL;
   }
 
-  if (NULL == (comm = talloc(trc, TR_COMM))) {
+  if (NULL == (comm = talloc_zero(trc, TR_COMM))) {
     fprintf(stderr, "tr_cfg_parse_one_comm: Out of memory.\n");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
 
-  memset(comm, 0, sizeof(TR_COMM));
 
   if ((NULL == (jid = json_object_get(jcomm, "community_id"))) ||
       (!json_is_string(jid)) ||
@@ -745,10 +744,25 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
   if (TR_CFG_SUCCESS != *rc) {
     fprintf(stderr, "tr_cfg_parse_comm: Can't parse RP realms for comm %s .\n", comm->id->buf);
     tr_free_name(comm->id);
-    /* TBD -- free idps? */;
     return NULL;
   }
 
+  if (TR_COMM_APC == comm->type) {
+    json_t *jexpire  = json_object_get(jcomm, "expiration_interval");
+    comm->expiration_interval = 43200; /*30 days*/
+    if (jexpire) {
+	if (!json_is_integer(jexpire)) {
+	  fprintf(stderr, "tr_parse_comm: expirae_interval is not an integer\n");
+	  return NULL;
+	}
+	comm->expiration_interval = json_integer_value(jexpire);
+	if (comm->expiration_interval <= 10)
+	  comm->expiration_interval = 11; /* Freeradius waits 10 minutes between successful TR queries*/
+	if (comm->expiration_interval > 129600) /* 90 days*/
+	comm->expiration_interval = 129600;
+    }
+  }
+  
   return comm;
 }
 

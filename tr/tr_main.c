@@ -184,6 +184,9 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   /* send a TID request to the AAA server(s), and get the answer(s) */
   /* TBD -- Handle multiple servers */
 
+  if (cfg_apc)
+    fwd_req->expiration_interval = cfg_apc->expiration_interval;
+  else fwd_req->expiration_interval = cfg_comm->expiration_interval;
   /* Create a TID client instance */
   if (NULL == (tidc = tidc_create())) {
     fprintf(stderr, "tr_tids_req_hander: Unable to allocate TIDC instance.\n");

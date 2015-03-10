@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2015, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,6 +52,7 @@ typedef struct tr_comm {
   TR_APC *apcs;
   TR_IDP_REALM *idp_realms;
   TR_RP_REALM *rp_realms;
+  time_t expiration_interval; /*Minutes to key expiration; only valid for an APC*/
 } TR_COMM;
 
 TR_COMM *tr_comm_lookup(TR_INSTANCE *tr, TR_NAME *comm);
