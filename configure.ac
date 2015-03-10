@@ -18,6 +18,7 @@ AC_PROG_CC
                    AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
            fi
            AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
+PKG_CHECK_MODULES([GLIB], [glib-2.0])
 
 AC_CHECK_LIB([gssapi_krb5], [gss_init_sec_context])
 AC_CHECK_LIB([com_err], [error_message])
