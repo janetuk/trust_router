@@ -37,7 +37,7 @@ tid_example_tidc_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 
 tid_example_tids_SOURCES = tid/example/tids_main.c 
 
-tid_example_tids_LDADD = gsscon/libgsscon.la libtr_tid.la
+tid_example_tids_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 
 common_dh_test_tr_dh_test_SOURCES = common/tr_dh.c \
 common/tr_debug.c \

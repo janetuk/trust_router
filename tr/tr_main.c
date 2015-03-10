@@ -194,7 +194,6 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     tids_send_err_response(tids, orig_req, "Memory allocation failure");
     return -1;
   }
-
   /* Use the DH parameters from the original request */
   /* TBD -- this needs to be fixed when we handle more than one req per conn */
   tidc->client_dh = orig_req->tidc_dh;

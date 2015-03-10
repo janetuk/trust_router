@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2015, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -209,6 +209,8 @@ static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *res
     return -1;
   }
 
+  tid_req_add_path(tr_msg_get_req(mreq), tids->hostname, tids->tids_port);
+  
   /* Call the caller's request handler */
   /* TBD -- Handle different error returns/msgs */
   if (0 > (rc = (*tids->req_handler)(tids, tr_msg_get_req(mreq), resp, tids->cookie))) {
@@ -239,9 +241,11 @@ int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_m
     return -1;
   }
 
+  
   /* mark this as an error response, and include the error message */
   resp->result = TID_ERROR;
   resp->err_msg = tr_new_name((char *)err_msg);
+  resp->error_path = req->path;
 
   rc = tids_send_response(tids, req, resp);
   
@@ -370,6 +374,7 @@ int tids_start (TIDS_INSTANCE *tids,
   int conn = -1;
   pid_t pid;
 
+  tids->tids_port = port;
   if (0 > (listen = tids_listen(tids, port)))
     perror ("Error from tids_listen()");
 

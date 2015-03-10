@@ -34,6 +34,7 @@
 
 #include <stdio.h>
 #include <jansson.h>
+#include <talloc.h>
 
 #include <trust_router/tr_dh.h>
 #include <tid_internal.h>
@@ -46,9 +47,7 @@ TIDC_INSTANCE *tidc_create ()
 {
   TIDC_INSTANCE *tidc = NULL;
 
-  if (tidc = malloc(sizeof(TIDC_INSTANCE))) 
-    memset(tidc, 0, sizeof(TIDC_INSTANCE));
-  else
+  if (NULL == (tidc = talloc_zero(NULL, TIDC_INSTANCE))) 
     return NULL;
 
   return tidc;
@@ -56,8 +55,7 @@ TIDC_INSTANCE *tidc_create ()
 
 void tidc_destroy (TIDC_INSTANCE *tidc)
 {
-  if (tidc)
-    free(tidc);
+  talloc_free(tidc);
 }
 
 int tidc_open_connection (TIDC_INSTANCE *tidc, 

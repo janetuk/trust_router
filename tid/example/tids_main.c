@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2015, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -171,6 +171,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
+
   /* Allocate a new server block */
   if (NULL == (resp->servers = malloc(sizeof(TID_SRVR_BLK)))){
     tr_crit("tids_req_handler(): malloc failed.");
@@ -226,11 +227,19 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   }
   if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
     return -1;
+  resp->servers->path = req->path;
+  if (req->expiration_interval < 1)
+    req->expiration_interval = 1;
+  g_get_current_time(&resp->servers->key_expiration);
+  resp->servers->key_expiration.tv_sec += req->expiration_interval;
+
   if (NULL != insert_stmt) {
     int sqlite3_result;
-    sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
+    gchar *expiration_str = g_time_val_to_iso8601(&resp->servers->key_expiration);
+        sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insert_stmt, 3, expiration_str, -1, SQLITE_TRANSIENT);
     sqlite3_result = sqlite3_step(insert_stmt);
     if (SQLITE_DONE != sqlite3_result)
       tr_crit("sqlite3: failed to write to database");
@@ -282,7 +291,7 @@ int main (int argc,
     exit(1);
   }
   sqlite3_busy_timeout( db, 1000);
-  sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key, client_dh_pub) values(?, ?, ?)",
+  sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key, client_dh_pub, key_expiration) values(?, ?, ?, ?)",
 		     -1, &insert_stmt, NULL);
   sqlite3_prepare_v2(db, "insert into authorizations (client_dh_pub, coi, acceptor_realm, hostname, apc) values(?, ?, ?, ?, ?)",
 		     -1, &authorization_insert, NULL);
