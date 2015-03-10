@@ -34,6 +34,7 @@
 
 #ifndef TID_INTERNAL_H
 #define TID_INTERNAL_H
+#include <glib.h>
 #include <trust_router/tid.h>
 
 #include <jansson.h>
@@ -42,7 +43,7 @@ struct tid_srvr_blk {
   struct in_addr aaa_server_addr;
   TR_NAME *key_name;
   DH *aaa_server_dh;		/* AAA server's public dh information */
-  char *expiration_time; /**< absolute time at which key expires*/
+  GTimeVal key_expiration; /**< absolute time at which key expires*/
   json_t *path;/**< Path of trust routers that the request traversed*/
 };
 

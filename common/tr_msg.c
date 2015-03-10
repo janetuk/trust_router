@@ -224,6 +224,7 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
 {
   json_t *jsrvr = NULL;
   json_t *jstr = NULL;
+  gchar *time_str = g_time_val_to_iso8601(&srvr->key_expiration);
 
   fprintf(stderr, "Encoding one server.\n");
 
@@ -233,11 +234,16 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
   jstr = json_string(inet_ntoa(srvr->aaa_server_addr));
   json_object_set_new(jsrvr, "server_addr", jstr);
 
+  json_object_set_new(jsrvr,
+		      "key_expiration", json_string(time_str));
+  g_free(time_str);
   /* Server DH Block */
   jstr = json_string(srvr->key_name->buf);
   json_object_set_new(jsrvr, "key_name", jstr);
   json_object_set_new(jsrvr, "server_dh", tr_msg_encode_dh(srvr->aaa_server_dh));
-  
+  if (srvr->path)
+    /* The path is owned by the srvr, so grab an extra ref*/
+    json_object_set(jsrvr, "path", srvr->path);
   //  fprintf(stderr,"tr_msg_encode_one_server(): jsrvr contains:\n");
   //  fprintf(stderr,"%s\n", json_dumps(jsrvr, 0));
   return jsrvr;
