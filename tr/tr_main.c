@@ -259,6 +259,9 @@ int main (int argc, const char *argv[])
 
   /* parse command-line arguments? -- TBD */
 
+  /* Use standalone logging */
+  tr_log_open();
+
   /* create a Trust Router instance */
   if (NULL == (tr = tr_create())) {
     tr_crit("Unable to create Trust Router instance, exiting.");
