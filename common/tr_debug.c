@@ -231,8 +231,6 @@ void tr_log_close() {
 
 void tr_log(const int sev, const char *fmt, ...) {
 
-  tr_log_open();
-
   if (NULL != fmt) {
 
     va_list ap;
@@ -251,8 +249,6 @@ void tr_log(const int sev, const char *fmt, ...) {
 /* Convinience Functions */
 
 void tr_audit_resp(TID_RESP *resp) {
-
-  tr_log_open();
 
   if (NULL != resp) {
 
@@ -277,8 +273,6 @@ void tr_audit_resp(TID_RESP *resp) {
 }
 
 void tr_audit_req(TID_REQ *req) {
-
-  tr_log_open();
 
   if (NULL != req) {
 
