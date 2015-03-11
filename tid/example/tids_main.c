@@ -270,6 +270,9 @@ int main (int argc,
     exit(1);
   }
 
+  /* Use standalone logging */
+  tr_log_open();
+
   /* set logging levels */
   tr_log_threshold(LOG_CRIT);
   tr_console_threshold(LOG_DEBUG);

@@ -99,6 +99,9 @@ int main (int argc,
   int rc;
   gss_ctx_id_t gssctx;
 
+  /* Use standalone logging */
+  tr_log_open();
+
   /* set logging levels */
   talloc_set_log_stderr();
   tr_log_threshold(LOG_CRIT);
