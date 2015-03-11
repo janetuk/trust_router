@@ -121,7 +121,7 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
     }
 
     if (NULL != (jlog = json_object_get(jcfg, "logging"))) {
-      if (NULL != (jlogthres = json_object_get(jint, "log_threshold"))) {
+      if (NULL != (jlogthres = json_object_get(jlog, "log_threshold"))) {
         if (json_is_string(jlogthres)) {
        	  trc->internal->log_threshold = str2sev(json_string_value(jlogthres));
         } else {
@@ -133,7 +133,7 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
         trc->internal->log_threshold = TR_DEFAULT_LOG_THRESHOLD;
       }
 
-      if (NULL != (jconthres = json_object_get(jint, "console_threshold"))) {
+      if (NULL != (jconthres = json_object_get(jlog, "console_threshold"))) {
         if (json_is_string(jconthres)) {
             trc->internal->console_threshold = str2sev(json_string_value(jconthres));
         } else {

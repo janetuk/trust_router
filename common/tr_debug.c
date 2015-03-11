@@ -164,35 +164,35 @@ static char *join_audit_msg(const int count, char *array[]) {
 
 int str2sev(const char* sev) {
 
-  if (strcmp(sev, "debug")) {
+  if (strcmp(sev, "debug") ==0 ) {
 
     return LOG_DEBUG;
   }
-  else if (strcmp(sev, "info")) {
+  else if (strcmp(sev, "info") == 0) {
 
     return LOG_INFO;
   }
-  else if (strcmp(sev, "notice")) {
+  else if (strcmp(sev, "notice") == 0) {
 
     return LOG_NOTICE;
   }
-  else if (strcmp(sev, "warning")) {
+  else if (strcmp(sev, "warning") == 0 ) {
 
     return LOG_WARNING;
   }
-  else if (strcmp(sev, "err")) {
+  else if (strcmp(sev, "err") == 0) {
 
     return LOG_ERR;
   }
-  else if (strcmp(sev, "crit")) {
+  else if (strcmp(sev, "crit") == 0) {
 
     return LOG_CRIT;
   }
-  else if (strcmp(sev, "alert")) {
+  else if (strcmp(sev, "alert") == 0) {
 
     return LOG_ALERT;
   }
-  else if (strcmp(sev, "emerg")) {
+  else if (strcmp(sev, "emerg")  == 0) {
 
     return LOG_EMERG;
   }
