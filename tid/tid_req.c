@@ -33,6 +33,7 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <talloc.h>
@@ -44,11 +45,16 @@
 
 static int destroy_tid_req(TID_REQ *req)
 {
-  OM_uint32 minor;
   if (req->json_references)
     json_decref(req->json_references);
-  if (req->gssctx)
-    gss_delete_sec_context( &minor, &req->gssctx, NULL);
+  if (req->free_conn) {
+    if (req->conn)
+      close(req->conn);
+    if (req->gssctx) {
+      OM_uint32 minor;
+      gss_delete_sec_context( &minor, &req->gssctx, NULL);
+    }
+  }
   return 0;
 }
 
@@ -61,6 +67,7 @@ TID_REQ *tid_req_new()
   req->json_references = json_array();
   assert(req->json_references);
   req->conn = -1;
+  req->free_conn = 1;
   return req;
 }
 
@@ -178,7 +185,7 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
 {
   TID_REQ *new_req = NULL;
 
-  if (NULL == (new_req = malloc(sizeof(TID_REQ)))) {
+  if (NULL == (new_req = talloc_zero(orig_req, TID_REQ))) {
     tr_crit("tid_dup_req: Can't allocated duplicate request.");
     return NULL;
   }
@@ -186,6 +193,7 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
   /* Memcpy for flat fields, not valid until names are duped. */
   memcpy(new_req, orig_req, sizeof(TID_REQ));
   json_incref(new_req->json_references);
+  new_req->free_conn = 0;
   
   if ((NULL == (new_req->rp_realm = tr_dup_name(orig_req->rp_realm))) ||
       (NULL == (new_req->realm = tr_dup_name(orig_req->realm))) ||

@@ -64,6 +64,7 @@ struct tid_req {
   struct tid_req *next_req;
   int resp_sent;
   int conn;
+  int free_conn; /* free conn and gss ctx*/
   gss_ctx_id_t gssctx;
   int resp_rcvd;
   TR_NAME *rp_realm;

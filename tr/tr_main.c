@@ -216,9 +216,11 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   if (0 > (rc = tidc_fwd_request(tidc, fwd_req, &tr_tidc_resp_handler, (void *)&resp_cookie))) {
     tr_notice("Error from tidc_fwd_request, rc = %d.", rc);
     tids_send_err_response(tids, orig_req, "Can't forward request to next hop TIDS");
+    tid_req_free(orig_req);
     return -1;
   }
     
+  tid_req_free(orig_req);
   return 0;
 }
 
