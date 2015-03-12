@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2014-2015, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,17 +33,28 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <talloc.h>
 
 #include <tid_internal.h>
+#include <tr_debug.h>
+
 #include <jansson.h>
 
 static int destroy_tid_req(TID_REQ *req)
 {
   if (req->json_references)
     json_decref(req->json_references);
+  if (req->free_conn) {
+    if (req->conn)
+      close(req->conn);
+    if (req->gssctx) {
+      OM_uint32 minor;
+      gss_delete_sec_context( &minor, &req->gssctx, NULL);
+    }
+  }
   return 0;
 }
 
@@ -56,6 +67,7 @@ TID_REQ *tid_req_new()
   req->json_references = json_array();
   assert(req->json_references);
   req->conn = -1;
+  req->free_conn = 1;
   return req;
 }
 
@@ -173,24 +185,25 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
 {
   TID_REQ *new_req = NULL;
 
-  if (NULL == (new_req = malloc(sizeof(TID_REQ)))) {
-    fprintf(stderr, "tid_dup_req: Can't allocated duplicate request.\n");
+  if (NULL == (new_req = talloc_zero(orig_req, TID_REQ))) {
+    tr_crit("tid_dup_req: Can't allocated duplicate request.");
     return NULL;
   }
 
   /* Memcpy for flat fields, not valid until names are duped. */
   memcpy(new_req, orig_req, sizeof(TID_REQ));
   json_incref(new_req->json_references);
+  new_req->free_conn = 0;
   
   if ((NULL == (new_req->rp_realm = tr_dup_name(orig_req->rp_realm))) ||
       (NULL == (new_req->realm = tr_dup_name(orig_req->realm))) ||
       (NULL == (new_req->comm = tr_dup_name(orig_req->comm)))) {
-	fprintf(stderr, "tid_dup_req: Can't duplicate request (names).\n");
+	tr_crit("tid_dup_req: Can't duplicate request (names).");
   }
 
   if (orig_req->orig_coi) {
     if (NULL == (new_req->orig_coi = tr_dup_name(orig_req->orig_coi))) {
-      fprintf(stderr, "tid_dup_req: Can't duplicate request (orig_coi).\n");
+      tr_crit("tid_dup_req: Can't duplicate request (orig_coi).");
     }
   }
   
@@ -207,6 +220,21 @@ void tid_req_free(TID_REQ *req)
 {
   talloc_free(req);
 }
+
+int tid_req_add_path(TID_REQ *req,
+		     const char *this_system, unsigned port)
+{
+  char *path_element = talloc_asprintf(req, "%s:%u",
+				       this_system, port);
+  if (!req->path) {
+    req->path = json_array();
+    if (!req->path)
+      return -1;
+    tid_req_cleanup_json(req, req->path);
+  }
+  return json_array_append( req->path, json_string(path_element));
+}
+
 
 
 void tid_srvr_get_address(const TID_SRVR_BLK *blk,

@@ -39,6 +39,7 @@
 #include <talloc.h>
 #include <assert.h>
 #include <tid_internal.h>
+#include <tr_debug.h>
 
 
 unsigned char tr_2048_dhprime[2048/8] = {
@@ -102,23 +103,23 @@ DH *tr_create_dh_params(unsigned char *priv_key,
 
   DH_check(dh, &dh_err);
   if (0 != dh_err) {
-    fprintf(stderr, "Warning: dh_check failed with %d", dh_err);
+    tr_warning("Warning: dh_check failed with %d", dh_err);
     if (dh_err & DH_CHECK_P_NOT_PRIME)
-      fprintf(stderr, ": p value is not prime\n");
+      tr_warning(": p value is not prime");
     else if (dh_err & DH_CHECK_P_NOT_SAFE_PRIME)
-      fprintf(stderr, ": p value is not a safe prime\n");
+      tr_warning(": p value is not a safe prime");
     else if (dh_err & DH_UNABLE_TO_CHECK_GENERATOR)
-      fprintf(stderr, ": unable to check the generator value\n");
+      tr_warning(": unable to check the generator value");
     else if (dh_err & DH_NOT_SUITABLE_GENERATOR)
-      fprintf (stderr, ": the g value is not a generator\n");
-    else 
-      fprintf(stderr, "\n");
+      tr_warning(": the g value is not a generator");
+    else
+      tr_warning("unhandled error %i", dh_err);
   }
-  
+
   return(dh);
 }
 
-DH *tr_create_matching_dh (unsigned char *priv_key, 
+DH *tr_create_matching_dh (unsigned char *priv_key,
 			   size_t keylen,
 			   DH *in_dh) {
   DH *dh = NULL;
@@ -128,14 +129,14 @@ DH *tr_create_matching_dh (unsigned char *priv_key,
     return NULL;
 
   if (NULL == (dh = DH_new())) {
-    fprintf(stderr, "Unable to allocate new DH structure.\n");
+    tr_crit("tr_create_matching_dh: unable to allocate new DH structure.");
     return NULL;
   }
 
   if ((NULL == (dh->g = BN_dup(in_dh->g))) ||
       (NULL == (dh->p = BN_dup(in_dh->p)))) {
     DH_free(dh);
-    fprintf(stderr, "Invalid dh parameter values, can't be duped.\n");
+    tr_debug("tr_create_matching_dh: Invalid dh parameter values, can't be duped.");
     return NULL;
   }
 
@@ -146,19 +147,19 @@ DH *tr_create_matching_dh (unsigned char *priv_key,
   DH_generate_key(dh);		/* generates the public key */
   DH_check(dh, &dh_err);
   if (0 != dh_err) {
-    fprintf(stderr, "Warning: dh_check failed with %d", dh_err);
+    tr_warning("Warning: dh_check failed with %d", dh_err);
     if (dh_err & DH_CHECK_P_NOT_PRIME)
-      fprintf(stderr, ": p value is not prime\n");
+      tr_warning(": p value is not prime");
     else if (dh_err & DH_CHECK_P_NOT_SAFE_PRIME)
-      fprintf(stderr, ": p value is not a safe prime\n");
+      tr_warning(": p value is not a safe prime");
     else if (dh_err & DH_UNABLE_TO_CHECK_GENERATOR)
-      fprintf(stderr, ": unable to check the generator value\n");
+      tr_warning(": unable to check the generator value");
     else if (dh_err & DH_NOT_SUITABLE_GENERATOR)
-      fprintf (stderr, ": the g value is not a generator\n");
-    else 
-      fprintf(stderr, "\n");
+      tr_warning(": the g value is not a generator");
+    else
+      tr_warning("unhandled error %i", dh_err);
   }
-  
+
   return(dh);
 }
 
@@ -179,14 +180,14 @@ int tr_compute_dh_key(unsigned char **pbuf,
   if ((!pbuf) || 
       (!pub_key) || 
       (!priv_dh)) {
-    fprintf(stderr, "tr_compute_dh_key(): Invalid parameters.\n");
+    tr_debug("tr_compute_dh_key: Invalid parameters.");
     return(-1);
   }
   *pbuf = NULL;
   buflen = DH_size(priv_dh);
   buf = malloc(buflen);
   if (buf == NULL) {
-    fprintf(stderr, "out of memory\n");
+    tr_crit("tr_compute_dh_key: out of memory");
     return -1;
   }
 

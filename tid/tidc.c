@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2012, 2014-2015, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,11 +34,14 @@
 
 #include <stdio.h>
 #include <jansson.h>
+#include <talloc.h>
 
 #include <trust_router/tr_dh.h>
 #include <tid_internal.h>
 #include <tr_msg.h>
 #include <gsscon.h>
+#include <tr_debug.h>
+
 
 int tmp_len = 32;
 
@@ -46,9 +49,7 @@ TIDC_INSTANCE *tidc_create ()
 {
   TIDC_INSTANCE *tidc = NULL;
 
-  if (tidc = malloc(sizeof(TIDC_INSTANCE))) 
-    memset(tidc, 0, sizeof(TIDC_INSTANCE));
-  else
+  if (NULL == (tidc = talloc_zero(NULL, TIDC_INSTANCE))) 
     return NULL;
 
   return tidc;
@@ -56,8 +57,7 @@ TIDC_INSTANCE *tidc_create ()
 
 void tidc_destroy (TIDC_INSTANCE *tidc)
 {
-  if (tidc)
-    free(tidc);
+  talloc_free(tidc);
 }
 
 int tidc_open_connection (TIDC_INSTANCE *tidc, 
@@ -90,9 +90,9 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
 		       char *comm,
 		       TIDC_RESP_FUNC *resp_handler,
 		       void *cookie)
-
 {
   TID_REQ *tid_req = NULL;
+  int rc;
 
   /* Create and populate a TID req structure */
   if (!(tid_req = tid_req_new()))
@@ -104,20 +104,25 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   if ((NULL == (tid_req->rp_realm = tr_new_name(rp_realm))) ||
       (NULL == (tid_req->realm = tr_new_name(realm))) ||
       (NULL == (tid_req->comm = tr_new_name(comm)))) {
-    fprintf (stderr, "tidc_send_request: Error duplicating names.\n");
-    return -1;
+    tr_err ( "tidc_send_request: Error duplicating names.\n");
+    goto error;
   }
 
   tid_req->tidc_dh = tidc->client_dh;
 
-  return (tidc_fwd_request(tidc, tid_req, resp_handler, cookie));
+  rc = tidc_fwd_request(tidc, tid_req, resp_handler, cookie);
+  goto cleanup;
+ error:
+  rc = -1;
+ cleanup:
+  tid_req_free(tid_req);
+  return rc;
 }
 
 int tidc_fwd_request (TIDC_INSTANCE *tidc, 
 		      TID_REQ *tid_req, 
 		      TIDC_RESP_FUNC *resp_handler,
 		      void *cookie)
-
 {
   char *req_buf = NULL;
   char *resp_buf = NULL;
@@ -125,10 +130,11 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   TR_MSG *msg = NULL;
   TR_MSG *resp_msg = NULL;
   int err;
+  int rc = 0;
 
   /* Create and populate a TID msg structure */
-  if (!(msg = malloc(sizeof(TR_MSG))))
-    return -1;
+  if (!(msg = talloc_zero(tid_req, TR_MSG)))
+    goto error;
 
   msg->msg_type = TID_REQUEST;
   tr_msg_set_req(msg, tid_req);
@@ -140,18 +146,18 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
 
   /* Encode the request into a json string */
   if (!(req_buf = tr_msg_encode(msg))) {
-    fprintf(stderr, "tidc_fwd_request: Error encoding TID request.\n");
-    return -1;
+    tr_err("tidc_fwd_request: Error encoding TID request.\n");
+    goto error;
   }
 
-  fprintf (stderr, "tidc_fwd_request: Sending TID request:\n");
-  fprintf (stderr, "%s\n", req_buf);
+  tr_debug( "tidc_fwd_request: Sending TID request:\n");
+  tr_debug( "%s\n", req_buf);
 
   /* Send the request over the connection */
   if (err = gsscon_write_encrypted_token (tid_req->conn, tid_req->gssctx, req_buf, 
 					  strlen(req_buf))) {
-    fprintf(stderr, "tidc_fwd_request: Error sending request over connection.\n");
-    return -1;
+    tr_err( "tidc_fwd_request: Error sending request over connection.\n");
+    goto error;
   }
 
   /* TBD -- queue request on instance, read resps in separate thread */
@@ -161,33 +167,33 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   if (err = gsscon_read_encrypted_token(tid_req->conn, tid_req->gssctx, &resp_buf, &resp_buflen)) {
     if (resp_buf)
       free(resp_buf);
-    return -1;
+    goto error;
   }
 
-  fprintf(stdout, "tidc_fwd_request: Response Received (%u bytes).\n", (unsigned) resp_buflen);
-  fprintf(stdout, "%s\n", resp_buf);
+  tr_debug( "tidc_fwd_request: Response Received (%u bytes).\n", (unsigned) resp_buflen);
+  tr_debug( "%s\n", resp_buf);
 
   if (NULL == (resp_msg = tr_msg_decode(resp_buf, resp_buflen))) {
-    fprintf(stderr, "tidc_fwd_request: Error decoding response.\n");
-    return -1;
+    tr_err( "tidc_fwd_request: Error decoding response.\n");
+    goto error;
   }
 
   /* TBD -- Check if this is actually a valid response */
   if (TID_RESPONSE != tr_msg_get_msg_type(resp_msg)) {
-    fprintf(stderr, "tidc_fwd_request: Error, no response in the response!\n");
-    return -1;
+    tr_err( "tidc_fwd_request: Error, no response in the response!\n");
+    goto error;
   }
   
   if (resp_handler)
     /* Call the caller's response function */
     (*resp_handler)(tidc, tid_req, tr_msg_get_resp(resp_msg), cookie);
-  else
-    fprintf(stderr, "tidc_fwd_request: NULL response function.\n");
+  goto cleanup;
 
+ error:
+  rc = -1;
+ cleanup:
   if (msg)
-    free(msg);
-  if (tid_req)
-    tid_req_free(tid_req);
+    talloc_free(msg);
   if (req_buf)
     free(req_buf);
   if (resp_buf)
@@ -195,7 +201,7 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
 
   /* TBD -- free the decoded response */
 
-  return 0;
+  return rc;
 }
 
 
