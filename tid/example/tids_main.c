@@ -173,11 +173,11 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
 
 
   /* Allocate a new server block */
-  if (NULL == (resp->servers = malloc(sizeof(TID_SRVR_BLK)))){
+  if (NULL == (resp->servers = talloc_zero(resp, TID_SRVR_BLK))){
     tr_crit("tids_req_handler(): malloc failed.");
     return -1;
   }
-  memset(resp->servers, 0, sizeof(TID_SRVR_BLK));
+
   resp->num_servers = 1;
 
   /* TBD -- Set up the server IP Address */
@@ -231,7 +231,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   if (req->expiration_interval < 1)
     req->expiration_interval = 1;
   g_get_current_time(&resp->servers->key_expiration);
-  resp->servers->key_expiration.tv_sec += req->expiration_interval * 60 /*in minutes*/;
+  resp->servers->key_expiration.tv_sec += req->expi5ration_interval * 60 /*in minutes*/;
 
   if (NULL != insert_stmt) {
     int sqlite3_result;
@@ -239,7 +239,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
         sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
-        sqlite3_bind_text(insert_stmt, 3, expiration_str, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
     sqlite3_result = sqlite3_step(insert_stmt);
     if (SQLITE_DONE != sqlite3_result)
       tr_crit("sqlite3: failed to write to database");
