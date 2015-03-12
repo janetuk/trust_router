@@ -231,7 +231,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   if (req->expiration_interval < 1)
     req->expiration_interval = 1;
   g_get_current_time(&resp->servers->key_expiration);
-  resp->servers->key_expiration.tv_sec += req->expiration_interval;
+  resp->servers->key_expiration.tv_sec += req->expiration_interval * 60 /*in minutes*/;
 
   if (NULL != insert_stmt) {
     int sqlite3_result;
