@@ -10,7 +10,7 @@ URL:            http://www.project-moonshot.org/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires:  krb5-devel 
+BuildRequires:  krb5-devel , glib-devel
 BuildRequires: jansson-devel >= 2.4
 BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
 Requires:       moonshot-gss-eap, sqlite
