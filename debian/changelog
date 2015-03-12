@@ -1,4 +1,4 @@
-moonshot-trust-router (1.5-1) unstable; urgency=medium
+moonshot-trust-router (1.5~1) unstable; urgency=medium
 
   * New Upstream Release
   * Support Key expiration and  logging
