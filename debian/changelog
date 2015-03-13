@@ -1,3 +1,9 @@
+moonshot-trust-router (1.5~2) UNRELEASED; urgency=medium
+
+  * Fix comparison operator
+
+ -- Sam Hartman <hartmans@debian.org>  Fri, 13 Mar 2015 16:23:37 -0400
+
 moonshot-trust-router (1.5~1) unstable; urgency=medium
 
   * New Upstream Release
