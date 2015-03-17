@@ -13,7 +13,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:  krb5-devel , glib-devel
 BuildRequires: jansson-devel >= 2.4
 BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
-Requires:       moonshot-gss-eap, sqlite
+Requires:       moonshot-gss-eap >= 0.9.3, sqlite
 
 %description
 The trust router provides a mechanism for discovering the topology of
