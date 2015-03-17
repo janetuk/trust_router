@@ -1,3 +1,11 @@
+moonshot-trust-router (1.5~3) unstable; urgency=medium
+
+  * Pull in expiration fix
+  * Depend on sufficiently new moonshot-gss-eap to avoid
+    delete_sec_context problem
+
+ -- Sam Hartman <hartmans@debian.org>  Tue, 17 Mar 2015 12:27:57 -0400
+
 moonshot-trust-router (1.5~2) UNRELEASED; urgency=medium
 
   * Fix comparison operator
