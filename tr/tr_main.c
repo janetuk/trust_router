@@ -33,6 +33,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <jansson.h>
 
 #include <tr.h>
@@ -82,6 +83,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   TR_INSTANCE *tr = (TR_INSTANCE *) tr_in;
   int oaction = TR_FILTER_ACTION_REJECT;
   int rc = 0;
+  time_t expiration_interval;
 
   if ((!tids) || (!orig_req) || (!resp) ||  (!tr)) {
     tr_debug("tr_tids_req_handler: Bad parameters");
@@ -186,8 +188,11 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   /* TBD -- Handle multiple servers */
 
   if (cfg_apc)
-    fwd_req->expiration_interval = cfg_apc->expiration_interval;
-  else fwd_req->expiration_interval = cfg_comm->expiration_interval;
+    expiration_interval = cfg_apc->expiration_interval;
+  else expiration_interval = cfg_comm->expiration_interval;
+  if (fwd_req->expiration_interval)
+    fwd_req->expiration_interval =  (expiration_interval < fwd_req->expiration_interval) ? expiration_interval : fwd_req->expiration_interval;
+  else fwd_req->expiration_interval = expiration_interval;
   /* Create a TID client instance */
   if (NULL == (tidc = tidc_create())) {
     tr_crit("tr_tids_req_hander: Unable to allocate TIDC instance.");
