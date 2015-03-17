@@ -41,7 +41,7 @@ Package: libtr-tid2
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Breaks: moonshot-gss-eap (<<< 0.9.3)
+Breaks: moonshot-gss-eap (<< 0.9.3)
 Pre-Depends: ${misc:Pre-Depends}
 Multi-Arch: same
 Description: Moonshot Temporary Identity  Shared Libraries
