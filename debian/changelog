@@ -1,3 +1,10 @@
+moonshot-trust-router (1.5~4) unstable; urgency=medium
+
+  * Fix versioning because we want to fix the gss_delete_sec_context for wheezy
+  * Move logging section to tr_internal
+
+ -- Sam Hartman <hartmans@debian.org>  Tue, 17 Mar 2015 15:20:21 -0400
+
 moonshot-trust-router (1.5~3) unstable; urgency=medium
 
   * Pull in expiration fix
