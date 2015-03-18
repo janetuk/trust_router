@@ -37,6 +37,7 @@
 #include <tr.h>
 #include <tr_comm.h>
 #include <tr_rp.h>
+#include <tr_debug.h>
 
 TR_IDP_REALM *tr_find_comm_idp (TR_COMM *comm, TR_NAME *idp_realm)
 {
@@ -48,7 +49,7 @@ TR_IDP_REALM *tr_find_comm_idp (TR_COMM *comm, TR_NAME *idp_realm)
 
   for (idp = comm->idp_realms; NULL != idp; idp = idp->next) {
     if (!tr_name_cmp (idp_realm, idp->realm_id)) {
-      fprintf(stderr, "tr_find_comm_idp: Found %s.\n", idp_realm->buf);
+      tr_debug("tr_find_comm_idp: Found %s.", idp_realm->buf);
       return idp;
     }
   }
@@ -66,7 +67,7 @@ TR_RP_REALM *tr_find_comm_rp (TR_COMM *comm, TR_NAME *rp_realm)
 
   for (rp = comm->rp_realms; NULL != rp; rp = rp->next) {
     if (!tr_name_cmp (rp_realm, rp->realm_name)) {
-      fprintf(stderr, "tr_find_comm_idp: Found %s.\n", rp_realm->buf);
+      tr_debug("tr_find_comm_idp: Found %s.", rp_realm->buf);
       return rp;
     }
   }

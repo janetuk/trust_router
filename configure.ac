@@ -27,6 +27,6 @@ AC_CHECK_LIB([sqlite3], [sqlite3_open],,
     [AC_MSG_ERROR([Please install sqlite3 development])])
 AC_CHECK_LIB([jansson], [json_object])
 AC_CHECK_LIB([crypto], [DH_new])
-AC_CHECK_HEADERS(gssapi.h gssapi_ext.h jansson.h talloc.h openssl/dh.h openssl/bn.h)
+AC_CHECK_HEADERS(gssapi.h gssapi_ext.h jansson.h talloc.h openssl/dh.h openssl/bn.h syslog.h)
 AC_CONFIG_FILES([Makefile gsscon/Makefile])
 AC_OUTPUT

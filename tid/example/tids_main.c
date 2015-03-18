@@ -104,7 +104,7 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
   int sqlite3_result;
 
   if (!req->cons) {
-    tr_debug("Request has no constraints, so no authorizations.\n");
+    tr_debug("Request has no constraints, so no authorizations.");
     return 0;
   }
   intersected = tr_constraint_set_intersect(req, req->cons);
@@ -118,17 +118,17 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
 					       intersected, "realm",
 					       &realm_wc, &realm_len))
     return -1;
-  tr_debug(" %u domain constraint matches and %u realm constraint matches\n",
+  tr_debug(" %u domain constraint matches and %u realm constraint matches",
 	   (unsigned) domain_len, (unsigned) realm_len);
   if (0 != sqlify_wc(req, domain_wc, domain_len, &error)) {
-    tr_debug("Processing domain constraints: %s\n", error);
+    tr_debug("Processing domain constraints: %s", error);
     return -1;
   }else if (0 != sqlify_wc(req, realm_wc, realm_len, &error)) {
-    tr_debug("Processing realm constraints: %s\n", error);
+    tr_debug("Processing realm constraints: %s", error);
     return -1;
   }
   if (!authorization_insert) {
-    tr_debug( " No database, no authorizations inserted\n");
+    tr_debug( " No database, no authorizations inserted");
     return 0;
   }
   for (domain_index = 0; domain_index < domain_len; domain_index++)
@@ -143,7 +143,7 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
       sqlite3_bind_text(authorization_insert, 5, req->comm->buf, req->comm->len, SQLITE_TRANSIENT);
       sqlite3_result = sqlite3_step(authorization_insert);
       if (SQLITE_DONE != sqlite3_result)
-	printf("sqlite3: failed to write to database\n");
+	tr_crit("sqlite3: failed to write to database");
       sqlite3_reset(authorization_insert);
     }
   return 0;
@@ -162,18 +162,18 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   size_t pub_digest_len;
   
 
-  fprintf(stdout, "tids_req_handler: Request received! target_realm = %s, community = %s\n", req->realm->buf, req->comm->buf);
+  tr_debug("tids_req_handler: Request received! target_realm = %s, community = %s", req->realm->buf, req->comm->buf);
   if (tids)
     tids->req_count++;
 
   if (!(resp) || !resp) {
-    fprintf(stderr, "tids_req_handler: No response structure.\n");
+    tr_debug("tids_req_handler: No response structure.");
     return -1;
   }
 
   /* Allocate a new server block */
   if (NULL == (resp->servers = malloc(sizeof(TID_SRVR_BLK)))){
-    fprintf(stderr, "tids_req_handler(): malloc failed.\n");
+    tr_crit("tids_req_handler(): malloc failed.");
     return -1;
   }
   memset(resp->servers, 0, sizeof(TID_SRVR_BLK));
@@ -182,12 +182,12 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   /* TBD -- Set up the server IP Address */
 
   if (!(req) || !(req->tidc_dh)) {
-    fprintf(stderr, "tids_req_handler(): No client DH info.\n");
+    tr_debug("tids_req_handler(): No client DH info.");
     return -1;
   }
 
   if ((!req->tidc_dh->p) || (!req->tidc_dh->g)) {
-    fprintf(stderr, "tids_req_handler(): NULL dh values.\n");
+    tr_debug("tids_req_handler: NULL dh values.");
     return -1;
   }
 
@@ -196,12 +196,12 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   // fprintf(stderr, "...from client DH block, dh_g = %s, dh_p = %s.\n", BN_bn2hex(req->tidc_dh->g), BN_bn2hex(req->tidc_dh->p));
 
   if (NULL == (resp->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
-    fprintf(stderr, "tids_req_handler(): Can't create server DH params.\n");
+    tr_debug("tids_req_handler: Can't create server DH params.");
     return -1;
   }
 
   if (0 == inet_aton(tids->ipaddr, &(resp->servers->aaa_server_addr))) {
-    fprintf(stderr, "tids_req_handler(): inet_aton() failed.\n");
+    tr_debug("tids_req_handler: inet_aton() failed.");
     return -1;
   }
 
@@ -216,12 +216,12 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, 
 					req->tidc_dh->pub_key, 
 				        resp->servers->aaa_server_dh))) {
-    fprintf(stderr, "tids_req_handler(): Key computation failed.");
+    tr_debug("tids_req_handler: Key computation failed.");
     return -1;
   }
   if (0 != tr_dh_pub_hash(req,
 			  &pub_digest, &pub_digest_len)) {
-    tr_debug("Unable to digest client public key\n");
+    tr_debug("tids_req_handler: Unable to digest client public key");
     return -1;
   }
   if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
@@ -233,7 +233,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
     sqlite3_result = sqlite3_step(insert_stmt);
     if (SQLITE_DONE != sqlite3_result)
-      printf("sqlite3: failed to write to database\n");
+      tr_crit("sqlite3: failed to write to database");
     sqlite3_reset(insert_stmt);
   }
   
@@ -269,11 +269,19 @@ int main (int argc,
     fprintf(stdout, "Usage: %s <ip-address> <gss-name> <hostname> <database-name>\n", argv[0]);
     exit(1);
   }
+
+  /* Use standalone logging */
+  tr_log_open();
+
+  /* set logging levels */
+  tr_log_threshold(LOG_CRIT);
+  tr_console_threshold(LOG_DEBUG);
+
   ipaddr = (char *)argv[1];
   gssname = tr_new_name((char *) argv[2]);
   hostname = argv[3];
   if (SQLITE_OK != sqlite3_open(argv[4], &db)) {
-    fprintf(stdout, "Error opening database %s\n", argv[4]);
+    tr_crit("Error opening database %s", argv[4]);
     exit(1);
   }
   sqlite3_busy_timeout( db, 1000);
@@ -284,7 +292,7 @@ int main (int argc,
 
   /* Create a TID server instance */
   if (NULL == (tids = tids_create())) {
-    fprintf(stdout, "Unable to create TIDS instance, exiting.\n");
+    tr_crit("Unable to create TIDS instance, exiting.");
     return 1;
   }
 
@@ -293,7 +301,7 @@ int main (int argc,
   /* Start-up the server, won't return unless there is an error. */
   rc = tids_start(tids, &tids_req_handler , auth_handler, hostname, TID_PORT, gssname);
   
-  fprintf(stdout, "Error in tids_start(), rc = %d. Exiting.\n", rc);
+  tr_crit("Error in tids_start(), rc = %d. Exiting.", rc);
 
   /* Clean-up the TID server instance */
   tids_destroy(tids);
