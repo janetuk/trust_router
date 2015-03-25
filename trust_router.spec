@@ -1,7 +1,7 @@
 %global optflags %{optflags} -Wno-parentheses
 Name:           trust_router
-Version:        1.5
-Release:        3%{?dist}
+Version:        1.5.1
+Release:        1%{?dist}
 Summary:        Moonshot Trust Router
 
 Group:          System Environment/Libraries
@@ -92,11 +92,15 @@ exit 0
 
 %post
 # Data directory
-test -d /var/lib/trust_router ||mkdir /var/lib/trust_router
-chown trustrouter:trustrouter /var/lib/trust_router
-sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys
-chown trustrouter:trustrouter /var/lib/trust_router/keys
-chmod 660 /var/lib/trust_router/keys
+tr_home=/var/lib/trust_router
+tr_schema=${tr_home}/.schema_1.5.1
+test -d ${tr_home} ||mkdir ${tr_home}
+chown trustrouter:trustrouter ${tr_home}
+test -e $tr_schema || rm -f $tr_home/keys
+sqlite3 </usr/share/trust_router/schema.sql ${tr_home}/keys
+touch $tr_schema
+chown trustrouter:trustrouter ${tr_home}/keys
+chmod 660 ${tr_home}/keys
 
 # Log Directory
 test -d /var/log/trust_router ||mkdir /var/log/trust_router
