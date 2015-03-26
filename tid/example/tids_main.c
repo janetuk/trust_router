@@ -294,7 +294,7 @@ int main (int argc,
     exit(1);
   }
   sqlite3_busy_timeout( db, 1000);
-  sqlite3_prepare_v2(db, "insert into psk_keys (keyid, key, client_dh_pub, key_expiration) values(?, ?, ?, ?)",
+  sqlite3_prepare_v2(db, "insert into psk_keys_tab (keyid, key, client_dh_pub, key_expiration) values(?, ?, ?, ?)",
 		     -1, &insert_stmt, NULL);
   sqlite3_prepare_v2(db, "insert into authorizations (client_dh_pub, coi, acceptor_realm, hostname, apc) values(?, ?, ?, ?, ?)",
 		     -1, &authorization_insert, NULL);
