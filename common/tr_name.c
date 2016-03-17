@@ -47,7 +47,7 @@ void tr_free_name (TR_NAME *name)
   free(name);
 }
 
-TR_NAME *tr_new_name (char *name) 
+TR_NAME *tr_new_name (const char *name)
 {
   TR_NAME *new;
 

@@ -60,8 +60,8 @@ void tidc_destroy (TIDC_INSTANCE *tidc)
   talloc_free(tidc);
 }
 
-int tidc_open_connection (TIDC_INSTANCE *tidc, 
-			  char *server,
+int tidc_open_connection (TIDC_INSTANCE *tidc,
+			  const char *server,
 			  unsigned int port,
 			  gss_ctx_id_t *gssctx)
 {
@@ -85,9 +85,9 @@ int tidc_open_connection (TIDC_INSTANCE *tidc,
 int tidc_send_request (TIDC_INSTANCE *tidc,
 		       int conn,
 		       gss_ctx_id_t gssctx,
-		       char *rp_realm,
-		       char *realm, 
-		       char *comm,
+		       const char *rp_realm,
+		       const char *realm,
+		       const char *comm,
 		       TIDC_RESP_FUNC *resp_handler,
 		       void *cookie)
 {
