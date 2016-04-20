@@ -958,9 +958,23 @@ TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc)
 static int is_cfg_file(const struct dirent *dent) {
   int n;
 
-  /* if the last four letters of the filename are .cfg, return true. */
-  if ((4 <= (n = strlen(dent->d_name))) &&
-      (0 == strcmp(&(dent->d_name[n-4]), ".cfg"))) {
+  /* Only accept filenames ending in ".cfg" and starting with a character
+   * other than an ASCII '.' */
+
+  /* filename must be at least 4 characters long to be acceptable */
+  n=strlen(dent->d_name);
+  if (n < 4) {
+    return 0;
+  }
+
+  /* filename must not start with '.' */
+  if ('.' == dent->d_name[0]) {
+    return 0;
+  }
+
+  /* If the above passed and the last four characters of the filename are .cfg, accept.
+   * (n.b., assumes an earlier test checked that the name is >= 4 chars long.) */
+  if (0 == strcmp(&(dent->d_name[n-4]), ".cfg")) {
     return 1;
   }
 
