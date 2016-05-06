@@ -1029,10 +1029,11 @@ void tr_free_config_file_list(int n, struct dirent ***cfg_files) {
   int ii;
 
   /* if n < 0, then scandir did not allocate anything because it failed */
-  if(n>=0) {
+  if((n>=0) && (*cfg_files != NULL)) {
     for(ii=0; ii<n; ii++) {
       free((*cfg_files)[ii]);
     }
     free(*cfg_files); /* safe even if n==0 */
+    *cfg_files=NULL; /* this will help prevent accidentally freeing twice */
   }
 }
