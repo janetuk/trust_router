@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <jansson.h>
+#include <argp.h>
 
 #include <tr.h>
 #include <tr_filter.h>
@@ -254,18 +255,83 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   return 0;
 }
 
+/* Strip trailing / from a path name.*/
+static void remove_trailing_slash(char *s) {
+  size_t n;
 
-int main (int argc, const char *argv[])
+  n=strlen(s);
+  if(s[n-1]=='/') {
+    s[n-1]='\0';
+  }
+}
+
+/* command-line option setup */
+
+/* argp global parameters */
+const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
+
+/* doc strings */
+static const char doc[]=PACKAGE_NAME " - Moonshot Trust Router";
+static const char arg_doc[]=""; /* string describing arguments, if any */
+
+/* define the options here. Fields are:
+ * { long-name, short-name, variable name, options, help description } */
+static const struct argp_option cmdline_options[] = {
+    { "config-dir", 'c', "DIR", 0, "Specify configuration file location (default is current directory)"},
+    { NULL }
+};
+
+/* structure for communicating with option parser */
+struct cmdline_args {
+  char *config_dir;
+};
+
+/* parser for individual options - fills in a struct cmdline_args */
+static error_t parse_option(int key, char *arg, struct argp_state *state)
+{
+  /* get a shorthand to the command line argument structure, part of state */
+  struct cmdline_args *arguments=state->input;
+
+  switch (key) {
+  case 'c':
+    if (arg == NULL) {
+      /* somehow we got called without an argument */
+      return ARGP_ERR_UNKNOWN;
+    }
+    arguments->config_dir=arg;
+    break;
+
+  default:
+    return ARGP_ERR_UNKNOWN;
+  }
+
+  return 0; /* success */
+}
+
+/* assemble the argp parser */
+static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
+
+
+int main (int argc, char *argv[])
 {
   TR_INSTANCE *tr = NULL;
   struct dirent **cfg_files = NULL;
   TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
-  int err = 0, n = 0;;
-
-  /* parse command-line arguments? -- TBD */
+  int err = 0, n = 0;
+  struct cmdline_args opts;
 
   /* Use standalone logging */
   tr_log_open();
+
+  /* parse command-line arguments */
+  /* set defaults */
+  opts.config_dir=".";
+
+  /* parse the command line*/
+  argp_parse(&argp, argc, argv, 0, 0, &opts);
+
+  /* process options */
+  remove_trailing_slash(opts.config_dir);
 
   /* create a Trust Router instance */
   if (NULL == (tr = tr_create())) {
@@ -273,16 +339,24 @@ int main (int argc, const char *argv[])
     return 1;
   }
 
-  /* find the configuration files */
-  if (0 == (n = tr_find_config_files(&cfg_files))) {
+  /* find the configuration files -- n.b., tr_find_config_files()
+   * allocates memory to cfg_files which we must later free */
+  tr_debug("Reading configuration files from %s/", opts.config_dir);
+  n = tr_find_config_files(opts.config_dir, &cfg_files);
+  if (n <= 0) {
     tr_crit("Can't locate configuration files, exiting.");
+    tr_free_config_file_list(n, &cfg_files);
     exit(1);
   }
 
-  if (TR_CFG_SUCCESS != tr_parse_config(tr, n, cfg_files)) {
+  if (TR_CFG_SUCCESS != tr_parse_config(tr, opts.config_dir, n, cfg_files)) {
     tr_crit("Error decoding configuration information, exiting.");
+    tr_free_config_file_list(n, &cfg_files);
     exit(1);
   }
+  
+  /* we are now done with the config filenames, free those */
+  tr_free_config_file_list(n, &cfg_files);
 
   /* apply initial configuration */
   if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(tr))) {

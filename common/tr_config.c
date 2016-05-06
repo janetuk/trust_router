@@ -866,11 +866,19 @@ TR_CFG_RC tr_cfg_validate (TR_CFG *trc) {
   return rc;
 }
 
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, int n, struct dirent **cfg_files) {
+/* Join two paths and return a pointer to the result. This should be freed
+ * via talloc_free. Returns NULL on failure. */
+static char *join_paths(const char *p1, const char *p2) {
+  return talloc_asprintf(NULL, "%s/%s", p1, p2); /* returns NULL on a failure */
+}
+
+/* Reads configuration files in config_dir ("" or "./" will use the current directory) */
+TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, const char *config_dir, int n, struct dirent **cfg_files) {
   json_t *jcfg;
   json_error_t rc;
+  char *file_with_path;
 
-  if ((!tr) || (!cfg_files))
+  if ((!tr) || (!cfg_files) || (n<=0))
     return TR_CFG_BAD_PARAMS;
 
   /* If there is a partial/abandoned config lying around, free it */
@@ -884,19 +892,26 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, int n, struct dirent **cfg_files) {
 
   /* Parse configuration information from each config file */
   while (n--) {
-    tr_debug("tr_read_config: Parsing %s.", cfg_files[n]->d_name);
-    if (NULL == (jcfg = json_load_file(cfg_files[n]->d_name, 
-				       JSON_DISABLE_EOF_CHECK, &rc))) {
-      tr_debug("tr_read_config: Error parsing config file %s.", 
-	       cfg_files[n]->d_name);
+    file_with_path=join_paths(config_dir, cfg_files[n]->d_name); /* must free result with talloc_free */
+    if(file_with_path == NULL) {
+      tr_crit("tr_parse_config: error joining path.");
+      return TR_CFG_NOMEM;
+    }
+    tr_debug("tr_parse_config: Parsing %s.", cfg_files[n]->d_name); /* print the filename without the path */
+    if (NULL == (jcfg = json_load_file(file_with_path, 
+                                       JSON_DISABLE_EOF_CHECK, &rc))) {
+      tr_debug("tr_parse_config: Error parsing config file %s.", 
+               cfg_files[n]->d_name);
+      talloc_free(file_with_path);
       return TR_CFG_NOPARSE;
     }
-	
+    talloc_free(file_with_path); /* done with filename */
+
     if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(tr->new_cfg, jcfg)) ||
-	(TR_CFG_SUCCESS != tr_cfg_parse_rp_clients(tr->new_cfg, jcfg)) ||
-	(TR_CFG_SUCCESS != tr_cfg_parse_idp_realms(tr->new_cfg, jcfg)) ||
-	(TR_CFG_SUCCESS != tr_cfg_parse_default_servers(tr->new_cfg, jcfg)) ||
-	(TR_CFG_SUCCESS != tr_cfg_parse_comms(tr->new_cfg, jcfg))) {
+        (TR_CFG_SUCCESS != tr_cfg_parse_rp_clients(tr->new_cfg, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_idp_realms(tr->new_cfg, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(tr->new_cfg, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_comms(tr->new_cfg, jcfg))) {
       tr_cfg_free(tr->new_cfg);
       return TR_CFG_ERROR;
     }
@@ -982,26 +997,42 @@ static int is_cfg_file(const struct dirent *dent) {
   return 0;
 }
 
-int tr_find_config_files (struct dirent ***cfg_files) {
+/* Find configuration files in a particular directory. Returns the
+ * number of entries found, 0 if none are found, or <0 for some
+ * errors. If n>=0, the cfg_files parameter will contain a newly
+ * allocated array of pointers to struct dirent entries, as returned
+ * by scandir(). These can be freed with tr_free_config_file_list().
+ */
+int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files) {
   int n = 0, i = 0;
   
-  n = scandir(".", cfg_files, &is_cfg_file, 0);
+  n = scandir(config_dir, cfg_files, &is_cfg_file, 0);
 
   if (n < 0) {
     perror("scandir");
-    tr_debug("tr_find_config: scandir error.");
-    return 0;
-  }
-
-  if (n == 0) {
+    tr_debug("tr_find_config: scandir error trying to scan %s.", config_dir);
+  } else if (n == 0) {
     tr_debug("tr_find_config: No config files found.");
-    return 0;
+  } else {
+    i = n;
+    while(i--) {
+      tr_debug("tr_find_config: Config file found (%s).", (*cfg_files)[i]->d_name);
+    }
   }
 
-  i = n;
-  while(i--) {
-    tr_debug("tr_find_config: Config file found (%s).", (*cfg_files)[i]->d_name);
-  }
-    
   return n;
+}
+
+/* Free memory allocated for configuration file list returned from tr_find_config_files().
+ * This can be called regardless of the return value of tr_find_config_values(). */
+void tr_free_config_file_list(int n, struct dirent ***cfg_files) {
+  int ii;
+
+  /* if n < 0, then scandir did not allocate anything because it failed */
+  if(n>=0) {
+    for(ii=0; ii<n; ii++) {
+      free((*cfg_files)[ii]);
+    }
+    free(*cfg_files); /* safe even if n==0 */
+  }
 }

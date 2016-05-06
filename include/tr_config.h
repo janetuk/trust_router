@@ -78,8 +78,9 @@ typedef struct tr_cfg {
   /* TBD -- Trust Links */
 } TR_CFG;
 
-int tr_find_config_files (struct dirent ***cfg_files);
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, int n, struct dirent **cfg_files);
+int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files);
+void tr_free_config_file_list(int n, struct dirent ***cfg_files);
+TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, const char *config_dir, int n, struct dirent **cfg_files);
 TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
 TR_CFG_RC tr_cfg_validate (TR_CFG *trc);
 void tr_cfg_free(TR_CFG *cfg);
