@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <talloc.h>
 #include <sqlite3.h>
+#include <argp.h>
 
 #include <tr_debug.h>
 #include <tid_internal.h>
@@ -262,22 +263,89 @@ static int auth_handler(gss_name_t gss_name, TR_NAME *client,
   return tr_name_cmp(client, expected_client_trname);
 }
 
+/* command-line option setup */
+
+/* argp global parameters */
+const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
+
+/* doc strings */
+static const char doc[]=PACKAGE_NAME " - TID Server";
+static const char arg_doc[]="<ip-address> <gss-name> <hostname> <database-name>"; /* string describing arguments, if any */
+
+/* define the options here. Fields are:
+ * { long-name, short-name, variable name, options, help description } */
+static const struct argp_option cmdline_options[] = {
+  { NULL }
+};
+
+/* structure for communicating with option parser */
+struct cmdline_args {
+  char *ip_address;
+  char *gss_name;
+  char *hostname;
+  char *database_name;
+};
+
+/* parser for individual options - fills in a struct cmdline_args */
+static error_t parse_option(int key, char *arg, struct argp_state *state)
+{
+  /* get a shorthand to the command line argument structure, part of state */
+  struct cmdline_args *arguments=state->input;
+
+  switch (key) {
+  case ARGP_KEY_ARG: /* handle argument (not option) */
+    switch (state->arg_num) {
+    case 0:
+      arguments->ip_address=arg;
+      break;
+
+    case 1:
+      arguments->gss_name=arg;
+      break;
+
+    case 2:
+      arguments->hostname=arg;
+      break;
+
+    case 3:
+      arguments->database_name=arg;
+      break;
+
+    default:
+      /* too many arguments */
+      argp_usage(state);
+    }
+    break;
+
+  case ARGP_KEY_END: /* no more arguments */
+    if (state->arg_num < 4) {
+      /* not enough arguments encountered */
+      argp_usage(state);
+    }
+    break;
+
+  default:
+    return ARGP_ERR_UNKNOWN;
+  }
+
+  return 0; /* success */
+}
+
+/* assemble the argp parser */
+static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
 int main (int argc, 
-	  const char *argv[]) 
+          char *argv[]) 
 {
   TIDS_INSTANCE *tids;
   int rc = 0;
-  char *ipaddr = NULL;
-  const char *hostname = NULL;
   TR_NAME *gssname = NULL;
+  struct cmdline_args opts={NULL};
+
+  /* parse the command line*/
+  argp_parse(&argp, argc, argv, 0, 0, &opts);
 
   talloc_set_log_stderr();
-  /* Parse command-line arguments */ 
-  if (argc != 5) {
-    fprintf(stdout, "Usage: %s <ip-address> <gss-name> <hostname> <database-name>\n", argv[0]);
-    exit(1);
-  }
 
   /* Use standalone logging */
   tr_log_open();
@@ -286,11 +354,9 @@ int main (int argc,
   tr_log_threshold(LOG_CRIT);
   tr_console_threshold(LOG_DEBUG);
 
-  ipaddr = (char *)argv[1];
-  gssname = tr_new_name((char *) argv[2]);
-  hostname = argv[3];
-  if (SQLITE_OK != sqlite3_open(argv[4], &db)) {
-    tr_crit("Error opening database %s", argv[4]);
+  gssname = tr_new_name(opts.gss_name);
+  if (SQLITE_OK != sqlite3_open(opts.database_name, &db)) {
+    tr_crit("Error opening database %s", opts.database_name);
     exit(1);
   }
   sqlite3_busy_timeout( db, 1000);
@@ -305,10 +371,10 @@ int main (int argc,
     return 1;
   }
 
-  tids->ipaddr = ipaddr;
+  tids->ipaddr = opts.ip_address;
 
   /* Start-up the server, won't return unless there is an error. */
-  rc = tids_start(tids, &tids_req_handler , auth_handler, hostname, TID_PORT, gssname);
+  rc = tids_start(tids, &tids_req_handler , auth_handler, opts.hostname, TID_PORT, gssname);
   
   tr_crit("Error in tids_start(), rc = %d. Exiting.", rc);
 
