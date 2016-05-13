@@ -35,16 +35,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <talloc.h>
+#include <argp.h>
 
 #include <gsscon.h>
 #include <tr_debug.h>
 #include <tid_internal.h>
 #include <trust_router/tr_dh.h>
-
-void static tidc_print_usage (const char *name)
-{
-  printf("Usage: %s <server> <RP-realm> <target-realm> <community> [<port>]\n", name);
-}
 
 static void tidc_resp_handler (TIDC_INSTANCE * tidc, 
 			TID_REQ *req,
@@ -86,18 +82,102 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
   return;
 }
 
+
+/* command-line option setup */
+
+/* argp global parameters */
+const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
+
+/* doc strings */
+static const char doc[]=PACKAGE_NAME " - TID Client";
+static const char arg_doc[]="<server> <RP-realm> <target-realm> <community> [<port>]"; /* string describing arguments, if any */
+
+/* define the options here. Fields are:
+ * { long-name, short-name, variable name, options, help description } */
+static const struct argp_option cmdline_options[] = {
+  { NULL }
+};
+
+/* structure for communicating with option parser */
+struct cmdline_args {
+  char *server;
+  char *rp_realm;
+  char *target_realm;
+  char *community;
+  int port; /* optional */
+};
+
+/* parser for individual options - fills in a struct cmdline_args */
+static error_t parse_option(int key, char *arg, struct argp_state *state)
+{
+  /* get a shorthand to the command line argument structure, part of state */
+  struct cmdline_args *arguments=state->input;
+
+  switch (key) {
+  case ARGP_KEY_ARG: /* handle argument (not option) */
+    switch (state->arg_num) {
+    case 0:
+      arguments->server=arg;
+      break;
+
+    case 1:
+      arguments->rp_realm=arg;
+      break;
+
+    case 2:
+      arguments->target_realm=arg;
+      break;
+
+    case 3:
+      arguments->community=arg;
+      break;
+
+    case 4:
+      arguments->port=strtol(arg, NULL, 10); /* optional */
+      break;
+
+    default:
+      /* too many arguments */
+      argp_usage(state);
+    }
+    break;
+
+  case ARGP_KEY_END: /* no more arguments */
+    if (state->arg_num < 4) {
+      /* not enough arguments encountered */
+      argp_usage(state);
+    }
+    break;
+
+  default:
+    return ARGP_ERR_UNKNOWN;
+  }
+
+  return 0; /* success */
+}
+
+/* assemble the argp parser */
+static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
+
 int main (int argc, 
-	  const char *argv[]) 
+          char *argv[]) 
 {
   TIDC_INSTANCE *tidc;
-  char *server = NULL;
-  char *rp_realm = NULL;
-  char *realm = NULL;
-  char *coi = NULL;
-  int port = TID_PORT;
   int conn = 0;
   int rc;
   gss_ctx_id_t gssctx;
+  struct cmdline_args opts;
+
+  /* parse the command line*/
+  /* set defaults */
+  opts.server=NULL;
+  opts.rp_realm=NULL;
+  opts.target_realm=NULL;
+  opts.community=NULL;
+  opts.port=TID_PORT;
+
+  argp_parse(&argp, argc, argv, 0, 0, &opts);
+  /* TBD -- validity checking, dealing with quotes, etc. */
 
   /* Use standalone logging */
   tr_log_open();
@@ -107,23 +187,7 @@ int main (int argc,
   tr_log_threshold(LOG_CRIT);
   tr_console_threshold(LOG_DEBUG);
 
-  /* Parse command-line arguments */ 
-  if (argc < 5 || argc > 6) {
-    tidc_print_usage(argv[0]);
-    exit(1);
-  }
-
-  /* TBD -- validity checking, dealing with quotes, etc. */
-  server = (char *)argv[1];
-  rp_realm = (char *) argv[2];
-  realm = (char *)argv[3];
-  coi = (char *)argv[4];
-
-  if (argc > 5) {
-    port = strtol(argv[5], NULL, 10);
-  }
-
-  printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s, port = %i\n", server, rp_realm, realm, coi, port);
+  printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s, port = %i\n", opts.server, opts.rp_realm, opts.target_realm, opts.community, opts.port);
  
   /* Create a TID client instance & the client DH */
   tidc = tidc_create();
@@ -133,14 +197,14 @@ int main (int argc,
   }
 
   /* Set-up TID connection */
-  if (-1 == (conn = tidc_open_connection(tidc, server, port, &gssctx))) {
+  if (-1 == (conn = tidc_open_connection(tidc, opts.server, opts.port, &gssctx))) {
     /* Handle error */
     printf("Error in tidc_open_connection.\n");
     return 1;
   };
 
   /* Send a TID request */
-  if (0 > (rc = tidc_send_request(tidc, conn, gssctx, rp_realm, realm, coi, 
+  if (0 > (rc = tidc_send_request(tidc, conn, gssctx, opts.rp_realm, opts.target_realm, opts.community, 
 				  &tidc_resp_handler, NULL))) {
     /* Handle error */
     printf("Error in tidc_send_request, rc = %d.\n", rc);
