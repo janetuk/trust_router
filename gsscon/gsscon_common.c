@@ -52,6 +52,8 @@
  * or implied warranty.
  */
 
+#include <signal.h>
+
 #include <gsscon.h>
 
 /* --------------------------------------------------------------------------- */
@@ -131,7 +133,14 @@ static int WriteBuffer (int         inSocket,
     if (!err) {
         const char *ptr = inBuffer;
         do {
-            ssize_t count = write (inSocket, ptr, inBufferLength - bytesWritten);
+            ssize_t count;
+
+            /* disable the SIGPIPE signal while we write so that we can handle a
+             * broken pipe error gracefully */
+            signal(SIGPIPE, SIG_IGN); /* temporarily disable */
+            count = write (inSocket, ptr, inBufferLength - bytesWritten);
+            signal(SIGPIPE, SIG_DFL); /* reenable */
+
             if (count < 0) {
                 /* Try again on EINTR */
                 if (errno != EINTR) { err = errno; }
@@ -142,7 +151,7 @@ static int WriteBuffer (int         inSocket,
         } while (!err && (bytesWritten < inBufferLength));
     } 
     
-    if (err) { gsscon_print_error (err, "WritBuffer failed"); }
+    if (err) { gsscon_print_error (err, "WriteBuffer failed"); }
 
     return err;
 }
