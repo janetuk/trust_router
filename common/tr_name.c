@@ -82,9 +82,10 @@ int tr_name_cmp(TR_NAME *one, TR_NAME *two)
 {
   if (one->len != two->len)
     return 1;
-  else 
-    /* TBD -- should really do a length-based comparison */
-    return strcmp(one->buf, two->buf);
+  else {
+    /* lengths equal */
+    return strncmp(one->buf, two->buf, one->len);
+  }
 }
 
 void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
