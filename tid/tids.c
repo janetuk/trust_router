@@ -122,15 +122,24 @@ static int tids_listen (TIDS_INSTANCE *tids, int port)
     return conn;
 }
 
+/* returns EACCES if authorization is denied */
 static int tids_auth_cb(gss_name_t clientName, gss_buffer_t displayName,
 			void *data)
 {
   struct tids_instance *inst = (struct tids_instance *) data;
   TR_NAME name ={(char *) displayName->value,
 		 displayName->length};
-  return inst->auth_handler(clientName, &name, inst->cookie);
+  int result=0;
+
+  if (0!=inst->auth_handler(clientName, &name, inst->cookie)) {
+    tr_debug("tids_auth_cb: client '%.*s' denied authorization.", name.len, name.buf);
+    result=EACCES; /* denied */
+  }
+
+  return result;
 }
 
+/* returns 0 on authorization success, 1 on failure, or -1 in case of error */
 static int tids_auth_connection (struct tids_instance *inst,
 				 int conn, gss_ctx_id_t *gssctx)
 {

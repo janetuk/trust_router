@@ -256,11 +256,18 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
 
   return s_keylen;
 }
+
 static int auth_handler(gss_name_t gss_name, TR_NAME *client,
 			void *expected_client)
 {
   TR_NAME *expected_client_trname = (TR_NAME*) expected_client;
-  return tr_name_cmp(client, expected_client_trname);
+  int result=tr_name_cmp(client, expected_client_trname);
+  if (result != 0) {
+    tr_notice("Auth denied for incorrect gss-name ('%.*s' requested, expected '%.*s').",
+              client->len, client->buf,
+              expected_client_trname->len, expected_client_trname->buf);
+  }
+  return result;
 }
 
 /* command-line option setup */
