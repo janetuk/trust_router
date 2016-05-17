@@ -38,6 +38,7 @@
 #include <talloc.h>
 #include <sqlite3.h>
 #include <argp.h>
+#include <poll.h>
 
 #include <tr_debug.h>
 #include <tid_internal.h>
@@ -345,9 +346,10 @@ int main (int argc,
           char *argv[]) 
 {
   TIDS_INSTANCE *tids;
-  int rc = 0;
   TR_NAME *gssname = NULL;
   struct cmdline_args opts={NULL};
+  int tids_socket=-1;
+  struct pollfd *poll_fds=NULL;
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
@@ -380,10 +382,32 @@ int main (int argc,
 
   tids->ipaddr = opts.ip_address;
 
-  /* Start-up the server, won't return unless there is an error. */
-  rc = tids_start(tids, &tids_req_handler , auth_handler, opts.hostname, TID_PORT, gssname);
-  
-  tr_crit("Error in tids_start(), rc = %d. Exiting.", rc);
+  /* get listener for tids port */
+  tids_socket = tids_get_listener(tids, &tids_req_handler , auth_handler, opts.hostname, TID_PORT, gssname);
+
+  poll_fds=malloc(sizeof(*poll_fds));
+  if (poll_fds == NULL) {
+    tr_crit("Could not allocate event polling list, exiting.");
+    return 1;
+  }
+
+  poll_fds[0].fd=tids_socket;
+  poll_fds[0].events=POLLIN; /* poll on ready for reading */
+  poll_fds[0].revents=0; 
+
+  /* main event loop */
+  while (1) {
+    if(poll(poll_fds, 1, 1000) > 0) {
+      if (poll_fds[0].revents & POLLIN) {
+        if (0 != tids_accept(tids, tids_socket)) {
+          tr_err("Error handling tids request.");
+        }
+      }
+    } else {
+      printf("Idle..."); fflush(stdout);
+    }
+
+  }
 
   /* Clean-up the TID server instance */
   tids_destroy(tids);

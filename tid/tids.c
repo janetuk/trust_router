@@ -35,6 +35,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -370,6 +371,81 @@ TIDS_INSTANCE *tids_create (void)
   if (tids = malloc(sizeof(TIDS_INSTANCE)))
     memset(tids, 0, sizeof(TIDS_INSTANCE));
   return tids;
+}
+
+/* Get a listener for tids requests, returns its socket fd. Accept
+ * connections with tids_accept() */
+int tids_get_listener(TIDS_INSTANCE *tids, 
+                      TIDS_REQ_FUNC *req_handler,
+                      tids_auth_func *auth_handler,
+                      const char *hostname,
+                      unsigned int port,
+                      void *cookie)
+{
+  int listen = -1;
+
+  tids->tids_port = port;
+  if (0 > (listen = tids_listen(tids, port))) {
+    char errbuf[256];
+    if (0 == strerror_r(errno, errbuf, 256)) {
+      tr_debug("tids_get_listener: Error opening port %d: %s.", port, errbuf);
+    } else {
+      tr_debug("tids_get_listener: Unknown error openining port %d.", port);
+    }
+  } 
+
+  if (listen > 0) {
+    /* opening port succeeded */
+    tr_debug("tids_get_listener: Opened port %d.", port);
+    
+    /* make this socket non-blocking */
+    if (0 != fcntl(listen, F_SETFD, O_NONBLOCK)) {
+      tr_debug("tids_get_listener: Error setting O_NONBLOCK.");
+      close(listen);
+      listen=-1;
+    }
+  }
+
+  if (listen > 0) {
+    /* store the caller's request handler & cookie */
+    tids->req_handler = req_handler;
+    tids->auth_handler = auth_handler;
+    tids->hostname = hostname;
+    tids->cookie = cookie;
+  }
+
+  return listen;
+}
+
+/* Accept and process a connection on a port opened with tids_get_listener() */
+int tids_accept(TIDS_INSTANCE *tids, int listen)
+{
+  int conn=-1;
+  int pid=-1;
+
+  if (0 > (conn = accept(listen, NULL, NULL))) {
+    perror("Error from TIDS Server accept()");
+    return 1;
+  }
+
+  if (0 > (pid = fork())) {
+    perror("Error on fork()");
+    return 1;
+  }
+
+  if (pid == 0) {
+    close(listen);
+    tids_handle_connection(tids, conn);
+    close(conn);
+    exit(0); /* exit to kill forked child process */
+  } else {
+    close(conn);
+  }
+
+  /* clean up any processes that have completed  (TBD: move to main loop?) */
+  while (waitpid(-1, 0, WNOHANG) > 0);
+
+  return 0;
 }
 
 /* Process tids requests forever. Should not return except on error. */
