@@ -372,6 +372,7 @@ TIDS_INSTANCE *tids_create (void)
   return tids;
 }
 
+/* Process tids requests forever. Should not return except on error. */
 int tids_start (TIDS_INSTANCE *tids, 
 		TIDS_REQ_FUNC *req_handler,
 		tids_auth_func *auth_handler,
@@ -411,7 +412,7 @@ int tids_start (TIDS_INSTANCE *tids,
       close(listen);
       tids_handle_connection(tids, conn);
       close(conn);
-      return 0;
+      exit(0); /* exit to kill forked child process */
     } else {
       close(conn);
     }
