@@ -399,7 +399,7 @@ int tids_get_listener(TIDS_INSTANCE *tids,
     tr_debug("tids_get_listener: Opened port %d.", port);
     
     /* make this socket non-blocking */
-    if (0 != fcntl(listen, F_SETFD, O_NONBLOCK)) {
+    if (0 != fcntl(listen, F_SETFL, O_NONBLOCK)) {
       tr_debug("tids_get_listener: Error setting O_NONBLOCK.");
       close(listen);
       listen=-1;
