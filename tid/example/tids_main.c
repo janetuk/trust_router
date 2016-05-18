@@ -397,16 +397,15 @@ int main (int argc,
 
   /* main event loop */
   while (1) {
-    if(poll(poll_fds, 1, 1000) > 0) {
+    /* wait up to 100 ms for an event, then handle any idle work */
+    if(poll(poll_fds, 1, 100) > 0) {
       if (poll_fds[0].revents & POLLIN) {
         if (0 != tids_accept(tids, tids_socket)) {
           tr_err("Error handling tids request.");
         }
       }
-    } else {
-      printf("Idle..."); fflush(stdout);
     }
-
+    /* idle loop stuff here */
   }
 
   /* Clean-up the TID server instance */
