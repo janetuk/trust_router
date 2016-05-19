@@ -36,6 +36,9 @@
 #include <stdlib.h>
 #include <jansson.h>
 #include <argp.h>
+#include <event2/event.h>
+#include <talloc.h>
+#include <sys/stat.h>
 
 #include <tr.h>
 #include <tr_filter.h>
@@ -255,6 +258,256 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   return 0;
 }
 
+/***** event loop management ****/
+
+/* struct for hanging on to a socket listener event */
+struct tr_socket_event {
+  int sock_fd; /* the fd for the socket */
+  struct event *ev; /* its event */
+};
+
+/* Allocate and set up the event base, return a pointer
+ * to the new event_base or NULL on failure.
+ * Does not currently enable thread-safe mode. */
+static struct event_base *tr_event_loop_init(void)
+{
+  struct event_base *base=NULL;
+
+  base=event_base_new();
+  if (base==NULL) {
+    tr_crit("Error initializing event loop.");
+    return NULL;
+  }
+  return base;
+}
+
+/* run the loop, does not normally return */
+static int tr_event_loop_run(struct event_base *base)
+{
+  return event_base_dispatch(base);
+}
+
+/* called when a connection to the TIDS port is received */
+static void tr_tids_event_cb(int listener, short event, void *arg)
+{
+  TIDS_INSTANCE *tids = (TIDS_INSTANCE *)arg;
+
+  if (0==(event & EV_READ))
+    tr_debug("tr_tids_event_cb: unexpected event on TIDS socket (event=0x%X)", event);
+  else 
+    tids_accept(tids, listener);
+}
+
+/* Configure the tids instance and set up its event handler.
+ * Returns 0 on success, nonzero on failure. Fills in
+ * *tids_event (which should be allocated). */
+static int tr_tids_event_init(struct event_base *base,
+                              TR_INSTANCE *tr,
+                              struct tr_socket_event *tids_ev)
+{
+  if (tids_ev == NULL) {
+    tr_debug("tr_tids_event_init: Null tids_ev.");
+    return 1;
+  }
+
+  /* get a tids listener */
+  tids_ev->sock_fd=tids_get_listener(tr->tids,
+                                      tr_tids_req_handler,
+                                      tr_tids_gss_handler,
+                                      tr->active_cfg->internal->hostname,
+                                      tr->active_cfg->internal->tids_port,
+                                      (void *)tr);
+  if (tids_ev->sock_fd < 0) {
+    tr_crit("Error opening TID server socket.");
+    return 1;
+  }
+
+  /* and its event */
+  tids_ev->ev=event_new(base,
+                        tids_ev->sock_fd,
+                        EV_READ|EV_PERSIST,
+                        tr_tids_event_cb,
+                        (void *)tr->tids);
+  event_add(tids_ev->ev, NULL);
+
+  return 0;
+}
+
+
+/***** config file watching *****/
+
+struct tr_fstat {
+  char *name;
+  struct timespec mtime;
+};
+
+struct tr_cfgwatch_data {
+  struct timeval poll_interval;
+  char *config_dir;
+  struct tr_fstat *fstat_list;
+  int n_files;
+};
+
+/* Obtain the file modification time as seconds since epoch. Returns 0 on success. */
+static int tr_get_mtime(const char *path, struct timespec *ts)
+{
+  struct stat file_status;
+
+  if (stat(path, &file_status) != 0) {
+    return -1;
+  } else {
+    (*ts)=file_status.st_mtim;
+  }
+  return 0;
+}
+
+static char *tr_join_paths(TALLOC_CTX *mem_ctx, const char *p1, const char *p2)
+{
+  return talloc_asprintf(mem_ctx, "%s/%s", p1, p2); /* returns NULL on a failure */
+}
+
+static int tr_fstat_namecmp(const void *p1_arg, const void *p2_arg)
+{
+  struct tr_fstat *p1=(struct tr_fstat *) p1_arg;
+  struct tr_fstat *p2=(struct tr_fstat *) p2_arg;
+
+  return strcmp(p1->name, p2->name);
+}
+
+static int tr_fstat_mtimecmp(const void *p1_arg, const void *p2_arg)
+{
+  struct tr_fstat *p1=(struct tr_fstat *) p1_arg;
+  struct tr_fstat *p2=(struct tr_fstat *) p2_arg;
+
+  if (p1->mtime.tv_sec == p2->mtime.tv_sec)
+    return (p1->mtime.tv_nsec) - (p2->mtime.tv_nsec);
+  else
+    return (p1->mtime.tv_sec) - (p2->mtime.tv_sec);
+}
+
+/* Get status of all files in cfg_files. Returns list, or NULL on error.
+ * Files are sorted by filename. 
+ * After success, caller must eventually free result with talloc_free. */
+static struct tr_fstat *tr_fstat_get_all(TALLOC_CTX *mem_ctx,
+                                         const char *config_path,
+                                         struct dirent **cfg_files,
+                                         int n_files)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  struct tr_fstat *fstat_list=NULL;
+  int ii=0;
+
+  /* create a new fstat list (may be discarded) */
+  fstat_list=talloc_array(tmp_ctx, struct tr_fstat, n_files);
+  if (fstat_list==NULL) {
+    tr_err("tr_fstat_get_all: Could not allocate fstat list.");
+    goto cleanup;
+  }
+
+  for (ii=0; ii<n_files; ii++) {
+    fstat_list[ii].name=talloc_strdup(fstat_list, cfg_files[ii]->d_name);
+    if (0 != tr_get_mtime(tr_join_paths(tmp_ctx, config_path, fstat_list[ii].name),
+                         &(fstat_list[ii].mtime))) {
+      tr_warning("tr_fstat_get_all: Could not obtain mtime for file %s", fstat_list[ii].name);
+    }
+  }
+
+  /* sort the list */
+  qsort(fstat_list, n_files, sizeof(struct tr_fstat), tr_fstat_namecmp);
+
+  /* put list in the caller's context and return it */
+  talloc_steal(mem_ctx, fstat_list);
+ cleanup:
+  talloc_free(tmp_ctx);
+  return fstat_list;
+}
+
+/* Checks whether any config files have appeared/disappeared/modified.
+ * Returns 1 if so, 0 otherwise. */
+static int tr_cfgwatch_update_needed(struct tr_cfgwatch_data *cfg_status)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  struct tr_fstat *fstat_list=NULL;
+  int n_files=0;
+  int ii=0;
+  struct dirent **cfg_files=NULL;
+  int update_needed=0; /* return value */
+
+  /* get the list, must free cfg_files later with tr_free_cfg_file_list */
+  n_files = tr_find_config_files(cfg_status->config_dir, &cfg_files);
+  if (n_files <= 0) {
+    tr_warning("tr_cfgwatch_update: configuration files disappeared, skipping update.");
+    goto cleanup;
+  }
+
+  /* create a new fstat list (will be discarded) */
+  fstat_list=tr_fstat_get_all(tmp_ctx, cfg_status->config_dir, cfg_files, n_files);
+  if (fstat_list==NULL) {
+    tr_err("tr_cfgwatch_update: Error getting fstat list.");
+    goto cleanup;
+  }
+
+  /* see if the number of files change, if so need to update */
+  if (n_files != cfg_status->n_files) {
+    tr_debug("tr_cfgwatch_update: Changed number of config files (was %d, now %d).",
+             cfg_status->n_files,
+             n_files);
+    update_needed=1;
+    goto cleanup;
+  }
+
+  /* See if any files have a changed mtime. Both are sorted by name so this is easy. */
+  for (ii=0; ii<n_files; ii++) {
+    if ((0 != tr_fstat_mtimecmp(&fstat_list[ii], &cfg_status->fstat_list[ii]))
+       || (0 != tr_fstat_namecmp(&fstat_list[ii], &cfg_status->fstat_list[ii]))){
+      update_needed=1;
+      goto cleanup;
+    }
+  }
+
+ cleanup:
+  tr_free_config_file_list(n_files, &cfg_files);
+  talloc_free(tmp_ctx);
+  return update_needed;
+}
+
+static void tr_cfgwatch_event_cb(int listener, short event, void *arg)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  struct tr_cfgwatch_data *cfg_status=(struct tr_cfgwatch_data *) arg;
+
+  if (tr_cfgwatch_update_needed(cfg_status)) {
+    tr_notice("tr_cfgwatch_event_cb: update needed!"); /* remove */
+  }
+  
+  talloc_free(tmp_ctx);
+}
+
+
+/* Configure the cfgwatch instance and set up its event handler.
+ * Returns 0 on success, nonzero on failure. Points
+ * *cfgwatch_ev to the event struct. */
+static int tr_cfgwatch_event_init(struct event_base *base,
+                                  struct tr_cfgwatch_data *cfg_status,
+                                  struct event **cfgwatch_ev)
+{
+  if (cfgwatch_ev == NULL) {
+    tr_debug("tr_cfgwatch_event_init: Null cfgwatch_ev.");
+    return 1;
+  }
+
+  *cfgwatch_ev=event_new(base, -1, EV_TIMEOUT|EV_PERSIST, tr_cfgwatch_event_cb, (void *)cfg_status);
+  event_add(*cfgwatch_ev, &(cfg_status->poll_interval));
+
+  tr_info("tr_cfgwatch_event_init: Added configuration file watcher with %0d.%06d second poll interval.",
+           cfg_status->poll_interval.tv_sec,
+           cfg_status->poll_interval.tv_usec);
+  return 0;
+}
+
+
+/***** command-line option handling / setup *****/
+
 /* Strip trailing / from a path name.*/
 static void remove_trailing_slash(char *s) {
   size_t n;
@@ -264,8 +517,6 @@ static void remove_trailing_slash(char *s) {
     s[n-1]='\0';
   }
 }
-
-/* command-line option setup */
 
 /* argp global parameters */
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
@@ -313,17 +564,21 @@ static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
 
 int main (int argc, char *argv[])
+
 {
+  TALLOC_CTX *main_ctx=talloc_new(NULL);
+
   TR_INSTANCE *tr = NULL;
   struct dirent **cfg_files = NULL;
+  int n_files = 0;
   TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
-  int err = 0, n = 0;
   struct cmdline_args opts;
+  struct event_base *ev_base;
+  struct tr_socket_event tids_ev;
+  struct event *cfgwatch_ev;
+  struct tr_cfgwatch_data cfgwatch;
 
-  /* Use standalone logging */
-  tr_log_open();
-
-  /* parse command-line arguments */
+  /***** parse command-line arguments *****/
   /* set defaults */
   opts.config_dir=".";
 
@@ -333,30 +588,47 @@ int main (int argc, char *argv[])
   /* process options */
   remove_trailing_slash(opts.config_dir);
 
-  /* create a Trust Router instance */
+
+  /* Use standalone logging */
+  tr_log_open();
+
+  /***** create a Trust Router instance *****/
   if (NULL == (tr = tr_create())) {
     tr_crit("Unable to create Trust Router instance, exiting.");
     return 1;
   }
 
+
+  /***** process configuration *****/
+
   /* find the configuration files -- n.b., tr_find_config_files()
    * allocates memory to cfg_files which we must later free */
   tr_debug("Reading configuration files from %s/", opts.config_dir);
-  n = tr_find_config_files(opts.config_dir, &cfg_files);
-  if (n <= 0) {
+  n_files = tr_find_config_files(opts.config_dir, &cfg_files);
+  if (n_files <= 0) {
     tr_crit("Can't locate configuration files, exiting.");
-    tr_free_config_file_list(n, &cfg_files);
+    tr_free_config_file_list(n_files, &cfg_files);
     exit(1);
   }
 
-  if (TR_CFG_SUCCESS != tr_parse_config(tr, opts.config_dir, n, cfg_files)) {
+  if (TR_CFG_SUCCESS != tr_parse_config(tr, opts.config_dir, n_files, cfg_files)) {
     tr_crit("Error decoding configuration information, exiting.");
-    tr_free_config_file_list(n, &cfg_files);
+    tr_free_config_file_list(n_files, &cfg_files);
+    exit(1);
+  }
+
+  /* get the list of update times */
+  cfgwatch.config_dir=opts.config_dir;
+  cfgwatch.n_files=n_files;
+  cfgwatch.fstat_list=tr_fstat_get_all(main_ctx, opts.config_dir, cfg_files, n_files);
+  if (cfgwatch.fstat_list==NULL) {
+    tr_crit("Could not allocate config file status list.");
+    tr_free_config_file_list(n_files, &cfg_files);
     exit(1);
   }
   
   /* we are now done with the config filenames, free those */
-  tr_free_config_file_list(n, &cfg_files);
+  tr_free_config_file_list(n_files, &cfg_files);
 
   /* apply initial configuration */
   if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(tr))) {
@@ -364,19 +636,42 @@ int main (int argc, char *argv[])
     exit(1);
   }
 
-  /* initialize the trust path query server instance */
+
+  /***** initialize the trust path query server instance *****/
   if (0 == (tr->tids = tids_create ())) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     exit(1);
   }
 
-  /* start the trust path query server, won't return unless fatal error. */
-  if (0 != (err = tids_start(tr->tids, &tr_tids_req_handler, &tr_tids_gss_handler, tr->active_cfg->internal->hostname, tr->active_cfg->internal->tids_port, (void *)tr))) {
-    tr_crit("Error from Trust Path Query Server, err = %d.", err);
-    exit(err);
+  /***** Set up the event loop *****/
+  ev_base=tr_event_loop_init(); /* Set up the event loop */
+
+  /* install configuration file watching events */
+  cfgwatch.poll_interval.tv_sec=1; /* set poll interval */
+  cfgwatch.poll_interval.tv_usec=0;
+  /* already set config_dir, fstat_list and n_files earlier */
+  if (0 != tr_cfgwatch_event_init(ev_base, &cfgwatch, &cfgwatch_ev)) {
+    tr_crit("Error initializing configuration file watcher.");
+    exit(1);
   }
 
+  /*tr_status_event_init();*/ /* install status reporting events */
+
+  /* install TID server events */
+  if (0 != tr_tids_event_init(ev_base, tr, &tids_ev)) {
+    tr_crit("Error initializing Trust Path Query Server instance.");
+    exit(1);
+  }
+
+  /*tr_trp_event_init();*/ /* install TRP handler events */
+
+  fflush(stdout); fflush(stderr);
+  tr_event_loop_run(ev_base); /* does not return until we are done */
+
+  /* TODO: update the cleanup code */
   tids_destroy(tr->tids);
   tr_destroy(tr);
+
+  talloc_free(main_ctx);
   exit(0);
 }
