@@ -39,6 +39,7 @@
 #include <event2/event.h>
 #include <talloc.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 
 #include <tr.h>
 #include <tr_filter.h>
@@ -258,6 +259,8 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   return 0;
 }
 
+
+
 /***** event loop management ****/
 
 /* struct for hanging on to a socket listener event */
@@ -342,11 +345,43 @@ struct tr_fstat {
 };
 
 struct tr_cfgwatch_data {
-  struct timeval poll_interval;
-  char *config_dir;
-  struct tr_fstat *fstat_list;
-  int n_files;
+  struct timeval poll_interval; /* how often should we check for updates? */
+  struct timeval settling_time; /* how long should we wait for changes to settle before updating? */
+  char *config_dir; /* what directory are we watching? */
+  struct tr_fstat *fstat_list; /* file names and mtimes */
+  int n_files; /* number of files in fstat_list */
+  int change_detected; /* have we detected a change? */
+  struct timeval last_change_detected; /* when did we last note a changed mtime? */
+  TALLOC_CTX *ctx; /* what context should own configuration talloc blocks? */
+  TR_INSTANCE *tr; /* what trust router are we updating? */
 };
+typedef struct tr_cfgwatch_data TR_CFGWATCH;
+
+/* Initialize a new tr_cfgwatch_data struct. Free this with talloc. */
+static TR_CFGWATCH *tr_cfgwatch_create(TALLOC_CTX *mem_ctx)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_CFGWATCH *new_cfg;
+  
+  new_cfg=talloc(tmp_ctx, TR_CFGWATCH);
+  if (new_cfg == NULL) {
+    tr_debug("tr_cfgwatch_create: Allocation failed.");
+  } else {
+    timerclear(&new_cfg->poll_interval);
+    timerclear(&new_cfg->settling_time);
+    new_cfg->config_dir=NULL;
+    new_cfg->fstat_list=NULL;
+    new_cfg->n_files=0;
+    new_cfg->change_detected=0;
+    timerclear(&new_cfg->last_change_detected);
+    new_cfg->ctx=NULL;
+    new_cfg->tr=NULL;
+  }
+
+  talloc_steal(mem_ctx, new_cfg);
+  talloc_free(tmp_ctx);
+  return new_cfg;
+}
 
 /* Obtain the file modification time as seconds since epoch. Returns 0 on success. */
 static int tr_get_mtime(const char *path, struct timespec *ts)
@@ -422,9 +457,66 @@ static struct tr_fstat *tr_fstat_get_all(TALLOC_CTX *mem_ctx,
   return fstat_list;
 }
 
+/* must specify the ctx and tr in cfgwatch! */
+static int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  char *config_dir=cfgwatch->config_dir;
+  int n_files = 0;
+  struct dirent **cfg_files=NULL;
+  TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
+  struct tr_fstat *new_fstat_list=NULL;
+  int retval=0;
+
+  /* find the configuration files -- n.b., tr_find_config_files()
+   * allocates memory to cfg_files which we must later free */
+  tr_debug("Reading configuration files from %s/", config_dir);
+  n_files = tr_find_config_files(config_dir, &cfg_files);
+  if (n_files <= 0) {
+    tr_crit("Can't locate configuration files, exiting.");
+    retval=1; goto cleanup;
+  }
+
+  /* Get the list of update times.
+   * Do this before loading in case they change between obtaining their timestamp
+   * and reading the file---this way they will immediately reload if this happens. */
+  new_fstat_list=tr_fstat_get_all(tmp_ctx, config_dir, cfg_files, n_files);
+  if (new_fstat_list==NULL) {
+    tr_crit("Could not allocate config file status list.");
+    retval=1; goto cleanup;
+  }
+
+  if (TR_CFG_SUCCESS != tr_parse_config(cfgwatch->tr, config_dir, n_files, cfg_files)) {
+    tr_crit("Error decoding configuration information.");
+    retval=1; goto cleanup;
+  }
+
+  /* apply initial configuration */
+  if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(cfgwatch->tr))) {
+    tr_crit("Error applying configuration, rc = %d.", rc);
+    retval=1; goto cleanup;
+  }
+
+  /* give ownership of the new_fstat_list to caller's context */
+  if (cfgwatch->fstat_list != NULL) {
+    /* free the old one */
+    talloc_free(cfgwatch->fstat_list);
+  }
+  cfgwatch->n_files=n_files;
+  cfgwatch->fstat_list=new_fstat_list;
+  talloc_steal(cfgwatch->ctx, new_fstat_list);
+  new_fstat_list=NULL;
+
+ cleanup:
+  tr_free_config_file_list(n_files, &cfg_files);
+  talloc_free(tmp_ctx);
+  return retval;
+}
+
+
 /* Checks whether any config files have appeared/disappeared/modified.
  * Returns 1 if so, 0 otherwise. */
-static int tr_cfgwatch_update_needed(struct tr_cfgwatch_data *cfg_status)
+static int tr_cfgwatch_update_needed(TR_CFGWATCH *cfg_status)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_fstat *fstat_list=NULL;
@@ -453,6 +545,10 @@ static int tr_cfgwatch_update_needed(struct tr_cfgwatch_data *cfg_status)
              cfg_status->n_files,
              n_files);
     update_needed=1;
+    talloc_free(cfg_status->fstat_list);
+    cfg_status->n_files=n_files;
+    cfg_status->fstat_list=fstat_list;
+    talloc_steal(cfg_status->ctx, fstat_list);
     goto cleanup;
   }
 
@@ -461,6 +557,10 @@ static int tr_cfgwatch_update_needed(struct tr_cfgwatch_data *cfg_status)
     if ((0 != tr_fstat_mtimecmp(&fstat_list[ii], &cfg_status->fstat_list[ii]))
        || (0 != tr_fstat_namecmp(&fstat_list[ii], &cfg_status->fstat_list[ii]))){
       update_needed=1;
+      talloc_free(cfg_status->fstat_list);
+      cfg_status->n_files=n_files;
+      cfg_status->fstat_list=fstat_list;
+      talloc_steal(cfg_status->ctx, fstat_list);
       goto cleanup;
     }
   }
@@ -473,14 +573,34 @@ static int tr_cfgwatch_update_needed(struct tr_cfgwatch_data *cfg_status)
 
 static void tr_cfgwatch_event_cb(int listener, short event, void *arg)
 {
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  struct tr_cfgwatch_data *cfg_status=(struct tr_cfgwatch_data *) arg;
+  TR_CFGWATCH *cfg_status=(TR_CFGWATCH *) arg;
+  struct timeval now, diff;;
 
   if (tr_cfgwatch_update_needed(cfg_status)) {
-    tr_notice("tr_cfgwatch_event_cb: update needed!"); /* remove */
+    tr_notice("Configuration file change detected, waiting for changes to settle.");
+    /*    if (!cfg_status->change_detected) {*/
+      cfg_status->change_detected=1;
+
+      if (0 != gettimeofday(&cfg_status->last_change_detected, NULL)) {
+        tr_err("tr_cfgwatch_event_cb: gettimeofday() failed (1).");
+        /*      }*/
+    }
   }
-  
-  talloc_free(tmp_ctx);
+
+  if (cfg_status->change_detected) {
+    if (0 != gettimeofday(&now, NULL)) {
+      tr_err("tr_cfgwatch_event_cb: gettimeofday() failed (2).");
+    }
+    timersub(&now, &cfg_status->last_change_detected, &diff);
+    if (!timercmp(&diff, &cfg_status->settling_time, <)) {
+      tr_notice("Configuration file change settled, updating configuration.");
+      if (0 != tr_read_and_apply_config(cfg_status))
+        tr_warning("Configuration file update failed. Using previous configuration.");
+      else
+        tr_notice("Configuration updated successfully.");
+      cfg_status->change_detected=0;
+    }
+  }
 }
 
 
@@ -488,7 +608,7 @@ static void tr_cfgwatch_event_cb(int listener, short event, void *arg)
  * Returns 0 on success, nonzero on failure. Points
  * *cfgwatch_ev to the event struct. */
 static int tr_cfgwatch_event_init(struct event_base *base,
-                                  struct tr_cfgwatch_data *cfg_status,
+                                  TR_CFGWATCH *cfg_status,
                                   struct event **cfgwatch_ev)
 {
   if (cfgwatch_ev == NULL) {
@@ -496,6 +616,12 @@ static int tr_cfgwatch_event_init(struct event_base *base,
     return 1;
   }
 
+  /* zero out the change detection fields */
+  cfg_status->change_detected=0;
+  cfg_status->last_change_detected.tv_sec=0;
+  cfg_status->last_change_detected.tv_usec=0;
+
+  /* create the event and enable it */
   *cfgwatch_ev=event_new(base, -1, EV_TIMEOUT|EV_PERSIST, tr_cfgwatch_event_cb, (void *)cfg_status);
   event_add(*cfgwatch_ev, &(cfg_status->poll_interval));
 
@@ -569,14 +695,14 @@ int main (int argc, char *argv[])
   TALLOC_CTX *main_ctx=talloc_new(NULL);
 
   TR_INSTANCE *tr = NULL;
-  struct dirent **cfg_files = NULL;
-  int n_files = 0;
-  TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
   struct cmdline_args opts;
   struct event_base *ev_base;
   struct tr_socket_event tids_ev;
   struct event *cfgwatch_ev;
-  struct tr_cfgwatch_data cfgwatch;
+  TR_CFGWATCH *cfgwatch; /* config file watcher status */
+
+  /* Use standalone logging */
+  tr_log_open();
 
   /***** parse command-line arguments *****/
   /* set defaults */
@@ -588,54 +714,27 @@ int main (int argc, char *argv[])
   /* process options */
   remove_trailing_slash(opts.config_dir);
 
-
-  /* Use standalone logging */
-  tr_log_open();
-
+  /* Get a configuration status object */
+  cfgwatch=tr_cfgwatch_create(main_ctx);
+  if (cfgwatch == NULL) {
+    tr_crit("Unable to create configuration watcher object, exiting.");
+    return 1;
+  }
+  
   /***** create a Trust Router instance *****/
   if (NULL == (tr = tr_create())) {
     tr_crit("Unable to create Trust Router instance, exiting.");
     return 1;
   }
 
-
   /***** process configuration *****/
-
-  /* find the configuration files -- n.b., tr_find_config_files()
-   * allocates memory to cfg_files which we must later free */
-  tr_debug("Reading configuration files from %s/", opts.config_dir);
-  n_files = tr_find_config_files(opts.config_dir, &cfg_files);
-  if (n_files <= 0) {
-    tr_crit("Can't locate configuration files, exiting.");
-    tr_free_config_file_list(n_files, &cfg_files);
-    exit(1);
+  cfgwatch->config_dir=opts.config_dir;
+  cfgwatch->ctx=main_ctx;
+  cfgwatch->tr=tr;
+  if (0 != tr_read_and_apply_config(cfgwatch)) {
+    tr_crit("Error reading configuration, exiting.");
+    return 1;
   }
-
-  if (TR_CFG_SUCCESS != tr_parse_config(tr, opts.config_dir, n_files, cfg_files)) {
-    tr_crit("Error decoding configuration information, exiting.");
-    tr_free_config_file_list(n_files, &cfg_files);
-    exit(1);
-  }
-
-  /* get the list of update times */
-  cfgwatch.config_dir=opts.config_dir;
-  cfgwatch.n_files=n_files;
-  cfgwatch.fstat_list=tr_fstat_get_all(main_ctx, opts.config_dir, cfg_files, n_files);
-  if (cfgwatch.fstat_list==NULL) {
-    tr_crit("Could not allocate config file status list.");
-    tr_free_config_file_list(n_files, &cfg_files);
-    exit(1);
-  }
-  
-  /* we are now done with the config filenames, free those */
-  tr_free_config_file_list(n_files, &cfg_files);
-
-  /* apply initial configuration */
-  if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(tr))) {
-    tr_crit("Error applying configuration, rc = %d.", rc);
-    exit(1);
-  }
-
 
   /***** initialize the trust path query server instance *****/
   if (0 == (tr->tids = tids_create ())) {
@@ -647,10 +746,11 @@ int main (int argc, char *argv[])
   ev_base=tr_event_loop_init(); /* Set up the event loop */
 
   /* install configuration file watching events */
-  cfgwatch.poll_interval.tv_sec=1; /* set poll interval */
-  cfgwatch.poll_interval.tv_usec=0;
+  cfgwatch->poll_interval=(struct timeval) {1,0}; /* set poll interval in {sec, usec} */
+  cfgwatch->settling_time=(struct timeval) {5,0}; /* delay for changes to settle before updating */
+  
   /* already set config_dir, fstat_list and n_files earlier */
-  if (0 != tr_cfgwatch_event_init(ev_base, &cfgwatch, &cfgwatch_ev)) {
+  if (0 != tr_cfgwatch_event_init(ev_base, cfgwatch, &cfgwatch_ev)) {
     tr_crit("Error initializing configuration file watcher.");
     exit(1);
   }

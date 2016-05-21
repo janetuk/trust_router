@@ -62,6 +62,7 @@ TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr) {
     tr_cfg_free(tr->active_cfg);
 
   tr->active_cfg = tr->new_cfg;
+  tr->new_cfg=NULL; /* only keep a single handle on the new configuration */
 
   tr_log_threshold(tr->active_cfg->internal->log_threshold);
   tr_console_threshold(tr->active_cfg->internal->console_threshold);
