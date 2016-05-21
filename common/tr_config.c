@@ -920,7 +920,7 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, const char *config_dir, int n, struc
 
   /* make sure we got a complete, consistent configuration */
   if (TR_CFG_SUCCESS != tr_cfg_validate(tr->new_cfg)) {
-    tr_debug("tr_parse_config: Error: INVALID CONFIGURATION, EXITING");
+    tr_error("tr_parse_config: Error: INVALID CONFIGURATION");
     return TR_CFG_ERROR;
   }
 

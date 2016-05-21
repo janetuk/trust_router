@@ -473,7 +473,7 @@ static int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
   tr_debug("Reading configuration files from %s/", config_dir);
   n_files = tr_find_config_files(config_dir, &cfg_files);
   if (n_files <= 0) {
-    tr_crit("Can't locate configuration files, exiting.");
+    tr_debug("tr_read_and_apply_config: No configuration files.");
     retval=1; goto cleanup;
   }
 
@@ -482,18 +482,18 @@ static int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
    * and reading the file---this way they will immediately reload if this happens. */
   new_fstat_list=tr_fstat_get_all(tmp_ctx, config_dir, cfg_files, n_files);
   if (new_fstat_list==NULL) {
-    tr_crit("Could not allocate config file status list.");
+    tr_debug("tr_read_and_apply_config: Could not allocate config file status list.");
     retval=1; goto cleanup;
   }
 
   if (TR_CFG_SUCCESS != tr_parse_config(cfgwatch->tr, config_dir, n_files, cfg_files)) {
-    tr_crit("Error decoding configuration information.");
+    tr_debug("tr_read_and_apply_config: Error decoding configuration information.");
     retval=1; goto cleanup;
   }
 
   /* apply initial configuration */
   if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(cfgwatch->tr))) {
-    tr_crit("Error applying configuration, rc = %d.", rc);
+    tr_debug("tr_read_and_apply_config: Error applying configuration, rc = %d.", rc);
     retval=1; goto cleanup;
   }
 
@@ -717,7 +717,7 @@ int main (int argc, char *argv[])
   /* Get a configuration status object */
   cfgwatch=tr_cfgwatch_create(main_ctx);
   if (cfgwatch == NULL) {
-    tr_crit("Unable to create configuration watcher object, exiting.");
+    tr_error("Unable to create configuration watcher object, exiting.");
     return 1;
   }
   
