@@ -36,7 +36,6 @@
 #define TR_IDP_H
 
 #include <trust_router/tr_name.h>
-#include <tr.h>
 #include <tr_apc.h>
 
 typedef struct tr_aaa_server {
@@ -53,6 +52,6 @@ typedef struct tr_idp_realm {
   TR_APC *apcs;
 } TR_IDP_REALM;
   
-TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_NAME *comm);
-TR_AAA_SERVER *tr_default_server_lookup(TR_INSTANCE *tr, TR_NAME *comm);
+TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm);
+TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME *comm);
 #endif

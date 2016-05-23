@@ -165,11 +165,11 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   }
 
   /* Find the AAA server(s) for this request */
-  if (NULL == (aaa_servers = tr_idp_aaa_server_lookup((TR_INSTANCE *)tids->cookie, 
+  if (NULL == (aaa_servers = tr_idp_aaa_server_lookup(((TR_INSTANCE *)tids->cookie)->active_cfg->idp_realms, 
 						      orig_req->realm, 
 						      orig_req->comm))) {
       tr_debug("tr_tids_req_handler: No AAA Servers for realm %s, defaulting.", orig_req->realm->buf);
-      if (NULL == (aaa_servers = tr_default_server_lookup ((TR_INSTANCE *)tids->cookie,
+      if (NULL == (aaa_servers = tr_default_server_lookup (((TR_INSTANCE *)tids->cookie)->active_cfg->default_servers,
 							   orig_req->comm))) {
 	tr_notice("tr_tids_req_handler: No default AAA servers, discarded.");
         tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
@@ -246,7 +246,7 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   }
   
   /* look up the RP client matching the GSS name */
-  if ((NULL == (rp = tr_rp_client_lookup(tr, gss_name)))) {
+  if ((NULL == (rp = tr_rp_client_lookup(tr->active_cfg->rp_clients, gss_name)))) {
     tr_debug("tr_tids_gss_handler: Unknown GSS name %s", gss_name->buf);
     return -1;
   }
@@ -486,16 +486,27 @@ static int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
     retval=1; goto cleanup;
   }
 
-  if (TR_CFG_SUCCESS != tr_parse_config(cfgwatch->tr, config_dir, n_files, cfg_files)) {
-    tr_debug("tr_read_and_apply_config: Error decoding configuration information.");
+  /* allocate a new configuration, dumping an old one if needed */
+  if(cfgwatch->tr->new_cfg != NULL)
+    tr_cfg_free(cfgwatch->tr->new_cfg);
+  cfgwatch->tr->new_cfg=tr_cfg_new(tmp_ctx);
+  if (cfgwatch->tr->new_cfg==NULL) {
+    tr_debug("tr_read_and_apply_config: Error allocating new_cfg.");
+    retval=1; goto cleanup;
+  }
+  /* now fill it in */
+  if (TR_CFG_SUCCESS != (rc = tr_parse_config(cfgwatch->tr->new_cfg, config_dir, n_files, cfg_files))) {
+    tr_debug("tr_read_and_apply_config: Error decoding configuration information, rc=%d.", rc);
     retval=1; goto cleanup;
   }
 
   /* apply initial configuration */
-  if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(cfgwatch->tr))) {
+  if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(&cfgwatch->tr->active_cfg,
+                                                 &cfgwatch->tr->new_cfg))) {
     tr_debug("tr_read_and_apply_config: Error applying configuration, rc = %d.", rc);
     retval=1; goto cleanup;
   }
+  talloc_steal(cfgwatch->ctx, cfgwatch->tr->active_cfg); /* hand over ownership */
 
   /* give ownership of the new_fstat_list to caller's context */
   if (cfgwatch->fstat_list != NULL) {
@@ -717,7 +728,7 @@ int main (int argc, char *argv[])
   /* Get a configuration status object */
   cfgwatch=tr_cfgwatch_create(main_ctx);
   if (cfgwatch == NULL) {
-    tr_error("Unable to create configuration watcher object, exiting.");
+    tr_err("Unable to create configuration watcher object, exiting.");
     return 1;
   }
   

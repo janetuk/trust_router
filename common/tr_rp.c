@@ -32,22 +32,22 @@
  *
  */
 
-#include <trust_router/tr_name.h>
-#include <tr_rp.h>
-#include <tr_config.h>
 #include <tr.h>
+#include <trust_router/tr_name.h>
+#include <tr_config.h>
+#include <tr_rp.h>
 #include <tr_debug.h>
 
-TR_RP_CLIENT *tr_rp_client_lookup(TR_INSTANCE *tr, TR_NAME *gss_name) {
+TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name) {
   TR_RP_CLIENT *rp = NULL;
   int i = 0;
 
-  if ((!tr) || (!tr->active_cfg) || (!gss_name)) {
+  if ((!rp_clients) || (!gss_name)) {
     tr_debug("tr_rp_client_lookup: Bad parameters.");
     return NULL;
   }
 
-  for (rp = tr->active_cfg->rp_clients; NULL != rp; rp = rp->next) {
+  for (rp = rp_clients; NULL != rp; rp = rp->next) {
     for (i = 0; ((i < TR_MAX_GSS_NAMES) && (NULL != (rp->gss_names[i]))); i++) {
 	if (!tr_name_cmp(gss_name, rp->gss_names[i])) {
 	return rp;

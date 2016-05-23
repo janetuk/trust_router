@@ -39,6 +39,7 @@
 #include <dirent.h>
 #include <jansson.h>
 #include <syslog.h>
+#include <talloc.h>
 
 #include <tr.h>
 #include <tr_rp.h>
@@ -80,14 +81,14 @@ typedef struct tr_cfg {
 
 int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files);
 void tr_free_config_file_list(int n, struct dirent ***cfg_files);
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, const char *config_dir, int n, struct dirent **cfg_files);
-TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
+TR_CFG_RC tr_parse_config (TR_CFG *new_cfg, const char *config_dir, int n, struct dirent **cfg_files);
+TR_CFG_RC tr_apply_new_config (TR_CFG **active_cfg, TR_CFG **new_cfg);
 TR_CFG_RC tr_cfg_validate (TR_CFG *trc);
+TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx);
 void tr_cfg_free(TR_CFG *cfg);
 void tr_print_config(FILE *stream, TR_CFG *cfg);
 
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
 TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
-TR_RP_CLIENT *tr_rp_client_lookup(TR_INSTANCE *tr, TR_NAME *gss_name);
 
 #endif

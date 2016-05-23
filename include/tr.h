@@ -39,6 +39,7 @@
 #include <trust_router/tr_name.h>
 #include <tr_msg.h>
 #include <tr_rp.h>
+#include <tr_config.h>
 
 typedef struct tr_instance {
   struct tr_cfg *new_cfg;	/* unapplied configuration */

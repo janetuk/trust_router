@@ -35,7 +35,6 @@
 #ifndef TR_RP_H
 #define TR_RP_H
 
-#include <tr.h>
 #include <tr_filter.h>
 
 #define TR_MAX_GSS_NAMES 5
@@ -52,5 +51,8 @@ typedef struct tr_rp_realm {
   struct tr_rp_realm *next;
   TR_NAME *realm_name;
 } TR_RP_REALM;
+
+/* prototypes */
+TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name);
 
 #endif

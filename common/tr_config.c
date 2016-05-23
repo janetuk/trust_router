@@ -49,23 +49,30 @@ void tr_print_config (FILE *stream, TR_CFG *cfg) {
   return;
 }
 
+TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx)
+{
+  return talloc_zero(mem_ctx, TR_CFG);
+}
+
 void tr_cfg_free (TR_CFG *cfg) {
   talloc_free(cfg);
   return;
 }
 
-TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr) {
-  if (!tr)
+TR_CFG_RC tr_apply_new_config (TR_CFG **active_cfg,
+                               TR_CFG **new_cfg)
+{
+  if ((active_cfg==NULL) || (new_cfg==NULL))
     return TR_CFG_BAD_PARAMS;
 
-  if (tr->active_cfg)
-    tr_cfg_free(tr->active_cfg);
+  if (*active_cfg != NULL)
+    tr_cfg_free(*active_cfg);
 
-  tr->active_cfg = tr->new_cfg;
-  tr->new_cfg=NULL; /* only keep a single handle on the new configuration */
+  *active_cfg = *new_cfg;
+  *new_cfg=NULL; /* only keep a single handle on the new configuration */
 
-  tr_log_threshold(tr->active_cfg->internal->log_threshold);
-  tr_console_threshold(tr->active_cfg->internal->console_threshold);
+  tr_log_threshold((*active_cfg)->internal->log_threshold);
+  tr_console_threshold((*active_cfg)->internal->console_threshold);
 
   return TR_CFG_SUCCESS;
 }
@@ -83,10 +90,8 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
     return TR_CFG_BAD_PARAMS;
 
   if (NULL == trc->internal) {
-    if (NULL == (trc->internal = talloc(trc, TR_CFG_INTERNAL)))
+    if (NULL == (trc->internal = talloc_zero(trc, TR_CFG_INTERNAL)))
       return TR_CFG_NOMEM;
-
-    memset(trc->internal, 0, sizeof(TR_CFG_INTERNAL));
   }
 
   if (NULL != (jint = json_object_get(jcfg, "tr_internal"))) {
@@ -172,13 +177,11 @@ static TR_CONSTRAINT *tr_cfg_parse_one_constraint (TR_CFG *trc, char *ctype, jso
     return NULL;
   }
 
-  if (NULL == (cons = talloc(trc, TR_CONSTRAINT))) {
+  if (NULL == (cons = talloc_zero(trc, TR_CONSTRAINT))) {
     tr_debug("tr_cfg_parse_one_constraint: Out of memory (cons).");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
-
-  memset(cons, 0, sizeof(TR_CONSTRAINT));
 
   if (NULL == (cons->type = tr_new_name(ctype))) {
     tr_debug("tr_cfg_parse_one_constraint: Out of memory (type).");
@@ -226,13 +229,11 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_CFG *trc, json_t *jfilt, TR_CFG_RC
     return NULL;
   }
 
-  if (NULL == (filt = talloc(trc, TR_FILTER))) {
+  if (NULL == (filt = talloc_zero(trc, TR_FILTER))) {
     tr_debug("tr_cfg_parse_one_filter: Out of memory.");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
-
-  memset(filt, 0, sizeof(TR_FILTER));
 
   if (!strcmp(json_string_value(jftype), "rp_permitted")) {
     filt->type = TR_FILTER_TYPE_RP_PERMITTED;
@@ -271,14 +272,12 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_CFG *trc, json_t *jfilt, TR_CFG_RC
       return NULL;
     }
 
-    if (NULL == (filt->lines[i] = talloc(trc, TR_FLINE))) {
+    if (NULL == (filt->lines[i] = talloc_zero(trc, TR_FLINE))) {
       tr_debug("tr_cfg_parse_one_filter: Out of memory (fline).");
       *rc = TR_CFG_NOMEM;
       tr_filter_free(filt);
       return NULL;
     }
-
-    memset(filt->lines[i], 0, sizeof(TR_FLINE));
 
     if (!strcmp(json_string_value(jfaction), "accept")) {
 	filt->lines[i]->action = TR_FILTER_ACTION_ACCEPT;
@@ -330,15 +329,13 @@ static TR_FILTER *tr_cfg_parse_one_filter (TR_CFG *trc, json_t *jfilt, TR_CFG_RC
 	return NULL;
       }
 
-      if (NULL == (filt->lines[i]->specs[j] = talloc(trc, TR_FSPEC))) {
+      if (NULL == (filt->lines[i]->specs[j] = talloc_zero(trc, TR_FSPEC))) {
 	tr_debug("tr_cfg_parse_one_filter: Out of memory.");
 	*rc = TR_CFG_NOMEM;
 	tr_filter_free(filt);
 	return NULL;
       }
 
-      memset(filt->lines[i]->specs[j], 0, sizeof(TR_FSPEC));
-    
       if ((NULL == (filt->lines[i]->specs[j]->field = tr_new_name((char *)json_string_value(jffield)))) ||
 	  (NULL == (filt->lines[i]->specs[j]->match = tr_new_name((char *)json_string_value(jfmatch))))) {
 	tr_debug("tr_cfg_parse_one_filter: Out of memory.");
@@ -396,13 +393,11 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client (TR_CFG *trc, json_t *jrp, TR_CF
     return NULL;
   }
 
-  if (NULL == (rp = talloc(trc, TR_RP_CLIENT))) {
+  if (NULL == (rp = talloc_zero(trc, TR_RP_CLIENT))) {
     tr_debug("tr_cfg_parse_one_rp_realm: Out of memory.");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
-  
-  memset(rp, 0, sizeof(TR_RP_CLIENT));
 
   /* TBD -- support more than one filter entry per RP Client? */
   if (NULL == (rp->filter = tr_cfg_parse_one_filter(trc, jfilt, rc))) {
@@ -460,13 +455,11 @@ static TR_AAA_SERVER *tr_cfg_parse_one_aaa_server (TR_CFG *trc, json_t *jaddr, T
     return NULL;
   }
 
-  if (NULL == (aaa = talloc(trc, TR_AAA_SERVER))) {
+  if (NULL == (aaa = talloc_zero(trc, TR_AAA_SERVER))) {
     tr_debug("tr_cfg_parse_one_aaa_server: Out of memory.");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
-
-  memset(aaa, 0, sizeof(TR_AAA_SERVER));
 
   aaa->hostname = tr_new_name((char *)(json_string_value(jaddr)));
 
@@ -504,13 +497,11 @@ static TR_APC *tr_cfg_parse_apcs (TR_CFG *trc, json_t *japcs, TR_CFG_RC *rc)
     return NULL;
   }
 
-  if (NULL == (apc = talloc(trc, TR_APC))) {
+  if (NULL == (apc = talloc_zero(trc, TR_APC))) {
     tr_debug("tr_cfg_parse_apcs: Out of memory.");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
-
-  memset(apc, 0, sizeof(TR_APC));
 
   /* TBD, deal with more than one APC.  In the meantime, though...                */
   /* Only parse the first APC, because we only know how to deal with one, anyway. */
@@ -540,13 +531,11 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
     return NULL;
   }
 
-  if (NULL == (idp = talloc(trc, TR_IDP_REALM))) {
+  if (NULL == (idp = talloc_zero(trc, TR_IDP_REALM))) {
     tr_debug("tr_cfg_parse_one_idp_realm: Out of memory.");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
-
-  memset(idp, 0, sizeof(TR_IDP_REALM));
 
   if ((NULL == (jrid = json_object_get(jidp, "realm_id"))) ||
       (!json_is_string(jrid)) ||
@@ -692,13 +681,12 @@ static TR_RP_REALM *tr_cfg_parse_comm_rps (TR_CFG *trc, json_t *jrps, TR_CFG_RC 
   }
 
   for (i = (json_array_size(jrps)-1); i >= 0; i--) {
-    if (NULL == (temp_rp = talloc(trc, TR_RP_REALM))) {
+    if (NULL == (temp_rp = talloc_zero(trc, TR_RP_REALM))) {
       tr_debug("tr_cfg_parse_comm_rps: Can't allocate memory for RP Realm.");
       if (rc)
 	*rc = TR_CFG_NOMEM;
       return NULL;
     }
-    memset (temp_rp, 0, sizeof(TR_RP_REALM));
 
     if (NULL == (temp_rp->realm_name = tr_new_name((char *)json_string_value(json_array_get(jrps, i))))) {
       tr_debug("tr_cfg_parse_comm_rps: No memory for RP Realm Name.");
@@ -873,23 +861,14 @@ static char *join_paths(const char *p1, const char *p2) {
   return talloc_asprintf(NULL, "%s/%s", p1, p2); /* returns NULL on a failure */
 }
 
-/* Reads configuration files in config_dir ("" or "./" will use the current directory) */
-TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, const char *config_dir, int n, struct dirent **cfg_files) {
+/* Reads configuration files in config_dir ("" or "./" will use the current directory). */
+TR_CFG_RC tr_parse_config (TR_CFG *new_cfg, const char *config_dir, int n, struct dirent **cfg_files) {
   json_t *jcfg;
   json_error_t rc;
   char *file_with_path;
 
-  if ((!tr) || (!cfg_files) || (n<=0))
+  if ((!new_cfg) || (!cfg_files) || (n<=0))
     return TR_CFG_BAD_PARAMS;
-
-  /* If there is a partial/abandoned config lying around, free it */
-  if (tr->new_cfg) 
-    tr_cfg_free(tr->new_cfg);
-  
-  if (NULL == (tr->new_cfg = talloc(NULL, TR_CFG)))
-    return TR_CFG_NOMEM;
-
-  memset(tr->new_cfg, 0, sizeof(TR_CFG));
 
   /* Parse configuration information from each config file */
   while (n--) {
@@ -908,18 +887,17 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, const char *config_dir, int n, struc
     }
     talloc_free(file_with_path); /* done with filename */
 
-    if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(tr->new_cfg, jcfg)) ||
-        (TR_CFG_SUCCESS != tr_cfg_parse_rp_clients(tr->new_cfg, jcfg)) ||
-        (TR_CFG_SUCCESS != tr_cfg_parse_idp_realms(tr->new_cfg, jcfg)) ||
-        (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(tr->new_cfg, jcfg)) ||
-        (TR_CFG_SUCCESS != tr_cfg_parse_comms(tr->new_cfg, jcfg))) {
-      tr_cfg_free(tr->new_cfg);
+    if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(new_cfg, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_rp_clients(new_cfg, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_idp_realms(new_cfg, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(new_cfg, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_comms(new_cfg, jcfg))) {
       return TR_CFG_ERROR;
     }
   }
 
   /* make sure we got a complete, consistent configuration */
-  if (TR_CFG_SUCCESS != tr_cfg_validate(tr->new_cfg)) {
+  if (TR_CFG_SUCCESS != tr_cfg_validate(new_cfg)) {
     tr_err("tr_parse_config: Error: INVALID CONFIGURATION");
     return TR_CFG_ERROR;
   }

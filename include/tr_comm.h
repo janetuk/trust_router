@@ -55,7 +55,7 @@ typedef struct tr_comm {
   time_t expiration_interval; /*Minutes to key expiration; only valid for an APC*/
 } TR_COMM;
 
-TR_COMM *tr_comm_lookup(TR_INSTANCE *tr, TR_NAME *comm);
+TR_COMM *tr_comm_lookup(TR_COMM *comms, TR_NAME *comm_name);
 TR_RP_REALM *tr_find_comm_rp (TR_COMM *comm, TR_NAME *rp_realm);
 TR_IDP_REALM *tr_find_comm_idp (TR_COMM *comm, TR_NAME *idp_realm);
 

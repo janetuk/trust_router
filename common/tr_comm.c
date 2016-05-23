@@ -32,11 +32,11 @@
  *
  */
 
+#include <tr.h>
+#include <tr_rp.h>
 #include <trust_router/tr_name.h>
 #include <tr_config.h>
-#include <tr.h>
 #include <tr_comm.h>
-#include <tr_rp.h>
 #include <tr_debug.h>
 
 TR_IDP_REALM *tr_find_comm_idp (TR_COMM *comm, TR_NAME *idp_realm)
@@ -75,13 +75,13 @@ TR_RP_REALM *tr_find_comm_rp (TR_COMM *comm, TR_NAME *rp_realm)
   return NULL;
 }
 
-TR_COMM *tr_comm_lookup(TR_INSTANCE *tr, TR_NAME *comm) 
+TR_COMM *tr_comm_lookup(TR_COMM *comms, TR_NAME *comm_name) 
 {
   TR_COMM *cfg_comm = NULL;
 
-  for (cfg_comm = tr->active_cfg->comms; NULL != cfg_comm; cfg_comm = cfg_comm->next) {
-    if ((cfg_comm->id->len == comm->len) &&
-	(!strncmp(cfg_comm->id->buf, comm->buf, comm->len)))
+  for (cfg_comm = comms; NULL != cfg_comm; cfg_comm = cfg_comm->next) {
+    if ((cfg_comm->id->len == comm_name->len) &&
+	(!strncmp(cfg_comm->id->buf, comm_name->buf, comm_name->len)))
       return cfg_comm;
   }
   return NULL;

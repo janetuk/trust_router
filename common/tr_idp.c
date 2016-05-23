@@ -34,15 +34,14 @@
 
 #include <trust_router/tr_name.h>
 #include <tr_idp.h>
-#include <tr.h>
 #include <tr_config.h>
 
-TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_NAME *comm)
+TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm)
 {
   TR_IDP_REALM *idp = NULL;
 
-  for (idp = tr->active_cfg->idp_realms; idp != NULL; idp = idp->next) {
-    if (!tr_name_cmp(idp_realm, idp->realm_id)) {
+  for (idp = idp_realms; idp != NULL; idp = idp->next) {
+    if (!tr_name_cmp(idp_realm_name, idp->realm_id)) {
       /* TBD -- check that the community is one of the APCs for the IDP */
       break;
     }
@@ -53,10 +52,10 @@ TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_
     return NULL;
 }
 
-TR_AAA_SERVER *tr_default_server_lookup(TR_INSTANCE *tr, TR_NAME *comm)
+TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME *comm)
 {
-  if ((!tr) || (!(tr->active_cfg)))
+  if (!default_servers)
     return NULL;
 
-  return(tr->active_cfg->default_servers);
+  return(default_servers);
 }
