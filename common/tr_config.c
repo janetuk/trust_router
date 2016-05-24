@@ -85,6 +85,8 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
   json_t *jlog = NULL;
   json_t *jconthres = NULL;
   json_t *jlogthres = NULL;
+  json_t *jcfgpoll = NULL;
+  json_t *jcfgsettle = NULL;
 
   if ((!trc) || (!jcfg))
     return TR_CFG_BAD_PARAMS;
@@ -122,6 +124,22 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
 	trc->internal->hostname = json_string_value(jhname);
       } else {
 	tr_debug("tr_cfg_parse_internal: Parsing error, hostname is not a string.");
+	return TR_CFG_NOPARSE;
+      }
+    }
+    if (NULL != (jcfgpoll = json_object_get(jint, "cfg_poll_interval"))) {
+      if (json_is_number(jcfgpoll)) {
+	trc->internal->cfg_poll_interval = json_integer_value(jcfgpoll);
+      } else {
+	tr_debug("tr_cfg_parse_internal: Parsing error, cfg_poll_interval is not a number.");
+	return TR_CFG_NOPARSE;
+      }
+    }
+    if (NULL != (jcfgsettle = json_object_get(jint, "cfg_settle_count"))) {
+      if (json_is_number(jcfgsettle)) {
+	trc->internal->cfg_settle_count = json_integer_value(jcfgsettle);
+      } else {
+	tr_debug("tr_cfg_parse_internal: Parsing error, cfg_settle_count is not a number.");
 	return TR_CFG_NOPARSE;
       }
     }
@@ -443,6 +461,7 @@ static TR_CFG_RC tr_cfg_parse_rp_clients (TR_CFG *trc, json_t *jcfg) {
       trc->rp_clients = rp;
     }
   }
+  tr_debug("tr_cfg_parse_rp_clients: Finished (rc=%d)", rc);
   return rc;
 }
 
@@ -481,6 +500,7 @@ static TR_AAA_SERVER *tr_cfg_parse_aaa_servers (TR_CFG *trc, json_t *jaaas, TR_C
     temp_aaa->next = aaa;
     aaa = temp_aaa;
   }
+  tr_debug("tr_cfg_parse_aaa_servers: Finished (rc=%d)", *rc);
   return aaa;
 }
 
@@ -514,6 +534,7 @@ static TR_APC *tr_cfg_parse_apcs (TR_CFG *trc, json_t *japcs, TR_CFG_RC *rc)
     return NULL;
   }
 
+  tr_debug("tr_cfg_parse_apcs: Finished (rc=%d)", *rc);
   return apc;
 }
 
@@ -605,6 +626,7 @@ static TR_CFG_RC tr_cfg_parse_default_servers (TR_CFG *trc, json_t *jcfg)
     }
   } 
 
+  tr_debug("tr_cfg_parse_default_servers: Finished (rc=%d)", rc);
   return rc;
 }
 
@@ -633,6 +655,7 @@ static TR_CFG_RC tr_cfg_parse_idp_realms (TR_CFG *trc, json_t *jcfg)
     }
   }
 
+  tr_debug("tr_cfg_parse_idp_realms: Finished (rc=%d)", rc);
   return rc;
 }
 
@@ -822,6 +845,7 @@ static TR_CFG_RC tr_cfg_parse_comms (TR_CFG *trc, json_t *jcfg)
       trc->comms = comm;
     }
   }
+  tr_debug("tr_cfg_parse_comms: Finished (rc=%d)", rc);
   return rc;
 }
 
@@ -866,22 +890,23 @@ TR_CFG_RC tr_parse_config (TR_CFG *new_cfg, const char *config_dir, int n, struc
   json_t *jcfg;
   json_error_t rc;
   char *file_with_path;
+  int ii;
 
   if ((!new_cfg) || (!cfg_files) || (n<=0))
     return TR_CFG_BAD_PARAMS;
 
   /* Parse configuration information from each config file */
-  while (n--) {
-    file_with_path=join_paths(config_dir, cfg_files[n]->d_name); /* must free result with talloc_free */
+  for (ii=0; ii<n; ii++) {
+    file_with_path=join_paths(config_dir, cfg_files[ii]->d_name); /* must free result with talloc_free */
     if(file_with_path == NULL) {
       tr_crit("tr_parse_config: error joining path.");
       return TR_CFG_NOMEM;
     }
-    tr_debug("tr_parse_config: Parsing %s.", cfg_files[n]->d_name); /* print the filename without the path */
+    tr_debug("tr_parse_config: Parsing %s.", cfg_files[ii]->d_name); /* print the filename without the path */
     if (NULL == (jcfg = json_load_file(file_with_path, 
                                        JSON_DISABLE_EOF_CHECK, &rc))) {
       tr_debug("tr_parse_config: Error parsing config file %s.", 
-               cfg_files[n]->d_name);
+               cfg_files[ii]->d_name);
       talloc_free(file_with_path);
       return TR_CFG_NOPARSE;
     }
@@ -983,9 +1008,9 @@ static int is_cfg_file(const struct dirent *dent) {
  * by scandir(). These can be freed with tr_free_config_file_list().
  */
 int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files) {
-  int n = 0, i = 0;
+  int n = 0, ii = 0;
   
-  n = scandir(config_dir, cfg_files, &is_cfg_file, 0);
+  n = scandir(config_dir, cfg_files, is_cfg_file, alphasort);
 
   if (n < 0) {
     perror("scandir");
@@ -993,9 +1018,8 @@ int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files) {
   } else if (n == 0) {
     tr_debug("tr_find_config: No config files found.");
   } else {
-    i = n;
-    while(i--) {
-      tr_debug("tr_find_config: Config file found (%s).", (*cfg_files)[i]->d_name);
+    for (ii=0; ii<n; ii++) {
+      tr_debug("tr_find_config: Config file found (%s).", (*cfg_files)[ii]->d_name);
     }
   }
 

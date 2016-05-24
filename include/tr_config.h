@@ -66,6 +66,8 @@ typedef struct tr_cfg_internal {
   const char *hostname;
   int log_threshold;
   int console_threshold;
+  unsigned int cfg_poll_interval;
+  unsigned int cfg_settle_count;
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {
