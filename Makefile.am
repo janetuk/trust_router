@@ -27,7 +27,10 @@ common/tr_idp.c \
 common/tr_comm.c \
 common/tr_filter.c \
 common/tr_rp.c \
-tr/tr.c
+tr/tr.c \
+tr/tr_event.c \
+tr/tr_cfgwatch.c \
+tr/tr_tid.c
 
 tr_trust_router_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 
