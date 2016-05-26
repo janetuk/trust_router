@@ -56,23 +56,31 @@ TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx)
 
 void tr_cfg_free (TR_CFG *cfg) {
   talloc_free(cfg);
-  return;
 }
 
-TR_CFG_RC tr_apply_new_config (TR_CFG **active_cfg,
-                               TR_CFG **new_cfg)
+TR_CFG_MGR *tr_cfg_mgr_new(TALLOC_CTX *mem_ctx)
 {
-  if ((active_cfg==NULL) || (new_cfg==NULL))
+  return talloc_zero(mem_ctx, TR_CFG_MGR);
+}
+
+void tr_cfg_mgr_free (TR_CFG_MGR *cfg_mgr) {
+  talloc_free(cfg_mgr);
+}
+
+TR_CFG_RC tr_apply_new_config (TR_CFG_MGR *cfg_mgr)
+{
+  /* cfg_mgr->active is allowed to be null, but new cannot be */
+  if ((cfg_mgr==NULL) || (cfg_mgr->new==NULL))
     return TR_CFG_BAD_PARAMS;
 
-  if (*active_cfg != NULL)
-    tr_cfg_free(*active_cfg);
+  if (cfg_mgr->active != NULL)
+    tr_cfg_free(cfg_mgr->active);
 
-  *active_cfg = *new_cfg;
-  *new_cfg=NULL; /* only keep a single handle on the new configuration */
+  cfg_mgr->active = cfg_mgr->new;
+  cfg_mgr->new=NULL; /* only keep a single handle on the new configuration */
 
-  tr_log_threshold((*active_cfg)->internal->log_threshold);
-  tr_console_threshold((*active_cfg)->internal->console_threshold);
+  tr_log_threshold(cfg_mgr->active->internal->log_threshold);
+  tr_console_threshold(cfg_mgr->active->internal->console_threshold);
 
   return TR_CFG_SUCCESS;
 }
@@ -80,7 +88,8 @@ TR_CFG_RC tr_apply_new_config (TR_CFG **active_cfg,
 static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
   json_t *jint = NULL;
   json_t *jmtd = NULL;
-  json_t *jtp = NULL;
+  json_t *jtidsp = NULL;
+  json_t *jtrpsp = NULL;
   json_t *jhname = NULL;
   json_t *jlog = NULL;
   json_t *jconthres = NULL;
@@ -108,16 +117,27 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
       /* If not configured, use the default */
       trc->internal->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
     }
-    if (NULL != (jtp = json_object_get(jint, "tids_port"))) {
-      if (json_is_number(jtp)) {
-	trc->internal->tids_port = json_integer_value(jtp);
+    if (NULL != (jtidsp = json_object_get(jint, "tids_port"))) {
+      if (json_is_number(jtidsp)) {
+	trc->internal->tids_port = json_integer_value(jtidsp);
       } else {
-	tr_debug("tr_cfg_parse_internal: Parsing error, port is not a number.");
+	tr_debug("tr_cfg_parse_internal: Parsing error, tids_port is not a number.");
 	return TR_CFG_NOPARSE;
       }
     } else {
       /* If not configured, use the default */
       trc->internal->tids_port = TR_DEFAULT_TIDS_PORT;
+    }
+    if (NULL != (jtrpsp = json_object_get(jint, "trps_port"))) {
+      if (json_is_number(jtrpsp)) {
+	trc->internal->trps_port = json_integer_value(jtrpsp);
+      } else {
+	tr_debug("tr_cfg_parse_internal: Parsing error, trps_port is not a number.");
+	return TR_CFG_NOPARSE;
+      }
+    } else {
+      /* If not configured, use the default */
+      trc->internal->trps_port = TR_DEFAULT_TRPS_PORT;
     }
     if (NULL != (jhname = json_object_get(jint, "hostname"))) {
       if (json_is_string(jhname)) {
@@ -675,8 +695,8 @@ static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_CFG *trc, json_t *jidps, TR_CFG_
 
   for (i = 0; i < json_array_size(jidps); i++) {
     if (NULL == (temp_idp = (tr_cfg_find_idp(trc, 
-					     tr_new_name((char *)json_string_value(json_array_get(jidps, i))), 
-					     rc)))) {
+                                             tr_new_name((char *)json_string_value(json_array_get(jidps, i))), 
+                                             rc)))) {
       tr_debug("tr_cfg_parse_comm_idps: Unknown IDP %s.", 
 	      (char *)json_string_value(json_array_get(jidps, i)));
       return NULL;
@@ -881,53 +901,74 @@ TR_CFG_RC tr_cfg_validate (TR_CFG *trc) {
 
 /* Join two paths and return a pointer to the result. This should be freed
  * via talloc_free. Returns NULL on failure. */
-static char *join_paths(const char *p1, const char *p2) {
-  return talloc_asprintf(NULL, "%s/%s", p1, p2); /* returns NULL on a failure */
+static char *join_paths(TALLOC_CTX *mem_ctx, const char *p1, const char *p2) {
+  return talloc_asprintf(mem_ctx, "%s/%s", p1, p2); /* returns NULL on a failure */
 }
 
 /* Reads configuration files in config_dir ("" or "./" will use the current directory). */
-TR_CFG_RC tr_parse_config (TR_CFG *new_cfg, const char *config_dir, int n, struct dirent **cfg_files) {
+TR_CFG_RC tr_parse_config (TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, struct dirent **cfg_files)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   json_t *jcfg;
   json_error_t rc;
   char *file_with_path;
   int ii;
+  TR_CFG_RC cfg_rc=TR_CFG_ERROR;
 
-  if ((!new_cfg) || (!cfg_files) || (n<=0))
-    return TR_CFG_BAD_PARAMS;
+  if ((!cfg_mgr) || (!cfg_files) || (n<=0)) {
+    cfg_rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
+  }
+
+  if (cfg_mgr->new != NULL)
+    tr_cfg_free(cfg_mgr->new);
+  cfg_mgr->new=tr_cfg_new(tmp_ctx); /* belongs to the temporary context for now */
+  if (cfg_mgr->new == NULL) {
+    cfg_rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
 
   /* Parse configuration information from each config file */
   for (ii=0; ii<n; ii++) {
-    file_with_path=join_paths(config_dir, cfg_files[ii]->d_name); /* must free result with talloc_free */
+    file_with_path=join_paths(tmp_ctx, config_dir, cfg_files[ii]->d_name); /* must free result with talloc_free */
     if(file_with_path == NULL) {
       tr_crit("tr_parse_config: error joining path.");
-      return TR_CFG_NOMEM;
+      cfg_rc=TR_CFG_NOMEM;
+      goto cleanup;
     }
     tr_debug("tr_parse_config: Parsing %s.", cfg_files[ii]->d_name); /* print the filename without the path */
     if (NULL == (jcfg = json_load_file(file_with_path, 
                                        JSON_DISABLE_EOF_CHECK, &rc))) {
       tr_debug("tr_parse_config: Error parsing config file %s.", 
                cfg_files[ii]->d_name);
-      talloc_free(file_with_path);
-      return TR_CFG_NOPARSE;
+      cfg_rc=TR_CFG_NOPARSE;
+      goto cleanup;
     }
-    talloc_free(file_with_path); /* done with filename */
 
-    if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(new_cfg, jcfg)) ||
-        (TR_CFG_SUCCESS != tr_cfg_parse_rp_clients(new_cfg, jcfg)) ||
-        (TR_CFG_SUCCESS != tr_cfg_parse_idp_realms(new_cfg, jcfg)) ||
-        (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(new_cfg, jcfg)) ||
-        (TR_CFG_SUCCESS != tr_cfg_parse_comms(new_cfg, jcfg))) {
-      return TR_CFG_ERROR;
+    if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(cfg_mgr->new, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_rp_clients(cfg_mgr->new, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_idp_realms(cfg_mgr->new, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(cfg_mgr->new, jcfg)) ||
+        (TR_CFG_SUCCESS != tr_cfg_parse_comms(cfg_mgr->new, jcfg))) {
+      cfg_rc=TR_CFG_ERROR;
+      goto cleanup;
     }
   }
 
   /* make sure we got a complete, consistent configuration */
-  if (TR_CFG_SUCCESS != tr_cfg_validate(new_cfg)) {
+  if (TR_CFG_SUCCESS != tr_cfg_validate(cfg_mgr->new)) {
     tr_err("tr_parse_config: Error: INVALID CONFIGURATION");
-    return TR_CFG_ERROR;
+    cfg_rc=TR_CFG_ERROR;
+    goto cleanup;
   }
 
-  return TR_CFG_SUCCESS;
+  /* success! */
+  talloc_steal(cfg_mgr, cfg_mgr->new); /* hand this over to the cfg_mgr context */
+  cfg_rc=TR_CFG_SUCCESS;
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return cfg_rc;
 }
 
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc)
@@ -1008,20 +1049,14 @@ static int is_cfg_file(const struct dirent *dent) {
  * by scandir(). These can be freed with tr_free_config_file_list().
  */
 int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files) {
-  int n = 0, ii = 0;
+  int n = 0;
   
   n = scandir(config_dir, cfg_files, is_cfg_file, alphasort);
 
   if (n < 0) {
     perror("scandir");
     tr_debug("tr_find_config: scandir error trying to scan %s.", config_dir);
-  } else if (n == 0) {
-    tr_debug("tr_find_config: No config files found.");
-  } else {
-    for (ii=0; ii<n; ii++) {
-      tr_debug("tr_find_config: Config file found (%s).", (*cfg_files)[ii]->d_name);
-    }
-  }
+  } 
 
   return n;
 }

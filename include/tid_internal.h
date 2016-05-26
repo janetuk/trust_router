@@ -35,8 +35,9 @@
 #ifndef TID_INTERNAL_H
 #define TID_INTERNAL_H
 #include <glib.h>
-#include <trust_router/tid.h>
 
+#include <tr_rp.h>
+#include <trust_router/tid.h>
 #include <jansson.h>
 
 struct tid_srvr_blk {
@@ -97,6 +98,7 @@ struct tids_instance {
   tids_auth_func *auth_handler;
   void *cookie;
   uint16_t tids_port;
+  struct tr_rp_client *rp_gss;		/* Client matching GSS name */
 };
 
 

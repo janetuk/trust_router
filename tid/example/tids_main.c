@@ -375,7 +375,7 @@ int main (int argc,
 		     -1, &authorization_insert, NULL);
 
   /* Create a TID server instance */
-  if (NULL == (tids = tids_create())) {
+  if (NULL == (tids = tids_create(NULL))) {
     tr_crit("Unable to create TIDS instance, exiting.");
     return 1;
   }

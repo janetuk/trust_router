@@ -35,6 +35,8 @@
 #ifndef TID_H
 #define TID_H
 
+#include <talloc.h>
+
 #include <arpa/inet.h>
 #include <openssl/dh.h>
 
@@ -144,7 +146,7 @@ TR_EXPORT DH *tidc_set_dh(TIDC_INSTANCE *, DH *);
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
 /* TID Server functions, in tid/tids.c */
-TR_EXPORT TIDS_INSTANCE *tids_create (void);
+TR_EXPORT TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx);
 TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
 			  tids_auth_func *auth_handler, const char *hostname, 
 			  unsigned int port, void *cookie);

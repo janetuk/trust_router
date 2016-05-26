@@ -1,4 +1,3 @@
-#include <tr.h>
 #include <tid_internal.h>
 #include <tr_filter.h>
 #include <tr_comm.h>
@@ -7,13 +6,20 @@
 #include <tr_event.h>
 #include <tr_debug.h>
 #include <gsscon.h>
+#include <tr_config.h>
 #include <tr_tid.h>
 
 /* Structure to hold TR instance and original request in one cookie */
 typedef struct tr_resp_cookie {
-  TR_INSTANCE *tr;
+  TIDS_INSTANCE *tids;
   TID_REQ *orig_req;
 } TR_RESP_COOKIE;
+
+/* hold a tids instance and a config manager */
+struct tr_tids_event_cookie {
+  TIDS_INSTANCE *tids;
+  TR_CFG_MGR *cfg_mgr;
+};
 
 
 static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc, 
@@ -25,7 +31,7 @@ static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc,
   req->resp_rcvd = 1;
 
   /* TBD -- handle concatentation of multiple responses to single req */
-  tids_send_response(((TR_RESP_COOKIE *)resp_cookie)->tr->tids, 
+  tids_send_response(((TR_RESP_COOKIE *)resp_cookie)->tids, 
 		     ((TR_RESP_COOKIE *)resp_cookie)->orig_req, 
 		     resp);
   
@@ -33,9 +39,9 @@ static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc,
 }
 
 static int tr_tids_req_handler (TIDS_INSTANCE *tids,
-		      TID_REQ *orig_req, 
-		      TID_RESP *resp,
-		      void *tr_in)
+                                TID_REQ *orig_req, 
+                                TID_RESP *resp,
+                                void *cookie_in)
 {
   TIDC_INSTANCE *tidc = NULL;
   TR_RESP_COOKIE resp_cookie;
@@ -44,20 +50,20 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   TR_COMM *cfg_apc = NULL;
-  TR_INSTANCE *tr = (TR_INSTANCE *) tr_in;
   int oaction = TR_FILTER_ACTION_REJECT;
   int rc = 0;
   time_t expiration_interval;
+  struct tr_tids_event_cookie *cookie=(struct tr_tids_event_cookie *)cookie_in;
+  TR_CFG_MGR *cfg_mgr=cookie->cfg_mgr;
 
-  if ((!tids) || (!orig_req) || (!resp) ||  (!tr)) {
+  if ((!tids) || (!orig_req) || (!resp)) {
     tr_debug("tr_tids_req_handler: Bad parameters");
     return -1;
   }
 
   tr_debug("tr_tids_req_handler: Request received (conn = %d)! Realm = %s, Comm = %s", orig_req->conn, 
-	 orig_req->realm->buf, orig_req->comm->buf);
-  if (tids)
-    tids->req_count++;
+           orig_req->realm->buf, orig_req->comm->buf);
+  tids->req_count++;
 
   /* Duplicate the request, so we can modify and forward it */
   if (NULL == (fwd_req = tid_dup_req(orig_req))) {
@@ -65,7 +71,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if (NULL == (cfg_comm = tr_comm_lookup(tids->cookie, orig_req->comm))) {
+  if (NULL == (cfg_comm = tr_comm_lookup(cfg_mgr->active->comms, orig_req->comm))) {
     tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "Unknown community");
     return -1;
@@ -74,14 +80,18 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   /* Check that the rp_realm matches the filter for the GSS name that 
    * was received. */
 
-  if ((!(tr)->rp_gss) || 
-      (!(tr)->rp_gss->filter)) {
+  if ((!tids->rp_gss) || 
+      (!tids->rp_gss->filter)) {
     tr_notice("tr_tids_req_handler: No GSS name for incoming request.");
     tids_send_err_response(tids, orig_req, "No GSS name for request");
     return -1;
   }
 
-  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm, (tr)->rp_gss->filter, orig_req->cons, &fwd_req->cons, &oaction)) ||
+  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm,
+                                                            tids->rp_gss->filter,
+                                                            orig_req->cons,
+                                                           &fwd_req->cons,
+                                                           &oaction)) ||
       (TR_FILTER_ACTION_REJECT == oaction)) {
     tr_notice("tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
@@ -106,7 +116,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     apc = tr_dup_name(cfg_comm->apcs->id);
 
     /* Check that the APC is configured */
-    if (NULL == (cfg_apc = tr_comm_lookup(tids->cookie, apc))) {
+    if (NULL == (cfg_apc = tr_comm_lookup(cfg_mgr->active->comms, apc))) {
       tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", apc->buf);
       tids_send_err_response(tids, orig_req, "Unknown APC");
       return -1;
@@ -124,16 +134,16 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   }
 
   /* Find the AAA server(s) for this request */
-  if (NULL == (aaa_servers = tr_idp_aaa_server_lookup(((TR_INSTANCE *)tids->cookie)->active_cfg->idp_realms, 
-						      orig_req->realm, 
-						      orig_req->comm))) {
-      tr_debug("tr_tids_req_handler: No AAA Servers for realm %s, defaulting.", orig_req->realm->buf);
-      if (NULL == (aaa_servers = tr_default_server_lookup (((TR_INSTANCE *)tids->cookie)->active_cfg->default_servers,
-							   orig_req->comm))) {
-	tr_notice("tr_tids_req_handler: No default AAA servers, discarded.");
-        tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
-        return -1;
-      }
+  if (NULL == (aaa_servers = tr_idp_aaa_server_lookup(cfg_mgr->active->idp_realms, 
+                                                      orig_req->realm, 
+                                                      orig_req->comm))) {
+    tr_debug("tr_tids_req_handler: No AAA Servers for realm %s, defaulting.", orig_req->realm->buf);
+    if (NULL == (aaa_servers = tr_default_server_lookup (cfg_mgr->active->default_servers,
+                                                         orig_req->comm))) {
+      tr_notice("tr_tids_req_handler: No default AAA servers, discarded.");
+      tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
+      return -1;
+    }
   } else {
     /* if we aren't defaulting, check idp coi and apc membership */
     if (NULL == (tr_find_comm_idp(cfg_comm, fwd_req->realm))) {
@@ -168,14 +178,14 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   tidc->client_dh = orig_req->tidc_dh;
 
   /* Save information about this request for the response */
-  resp_cookie.tr = tr;
+  resp_cookie.tids = tids;
   resp_cookie.orig_req = orig_req;
 
   /* Set-up TID connection */
   if (-1 == (fwd_req->conn = tidc_open_connection(tidc, 
-						  aaa_servers->hostname->buf,
-						  TID_PORT,
-					      &(fwd_req->gssctx)))) {
+                                                  aaa_servers->hostname->buf,
+                                                  TID_PORT,
+                                                 &(fwd_req->gssctx)))) {
     tr_notice("tr_tids_req_handler: Error in tidc_open_connection.");
     tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS");
     return -1;
@@ -194,25 +204,26 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 }
 
 static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
-                               void *tr_in)
+                               void *data)
 {
   TR_RP_CLIENT *rp;
-  TR_INSTANCE *tr = (TR_INSTANCE *) tr_in;
+  struct tr_tids_event_cookie *cookie=(struct tr_tids_event_cookie *)data;
+  TIDS_INSTANCE *tids = cookie->tids;
+  TR_CFG_MGR *cfg_mgr = cookie->cfg_mgr;
 
-  if ((!client_name) || (!gss_name) || (!tr)) {
+  if ((!client_name) || (!gss_name) || (!tids) || (!cfg_mgr)) {
     tr_debug("tr_tidc_gss_handler: Bad parameters.");
     return -1;
   }
-  
+
   /* look up the RP client matching the GSS name */
-  if ((NULL == (rp = tr_rp_client_lookup(tr->active_cfg->rp_clients, gss_name)))) {
+  if ((NULL == (rp = tr_rp_client_lookup(cfg_mgr->active->rp_clients, gss_name)))) {
     tr_debug("tr_tids_gss_handler: Unknown GSS name %s", gss_name->buf);
     return -1;
   }
 
-  /* Store the rp client in the TR_INSTANCE structure for now... 
-   * TBD -- fix me for new tasking model. */
-  (tr)->rp_gss = rp;
+  /* Store the rp client */
+  tids->rp_gss = rp;
   tr_debug("Client's GSS Name: %s", gss_name->buf);
 
   return 0;
@@ -234,26 +245,45 @@ static void tr_tids_event_cb(int listener, short event, void *arg)
 
 /* Configure the tids instance and set up its event handler.
  * Returns 0 on success, nonzero on failure. Fills in
- * *tids_event (which should be allocated). */
+ * *tids_event (which should be allocated by caller). */
 int tr_tids_event_init(struct event_base *base,
-                       TR_INSTANCE *tr,
+                       TIDS_INSTANCE *tids,
+                       TR_CFG_MGR *cfg_mgr,
                        struct tr_socket_event *tids_ev)
 {
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  struct tr_tids_event_cookie *cookie=NULL;
+  int retval=0;
+
   if (tids_ev == NULL) {
     tr_debug("tr_tids_event_init: Null tids_ev.");
-    return 1;
+    retval=1;
+    goto cleanup;
   }
 
+  /* Create the cookie for callbacks. We'll put it in the tids context, so it will
+   * be cleaned up when tids is freed by talloc_free. */
+  cookie=talloc(tmp_ctx, struct tr_tids_event_cookie);
+  if (cookie == NULL) {
+    tr_debug("tr_tids_event_init: Unable to allocate cookie.");
+    retval=1;
+    goto cleanup;
+  }
+  cookie->tids=tids;
+  cookie->cfg_mgr=cfg_mgr;
+  talloc_steal(tids, cookie);
+
   /* get a tids listener */
-  tids_ev->sock_fd=tids_get_listener(tr->tids,
+  tids_ev->sock_fd=tids_get_listener(tids,
                                      tr_tids_req_handler,
                                      tr_tids_gss_handler,
-                                     tr->active_cfg->internal->hostname,
-                                     tr->active_cfg->internal->tids_port,
-                                     (void *)tr);
+                                     cfg_mgr->active->internal->hostname,
+                                     cfg_mgr->active->internal->tids_port,
+                                     (void *)cookie);
   if (tids_ev->sock_fd < 0) {
     tr_crit("Error opening TID server socket.");
-    return 1;
+    retval=1;
+    goto cleanup;
   }
 
   /* and its event */
@@ -261,8 +291,10 @@ int tr_tids_event_init(struct event_base *base,
                         tids_ev->sock_fd,
                         EV_READ|EV_PERSIST,
                         tr_tids_event_cb,
-                        (void *)tr->tids);
+                        (void *)tids);
   event_add(tids_ev->ev, NULL);
 
-  return 0;
+cleanup:
+  talloc_free(tmp_ctx);
+  return retval;
 }

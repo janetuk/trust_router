@@ -5,8 +5,6 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include <tr.h>
-
 
 struct tr_fstat {
   char *name;
@@ -21,8 +19,7 @@ struct tr_cfgwatch_data {
   int n_files; /* number of files in fstat_list */
   int change_detected; /* have we detected a change? */
   struct timeval last_change_detected; /* when did we last note a changed mtime? */
-  TALLOC_CTX *ctx; /* what context should own configuration talloc blocks? */
-  TR_INSTANCE *tr; /* what trust router are we updating? */
+  TR_CFG_MGR *cfg_mgr; /* what trust router config are we updating? */
 };
 typedef struct tr_cfgwatch_data TR_CFGWATCH;
 

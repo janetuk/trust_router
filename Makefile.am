@@ -30,7 +30,8 @@ common/tr_rp.c \
 tr/tr.c \
 tr/tr_event.c \
 tr/tr_cfgwatch.c \
-tr/tr_tid.c
+tr/tr_tid.c \
+tr/tr_trp.c
 
 tr_trust_router_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 
@@ -63,6 +64,7 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_msg.h include/tr.h \
 	include/tr_idp.h include/tr_rp.h \
 	include/tr_comm.h include/tr_apc.h \
+	include/tr_tid.h include/tr_trp.h \
 	include/tr_filter.h \
 	include/tid_internal.h
 

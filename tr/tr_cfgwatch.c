@@ -14,21 +14,10 @@ TR_CFGWATCH *tr_cfgwatch_create(TALLOC_CTX *mem_ctx)
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_CFGWATCH *new_cfg;
   
-  new_cfg=talloc(tmp_ctx, TR_CFGWATCH);
+  new_cfg=talloc_zero(tmp_ctx, TR_CFGWATCH);
   if (new_cfg == NULL) {
     tr_debug("tr_cfgwatch_create: Allocation failed.");
-  } else {
-    timerclear(&new_cfg->poll_interval);
-    timerclear(&new_cfg->settling_time);
-    new_cfg->config_dir=NULL;
-    new_cfg->fstat_list=NULL;
-    new_cfg->n_files=0;
-    new_cfg->change_detected=0;
-    timerclear(&new_cfg->last_change_detected);
-    new_cfg->ctx=NULL;
-    new_cfg->tr=NULL;
-  }
-
+  } 
   talloc_steal(mem_ctx, new_cfg);
   talloc_free(tmp_ctx);
   return new_cfg;
@@ -142,7 +131,7 @@ static int tr_cfgwatch_update_needed(TR_CFGWATCH *cfg_status)
     talloc_free(cfg_status->fstat_list);
     cfg_status->n_files=n_files;
     cfg_status->fstat_list=fstat_list;
-    talloc_steal(cfg_status->ctx, fstat_list);
+    talloc_steal(cfg_status, fstat_list);
     goto cleanup;
   }
 
@@ -154,7 +143,7 @@ static int tr_cfgwatch_update_needed(TR_CFGWATCH *cfg_status)
       talloc_free(cfg_status->fstat_list);
       cfg_status->n_files=n_files;
       cfg_status->fstat_list=fstat_list;
-      talloc_steal(cfg_status->ctx, fstat_list);
+      talloc_steal(cfg_status, fstat_list);
       goto cleanup;
     }
   }
@@ -164,6 +153,7 @@ static int tr_cfgwatch_update_needed(TR_CFGWATCH *cfg_status)
   talloc_free(tmp_ctx);
   return update_needed;
 }
+
 /* must specify the ctx and tr in cfgwatch! */
 int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
 {
@@ -193,27 +183,17 @@ int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
     retval=1; goto cleanup;
   }
   
-  /* allocate a new configuration, dumping an old one if needed */
-  if(cfgwatch->tr->new_cfg != NULL)
-    tr_cfg_free(cfgwatch->tr->new_cfg);
-  cfgwatch->tr->new_cfg=tr_cfg_new(tmp_ctx);
-  if (cfgwatch->tr->new_cfg==NULL) {
-    tr_debug("tr_read_and_apply_config: Error allocating new_cfg.");
-    retval=1; goto cleanup;
-  }
-  /* now fill it in */
-  if (TR_CFG_SUCCESS != (rc = tr_parse_config(cfgwatch->tr->new_cfg, config_dir, n_files, cfg_files))) {
+  /* now fill it in (tr_parse_config allocates space for new config) */
+  if (TR_CFG_SUCCESS != (rc = tr_parse_config(cfgwatch->cfg_mgr, config_dir, n_files, cfg_files))) {
     tr_debug("tr_read_and_apply_config: Error parsing configuration information, rc=%d.", rc);
     retval=1; goto cleanup;
   }
 
-  /* apply initial configuration (frees active_cfg and resets new_cfg to NULL) */
-  if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(&cfgwatch->tr->active_cfg,
-                                                 &cfgwatch->tr->new_cfg))) {
+  /* apply new configuration (nulls new, manages context ownership) */
+  if (TR_CFG_SUCCESS != (rc = tr_apply_new_config(cfgwatch->cfg_mgr))) {
     tr_debug("tr_read_and_apply_config: Error applying configuration, rc = %d.", rc);
     retval=1; goto cleanup;
   }
-  talloc_steal(cfgwatch->ctx, cfgwatch->tr->active_cfg); /* hand over ownership */
 
   /* give ownership of the new_fstat_list to caller's context */
   if (cfgwatch->fstat_list != NULL) {
@@ -222,13 +202,13 @@ int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
   }
   cfgwatch->n_files=n_files;
   cfgwatch->fstat_list=new_fstat_list;
-  talloc_steal(cfgwatch->ctx, new_fstat_list);
+  talloc_steal(cfgwatch, new_fstat_list);
   new_fstat_list=NULL;
 
  cleanup:
   tr_free_config_file_list(n_files, &cfg_files);
   talloc_free(tmp_ctx);
-  cfgwatch->tr->new_cfg=NULL; /* this has been freed, either explicitly or with tmp_ctx */
+  cfgwatch->cfg_mgr->new=NULL; /* this has been freed, either explicitly or with tmp_ctx */
   return retval;
 }
 
@@ -240,12 +220,10 @@ static void tr_cfgwatch_event_cb(int listener, short event, void *arg)
 
   if (tr_cfgwatch_update_needed(cfg_status)) {
     tr_notice("Configuration file change detected, waiting for changes to settle.");
-    /*    if (!cfg_status->change_detected) {*/
-      cfg_status->change_detected=1;
+    cfg_status->change_detected=1;
 
-      if (0 != gettimeofday(&cfg_status->last_change_detected, NULL)) {
-        tr_err("tr_cfgwatch_event_cb: gettimeofday() failed (1).");
-        /*      }*/
+    if (0 != gettimeofday(&cfg_status->last_change_detected, NULL)) {
+      tr_err("tr_cfgwatch_event_cb: gettimeofday() failed (1).");
     }
   }
 

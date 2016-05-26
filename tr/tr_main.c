@@ -43,6 +43,7 @@
 #include <tr.h>
 #include <tid_internal.h>
 #include <tr_tid.h>
+#include <tr_trp.h>
 #include <tr_config.h>
 #include <tr_event.h>
 #include <tr_cfgwatch.h>
@@ -112,9 +113,8 @@ int main (int argc, char *argv[])
   TR_INSTANCE *tr = NULL;
   struct cmdline_args opts;
   struct event_base *ev_base;
-  struct tr_socket_event tids_ev;
+  struct tr_socket_event tids_ev, trps_ev;
   struct event *cfgwatch_ev;
-  TR_CFGWATCH *cfgwatch; /* config file watcher status */
 
   /* Use standalone logging */
   tr_log_open();
@@ -129,31 +129,34 @@ int main (int argc, char *argv[])
   /* process options */
   remove_trailing_slash(opts.config_dir);
 
-  /* Get a configuration status object */
-  cfgwatch=tr_cfgwatch_create(main_ctx);
-  if (cfgwatch == NULL) {
-    tr_crit("Unable to create configuration watcher object, exiting.");
-    return 1;
-  }
-  
   /***** create a Trust Router instance *****/
-  if (NULL == (tr = tr_create())) {
+  if (NULL == (tr = tr_create(main_ctx))) {
     tr_crit("Unable to create Trust Router instance, exiting.");
     return 1;
   }
 
   /***** process configuration *****/
-  cfgwatch->config_dir=opts.config_dir;
-  cfgwatch->ctx=main_ctx;
-  cfgwatch->tr=tr;
-  if (0 != tr_read_and_apply_config(cfgwatch)) {
+  tr->cfgwatch=tr_cfgwatch_create(tr);
+  if (tr->cfgwatch == NULL) {
+    tr_crit("Unable to create configuration watcher object, exiting.");
+    return 1;
+  }
+  tr->cfgwatch->config_dir=opts.config_dir;
+  tr->cfgwatch->cfg_mgr=tr->cfg_mgr;
+  if (0 != tr_read_and_apply_config(tr->cfgwatch)) {
     tr_crit("Error reading configuration, exiting.");
     return 1;
   }
 
   /***** initialize the trust path query server instance *****/
-  if (0 == (tr->tids = tids_create ())) {
+  if (0 == (tr->tids = tids_create (tr))) {
     tr_crit("Error initializing Trust Path Query Server instance.");
+    return 1;
+  }
+
+  /***** initialize the trust router protocol server instance *****/
+  if (0 == (tr->trps = trps_create (tr))) {
+    tr_crit("Error initializing Trust Router Protocol Server instance.");
     return 1;
   }
 
@@ -165,11 +168,12 @@ int main (int argc, char *argv[])
   }
 
   /* install configuration file watching events */
-  cfgwatch->poll_interval=(struct timeval) {1,0}; /* set poll interval in {sec, usec} */
-  cfgwatch->settling_time=(struct timeval) {5,0}; /* delay for changes to settle before updating */
-  
+  tr->cfgwatch->poll_interval=(struct timeval) {1,0}; /* set poll interval in {sec, usec} */
+  tr->cfgwatch->settling_time=(struct timeval) {5,0}; /* delay for changes to settle before updating */
+  /* TODO: pull these settings out of the configuration files */
+
   /* already set config_dir, fstat_list and n_files earlier */
-  if (0 != tr_cfgwatch_event_init(ev_base, cfgwatch, &cfgwatch_ev)) {
+  if (0 != tr_cfgwatch_event_init(ev_base, tr->cfgwatch, &cfgwatch_ev)) {
     tr_crit("Error initializing configuration file watcher.");
     return 1;
   }
@@ -177,19 +181,27 @@ int main (int argc, char *argv[])
   /*tr_status_event_init();*/ /* install status reporting events */
 
   /* install TID server events */
-  if (0 != tr_tids_event_init(ev_base, tr, &tids_ev)) {
+  if (0 != tr_tids_event_init(ev_base,
+                              tr->tids,
+                              tr->cfg_mgr,
+                             &tids_ev)) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
 
-  /*tr_trp_event_init();*/ /* install TRP handler events */
+  /* install TRP handler events */
+  if (0 != tr_trps_event_init(ev_base,
+                              tr->trps,
+                              tr->cfg_mgr,
+                             &trps_ev)) {
+    tr_crit("Error initializing Trust Path Query Server instance.");
+    return 1;
+  }
 
-  fflush(stdout); fflush(stderr);
   tr_event_loop_run(ev_base); /* does not return until we are done */
 
-  /* TODO: update the cleanup code */
-  tids_destroy(tr->tids);
-  tr_destroy(tr);
+  /* TODO: ensure talloc is properly used so this actually works */
+  tr_destroy(tr); /* thanks to talloc, should destroy everything */
 
   talloc_free(main_ctx);
   return 0;

@@ -141,8 +141,9 @@ static int tids_auth_cb(gss_name_t clientName, gss_buffer_t displayName,
 }
 
 /* returns 0 on authorization success, 1 on failure, or -1 in case of error */
-static int tids_auth_connection (struct tids_instance *inst,
-				 int conn, gss_ctx_id_t *gssctx)
+static int tids_auth_connection (TIDS_INSTANCE *inst,
+				 int conn,
+                                 gss_ctx_id_t *gssctx)
 {
   int rc = 0;
   int auth, autherr = 0;
@@ -153,7 +154,7 @@ static int tids_auth_connection (struct tids_instance *inst,
   nameLen = asprintf(&name, "trustidentity@%s", inst->hostname);
   nameBuffer.length = nameLen;
   nameBuffer.value = name;
-  
+
   if (rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tids_auth_cb, inst)) {
     tr_debug("tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.", rc);
     return -1;
@@ -365,12 +366,9 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
   } 
 }
 
-TIDS_INSTANCE *tids_create (void)
+TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx)
 {
-  TIDS_INSTANCE *tids = NULL;
-  if (tids = malloc(sizeof(TIDS_INSTANCE)))
-    memset(tids, 0, sizeof(TIDS_INSTANCE));
-  return tids;
+  return talloc_zero(mem_ctx, TIDS_INSTANCE);
 }
 
 /* Get a listener for tids requests, returns its socket fd. Accept

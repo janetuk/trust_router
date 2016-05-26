@@ -32,10 +32,8 @@
  *
  */
 
-#include <tr.h>
 #include <tr_rp.h>
 #include <trust_router/tr_name.h>
-#include <tr_config.h>
 #include <tr_comm.h>
 #include <tr_debug.h>
 
