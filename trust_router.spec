@@ -13,6 +13,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:  krb5-devel , glib-devel
 BuildRequires: jansson-devel >= 2.4
 BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
+BuildRequires: systemd
 Requires:       moonshot-gss-eap >= 0.9.3, sqlite
 
 %description
@@ -114,10 +115,11 @@ chmod 770 /var/log/trust_router
 %doc README
 %{_bindir}/*
 %{_datadir}/trust_router/schema.sql
-#/lib/systemd/system/tids.service
 
 %{_initrddir}/tids
 %{_initrddir}/trust_router
+
+%{_unitdir}/tids.service
 
 %config(noreplace) %{_sysconfdir}/sysconfig/tids
 %config(noreplace) %{_sysconfdir}/sysconfig/trust_router
