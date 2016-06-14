@@ -1,5 +1,6 @@
 #include <talloc.h>
 
+#include <tr_name.h>
 #include <trp_internal.h>
 #include <tr_debug.h>
 
@@ -98,13 +99,7 @@ void trp_msg_destroy(TRP_MSG *msg)
 
 /* JSON helpers */
 /* Read attribute attr from msg as an integer */
-static TRP_RC trp_get_json_integer(json_t *msg, const char *attr, int *dest)
-{
-  return TRP_ERROR;
-}
-
-/* Read attribute attr from msg as a string */
-static TRP_RC trp_get_json_string(json_t *jmsg, const char *attr, const char **dest)
+static TRP_RC trp_get_json_integer(json_t *jmsg, const char *attr, int *dest)
 {
   json_error_t err;
   json_t *obj;
@@ -114,15 +109,61 @@ static TRP_RC trp_get_json_string(json_t *jmsg, const char *attr, const char **d
     return TRP_NOPARSE;
   }
   /* check type */
-  if (!json_is_string(obj)) {
+  if (!json_is_integer(obj)) {
     return TRP_BADTYPE;
   }
 
-  (*dest)=json_string_value(obj);
+  (*dest)=json_integer_value(obj);
+  return TRP_SUCCESS;
+}
+
+/* Read attribute attr from msg as a string. Copies string into mem_ctx context so jmsg can
+ * be destroyed safely. */
+static TRP_RC trp_get_json_string(json_t *jmsg, const char *attr, char **dest, TALLOC_CTX *mem_ctx)
+{
+  json_error_t err;
+  json_t *obj;
+
+  obj=json_object_get(jmsg, attr);
+  if (obj == NULL)
+    return TRP_NOPARSE;
+
+  /* check type */
+  if (!json_is_string(obj))
+    return TRP_BADTYPE;
+
+  *dest=talloc_strdup(mem_ctx, json_string_value(obj));
+  if (*dest==NULL)
+    return TRP_NOMEM;
+
   return TRP_SUCCESS;
 }
 
 
+/* called by talloc when destroying an update message body */
+static int trp_msg_body_update_destructor(void *object)
+{
+  TRP_MSG_BODY_UPDATE *body=talloc_get_type_abort(object, TRP_MSG_BODY_UPDATE);
+  
+  /* clean up TR_NAME data, which are not managed by talloc */
+  if (body->community != NULL) {
+    tr_free_name(body->community);
+    body->community=NULL;
+    tr_debug("trp_msg_body_update_destructor: freed community");
+  }
+  if (body->realm != NULL) {
+    tr_free_name(body->realm);
+    body->realm=NULL;
+    tr_debug("trp_msg_body_update_destructor: freed realm");
+  }
+  if (body->trust_router != NULL) {
+    tr_free_name(body->trust_router);
+    body->trust_router=NULL;
+    tr_debug("trp_msg_body_update_destructor: freed trust_router");
+  }
+
+  return 0;
+}
 
 static void *trp_msg_body_update_new(TALLOC_CTX *mem_ctx)
 {
@@ -135,6 +176,7 @@ static void *trp_msg_body_update_new(TALLOC_CTX *mem_ctx)
     new_body->trust_router=NULL;
     new_body->metric=TRP_METRIC_INFINITY;
     new_body->interval=0;
+    talloc_set_destructor((void *)new_body, trp_msg_body_update_destructor);
   }
   return new_body;
 }
@@ -142,7 +184,86 @@ static void *trp_msg_body_update_new(TALLOC_CTX *mem_ctx)
 /* parse a single record */
 static TRP_RC trp_parse_update_record(TRP_MSG_BODY_UPDATE *body, json_t *jrecord)
 {
-  return TRP_SUCCESS;
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRP_RC rc=TRP_ERROR;
+  char *s=NULL;
+  int num=0;
+
+  rc=trp_get_json_string(jrecord, "record_type", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+
+  /* We only support route_info records */
+  if (0!=strcmp(s, "route_info")) {
+    rc=TRP_UNSUPPORTED;
+    goto cleanup;
+  }
+  talloc_free(s); s=NULL;
+
+  tr_debug("trp_parse_update_record: 'route_info' record found.");
+
+  rc=trp_get_json_string(jrecord, "community", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  if (NULL==(body->community=tr_new_name(s)))
+    goto cleanup;
+  talloc_free(s); s=NULL;
+
+  tr_debug("trp_parse_update_record: 'community' is '%.*s'.", body->community->len, body->community->buf);
+
+  rc=trp_get_json_string(jrecord, "realm", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  if (NULL==(body->realm=tr_new_name(s)))
+    goto cleanup;
+  talloc_free(s); s=NULL;
+
+  tr_debug("trp_parse_update_record: 'realm' is '%.*s'.", body->realm->len, body->realm->buf);
+
+  rc=trp_get_json_string(jrecord, "trust_router", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  if (NULL==(body->trust_router=tr_new_name(s)))
+    goto cleanup;
+  talloc_free(s); s=NULL;
+
+  tr_debug("trp_parse_update_record: 'trust_router' is '%.*s'.", body->trust_router->len, body->trust_router->buf);
+
+  rc=trp_get_json_integer(jrecord, "metric", &num);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  body->metric=num;
+
+  tr_debug("trp_parse_update_record: 'metric' is %d.", body->metric);
+  
+  rc=trp_get_json_integer(jrecord, "interval", &num);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  body->interval=num;
+
+  tr_debug("trp_parse_update_record: 'interval' is %d.", body->interval);
+
+  rc=TRP_SUCCESS;
+
+cleanup:
+  if (rc != TRP_SUCCESS) {
+    /* clean up TR_NAME data, which is not managed by talloc */
+    if (body->community != NULL) {
+      tr_free_name(body->community);
+      body->community=NULL;
+    }
+    if (body->realm != NULL) {
+      tr_free_name(body->realm);
+      body->realm=NULL;
+    }
+    if (body->trust_router != NULL) {
+      tr_free_name(body->trust_router);
+      body->trust_router=NULL;
+    }
+  }
+  
+  talloc_free(tmp_ctx);
+  return rc;
 }
 
 /* Parse an update body. Creates a linked list of records as the body, allocating all but the first.
@@ -215,6 +336,28 @@ cleanup:
   return rc;
 }
 
+/* pretty print */
+void trp_msg_body_update_print(void *body_in)
+{
+  TRP_MSG_BODY_UPDATE *body=talloc_get_type(body_in, TRP_MSG_BODY_UPDATE); /* null if wrong type */
+
+  while (body!=NULL) {
+    printf("  [record_type=route_info (assumed)\n   community=%.*s\n   realm=%.*s\n   trust_router=%.*s\n   metric=%d\n   interval=%d]\n",
+           body->community->len, body->community->buf,
+           body->realm->len, body->realm->buf,
+           body->trust_router->len, body->trust_router->buf,
+           body->metric, body->interval);
+    body=body->next;
+  }
+}
+
+void trp_msg_print(TRP_MSG *msg)
+{
+  /* right now just assumes update */
+  printf("{message_type=%s\n", trp_msg_type_to_string(msg->type));
+  trp_msg_body_update_print(msg->body);
+  printf("}\n");
+}
 
 static void *trp_msg_body_route_req_new(TALLOC_CTX *mem_ctx)
 {
@@ -272,7 +415,7 @@ TRP_RC trp_parse_msg(TALLOC_CTX *mem_ctx, const char *buf, size_t buflen, TRP_MS
   json_error_t json_err;
   json_t *jmsg=NULL; /* handle for the whole msg */
   json_t *jbody=NULL;
-  const char *s;
+  char *s;
 
   tr_debug("trp_parse_msg: parsing %d bytes", buflen);
 
@@ -291,7 +434,7 @@ TRP_RC trp_parse_msg(TALLOC_CTX *mem_ctx, const char *buf, size_t buflen, TRP_MS
     goto cleanup;
   }
 
-  switch (trp_get_json_string(jmsg, "message_type", &s)) {
+  switch (trp_get_json_string(jmsg, "message_type", &s, new_msg)) {
   case TRP_SUCCESS:
     break;
   case TRP_NOPARSE:
@@ -344,5 +487,6 @@ TRP_RC trp_parse_msg(TALLOC_CTX *mem_ctx, const char *buf, size_t buflen, TRP_MS
 
 cleanup:
   talloc_free(tmp_ctx);
+  json_decref(jmsg);
   return msg_rc;
 }

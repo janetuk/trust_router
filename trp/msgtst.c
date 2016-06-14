@@ -1,6 +1,6 @@
 /* Testing trp message encoding / decoding */
 
-/* compiles with: gcc -o msgtst -I../include msgtst.c trp_msg.c $(pkg-config --cflags --libs glib-2.0) ../common/tr_debug.c  -ltalloc -ljansson */
+/* compiles with: gcc -o msgtst -I../include -I../include/trust_router msgtst.c trp_msg.c $(pkg-config --cflags --libs glib-2.0) ../common/tr_debug.c  ../common/tr_name.c -ltalloc -ljansson */
 
 #include <stdio.h>
 #include <talloc.h>
@@ -49,6 +49,12 @@ int main(int argc, const char *argv[])
 
   rc=trp_parse_msg(main_ctx, buf, buflen, &msg);
   printf("trp_parse_msg returned %d\n\n", rc);
+
+  trp_msg_print(msg);
+
+  talloc_report_full(main_ctx, stderr);
+
+  talloc_free(msg);
 
   talloc_report_full(main_ctx, stderr);
   return 0;

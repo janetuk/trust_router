@@ -15,6 +15,7 @@ typedef enum trp_rc {
   TRP_NOPARSE, /* parse error */
   TRP_NOMEM, /* allocation error */
   TRP_BADTYPE, /* typing error */
+  TRP_UNSUPPORTED, /* unsupported feature */
 } TRP_RC;
 
 /*** Messages ***/
@@ -29,6 +30,7 @@ typedef struct trp_msg {
   void *body;
 } TRP_MSG;
 
+/* TODO: implement record type */
 typedef struct trp_msg_body_update TRP_MSG_BODY_UPDATE;
 struct trp_msg_body_update {
   TRP_MSG_BODY_UPDATE *next;
@@ -49,6 +51,7 @@ const char *trp_msg_type_to_string(TRP_MSG_TYPE msgtype);
 
 TRP_MSG *trp_msg_new(TALLOC_CTX *mem_ctx);
 void trp_msg_destroy(TRP_MSG *msg);
+void trp_msg_pprint(TRP_MSG *msg);
 
 
 typedef struct trps_instance TRPS_INSTANCE;
