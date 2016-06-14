@@ -7,16 +7,55 @@
 #include <trust_router/tr_dh.h>
 
 #define TRP_PORT 12310
+#define TRP_METRIC_INFINITY 0xFFFF
 
-typedef struct trp_req {
-  int msg;
-} TRP_REQ;
+typedef enum trp_rc {
+  TRP_SUCCESS=0,
+  TRP_ERROR, /* generic error */
+  TRP_NOPARSE, /* parse error */
+  TRP_NOMEM, /* allocation error */
+} TRP_RC;
 
-typedef struct trp_resp {
-  int msg;
-} TRP_RESP;
+/*** Messages ***/
+typedef enum trp_msg_type {
+  TRP_MSG_TYPE_UNKNOWN=0, /* conveniently, JSON parser returns 0 if a non-integer number is specified */
+  TRP_MSG_TYPE_UPDATE,
+  TRP_MSG_TYPE_ROUTE_REQ
+} TRP_MSG_TYPE;
+
+typedef struct trp_msg {
+  TRP_MSG_TYPE type;
+  void *body;
+} TRP_MSG;
+
+typedef struct trp_msg_body_update TRP_MSG_BODY_UPDATE;
+struct trp_msg_body_update {
+  TRP_MSG_BODY_UPDATE *next;
+  TR_NAME *community;
+  TR_NAME *realm;
+  TR_NAME *trust_router;
+  unsigned int metric;
+  unsigned int interval;
+};
+
+typedef struct trp_msg_body_route_req {
+  TR_NAME *community;
+  TR_NAME *realm;
+} TRP_MSG_BODY_ROUTE_REQ;
+
+TRP_MSG_TYPE trp_msg_type_from_string(const char *s);
+const char *trp_msg_type_to_string(TRP_MSG_TYPE msgtype);
+
+TRP_MSG *trp_msg_new(TALLOC_CTX *mem_ctx);
+void trp_msg_destroy(TRP_MSG *msg);
+
 
 typedef struct trps_instance TRPS_INSTANCE;
+
+/* REMOVE THIS!! --jennifer, 2016-06-13 */
+typedef TRP_MSG TRP_REQ;
+typedef TRP_MSG TRP_RESP;
+
 
 typedef int (TRPS_REQ_FUNC)(TRPS_INSTANCE *, TRP_REQ *, TRP_RESP *, void *);
 typedef void (TRPS_RESP_FUNC)(TRPS_INSTANCE *, TRP_REQ *, TRP_RESP *, void *);
@@ -30,7 +69,7 @@ typedef struct trps_connection {
 } TRPS_CONNECTION;
 
 /* a collection of the above */
-#define TRPS_CONNECTIONS_MAX 10;
+#define TRPS_CONNECTIONS_MAX 10
 typedef struct trps_connection_set {
   TRPS_CONNECTION *conn[TRPS_CONNECTIONS_MAX];
   unsigned int nconn;
