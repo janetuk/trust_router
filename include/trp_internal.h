@@ -14,6 +14,7 @@ typedef enum trp_rc {
   TRP_ERROR, /* generic error */
   TRP_NOPARSE, /* parse error */
   TRP_NOMEM, /* allocation error */
+  TRP_BADTYPE, /* typing error */
 } TRP_RC;
 
 /*** Messages ***/
