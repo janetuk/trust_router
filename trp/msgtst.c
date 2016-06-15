@@ -50,11 +50,13 @@ int main(int argc, const char *argv[])
   rc=trp_parse_msg(main_ctx, buf, buflen, &msg);
   printf("trp_parse_msg returned %d\n\n", rc);
 
-  trp_msg_print(msg);
+  if (rc==TRP_SUCCESS)
+    trp_msg_print(msg);
 
   talloc_report_full(main_ctx, stderr);
 
-  talloc_free(msg);
+  if (rc==TRP_SUCCESS)
+    talloc_free(msg);
 
   talloc_report_full(main_ctx, stderr);
   return 0;

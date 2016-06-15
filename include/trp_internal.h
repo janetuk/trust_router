@@ -25,21 +25,35 @@ typedef enum trp_msg_type {
   TRP_MSG_TYPE_ROUTE_REQ
 } TRP_MSG_TYPE;
 
+/* info records */
+typedef enum trp_msg_info_type {
+  TRP_MSG_INFO_TYPE_UNKNOWN=0, /* conveniently, JSON parser returns 0 if a non-integer number is specified */
+  TRP_MSG_INFO_TYPE_ROUTE,
+  TRP_MSG_INFO_TYPE_COMMUNITY, /* not yet implemented (2016-06-14) */
+} TRP_MSG_INFO_TYPE;
+
 typedef struct trp_msg {
   TRP_MSG_TYPE type;
   void *body;
 } TRP_MSG;
 
-/* TODO: implement record type */
-typedef struct trp_msg_body_update TRP_MSG_BODY_UPDATE;
-struct trp_msg_body_update {
-  TRP_MSG_BODY_UPDATE *next;
+/* update msg record types */
+typedef struct trp_msg_info_route TRP_MSG_INFO_ROUTE;
+struct trp_msg_info_route {
+  void *next;
+  TRP_MSG_INFO_TYPE type;
   TR_NAME *community;
   TR_NAME *realm;
   TR_NAME *trust_router;
   unsigned int metric;
   unsigned int interval;
 };
+
+/* TODO: define struct trp_msg_info_community */
+
+typedef struct trp_msg_body_update {
+  void *records;
+} TRP_MSG_BODY_UPDATE;
 
 typedef struct trp_msg_body_route_req {
   TR_NAME *community;
@@ -48,6 +62,8 @@ typedef struct trp_msg_body_route_req {
 
 TRP_MSG_TYPE trp_msg_type_from_string(const char *s);
 const char *trp_msg_type_to_string(TRP_MSG_TYPE msgtype);
+TRP_MSG_INFO_TYPE trp_msg_info_type_from_string(const char *s);
+const char *trp_msg_info_type_to_string(TRP_MSG_INFO_TYPE msgtype);
 
 TRP_MSG *trp_msg_new(TALLOC_CTX *mem_ctx);
 void trp_msg_destroy(TRP_MSG *msg);
