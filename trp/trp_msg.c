@@ -17,6 +17,7 @@ static TRP_RC trp_parse_route_req(TRP_MSG *msg, json_t *jmsg);
 static void trp_route_req_print(void *);
 
 static void *trp_msg_info_route_new(TALLOC_CTX *mem_ctx);
+static TRP_RC trp_encode_info_route(json_t *jrec, void *route_in);
 static TRP_RC trp_parse_info_route(TRP_MSG *msg, json_t *jmsg);
 static void trp_msg_info_route_print(void *);
 
@@ -38,12 +39,14 @@ static struct trp_msg_type_entry trp_msg_type_table[] = {
 struct trp_msg_info_type_entry {
   const char *name;
   TRP_MSG_INFO_TYPE type;
+  void *(*allocate)(TALLOC_CTX *);
+  TRP_RC (*encode)(json_t *, void *);
   void (*print)(void *);
 };
 static struct trp_msg_info_type_entry trp_msg_info_type_table[] = {
-  { "route_info", TRP_MSG_INFO_TYPE_ROUTE, trp_msg_info_route_print },
-  { "comm_info", TRP_MSG_INFO_TYPE_COMMUNITY, NULL },
-  { NULL, TRP_MSG_INFO_TYPE_UNKNOWN, NULL } /* must be the last entry */
+  { "route_info", TRP_MSG_INFO_TYPE_ROUTE, trp_msg_info_route_new, trp_encode_info_route, trp_msg_info_route_print },
+  { "comm_info", TRP_MSG_INFO_TYPE_COMMUNITY, NULL, NULL, NULL },
+  { NULL, TRP_MSG_INFO_TYPE_UNKNOWN, NULL, NULL, NULL } /* must be the last entry */
 };
 
 /* Use talloc's dynamic type checking to verify type.
@@ -219,8 +222,6 @@ static void *trp_msg_info_route_new(TALLOC_CTX *mem_ctx)
   TRP_MSG_INFO_ROUTE *new_rec=talloc(mem_ctx, TRP_MSG_INFO_ROUTE);
 
   if (new_rec != NULL) {
-    new_rec->next=NULL;
-    new_rec->type=TRP_MSG_INFO_TYPE_UNKNOWN;
     new_rec->comm=NULL;
     new_rec->realm=NULL;
     new_rec->trust_router=NULL;
@@ -231,92 +232,190 @@ static void *trp_msg_info_route_new(TALLOC_CTX *mem_ctx)
   return new_rec;
 }
 
+TR_NAME *trp_msg_info_route_get_comm(TRP_MSG_INFO_REC *rec)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL))
+    return route->comm;
+  else
+    return NULL;
+}
+
+TRP_RC trp_msg_info_route_set_comm(TRP_MSG_INFO_REC *rec, TR_NAME *comm)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL)) {
+    route->comm=comm;
+    return TRP_SUCCESS;
+  } else
+    return TRP_BADTYPE;
+}
+
+TR_NAME *trp_msg_info_route_get_realm(TRP_MSG_INFO_REC *rec)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL))
+    return route->realm;
+  else
+    return NULL;
+}
+
+TRP_RC trp_msg_info_route_set_realm(TRP_MSG_INFO_REC *rec, TR_NAME *realm)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL)) {
+    route->realm=realm;
+    return TRP_SUCCESS;
+  } else
+    return TRP_BADTYPE;
+}
+
+TR_NAME *trp_msg_info_route_get_trust_router(TRP_MSG_INFO_REC *rec)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL))
+    return route->trust_router;
+  else
+    return NULL;
+}
+
+TRP_RC trp_msg_info_route_set_trust_router(TRP_MSG_INFO_REC *rec, TR_NAME *trust_router)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL)) {
+    route->trust_router=trust_router;
+    return TRP_SUCCESS;
+  } else
+    return TRP_BADTYPE;
+}
+
+unsigned int trp_msg_info_route_get_metric(TRP_MSG_INFO_REC *rec)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL))
+    return route->metric;
+  else
+    return TRP_METRIC_INVALID;
+}
+
+TRP_RC trp_msg_info_route_set_metric(TRP_MSG_INFO_REC *rec, unsigned int metric)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL)) {
+    route->metric=metric;
+    return TRP_SUCCESS;
+  } else
+    return TRP_BADTYPE;
+}
+
+unsigned int trp_msg_info_route_get_interval(TRP_MSG_INFO_REC *rec)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL))
+    return route->interval;
+  else
+    return TRP_INTERVAL_INVALID;
+}
+
+TRP_RC trp_msg_info_route_set_interval(TRP_MSG_INFO_REC *rec, unsigned int interval)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(rec->data, TRP_MSG_INFO_ROUTE);
+  if ((rec->type==TRP_MSG_INFO_TYPE_ROUTE) && (route!=NULL)) {
+    route->interval=interval;
+    return TRP_SUCCESS;
+  } else
+    return TRP_BADTYPE;
+}
+
+/* generic record type */
+static void *trp_msg_info_rec_new(TALLOC_CTX *mem_ctx, TRP_MSG_INFO_TYPE type)
+{
+  TRP_MSG_INFO_REC *new_rec=talloc(mem_ctx, TRP_MSG_INFO_REC);
+  struct trp_msg_info_type_entry *dtype=get_trp_msg_info_type_entry(type);
+
+  if ((new_rec != NULL) && (dtype->type != TRP_MSG_INFO_TYPE_UNKNOWN)) {
+    new_rec->next=NULL;
+    new_rec->type=type;
+    if (dtype->allocate!=NULL)
+      new_rec->data=dtype->allocate(new_rec);
+    if (new_rec->data==NULL) {
+      /* dtype->allocate() failed or did not exist */
+      talloc_free(new_rec); new_rec=NULL;
+    }
+  }
+  return new_rec;
+}
+
 /* parse a single record */
-static TRP_RC trp_parse_update_record(TRP_MSG_INFO_ROUTE *rec, json_t *jrecord)
+static TRP_RC trp_parse_update_record(TALLOC_CTX *mem_ctx, TRP_MSG_INFO_REC **rec, json_t *jrecord)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRP_MSG_INFO_TYPE rectype;
   TRP_RC rc=TRP_ERROR;
   char *s=NULL;
   int num=0;
-
+  
   rc=trp_get_json_string(jrecord, "record_type", &s, tmp_ctx);
   if (rc != TRP_SUCCESS)
     goto cleanup;
-  rec->type=trp_msg_info_type_from_string(s);
+  rectype=trp_msg_info_type_from_string(s);
   talloc_free(s); s=NULL;
+
+  (*rec)=trp_msg_info_rec_new(tmp_ctx, rectype);
+  if ((*rec)==NULL) {
+    rc=TRP_NOMEM;
+    goto cleanup;
+  }
+
   /* We only support route_info records for now*/
-  if (rec->type!=TRP_MSG_INFO_TYPE_ROUTE) {
+  if ((*rec)->type!=TRP_MSG_INFO_TYPE_ROUTE) {
     rc=TRP_UNSUPPORTED;
     goto cleanup;
   }
 
-  tr_debug("trp_parse_update_record: '%s' record found.", trp_msg_info_type_to_string(rec->type));
+  tr_debug("trp_parse_update_record: '%s' record found.", trp_msg_info_type_to_string((*rec)->type));
 
   rc=trp_get_json_string(jrecord, "community", &s, tmp_ctx);
   if (rc != TRP_SUCCESS)
     goto cleanup;
-  if (NULL==(rec->comm=tr_new_name(s)))
+  if (TRP_SUCCESS!=trp_msg_info_route_set_comm(*rec, tr_new_name(s))) /* assumes route_info */
     goto cleanup;
   talloc_free(s); s=NULL;
-
-  tr_debug("trp_parse_update_record: 'community' is '%.*s'.", rec->comm->len, rec->comm->buf);
 
   rc=trp_get_json_string(jrecord, "realm", &s, tmp_ctx);
   if (rc != TRP_SUCCESS)
     goto cleanup;
-  if (NULL==(rec->realm=tr_new_name(s)))
+  if (TRP_SUCCESS!=trp_msg_info_route_set_realm(*rec, tr_new_name(s))) /* assumes route_info */
     goto cleanup;
   talloc_free(s); s=NULL;
-
-  tr_debug("trp_parse_update_record: 'realm' is '%.*s'.", rec->realm->len, rec->realm->buf);
 
   rc=trp_get_json_string(jrecord, "trust_router", &s, tmp_ctx);
   if (rc != TRP_SUCCESS)
     goto cleanup;
-  if (NULL==(rec->trust_router=tr_new_name(s)))
+  if (TRP_SUCCESS!=trp_msg_info_route_set_trust_router(*rec, tr_new_name(s))) /* assumes route_info */
     goto cleanup;
   talloc_free(s); s=NULL;
 
-  tr_debug("trp_parse_update_record: 'trust_router' is '%.*s'.", rec->trust_router->len, rec->trust_router->buf);
-
   rc=trp_get_json_integer(jrecord, "metric", &num);
-  if (rc != TRP_SUCCESS)
+  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_msg_info_route_set_metric(*rec,num)))
     goto cleanup;
-  rec->metric=num;
 
-  tr_debug("trp_parse_update_record: 'metric' is %d.", rec->metric);
-  
   rc=trp_get_json_integer(jrecord, "interval", &num);
-  if (rc != TRP_SUCCESS)
+  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_msg_info_route_set_interval(*rec,num)))
     goto cleanup;
-  rec->interval=num;
 
-  tr_debug("trp_parse_update_record: 'interval' is %d.", rec->interval);
-
+  talloc_steal(mem_ctx, *rec);
   rc=TRP_SUCCESS;
 
 cleanup:
   if (rc != TRP_SUCCESS) {
-    /* clean up TR_NAME data, which is not managed by talloc */
-    if (rec->comm != NULL) {
-      tr_free_name(rec->comm);
-      rec->comm=NULL;
-    }
-    if (rec->realm != NULL) {
-      tr_free_name(rec->realm);
-      rec->realm=NULL;
-    }
-    if (rec->trust_router != NULL) {
-      tr_free_name(rec->trust_router);
-      rec->trust_router=NULL;
-    }
+    /* kind of a hack, assumes we only have route_info records */
+    trp_msg_info_route_destructor((*rec)->data);
+    (*rec)=NULL;
   }
-  
   talloc_free(tmp_ctx);
   return rc;
 }
-
-
 
 static void *trp_route_update_new(TALLOC_CTX *mem_ctx)
 {
@@ -340,8 +439,8 @@ static TRP_RC trp_parse_update(TRP_MSG *msg, json_t *jbody)
   size_t ii=0;
   size_t nrec=0;
   TRP_ROUTE_UPDATE *msg_body=NULL;
-  TRP_MSG_INFO_ROUTE *new_rec=NULL;
-  TRP_MSG_INFO_ROUTE *list_tail=NULL;
+  TRP_MSG_INFO_REC *new_rec=NULL;
+  TRP_MSG_INFO_REC *list_tail=NULL;
   TRP_RC rc=TRP_ERROR;
 
   if (msg->type != TRP_MSG_TYPE_UPDATE) {
@@ -363,17 +462,12 @@ static TRP_RC trp_parse_update(TRP_MSG *msg, json_t *jbody)
   tr_debug("trp_parse_update: found %d records", json_array_size(jrecords));
   /* process the array */
   for (ii=0; ii<json_array_size(jrecords); ii++) {
-    new_rec=trp_msg_info_route_new(tmp_ctx);
-    if (new_rec==NULL) {
-      rc=TRP_NOMEM;
-      goto cleanup;
-    }
-
-    if (TRP_SUCCESS != trp_parse_update_record(new_rec, json_array_get(jrecords, ii))) {
+    if (TRP_SUCCESS != trp_parse_update_record(tmp_ctx, &new_rec, json_array_get(jrecords, ii))) {
       rc=TRP_NOPARSE;
       goto cleanup;
     }
 
+    printf("new_rec: %p\n", new_rec);
     if (list_tail==NULL)
       msg_body->records=new_rec; /* first is a special case */
     else
@@ -401,14 +495,12 @@ static void trp_msg_info_route_print(void *rec_in)
 {
   TRP_MSG_INFO_ROUTE *rec=talloc_get_type(rec_in, TRP_MSG_INFO_ROUTE); /* null if wrong type */
 
-  while (rec!=NULL) {
-    printf("    [record_type=%s\n     community=%.*s\n     realm=%.*s\n     trust_router=%.*s\n     metric=%d\n     interval=%d]\n",
-           trp_msg_info_type_to_string(rec->type),
+  if (rec!=NULL) {
+    printf("     community=%.*s\n     realm=%.*s\n     trust_router=%.*s\n     metric=%d\n     interval=%d]\n",
            rec->comm->len, rec->comm->buf,
            rec->realm->len, rec->realm->buf,
            rec->trust_router->len, rec->trust_router->buf,
            rec->metric, rec->interval);
-    rec=rec->next;
   }
 }
 
@@ -504,7 +596,6 @@ static json_t *trp_encode_body(TRP_MSG_TYPE type, void *body)
   return msgtype->encode(body);
 }
 
-/* TODO: error checking */
 char *trp_encode_msg(TRP_MSG *msg)
 {
   json_t *jmsg=NULL;
@@ -515,65 +606,186 @@ char *trp_encode_msg(TRP_MSG *msg)
   jbody=trp_encode_body(msg->type, msg->body);
   if (jbody!=NULL) {
     jmsg=json_object();
-
-    jtype=json_string(trp_msg_type_to_string(msg->type));
-    json_object_set_new(jmsg, "message_type", jtype);
-    json_object_set_new(jmsg, "body", jbody);
-
-    encoded=json_dumps(jmsg, 0);
-    json_decref(jmsg);
+    if (jmsg==NULL) {
+      /* failed */
+      json_decref(jbody);
+    } else {
+      jtype=json_string(trp_msg_type_to_string(msg->type));
+      if (jtype==NULL) {
+        json_decref(jbody);
+      } else {
+        json_object_set_new(jmsg, "message_type", jtype);
+        json_object_set_new(jmsg, "body", jbody);
+        encoded=json_dumps(jmsg, 0);
+      }
+      json_decref(jmsg);
+    }
   }
   return encoded;
 }
 
-/* TODO: error checking */
+/* add record data to jrec */
+static TRP_RC trp_encode_info_route(json_t *jrec, void *route_in)
+{
+  TRP_MSG_INFO_ROUTE *route=talloc_get_type(route_in, TRP_MSG_INFO_ROUTE);
+  json_t *jstr=NULL;
+  json_t *jint=NULL;
+  char *s=NULL;
+
+  if (route==NULL)
+    return TRP_BADTYPE;
+
+  s=tr_name_strdup(route->comm);
+  if (s==NULL)
+    return TRP_NOMEM;
+  jstr=json_string(s);
+  free(s);s=NULL;
+  if(jstr==NULL)
+    return TRP_ERROR;
+  json_object_set_new(jrec, "community", jstr);
+
+  s=tr_name_strdup(route->realm);
+  if (s==NULL)
+    return TRP_NOMEM;
+  jstr=json_string(s);
+  free(s);s=NULL;
+  if(jstr==NULL)
+    return TRP_ERROR;
+  json_object_set_new(jrec, "realm", jstr);
+
+  s=tr_name_strdup(route->trust_router);
+  if (s==NULL)
+    return TRP_NOMEM;
+  jstr=json_string(s);
+  free(s);s=NULL;
+  if(jstr==NULL)
+    return TRP_ERROR;
+  json_object_set_new(jrec, "trust_router", jstr);
+
+  jint=json_integer(route->metric);
+  if(jint==NULL)
+    return TRP_ERROR;
+  json_object_set_new(jrec, "metric", jint);
+
+  jint=json_integer(route->interval);
+  if(jint==NULL)
+    return TRP_ERROR;
+  json_object_set_new(jrec, "interval", jint);
+
+  return TRP_SUCCESS;
+}
+
+static json_t *trp_encode_info_rec(TRP_MSG_INFO_REC *rec)
+{
+  struct trp_msg_info_type_entry *rectype=get_trp_msg_info_type_entry(rec->type);
+  json_t *jrec=NULL;
+  json_t *jstr=NULL;
+
+  if (rectype->type==TRP_MSG_INFO_TYPE_UNKNOWN)
+    return NULL;
+
+  jrec=json_object();
+  if (jrec==NULL)
+    return NULL;
+
+  jstr=json_string(trp_msg_info_type_to_string(rec->type));
+  if (jstr==NULL) {
+    json_decref(jrec);
+    return NULL;
+  }
+  json_object_set_new(jrec, "record_type", jstr);
+
+  if ((rectype->encode==NULL) || (TRP_SUCCESS!=rectype->encode(jrec, rec->data))) {
+    json_decref(jrec);
+    return NULL;
+  }
+
+  return jrec;
+}
+
+static json_t *trp_encode_route_update(void *update_in)
+{
+  TRP_ROUTE_UPDATE *update=talloc_get_type(update_in, TRP_ROUTE_UPDATE); /* null if wrong type */
+  json_t *jbody=NULL;
+  json_t *jrecords=NULL;
+  json_t *jrec=NULL;
+
+  if (update==NULL)
+    return NULL;
+
+  jbody=json_object();
+  if (jbody==NULL)
+    return NULL;
+
+  jrecords=json_array();
+
+  return jbody;
+}
+
 static json_t *trp_encode_route_req(void *req_in)
 {
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_ROUTE_REQ *req=talloc_get_type(req_in, TRP_ROUTE_REQ); /* null if wrong type */
-  TRP_RC rc=TRP_ERROR;
   json_t *jbody=NULL;
   json_t *jstr=NULL;
   char *s=NULL;
 
-  if (req!=NULL) {
-    jbody=json_object();
+  if (req==NULL)
+    return NULL;
 
-    s=talloc_strndup(tmp_ctx, req->comm->buf, req->comm->len); /* ensures null term */
-    if (s==NULL) {
-      tr_debug("trp_encode_route_req: could not allocate community string");
-      json_decref(jbody);
-      jbody=NULL;
-      goto cleanup;
-    }
-    jstr=json_string(s);
-    talloc_free(s);
-    json_object_set_new(jbody, "community", jstr);
-    
-    s=talloc_strndup(tmp_ctx, req->realm->buf, req->realm->len); /* ensures null term */
-    if (s==NULL) {
-      tr_debug("trp_encode_route_req: could not allocate realm string");
-      json_decref(jbody);
-      jbody=NULL;
-      goto cleanup;
-    }
-    jstr=json_string(s);
-    talloc_free(s);
-    json_object_set_new(jbody, "realm", jstr);
+  jbody=json_object();
+  if (jbody==NULL)
+    return NULL;
+
+  s=tr_name_strdup(req->comm); /* ensures null termination */
+  if (s==NULL) {
+    json_decref(jbody);
+    return NULL;
   }
+  jstr=json_string(s);
+  free(s); s=NULL;
+  if (jstr==NULL) {
+    json_decref(jbody);
+    return NULL;
+  }
+  json_object_set_new(jbody, "community", jstr);
+    
+  s=tr_name_strdup(req->realm); /* ensures null termination */
+  if (s==NULL) {
+    json_decref(jbody);
+    return NULL;
+  }
+  jstr=json_string(s);
+  free(s); s=NULL;
+  if (jstr==NULL) {
+    json_decref(jbody);
+    return NULL;
+  }
+  json_object_set_new(jbody, "realm", jstr);
 
-cleanup:
-  talloc_free(tmp_ctx);
   return jbody;
+}
+
+static void trp_msg_info_rec_print(TRP_MSG_INFO_REC *rec)
+{
+  struct trp_msg_info_type_entry *rectype=get_trp_msg_info_type_entry(rec->type);
+
+  if (rectype->print != NULL) {
+    printf("    [record_type=%s\n", trp_msg_info_type_to_string(rec->type));
+    rectype->print(rec->data);
+  }
+  else
+    printf("    [record_type=%s, (no print method)]\n");
 }
 
 static void trp_route_update_print(void *body_in)
 {
   TRP_ROUTE_UPDATE *body=talloc_get_type(body_in, TRP_ROUTE_UPDATE); /* null if wrong type */
+  TRP_MSG_INFO_REC *rec=NULL;
 
   if (body!=NULL) {
     printf("  {records=\n");
-    trp_msg_info_route_print(body->records);
+    for (rec=body->records; rec!=NULL; rec=rec->next) 
+      trp_msg_info_rec_print(rec);
     printf("  }\n");
   }
 }

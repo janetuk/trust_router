@@ -8,6 +8,8 @@
 
 #define TRP_PORT 12310
 #define TRP_METRIC_INFINITY 0xFFFF
+#define TRP_METRIC_INVALID 0xFFFFFFFF
+#define TRP_INTERVAL_INVALID 0
 
 typedef enum trp_rc {
   TRP_SUCCESS=0,
@@ -38,16 +40,20 @@ typedef struct trp_msg {
 } TRP_MSG;
 
 /* update msg record types */
-typedef struct trp_msg_info_route TRP_MSG_INFO_ROUTE;
-struct trp_msg_info_route {
-  void *next;
+typedef struct trp_msg_info_rec TRP_MSG_INFO_REC;
+struct trp_msg_info_rec {
+  TRP_MSG_INFO_REC *next;
   TRP_MSG_INFO_TYPE type;
+  void *data; /* pointer to one of the record types */
+};
+
+typedef struct trp_msg_info_route {
   TR_NAME *comm;
   TR_NAME *realm;
   TR_NAME *trust_router;
   unsigned int metric;
   unsigned int interval;
-};
+} TRP_MSG_INFO_ROUTE;
 
 /* TODO: define struct trp_msg_info_community */
 
@@ -70,6 +76,11 @@ void trp_msg_destroy(TRP_MSG *msg);
 void trp_msg_pprint(TRP_MSG *msg);
 char *trp_encode_msg(TRP_MSG *msg);
 
+TR_NAME *trp_msg_info_route_get_comm(TRP_MSG_INFO_REC *rec);
+TR_NAME *trp_msg_info_route_get_realm(TRP_MSG_INFO_REC *rec);
+TR_NAME *trp_msg_info_route_get_trust_router(TRP_MSG_INFO_REC *rec);
+unsigned int trp_msg_info_route_get_metric(TRP_MSG_INFO_REC *rec);
+unsigned int trp_msg_info_route_get_interval(TRP_MSG_INFO_REC *rec);
 
 typedef struct trps_instance TRPS_INSTANCE;
 
