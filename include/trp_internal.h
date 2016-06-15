@@ -42,7 +42,7 @@ typedef struct trp_msg_info_route TRP_MSG_INFO_ROUTE;
 struct trp_msg_info_route {
   void *next;
   TRP_MSG_INFO_TYPE type;
-  TR_NAME *community;
+  TR_NAME *comm;
   TR_NAME *realm;
   TR_NAME *trust_router;
   unsigned int metric;
@@ -51,14 +51,14 @@ struct trp_msg_info_route {
 
 /* TODO: define struct trp_msg_info_community */
 
-typedef struct trp_msg_body_update {
+typedef struct trp_route_update {
   void *records;
-} TRP_MSG_BODY_UPDATE;
+} TRP_ROUTE_UPDATE;
 
-typedef struct trp_msg_body_route_req {
-  TR_NAME *community;
+typedef struct trp_route_req {
+  TR_NAME *comm;
   TR_NAME *realm;
-} TRP_MSG_BODY_ROUTE_REQ;
+} TRP_ROUTE_REQ;
 
 TRP_MSG_TYPE trp_msg_type_from_string(const char *s);
 const char *trp_msg_type_to_string(TRP_MSG_TYPE msgtype);
@@ -68,6 +68,7 @@ const char *trp_msg_info_type_to_string(TRP_MSG_INFO_TYPE msgtype);
 TRP_MSG *trp_msg_new(TALLOC_CTX *mem_ctx);
 void trp_msg_destroy(TRP_MSG *msg);
 void trp_msg_pprint(TRP_MSG *msg);
+char *trp_encode_msg(TRP_MSG *msg);
 
 
 typedef struct trps_instance TRPS_INSTANCE;

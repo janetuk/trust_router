@@ -53,11 +53,15 @@ int main(int argc, const char *argv[])
   if (rc==TRP_SUCCESS)
     trp_msg_print(msg);
 
-  talloc_report_full(main_ctx, stderr);
+  printf("\nEncoding...\n");
+
+  printf("Result: \n%s\n\n", trp_encode_msg(msg));
+
+  talloc_report_full(main_ctx, stdout);
 
   if (rc==TRP_SUCCESS)
     talloc_free(msg);
 
-  talloc_report_full(main_ctx, stderr);
+  talloc_report_full(main_ctx, stdout);
   return 0;
 }
