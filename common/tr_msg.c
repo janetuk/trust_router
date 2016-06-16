@@ -469,6 +469,7 @@ char *tr_msg_encode(TR_MSG *msg)
 {
   json_t *jmsg;
   json_t *jmsg_type;
+  char *encoded;
 
   /* TBD -- add error handling */
   jmsg = json_object();
@@ -493,8 +494,10 @@ char *tr_msg_encode(TR_MSG *msg)
       json_decref(jmsg);
       return NULL;
     }
-  
-  return(json_dumps(jmsg, 0));
+
+  encoded=json_dumps(jmsg, 0);
+  json_decref(jmsg);
+  return encoded;
 }
 
 TR_MSG *tr_msg_decode(char *jbuf, size_t buflen)
