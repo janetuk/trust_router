@@ -8,7 +8,8 @@
 
 /* static prototypes */
 static void *trp_route_update_new(TALLOC_CTX *mem_ctx);
-static TRP_RC trp_parse_update(TRP_MSG *msg, json_t *jmsg);
+static json_t *trp_encode_route_update(void *req_in);
+static TRP_RC trp_parse_route_update(TRP_MSG *msg, json_t *jmsg);
 static void trp_route_update_print(void *);
 
 static void *trp_route_req_new(TALLOC_CTX *mem_ctx);
@@ -31,7 +32,7 @@ struct trp_msg_type_entry {
   void (*print)(void *);
 };
 static struct trp_msg_type_entry trp_msg_type_table[] = {
-  { "update", TRP_MSG_TYPE_UPDATE, trp_route_update_new, NULL, trp_parse_update, trp_route_update_print },
+  { "update", TRP_MSG_TYPE_UPDATE, trp_route_update_new, trp_encode_route_update, trp_parse_route_update, trp_route_update_print },
   { "route_req", TRP_MSG_TYPE_ROUTE_REQ, trp_route_req_new, trp_encode_route_req, trp_parse_route_req, trp_route_req_print },
   { NULL, TRP_MSG_TYPE_UNKNOWN, NULL, NULL, NULL, NULL } /* must be the last entry */
 };
@@ -432,7 +433,7 @@ static void *trp_route_update_new(TALLOC_CTX *mem_ctx)
  *
  * TODO: clean up return codes. 
  * TODO: should take a body, not a msg */
-static TRP_RC trp_parse_update(TRP_MSG *msg, json_t *jbody)
+static TRP_RC trp_parse_route_update(TRP_MSG *msg, json_t *jbody)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   json_t *jrecords=NULL;
@@ -459,7 +460,7 @@ static TRP_RC trp_parse_update(TRP_MSG *msg, json_t *jbody)
     goto cleanup;
   }
 
-  tr_debug("trp_parse_update: found %d records", json_array_size(jrecords));
+  tr_debug("trp_parse_route_update: found %d records", json_array_size(jrecords));
   /* process the array */
   for (ii=0; ii<json_array_size(jrecords); ii++) {
     if (TRP_SUCCESS != trp_parse_update_record(tmp_ctx, &new_rec, json_array_get(jrecords, ii))) {
@@ -467,7 +468,6 @@ static TRP_RC trp_parse_update(TRP_MSG *msg, json_t *jbody)
       goto cleanup;
     }
 
-    printf("new_rec: %p\n", new_rec);
     if (list_tail==NULL)
       msg_body->records=new_rec; /* first is a special case */
     else
@@ -591,8 +591,6 @@ static json_t *trp_encode_body(TRP_MSG_TYPE type, void *body)
   if ((msgtype->type==TRP_MSG_TYPE_UNKNOWN) || (msgtype->encode==NULL))
     return NULL;
 
-  tr_debug("trp_encode_body: encoding type %s", trp_msg_type_to_string(type));
-
   return msgtype->encode(body);
 }
 
@@ -709,6 +707,7 @@ static json_t *trp_encode_route_update(void *update_in)
   json_t *jbody=NULL;
   json_t *jrecords=NULL;
   json_t *jrec=NULL;
+  TRP_MSG_INFO_REC *rec;
 
   if (update==NULL)
     return NULL;
@@ -718,6 +717,23 @@ static json_t *trp_encode_route_update(void *update_in)
     return NULL;
 
   jrecords=json_array();
+  if (jrecords==NULL) {
+    json_decref(jbody);
+    return NULL;
+  }
+  json_object_set_new(jbody, "records", jrecords); /* jrecords now a "borrowed" reference */
+  for (rec=update->records; rec!=NULL; rec=rec->next) {
+    jrec=trp_encode_info_rec(rec);
+    if (jrec==NULL) {
+      json_decref(jbody); /* also decs jrecords and any elements */
+      return NULL;
+    }
+    if (0!=json_array_append_new(jrecords, jrec)) {
+      json_decref(jbody); /* also decs jrecords and any elements */
+      json_decref(jrec); /* this one did not get added so dec explicitly */
+      return NULL;
+    }
+  }
 
   return jbody;
 }
