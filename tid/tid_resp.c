@@ -35,8 +35,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <talloc.h>
 
 #include <tid_internal.h>
+
+TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx)
+{
+  return talloc(mem_ctx, TID_RESP);
+}
+
+void tid_resp_free(TID_RESP *resp)
+{
+  if (resp)
+    talloc_free(resp);
+}
 
 TR_EXPORT int tid_resp_get_result(TID_RESP *resp)
 {

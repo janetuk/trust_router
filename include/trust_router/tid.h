@@ -103,6 +103,9 @@ TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
 void TR_EXPORT tid_req_free( TID_REQ *req);
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
+
+TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx);
+void tid_resp_free(TID_RESP *resp);
 TR_EXPORT int tid_resp_get_result(TID_RESP *resp);
 void tid_resp_set_result(TID_RESP *resp, int result);
 TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp);

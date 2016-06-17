@@ -37,13 +37,15 @@
 
 #include <jansson.h>
 #include <trust_router/tid.h>
-
+#include <trust_router/trp.h>
 typedef struct tr_msg TR_MSG;
 
 enum msg_type {
   TR_UNKNOWN = 0,
   TID_REQUEST,
-  TID_RESPONSE
+  TID_RESPONSE,
+  TRP_UPDATE,
+  TRP_REQUEST
 };
 
 /* Union of TR message types to hold message of any type. */
@@ -59,6 +61,11 @@ TID_REQ *tr_msg_get_req(TR_MSG *msg);
 void tr_msg_set_req(TR_MSG *msg, TID_REQ *req);
 TID_RESP *tr_msg_get_resp(TR_MSG *msg);
 void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp);
+TRP_UPD *tr_msg_get_trp_upd(TR_MSG *msg);
+void tr_msg_set_trp_upd(TR_MSG *msg, TRP_UPD *req);
+TRP_REQ *tr_msg_get_trp_req(TR_MSG *msg);
+void tr_msg_set_trp_req(TR_MSG *msg, TRP_REQ *req);
+
 
 /* Encoders/Decoders */
 char *tr_msg_encode(TR_MSG *msg);

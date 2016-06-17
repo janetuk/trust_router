@@ -1,11 +1,12 @@
 /* Testing trp message encoding / decoding */
 
-/* compiles with: gcc -o msgtst -I../include -I../include/trust_router msgtst.c trp_msg.c $(pkg-config --cflags --libs glib-2.0) ../common/tr_debug.c  ../common/tr_name.c -ltalloc -ljansson */
+/* compiles with: gcc -o msgtst -I../include msgtst.c trp_msg.c $(pkg-config --cflags --libs glib-2.0) ../common/tr_debug.c  ../common/tr_name.c ../common/tr_msg.c -ltalloc -ljansson */
 
 #include <stdio.h>
 #include <talloc.h>
 
-#include <trp_internal.h>
+#include <trust_router/trp.h>
+#include <tr_msg.h>
 #include <tr_debug.h>
 
 #define MAX_MSG_LEN 8192
@@ -16,8 +17,7 @@ int main(int argc, const char *argv[])
   FILE *f;
   char *buf;
   size_t buflen;
-  TRP_RC rc;
-  TRP_MSG *msg;
+  TR_MSG *msg;
   
   if (argc != 2) {
     printf("Usage: %s <input file>\n\n", argv[0]);
@@ -47,21 +47,16 @@ int main(int argc, const char *argv[])
   if (buflen>=MAX_MSG_LEN)
     printf("Warning: file may exceed maximum message length (%d bytes).\n", MAX_MSG_LEN);
 
-  rc=trp_parse_msg(main_ctx, buf, buflen, &msg);
-  printf("trp_parse_msg returned %d\n\n", rc);
+  msg=tr_msg_decode(buf, buflen);
 
-  if (rc==TRP_SUCCESS)
-    trp_msg_print(msg);
+/*  if (rc==TRP_SUCCESS)
+    trp_msg_print(msg);*/
 
   printf("\nEncoding...\n");
 
-  printf("Result: \n%s\n\n", trp_encode_msg(msg));
+  printf("Result: \n%s\n\n", tr_msg_encode(msg));
 
   talloc_report_full(main_ctx, stdout);
 
-  if (rc==TRP_SUCCESS)
-    talloc_free(msg);
-
-  talloc_report_full(main_ctx, stdout);
   return 0;
 }

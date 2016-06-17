@@ -5,92 +5,72 @@
 
 #include <gsscon.h>
 #include <trust_router/tr_dh.h>
-
-#define TRP_PORT 12310
-#define TRP_METRIC_INFINITY 0xFFFF
-#define TRP_METRIC_INVALID 0xFFFFFFFF
-#define TRP_INTERVAL_INVALID 0
-
-typedef enum trp_rc {
-  TRP_SUCCESS=0,
-  TRP_ERROR, /* generic error */
-  TRP_NOPARSE, /* parse error */
-  TRP_NOMEM, /* allocation error */
-  TRP_BADTYPE, /* typing error */
-  TRP_UNSUPPORTED, /* unsupported feature */
-} TRP_RC;
-
-/*** Messages ***/
-typedef enum trp_msg_type {
-  TRP_MSG_TYPE_UNKNOWN=0, /* conveniently, JSON parser returns 0 if a non-integer number is specified */
-  TRP_MSG_TYPE_UPDATE,
-  TRP_MSG_TYPE_ROUTE_REQ
-} TRP_MSG_TYPE;
+#include <trust_router/trp.h>
 
 /* info records */
-typedef enum trp_msg_info_type {
-  TRP_MSG_INFO_TYPE_UNKNOWN=0, /* conveniently, JSON parser returns 0 if a non-integer number is specified */
-  TRP_MSG_INFO_TYPE_ROUTE,
-  TRP_MSG_INFO_TYPE_COMMUNITY, /* not yet implemented (2016-06-14) */
-} TRP_MSG_INFO_TYPE;
+typedef enum trp_inforec_type {
+  TRP_INFOREC_TYPE_UNKNOWN=0, /* conveniently, JSON parser returns 0 if a non-integer number is specified */
+  TRP_INFOREC_TYPE_ROUTE,
+  TRP_INFOREC_TYPE_COMMUNITY, /* not yet implemented (2016-06-14) */
+} TRP_INFOREC_TYPE;
 
-typedef struct trp_msg {
-  TRP_MSG_TYPE type;
-  void *body;
-} TRP_MSG;
-
-/* update msg record types */
-typedef struct trp_msg_info_rec TRP_MSG_INFO_REC;
-struct trp_msg_info_rec {
-  TRP_MSG_INFO_REC *next;
-  TRP_MSG_INFO_TYPE type;
-  void *data; /* pointer to one of the record types */
-};
-
-typedef struct trp_msg_info_route {
+/* TRP update record types */
+typedef struct trp_inforec_route {
   TR_NAME *comm;
   TR_NAME *realm;
   TR_NAME *trust_router;
   unsigned int metric;
   unsigned int interval;
-} TRP_MSG_INFO_ROUTE;
+} TRP_INFOREC_ROUTE;
 
 /* TODO: define struct trp_msg_info_community */
 
-typedef struct trp_route_update {
-  void *records;
-} TRP_ROUTE_UPDATE;
+typedef union trp_inforec_data {
+  TRP_INFOREC_ROUTE *route;
+  /* TRP_INFOREC_COMM *comm; */
+} TRP_INFOREC_DATA;
 
-typedef struct trp_route_req {
+typedef struct trp_inforec TRP_INFOREC;
+struct trp_inforec {
+  TRP_INFOREC *next;
+  TRP_INFOREC_TYPE type;
+  TRP_INFOREC_DATA data; /* contains pointer to one of the record types */
+};
+
+struct trp_update {
+  TRP_INFOREC *records;
+};
+
+struct trp_req {
   TR_NAME *comm;
   TR_NAME *realm;
-} TRP_ROUTE_REQ;
+};
 
-TRP_MSG_TYPE trp_msg_type_from_string(const char *s);
-const char *trp_msg_type_to_string(TRP_MSG_TYPE msgtype);
-TRP_MSG_INFO_TYPE trp_msg_info_type_from_string(const char *s);
-const char *trp_msg_info_type_to_string(TRP_MSG_INFO_TYPE msgtype);
+TRP_INFOREC_TYPE trp_inforec_type_from_string(const char *s);
+const char *trp_inforec_type_to_string(TRP_INFOREC_TYPE msgtype);
 
-TRP_MSG *trp_msg_new(TALLOC_CTX *mem_ctx);
-void trp_msg_destroy(TRP_MSG *msg);
-void trp_msg_pprint(TRP_MSG *msg);
-char *trp_encode_msg(TRP_MSG *msg);
+TRP_UPD *trp_upd_new(TALLOC_CTX *mem_ctx);
+void trp_upd_free(TRP_UPD *update);
+TRP_REQ *trp_req_new(TALLOC_CTX *mem_ctx);
+void trp_req_free(TRP_REQ *req);
+TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type);
+void trp_inforec_free(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_get_comm(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_comm(TRP_INFOREC *rec, TR_NAME *comm);
+TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_realm(TRP_INFOREC *rec, TR_NAME *realm);
+TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router);
+unsigned int trp_inforec_get_metric(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_metric(TRP_INFOREC *rec, unsigned int metric);
+unsigned int trp_inforec_get_interval(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval);
 
-TR_NAME *trp_msg_info_route_get_comm(TRP_MSG_INFO_REC *rec);
-TR_NAME *trp_msg_info_route_get_realm(TRP_MSG_INFO_REC *rec);
-TR_NAME *trp_msg_info_route_get_trust_router(TRP_MSG_INFO_REC *rec);
-unsigned int trp_msg_info_route_get_metric(TRP_MSG_INFO_REC *rec);
-unsigned int trp_msg_info_route_get_interval(TRP_MSG_INFO_REC *rec);
 
 typedef struct trps_instance TRPS_INSTANCE;
 
-/* REMOVE THIS!! --jennifer, 2016-06-13 */
-typedef TRP_MSG TRP_REQ;
-typedef TRP_MSG TRP_RESP;
-
-
-typedef int (TRPS_REQ_FUNC)(TRPS_INSTANCE *, TRP_REQ *, TRP_RESP *, void *);
-typedef void (TRPS_RESP_FUNC)(TRPS_INSTANCE *, TRP_REQ *, TRP_RESP *, void *);
+typedef int (TRPS_REQ_FUNC)();
+typedef void (TRPS_RESP_FUNC)();
 typedef int (trps_auth_func)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 
 
