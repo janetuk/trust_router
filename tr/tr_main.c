@@ -364,6 +364,9 @@ int main (int argc, char *argv[])
     exit(1);
   }
 
+  /* print the loaded configuration */
+  tr_print_config(tr->active_cfg);
+
   /* initialize the trust path query server instance */
   if (0 == (tr->tids = tids_create ())) {
     tr_crit("Error initializing Trust Path Query Server instance.");

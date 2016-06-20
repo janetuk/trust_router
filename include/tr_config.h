@@ -84,7 +84,11 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, const char *config_dir, int n, struc
 TR_CFG_RC tr_apply_new_config (TR_INSTANCE *tr);
 TR_CFG_RC tr_cfg_validate (TR_CFG *trc);
 void tr_cfg_free(TR_CFG *cfg);
-void tr_print_config(FILE *stream, TR_CFG *cfg);
+
+void tr_print_config(TR_CFG *cfg);
+void tr_print_comms(TR_COMM *comm_list);
+void tr_print_comm_idps(TR_IDP_REALM *idp_list);
+void tr_print_comm_rps(TR_RP_REALM *rp_list);
 
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
 TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
