@@ -44,9 +44,39 @@
 #include <tr_filter.h>
 #include <trust_router/tr_constraint.h>
 
-void tr_print_config (FILE *stream, TR_CFG *cfg) {
-  fprintf(stream, "tr_print_config: Not yet implemented.");
-  return;
+void tr_print_config (TR_CFG *cfg) {
+  tr_notice("tr_print_config: Logging running trust router configuration.");
+  tr_print_comms(cfg->comms);
+}
+
+void tr_print_comms (TR_COMM *comm_list) {
+  TR_COMM *comm = NULL;
+
+  for (comm = comm_list; NULL != comm; comm = comm->next) {
+    tr_notice("tr_print_config: Community %s:", comm->id->buf);
+
+    tr_notice("tr_print_config:  - Member IdPs:");
+    tr_print_comm_idps(comm->idp_realms);
+
+    tr_notice("tr_print_config:  - Member RPs:");
+    tr_print_comm_rps(comm->rp_realms);
+  }
+}
+
+void tr_print_comm_idps (TR_IDP_REALM *idp_list) {
+  TR_IDP_REALM *idp = NULL;
+
+  for (idp = idp_list; NULL != idp; idp = idp->comm_next) {
+    tr_notice("tr_print_config:    - @%s", idp->realm_id->buf);
+  }
+}
+
+void tr_print_comm_rps(TR_RP_REALM *rp_list) {
+  TR_RP_REALM *rp = NULL;
+
+  for (rp = rp_list; NULL != rp; rp = rp->next) {
+    tr_notice("tr_print_config:    - %s", rp->realm_name->buf);
+  }
 }
 
 void tr_cfg_free (TR_CFG *cfg) {
@@ -649,6 +679,7 @@ static TR_CFG_RC tr_cfg_parse_idp_realms (TR_CFG *trc, json_t *jcfg)
 static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_CFG *trc, json_t *jidps, TR_CFG_RC *rc)
 {
   TR_IDP_REALM *idp = NULL;
+  TR_IDP_REALM *found_idp = NULL;
   TR_IDP_REALM *temp_idp = NULL;
   int i = 0;
 
@@ -661,13 +692,24 @@ static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_CFG *trc, json_t *jidps, TR_CFG_
   }
 
   for (i = 0; i < json_array_size(jidps); i++) {
-    if (NULL == (temp_idp = (tr_cfg_find_idp(trc, 
+    if (NULL == (temp_idp = talloc(trc, TR_IDP_REALM))) {
+      tr_debug("tr_cfg_parse_comm_idps: Can't allocate memory for IdP Realm.");
+      if (rc)
+	*rc = TR_CFG_NOMEM;
+      return NULL;
+    }
+    memset (temp_idp, 0, sizeof(TR_IDP_REALM));
+
+    if (NULL == (found_idp = (tr_cfg_find_idp(trc, 
 					     tr_new_name((char *)json_string_value(json_array_get(jidps, i))), 
 					     rc)))) {
       tr_debug("tr_cfg_parse_comm_idps: Unknown IDP %s.", 
 	      (char *)json_string_value(json_array_get(jidps, i)));
       return NULL;
     }
+
+    // We *MUST* do a dereferenced copy here or the second community will corrupt the linked list we create here.
+    *temp_idp = *found_idp;
 
     temp_idp->comm_next = idp;
     idp = temp_idp;
@@ -868,6 +910,7 @@ TR_CFG_RC tr_cfg_validate (TR_CFG *trc) {
 
 TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, int n, struct dirent **cfg_files) {
   json_t *jcfg;
+  json_t *jser;
   json_error_t rc;
 
   if ((!tr) || (!cfg_files))
@@ -891,7 +934,16 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, int n, struct dirent **cfg_files) {
 	       cfg_files[n]->d_name);
       return TR_CFG_NOPARSE;
     }
-	
+
+    // Look for serial number and log it if it exists
+    if (NULL != (jser = json_object_get(jcfg, "serial_number"))) {
+      if (json_is_number(jser)) {
+        tr_notice("tr_read_config: Attempting to load revision %i of %s.",
+                  (int *) json_integer_value(jser),
+                  cfg_files[n]->d_name);
+      }
+    }
+
     if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(tr->new_cfg, jcfg)) ||
 	(TR_CFG_SUCCESS != tr_cfg_parse_rp_clients(tr->new_cfg, jcfg)) ||
 	(TR_CFG_SUCCESS != tr_cfg_parse_idp_realms(tr->new_cfg, jcfg)) ||
