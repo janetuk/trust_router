@@ -46,15 +46,16 @@ struct trp_req {
   TR_NAME *realm;
 };
 
-TRP_INFOREC_TYPE trp_inforec_type_from_string(const char *s);
-const char *trp_inforec_type_to_string(TRP_INFOREC_TYPE msgtype);
-
 TRP_UPD *trp_upd_new(TALLOC_CTX *mem_ctx);
 void trp_upd_free(TRP_UPD *update);
-TRP_REQ *trp_req_new(TALLOC_CTX *mem_ctx);
-void trp_req_free(TRP_REQ *req);
+TRP_INFOREC *trp_upd_get_inforec(TRP_UPD *upd);
+void trp_upd_set_inforec(TRP_UPD *upd, TRP_INFOREC *rec);
 TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type);
 void trp_inforec_free(TRP_INFOREC *rec);
+TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec);
+void trp_inforec_set_next(TRP_INFOREC *rec, TRP_INFOREC *next_rec);
+TRP_INFOREC_TYPE trp_inforec_get_type(TRP_INFOREC *rec);
+void trp_inforec_set_type(TRP_INFOREC *rec, TRP_INFOREC_TYPE type);
 TR_NAME *trp_inforec_get_comm(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_comm(TRP_INFOREC *rec, TR_NAME *comm);
 TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec);
@@ -65,7 +66,16 @@ unsigned int trp_inforec_get_metric(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_metric(TRP_INFOREC *rec, unsigned int metric);
 unsigned int trp_inforec_get_interval(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval);
+TRP_INFOREC_TYPE trp_inforec_type_from_string(const char *s);
+const char *trp_inforec_type_to_string(TRP_INFOREC_TYPE msgtype);
 
+
+TRP_REQ *trp_req_new(TALLOC_CTX *mem_ctx);
+void trp_req_free(TRP_REQ *req);
+TR_NAME *trp_req_get_comm(TRP_REQ *req);
+void trp_req_set_comm(TRP_REQ *req, TR_NAME *comm);
+TR_NAME *trp_req_get_realm(TRP_REQ *req);
+void trp_req_set_realm(TRP_REQ *req, TR_NAME *realm);
 
 typedef struct trps_instance TRPS_INSTANCE;
 

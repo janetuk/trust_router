@@ -95,6 +95,34 @@ static void *trp_inforec_route_new(TALLOC_CTX *mem_ctx)
   return new_rec;
 }
 
+TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec)
+{
+  if (rec!=NULL)
+    return rec->next;
+  else
+    return NULL;
+}
+
+void trp_inforec_set_next(TRP_INFOREC *rec, TRP_INFOREC *next_rec)
+{
+  if (rec !=NULL)
+    rec->next=next_rec;
+}
+
+TRP_INFOREC_TYPE trp_inforec_get_type(TRP_INFOREC *rec)
+{
+  if (rec)
+    return rec->type;
+  else
+    return TRP_INFOREC_TYPE_UNKNOWN;
+}
+
+void trp_inforec_set_type(TRP_INFOREC *rec, TRP_INFOREC_TYPE type)
+{
+  if (rec!=NULL)
+    rec->type=type;
+}
+
 TR_NAME *trp_inforec_get_comm(TRP_INFOREC *rec)
 {
   switch (rec->type) {
@@ -258,8 +286,8 @@ TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type)
   struct trp_inforec_type_entry *dtype=get_trp_inforec_type_entry(type);
 
   if ((new_rec != NULL) && (dtype->type != TRP_INFOREC_TYPE_UNKNOWN)) {
-    new_rec->next=NULL;
-    new_rec->type=type;
+    trp_inforec_set_type(new_rec, type);
+    trp_inforec_set_next(new_rec, NULL);
     if (dtype->allocate!=NULL) {
       if (TRP_SUCCESS!=trp_inforec_set_data(new_rec, dtype->allocate(new_rec))) {
         talloc_free(new_rec);
@@ -292,6 +320,19 @@ void trp_upd_free(TRP_UPD *update)
     talloc_free(update);
 }
 
+TRP_INFOREC *trp_upd_get_inforec(TRP_UPD *upd)
+{
+  if (upd!=NULL)
+    return upd->records;
+  else
+    return NULL;
+}
+
+void trp_upd_set_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
+{
+  if (upd!=NULL)
+    upd->records=rec;
+}
 
 /* pretty print */
 static void trp_inforec_route_print(TRP_INFOREC_DATA data)
