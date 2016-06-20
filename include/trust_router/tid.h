@@ -100,7 +100,7 @@ void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
 TR_EXPORT void *tid_req_get_cookie(TID_REQ *req);
 void tid_req_set_cookie(TID_REQ *req, void *cookie);
 TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
-void TR_EXPORT tid_req_free( TID_REQ *req);
+TR_EXPORT void tid_req_free( TID_REQ *req);
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
 
