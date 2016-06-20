@@ -42,11 +42,12 @@ tr/tr_trp.c
 tr_trpc_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 
 trp_msgtst_SOURCES = trp/msgtst.c \
-trp/trp_msg.c \
+trp/trp_upd.c \
+trp/trp_req.c \
 tid/tid_req.c \
 tid/tid_resp.c \
-common/tr_name.c \
 common/tr_msg.c \
+common/tr_name.c \
 common/tr_idp.c \
 common/tr_comm.c \
 common/tr_filter.c \
