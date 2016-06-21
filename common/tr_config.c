@@ -953,8 +953,8 @@ TR_CFG_RC tr_parse_config (TR_INSTANCE *tr, const char *config_dir, int n, struc
     // Look for serial number and log it if it exists
     if (NULL != (jser = json_object_get(jcfg, "serial_number"))) {
       if (json_is_number(jser)) {
-        tr_notice("tr_read_config: Attempting to load revision %i of %s.",
-                  (int *) json_integer_value(jser),
+        tr_notice("tr_read_config: Attempting to load revision %" JSON_INTEGER_FORMAT " of '%s'.",
+                  json_integer_value(jser),
                   cfg_files[n]->d_name);
       }
     }
