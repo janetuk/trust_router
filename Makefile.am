@@ -1,6 +1,6 @@
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
-bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/dh_test/tr_dh_test trp/msgtst
+bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/dh_test/tr_dh_test common/mq_test/mq_test trp/msgtst
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -68,6 +68,11 @@ tid_example_tids_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 common_dh_test_tr_dh_test_SOURCES = common/tr_dh.c \
 common/tr_debug.c \
 common/dh_test/dh_test.c
+
+common_mq_test_mq_test_SOURCES = common/tr_mq.c \
+common/mq_test/mq_test.c
+
+common_mq_test_mq_test_LDFLAGS = -pthread -ltalloc
 
 libtr_tid_la_SOURCES = tid/tids.c tid/tidc.c tid/tid_req.c tid/tid_resp.c \
 $(common_srcs)
