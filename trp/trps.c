@@ -35,6 +35,16 @@ void trps_free (TRPS_INSTANCE *trps)
     talloc_free(trps);
 }
 
+TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps)
+{
+  return tr_mq_pop(trps->mq);
+}
+
+void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg)
+{
+  tr_mq_append(trps->mq, msg);
+}
+
 /* stand-in for a function that finds the connection for a particular peer */
 #if 0
 static TRP_CONNECTION *trps_find_connection(TRPS_INSTANCE *trps)

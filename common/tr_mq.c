@@ -2,6 +2,7 @@
 #include <pthread.h>
 
 #include <tr_mq.h>
+#include <tr_debug.h>
 
 /* Messages */
 static int tr_mq_msg_destructor(void *object)
@@ -79,7 +80,7 @@ int tr_mq_lock(TR_MQ *mq)
 
 int tr_mq_unlock(TR_MQ *mq)
 {
-  return pthread_mutex_lock(&(mq->mutex));
+  return pthread_mutex_unlock(&(mq->mutex));
 }
 
 static TR_MQ_MSG *tr_mq_get_head(TR_MQ *mq)
@@ -133,7 +134,7 @@ void tr_mq_append(TR_MQ *mq, TR_MQ_MSG *msg)
 
   /* see if we need to tell someone we became non-empty */
   if (was_empty && (notify_cb!=NULL))
-    mq->notify_cb(mq, notify_cb_arg);
+    notify_cb(mq, notify_cb_arg);
 }
 
 /* caller must free msg via tr_mq_msg_free */
@@ -144,7 +145,7 @@ TR_MQ_MSG *tr_mq_pop(TR_MQ *mq)
   tr_mq_lock(mq);
   if (tr_mq_get_head(mq)!=NULL) {
     popped=tr_mq_get_head(mq);
-    tr_mq_msg_set_next(popped, tr_mq_msg_get_next(popped)); /* popped is the old head */
+    tr_mq_set_head(mq, tr_mq_msg_get_next(popped)); /* popped is the old head */
     if (tr_mq_get_head(mq)==NULL)
       tr_mq_set_tail(mq, NULL); /* just popped the last element */
   }

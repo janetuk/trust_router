@@ -120,5 +120,6 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       unsigned int port,
                       void *cookie);
 int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data);
-
+TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps);
+void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
 #endif /* TRP_INTERNAL_H */

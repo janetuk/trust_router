@@ -37,7 +37,6 @@
 #include <jansson.h>
 #include <argp.h>
 #include <event2/event.h>
-#include <event2/thread.h>
 #include <talloc.h>
 #include <sys/time.h>
 
@@ -131,7 +130,8 @@ int main(int argc, char *argv[])
   TR_INSTANCE *tr = NULL;
   struct cmdline_args opts;
   struct event_base *ev_base;
-  struct tr_socket_event tids_ev, trps_ev;
+  struct tr_socket_event tids_ev;
+  TR_TRPS_EVENTS *trps_ev;
   struct event *cfgwatch_ev;
 
   /* we're going to be multithreaded, so disable null context tracking */
@@ -187,7 +187,6 @@ int main(int argc, char *argv[])
   }
 
   /***** Set up the event loop *****/
-  evthread_use_pthreads(); /* enable pthreads support */
   ev_base=tr_event_loop_init(); /* Set up the event loop */
   if (ev_base==NULL) {
     tr_crit("Error initializing event loop.");
@@ -217,10 +216,11 @@ int main(int argc, char *argv[])
   }
 
   /* install TRP handler events */
+  trps_ev=tr_trps_events_new(main_ctx);
   if (0 != tr_trps_event_init(ev_base,
                               tr->trps,
                               tr->cfg_mgr,
-                             &trps_ev)) {
+                              trps_ev)) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
