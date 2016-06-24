@@ -4,10 +4,6 @@
 #include <talloc.h>
 #include <pthread.h>
 
-/* REMOVE */
-#define FALSE 0
-#define TRUE 1
-
 /* msg for inter-thread messaging */
 typedef struct tr_mq_msg TR_MQ_MSG;
 struct tr_mq_msg {
@@ -38,7 +34,7 @@ TR_MQ *tr_mq_new(TALLOC_CTX *mem_ctx);
 void tr_mq_free(TR_MQ *mq);
 int tr_mq_lock(TR_MQ *mq);
 int tr_mq_unlock(TR_MQ *mq);
-void tr_mq_set_notify_cb(TR_MQ *mq, TR_MQ_NOTIFY_FN cb);
+void tr_mq_set_notify_cb(TR_MQ *mq, TR_MQ_NOTIFY_FN cb, void *arg);
 void tr_mq_append(TR_MQ *mq, TR_MQ_MSG *msg);
 TR_MQ_MSG *tr_mq_pop(TR_MQ *mq);
  

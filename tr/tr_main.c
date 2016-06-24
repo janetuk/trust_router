@@ -37,6 +37,7 @@
 #include <jansson.h>
 #include <argp.h>
 #include <event2/event.h>
+#include <event2/thread.h>
 #include <talloc.h>
 #include <sys/time.h>
 
@@ -48,6 +49,8 @@
 #include <tr_event.h>
 #include <tr_cfgwatch.h>
 #include <tr_debug.h>
+
+#define TALLOC_DEBUG_ENABLE 1
 
 /***** command-line option handling / setup *****/
 
@@ -106,15 +109,38 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
 static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
 
-int main (int argc, char *argv[])
+/***** talloc error handling *****/
+/* called when talloc tries to abort */
+static void tr_abort(const char *reason)
 {
-  TALLOC_CTX *main_ctx=talloc_new(NULL);
+  tr_crit("tr_abort: Critical error, talloc aborted. Reason: %s", reason);
+  abort();
+}
+
+#if TALLOC_DEBUG_ENABLE
+static void tr_talloc_log(const char *msg)
+{
+  tr_debug("talloc: %s", msg);
+}
+#endif /* TALLOC_DEBUG_ENABLE */
+
+int main(int argc, char *argv[])
+{
+  TALLOC_CTX *main_ctx=NULL;
 
   TR_INSTANCE *tr = NULL;
   struct cmdline_args opts;
   struct event_base *ev_base;
   struct tr_socket_event tids_ev, trps_ev;
   struct event *cfgwatch_ev;
+
+  /* we're going to be multithreaded, so disable null context tracking */
+  talloc_set_abort_fn(tr_abort);
+  talloc_disable_null_tracking();
+#if TALLOC_DEBUG_ENABLE
+  talloc_set_log_fn(tr_talloc_log);
+#endif /* TALLOC_DEBUG_ENABLE */
+  main_ctx=talloc_new(NULL);
 
   /* Use standalone logging */
   tr_log_open();
@@ -149,18 +175,19 @@ int main (int argc, char *argv[])
   }
 
   /***** initialize the trust path query server instance *****/
-  if (0 == (tr->tids = tids_create (tr))) {
+  if (NULL == (tr->tids = tids_create (tr))) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
 
   /***** initialize the trust router protocol server instance *****/
-  if (0 == (tr->trps = trps_create (tr))) {
+  if (NULL == (tr->trps = trps_new(tr))) {
     tr_crit("Error initializing Trust Router Protocol Server instance.");
     return 1;
   }
 
   /***** Set up the event loop *****/
+  evthread_use_pthreads(); /* enable pthreads support */
   ev_base=tr_event_loop_init(); /* Set up the event loop */
   if (ev_base==NULL) {
     tr_crit("Error initializing event loop.");

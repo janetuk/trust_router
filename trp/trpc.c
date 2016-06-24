@@ -12,12 +12,12 @@
 #include <tr_trp.h>
 
 
-TRPC_INSTANCE *trpc_create (TALLOC_CTX *mem_ctx)
+TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
 {
   return talloc_zero(mem_ctx, TRPC_INSTANCE);
 }
 
-void trpc_destroy (TRPC_INSTANCE *trpc)
+void trpc_free (TRPC_INSTANCE *trpc)
 {
   if (trpc)
     talloc_free(trpc);

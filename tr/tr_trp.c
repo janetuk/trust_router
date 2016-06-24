@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <fcntl.h>
 #include <event2/event.h>
 #include <talloc.h>
@@ -21,7 +22,6 @@ struct tr_trps_event_cookie {
 
 static int tr_trps_req_handler (TRPS_INSTANCE *trps,
                                 TRP_REQ *orig_req, 
-                                TRP_RESP *resp,
                                 void *tr_in)
 {
   if (orig_req != NULL) 
@@ -30,13 +30,14 @@ static int tr_trps_req_handler (TRPS_INSTANCE *trps,
 }
 
 
-static int tr_trps_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
+static int tr_trps_gss_handler(gss_name_t client_name, gss_buffer_t gss_name,
                                void *cookie_in)
 {
   TR_RP_CLIENT *rp;
   struct tr_trps_event_cookie *cookie=(struct tr_trps_event_cookie *)cookie_in;
   TRPS_INSTANCE *trps = cookie->trps;
   TR_CFG_MGR *cfg_mgr = cookie->cfg_mgr;
+  TR_NAME name={gss_name->value, gss_name->length};
 
   tr_debug("tr_trps_gss_handler()");
 
@@ -46,32 +47,73 @@ static int tr_trps_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
   }
   
   /* look up the RP client matching the GSS name */
-  if ((NULL == (rp = tr_rp_client_lookup(cfg_mgr->active->rp_clients, gss_name)))) {
-    tr_debug("tr_trps_gss_handler: Unknown GSS name %s", gss_name->buf);
+  if ((NULL == (rp = tr_rp_client_lookup(cfg_mgr->active->rp_clients, &name)))) {
+    tr_debug("tr_trps_gss_handler: Unknown GSS name %.*s", name.len, name.buf);
     return -1;
   }
 
-  trps->rp_gss = rp;
-  tr_debug("Client's GSS Name: %s", gss_name->buf);
+  /*trps->rp_gss = rp;*/
+  tr_debug("Client's GSS Name: %.*s", name.len, name.buf);
 
   return 0;
 }
 
 
+/* data passed to thread */
+struct thread_data {
+  TRP_CONNECTION *conn;
+  TRPS_INSTANCE *trps;
+};
+/* thread to handle GSS connections to peers */
+static void *tr_trps_conn_thread(void *arg)
+{
+  struct thread_data *thread_data=talloc_get_type_abort(arg, struct thread_data);
+  TRP_CONNECTION *conn=thread_data->conn;
+  TRPS_INSTANCE *trps=thread_data->trps;
+
+  tr_debug("tr_trps_conn_thread: started");
+  /* try to establish a GSS context */
+  if (0!=trp_connection_auth(conn, trps->auth_handler, trps->cookie)) {
+    tr_notice("tr_trps_conn_thread: failed to authorize connection");
+    pthread_exit(NULL);
+  }
+  tr_notice("tr_trps_conn_thread: authorized connection");
+  return NULL;
+}
+
 /* called when a connection to the TRPS port is received */
 static void tr_trps_event_cb(int listener, short event, void *arg)
 {
-  TRPS_INSTANCE *trps = (TRPS_INSTANCE *)arg;
-  int conn=-1;
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRPS_INSTANCE *trps = talloc_get_type_abort(arg, TRPS_INSTANCE); /* aborts on wrong type */
+  TRP_CONNECTION *conn=NULL;
+  TR_NAME *gssname=NULL;
+  char *name=NULL;
+  struct thread_data *thread_data;
 
   if (0==(event & EV_READ)) {
     tr_debug("tr_trps_event_cb: unexpected event on TRPS socket (event=0x%X)", event);
   } else {
-    conn=trps_accept(trps, listener);
-    if (conn>0) {
+    /* create a thread to handle this connection */
+    asprintf(&name, "trustrouter@%s", trps->hostname);
+    gssname=tr_new_name(name);
+    free(name); name=NULL;
+    conn=trp_connection_accept(tmp_ctx, listener, gssname, trps_auth_cb, NULL, trps);
+    if (conn!=NULL) {
       /* need to monitor this fd and trigger events when read becomes possible */
+      thread_data=talloc(conn, struct thread_data);
+      if (thread_data==NULL) {
+        tr_err("tr_trps_event_cb: unable to allocate thread_data");
+        talloc_free(tmp_ctx);
+        return;
+      }
+      thread_data->conn=conn;
+      thread_data->trps=trps;
+      pthread_create(conn->thread, NULL, tr_trps_conn_thread, thread_data);
+      trps_add_connection(trps, conn); /* remember the connection */
     }
   }
+  talloc_free(tmp_ctx);
 }
 
 
@@ -130,3 +172,4 @@ cleanup:
   talloc_free(tmp_ctx);
   return retval;
 }
+

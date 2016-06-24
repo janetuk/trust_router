@@ -52,18 +52,6 @@ static void tr_mq_msg_set_next(TR_MQ_MSG *msg, TR_MQ_MSG *next)
   msg->next=next;
 }
 
-static TR_MQ_MSG *tr_mq_msg_get_tail(TR_MQ_MSG *msg)
-{
-  while (msg!=NULL)
-    msg=tr_mq_msg_get_next(msg);
-  return msg;
-}
-
-static void tr_mq_msg_append(TR_MQ_MSG *msg, TR_MQ_MSG *new)
-{
-  tr_mq_msg_set_next(tr_mq_msg_get_tail(msg), new);
-}
-
 /* Message Queues */
 TR_MQ *tr_mq_new(TALLOC_CTX *mem_ctx)
 {
@@ -94,7 +82,7 @@ int tr_mq_unlock(TR_MQ *mq)
   return pthread_mutex_lock(&(mq->mutex));
 }
 
-static TR_MQ_MST *tr_mq_get_head(TR_MQ *mq)
+static TR_MQ_MSG *tr_mq_get_head(TR_MQ *mq)
 {
   return mq->head;
 }
@@ -104,7 +92,7 @@ static void tr_mq_set_head(TR_MQ *mq, TR_MQ_MSG *msg)
   mq->head=msg;
 }
 
-static TR_MQ_MST *tr_mq_get_tail(TR_MQ *mq)
+static TR_MQ_MSG *tr_mq_get_tail(TR_MQ *mq)
 {
   return mq->tail;
 }
@@ -114,20 +102,27 @@ static void tr_mq_set_tail(TR_MQ *mq, TR_MQ_MSG *msg)
   mq->tail=msg;
 }
 
+void tr_mq_set_notify_cb(TR_MQ *mq, TR_MQ_NOTIFY_FN cb, void *arg)
+{
+  mq->notify_cb=cb;
+  mq->notify_cb_arg=arg;
+}
+
+
 /* puts msg in mq's talloc context */
 void tr_mq_append(TR_MQ *mq, TR_MQ_MSG *msg)
 {
-  int was_empty=FALSE;
+  int was_empty=0;
   TR_MQ_NOTIFY_FN notify_cb=NULL;
   void *notify_cb_arg=NULL;
 
   tr_mq_lock(mq);
   if (tr_mq_get_head(mq)==NULL) {
-    was_empty=TRUE;
+    was_empty=1;
     tr_mq_set_head(mq, msg);
     tr_mq_set_tail(mq, msg);
   } else {
-    tr_mq_msg_set_next(tr_mq_get_tail(), msg); /* add to list */
+    tr_mq_msg_set_next(tr_mq_get_tail(mq), msg); /* add to list */
     tr_mq_set_tail(mq, msg); /* update tail of list */
   }
   talloc_steal(mq, msg);

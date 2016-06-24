@@ -139,7 +139,7 @@ int main (int argc,
   printf("TRPC Client:\nServer = %s, port = %i\n", opts.server, opts.port);
  
   /* Create a TRP client instance & the client DH */
-  trpc = trpc_create(main_ctx);
+  trpc = trpc_new(main_ctx);
   if (NULL == (trpc->client_dh = tr_create_dh_params(NULL, 0))) {
     printf("Error creating client DH params.\n");
     return 1;
@@ -160,7 +160,7 @@ int main (int argc,
   }
     
   /* Clean-up the TRP client instance, and exit */
-  trpc_destroy(trpc);
+  trpc_free(trpc);
 
   return 0;
 }
