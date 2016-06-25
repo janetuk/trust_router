@@ -56,8 +56,6 @@ int trpc_send_msg (TRPC_INSTANCE *trpc,
                    int *resp_handler(),
                    void *cookie)
 {
-  char *resp_buf=NULL;
-  size_t resp_buflen=0;
   int err=0;
   int rc=0;
 
@@ -75,7 +73,5 @@ int trpc_send_msg (TRPC_INSTANCE *trpc,
  error:
   rc = -1;
  cleanup:
-  if (resp_buf)
-    free(resp_buf);
   return rc;
 }

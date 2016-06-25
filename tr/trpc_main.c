@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <talloc.h>
 #include <argp.h>
+#include <unistd.h>
 
 #include <gsscon.h>
 #include <tr_debug.h>
@@ -55,7 +56,8 @@ static const char arg_doc[]="<message> <server> [<port>]"; /* string describing 
 /* define the options here. Fields are:
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
-  { NULL }
+  { "repeat", 'r', "N", OPTION_ARG_OPTIONAL, "Repeat message until terminated, or N times." },
+  {NULL}
 };
 
 /* structure for communicating with option parser */
@@ -63,6 +65,7 @@ struct cmdline_args {
   char *msg;
   char *server;
   int port; /* optional */
+  int repeat; /* how many times to repeat, or -1 for infinite */
 };
 
 /* parser for individual options - fills in a struct cmdline_args */
@@ -72,6 +75,13 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
   struct cmdline_args *arguments=state->input;
 
   switch (key) {
+  case 'r':
+    if (arg==NULL)
+      arguments->repeat=-1;
+    else
+      arguments->repeat=strtol(arg, NULL, 10);
+    break;
+
   case ARGP_KEY_ARG: /* handle argument (not option) */
     switch (state->arg_num) {
     case 0:
@@ -124,6 +134,7 @@ int main (int argc,
   opts.msg=NULL;
   opts.server=NULL;
   opts.port=TRP_PORT;
+  opts.repeat=1;
 
   argp_parse(&argp, argc, argv, 0, 0, &opts);
   /* TBD -- validity checking, dealing with quotes, etc. */
@@ -153,10 +164,13 @@ int main (int argc,
   };
 
   /* Send a TRP message */
-  if (0 > (rc = trpc_send_msg(trpc, conn, gssctx, opts.msg, NULL, NULL))) {
-    /* Handle error */
-    printf("Error in trpc_send_request, rc = %d.\n", rc);
-    return 1;
+  while ((opts.repeat==-1) || (opts.repeat-->0)) {
+    if (0 > (rc = trpc_send_msg(trpc, conn, gssctx, opts.msg, NULL, NULL))) {
+      /* Handle error */
+      printf("Error in trpc_send_request, rc = %d.\n", rc);
+      return 1;
+    }
+    usleep(1000000);
   }
     
   /* Clean-up the TRP client instance, and exit */

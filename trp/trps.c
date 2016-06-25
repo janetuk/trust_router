@@ -137,8 +137,8 @@ int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data)
 
 static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MSG **msg)
 {
-  int err;
-  char *buf;
+  int err=0;
+  char *buf=NULL;
   size_t buflen = 0;
 
   tr_debug("trps_read_message: started");
