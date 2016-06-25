@@ -43,7 +43,6 @@
 
 #include <tr_msg.h>
 #include <trust_router/tr_name.h>
-#include <tid_internal.h>
 #include <trp_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <tr_debug.h>
@@ -983,5 +982,3 @@ void tr_msg_free_decoded(TR_MSG *msg)
     free (msg);
   }
 }
-
-

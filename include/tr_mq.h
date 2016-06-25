@@ -8,6 +8,7 @@
 typedef struct tr_mq_msg TR_MQ_MSG;
 struct tr_mq_msg {
   TR_MQ_MSG *next;
+  char *message;
   void *p; /* payload */
   void (*p_free)(void *); /* function to free payload */
 };
@@ -24,8 +25,9 @@ struct tr_mq {
   void *notify_cb_arg;
 };
 
-TR_MQ_MSG *tr_mq_msg_new(TALLOC_CTX *mem_ctx);
+TR_MQ_MSG *tr_mq_msg_new(TALLOC_CTX *mem_ctx, const char *msg);
 void tr_mq_msg_free(TR_MQ_MSG *msg);
+const char *tr_mq_msg_get_message(TR_MQ_MSG *msg);
 void *tr_mq_msg_get_payload(TR_MQ_MSG *msg);
 void tr_mq_msg_set_payload(TR_MQ_MSG *msg, void *p, void (*p_free)(void *));
 

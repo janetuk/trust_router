@@ -63,6 +63,12 @@ void trps_add_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *new)
   talloc_steal(trps, new);
 }
 
+/* ok to call more than once; guarantees connection no longer in the list */
+void trps_remove_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *remove)
+{
+  trps->conn=trp_connection_remove(trps->conn, remove);
+}
+
 int trps_send_msg (TRPS_INSTANCE *trps,
                    int conn,
                    gss_ctx_id_t gssctx,
@@ -129,30 +135,33 @@ int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data)
   return result;
 }
 
-#if 0
-static int trps_read_message (TRPS_INSTANCE *trps, int conn, gss_ctx_id_t *gssctx, char **msg)
+static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MSG **msg)
 {
   int err;
   char *buf;
   size_t buflen = 0;
 
-  if (err = gsscon_read_encrypted_token(conn, *gssctx, &buf, &buflen)) {
+  tr_debug("trps_read_message: started");
+  if (err = gsscon_read_encrypted_token(trp_connection_get_fd(conn),
+                                       *(trp_connection_get_gssctx(conn)), 
+                                        &buf,
+                                        &buflen)) {
+    tr_debug("trps_read_message: error");
     if (buf)
       free(buf);
-    return -1;
+    return TRP_ERROR;
   }
 
-  tr_debug("trps_read_request(): Request Received, %u bytes.", (unsigned) buflen);
-  tr_debug("trps_read_request(): %.*s", buflen, buf);
+  tr_debug("trps_read_message(): Request Received, %u bytes.", (unsigned) buflen);
+  tr_debug("trps_read_message(): %.*s", buflen, buf);
 
-  *msg=talloc_strndup(NULL, buf, buflen); /* no context owns this! */
+  *msg=tr_msg_decode(buf, buflen);
   free(buf);
-  return buflen;
+  return TRP_SUCCESS;
 }
-#endif
 
 int trps_get_listener(TRPS_INSTANCE *trps,
-                      TRP_REQ_FUNC req_handler,
+                      TRPS_MSG_FUNC msg_handler,
                       TRP_AUTH_FUNC auth_handler,
                       const char *hostname,
                       unsigned int port,
@@ -183,7 +192,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
 
   if (listen > 0) {
     /* store the caller's request handler & cookie */
-    trps->req_handler = req_handler;
+    trps->msg_handler = msg_handler;
     trps->auth_handler = auth_handler;
     trps->hostname = talloc_strdup(trps, hostname);
     trps->port = port;
@@ -193,37 +202,36 @@ int trps_get_listener(TRPS_INSTANCE *trps,
   return listen;
 }
 
-/* old cruft */
-#if 0
-static gss_ctx_id_t trps_establish_gss_context (TRPS_INSTANCE *trps, int conn)
+void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
-  char *msg_rec=NULL;
-  int msg_len = 0;
-  int rc=0;
+  TR_MSG *msg=NULL;
+  TRP_RC rc=TRP_ERROR;
 
-  if (trps_auth_connection(trps, conn, &gssctx))
-    tr_notice("trps_establish_gss_context: Error authorizing TID Server connection.");
-  else:
-    tr_notice("trps_establish_gss_context: Connection authorized!");
-  return gssctx;
-
-  msg_len = trps_read_message(trps, conn, &gssctx, &msg_rec);
-  talloc_steal(tmp_ctx, msg_rec); /* get this in our context */
-  if (0 > msg_len) {
-    tr_debug("trps_handle_connection: Error from trps_read_message()");
-    goto cleanup;
+  /* try to establish a GSS context */
+  if (0!=trp_connection_auth(conn, trps->auth_handler, trps->cookie)) {
+    tr_notice("tr_trps_conn_thread: failed to authorize connection");
+    pthread_exit(NULL);
   }
+  tr_notice("trps_handle_connection: authorized connection");
   
-  tr_debug("trps_handle_connection: msg_len=%d", msg_len);
-  reply=talloc_asprintf(tmp_ctx, "TRPS heard: %.*s", msg_len, msg_rec);
-  if (0 > (rc = trps_send_msg(trps, conn, gssctx, reply))) {
-    tr_debug("trps_handle_connection: Error from trps_send_message(), rc = %d.", rc);
+  /* loop as long as the connection exists */
+  while (trp_connection_get_status(conn)==TRP_CONNECTION_UP) {
+    rc=trps_read_message(trps, conn, &msg);
+    switch(rc) {
+    case TRP_SUCCESS:
+      trps->msg_handler(trps, conn, msg); /* send the TR_MSG off to the callback */
+      break;
+
+    case TRP_ERROR:
+      trp_connection_close(conn);
+      break;
+
+    default:
+      tr_debug("trps_handle_connection: trps_read_message failed (%d)", rc);
+    }
   }
 
-cleanup:
+  tr_debug("trps_handle_connection: connection closed.");
   talloc_free(tmp_ctx);
-  return conn;
 }
-#endif

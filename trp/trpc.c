@@ -70,19 +70,6 @@ int trpc_send_msg (TRPC_INSTANCE *trpc,
     goto error;
   }
 
-  /* Read the response from the connection */
-  if (err = gsscon_read_encrypted_token(conn, gssctx, &resp_buf, &resp_buflen)) {
-    if (resp_buf)
-      free(resp_buf);
-    goto error;
-  }
-
-  tr_debug( "trpc_send_msg: Response Received (%u bytes).\n", (unsigned) resp_buflen);
-  tr_debug( "%s\n", resp_buf);
-
-  if (resp_handler)
-    /* Call the caller's response function */
-    (*resp_handler)(trpc, resp_buf, cookie);
   goto cleanup;
 
  error:

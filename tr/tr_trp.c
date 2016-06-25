@@ -4,14 +4,16 @@
 #include <talloc.h>
 #include <errno.h>
 #include <unistd.h>
+#include <string.h>
 
 #include <gsscon.h>
 #include <tr_rp.h>
 #include <trp_internal.h>
 #include <tr_config.h>
 #include <tr_event.h>
-#include <tr_debug.h>
+#include <tr_msg.h>
 #include <tr_trp.h>
+#include <tr_debug.h>
 
 /* hold a trps instance and a config manager */
 struct tr_trps_event_cookie {
@@ -27,13 +29,29 @@ static void tr_trps_mq_cb(TR_MQ *mq, void *arg)
   event_active(mq_ev, 0, 0);
 }
 
-static int tr_trps_req_handler (TRPS_INSTANCE *trps,
-                                TRP_REQ *orig_req, 
-                                void *tr_in)
+static void msg_free_helper(void *p)
 {
-  if (orig_req != NULL) 
-    free(orig_req);
-  return -1; /* not handling anything right now */
+  tr_msg_free_decoded((TR_MSG *)p);
+}
+/* takes a TR_MSG and puts it in a TR_MQ_MSG for processing by the main thread */
+static TRP_RC tr_trps_msg_handler(TRPS_INSTANCE *trps,
+                                  TRP_CONNECTION *conn,
+                                  TR_MSG *tr_msg)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_MQ_MSG *mq_msg=NULL;
+
+  /* n.b., conn is available here, but do not hold onto the reference
+   * because it may be cleaned up if the originating connection goes
+   * down before the message is processed */
+  mq_msg=tr_mq_msg_new(tmp_ctx, "tr_msg");
+  if (mq_msg==NULL) {
+    return TRP_NOMEM;
+  }
+  tr_mq_msg_set_payload(mq_msg, (void *)tr_msg, msg_free_helper);
+  trps_mq_append(trps, mq_msg);
+  talloc_free(tmp_ctx); /* cleans up the message if it did not get appended correctly */
+  return TRP_SUCCESS;
 }
 
 
@@ -80,14 +98,10 @@ static void *tr_trps_conn_thread(void *arg)
   TR_MQ_MSG *msg=NULL;
 
   tr_debug("tr_trps_conn_thread: started");
-  /* try to establish a GSS context */
-  if (0!=trp_connection_auth(conn, trps->auth_handler, trps->cookie)) {
-    tr_notice("tr_trps_conn_thread: failed to authorize connection");
-    pthread_exit(NULL);
-  }
-  tr_notice("tr_trps_conn_thread: authorized connection");
-  
-  msg=tr_mq_msg_new(tmp_ctx);
+  trps_handle_connection(trps, conn);
+
+  msg=tr_mq_msg_new(tmp_ctx, "thread_exit");
+  tr_mq_msg_set_payload(msg, (void *)conn, NULL); /* do not pass a free routine */
   if (msg==NULL)
     tr_err("tr_trps_conn_thread: error allocating TR_MQ_MSG");
   else
@@ -115,7 +129,7 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
     asprintf(&name, "trustrouter@%s", trps->hostname);
     gssname=tr_new_name(name);
     free(name); name=NULL;
-    conn=trp_connection_accept(tmp_ctx, listener, gssname, trps_auth_cb, NULL, trps);
+    conn=trp_connection_accept(tmp_ctx, listener, gssname);
     if (conn!=NULL) {
       /* need to monitor this fd and trigger events when read becomes possible */
       thread_data=talloc(conn, struct thread_data);
@@ -134,21 +148,51 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
   talloc_free(tmp_ctx);
 }
 
+static void tr_trps_cleanup_thread(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
+{
+  /* everything belonging to the thread is in the TRP_CONNECTION
+   * associated with it */
+  trps_remove_connection(trps, conn);
+  tr_debug("Deleted connection");
+}
+
 static void tr_trps_process_mq(int socket, short event, void *arg)
 {
   TRPS_INSTANCE *trps=talloc_get_type_abort(arg, TRPS_INSTANCE);
   TR_MQ_MSG *msg=NULL;
+  const char *s=NULL;
+  char *tmp=NULL;
 
   tr_debug("tr_trps_process_mw: starting");
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
-    tr_debug("tr_trps_process_mq: received message");
+    s=tr_mq_msg_get_message(msg);
+    if (0==strcmp(s, "thread_exit")) {
+      tr_trps_cleanup_thread(trps,
+                             talloc_get_type_abort(tr_mq_msg_get_payload(msg),
+                                                   TRP_CONNECTION));
+    }
+    else if (0==strcmp(s, "tr_msg")) {
+      tmp=tr_msg_encode(tr_mq_msg_get_payload(msg));
+      tr_debug("tr_msg: %s", tmp);
+      tr_msg_free_encoded(tmp);
+    }
+    else
+      tr_notice("tr_trps_process_mq: unknown message '%s' received.", tr_mq_msg_get_message(msg));
+
     tr_mq_msg_free(msg);
     msg=trps_mq_pop(trps);
   }
   tr_debug("tr_trps_process_mw: ending");
 }
 
+static int tr_trps_events_destructor(void *obj)
+{
+  TR_TRPS_EVENTS *ev=talloc_get_type_abort(obj, TR_TRPS_EVENTS);
+  if (ev->mq_ev!=NULL)
+    event_free(ev->mq_ev);
+  return 0;
+}
 TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
 {
   TR_TRPS_EVENTS *ev=talloc(mem_ctx, TR_TRPS_EVENTS);
@@ -159,6 +203,7 @@ TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
       talloc_free(ev);
       ev=NULL;
     }
+    talloc_set_destructor((void *)ev, tr_trps_events_destructor);
   }
   return ev;
 }
@@ -199,11 +244,11 @@ int tr_trps_event_init(struct event_base *base,
 
   /* get a trps listener */
   listen_ev->sock_fd=trps_get_listener(trps,
-                                     tr_trps_req_handler,
-                                     tr_trps_gss_handler,
-                                     cfg_mgr->active->internal->hostname,
-                                     cfg_mgr->active->internal->trps_port,
-                                     (void *)cookie);
+                                       tr_trps_msg_handler,
+                                       tr_trps_gss_handler,
+                                       cfg_mgr->active->internal->hostname,
+                                       cfg_mgr->active->internal->trps_port,
+                                       (void *)cookie);
   if (listen_ev->sock_fd < 0) {
     tr_crit("Error opening TRP server socket.");
     retval=1;

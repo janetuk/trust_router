@@ -13,11 +13,16 @@ static int tr_mq_msg_destructor(void *object)
   return 0;
 }
 
-TR_MQ_MSG *tr_mq_msg_new(TALLOC_CTX *mem_ctx)
+TR_MQ_MSG *tr_mq_msg_new(TALLOC_CTX *mem_ctx, const char *message)
 {
   TR_MQ_MSG *msg=talloc(mem_ctx, TR_MQ_MSG);
   if (msg!=NULL) {
     msg->next=NULL;
+    msg->message=talloc_strdup(msg, message);
+    if (msg->message==NULL) {
+      talloc_free(msg);
+      return NULL;
+    }
     msg->p=NULL;
     talloc_set_destructor((void *)msg, tr_mq_msg_destructor);
   }
@@ -28,6 +33,11 @@ void tr_mq_msg_free(TR_MQ_MSG *msg)
 {
   if (msg!=NULL)
     talloc_free(msg);
+}
+
+const char *tr_mq_msg_get_message(TR_MQ_MSG *msg)
+{
+  return msg->message;
 }
 
 void *tr_mq_msg_get_payload(TR_MQ_MSG *msg)
