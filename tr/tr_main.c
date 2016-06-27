@@ -123,6 +123,32 @@ static void tr_talloc_log(const char *msg)
 }
 #endif /* TALLOC_DEBUG_ENABLE */
 
+
+static void debug_ping(evutil_socket_t fd, short what, void *arg)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRPS_INSTANCE *trps=talloc_get_type_abort(arg, TRPS_INSTANCE);
+  TRP_REQ *req=NULL;
+  TR_MSG msg;
+  char *encoded=NULL;
+
+  tr_debug("debug_ping entered, trps=%p, trps->trpc=%p", trps, trps->trpc);
+  if (trps->trpc==NULL)
+    tr_trpc_initiate(trps, trps->hostname, trps->port);
+
+  /* create a TRP route request msg */
+  req=trp_req_new(tmp_ctx);
+  tr_msg_set_trp_req(&msg, req);
+  encoded=tr_msg_encode(&msg);
+  if (encoded==NULL)
+    tr_err("debug_ping: error encoding TRP message.");
+  else {
+    tr_debug("debug_ping: sending message");
+    trps_send_msg(trps, NULL, encoded);
+    tr_msg_free_encoded(encoded);
+  }
+}
+
 int main(int argc, char *argv[])
 {
   TALLOC_CTX *main_ctx=NULL;
@@ -133,6 +159,8 @@ int main(int argc, char *argv[])
   struct tr_socket_event tids_ev;
   TR_TRPS_EVENTS *trps_ev;
   struct event *cfgwatch_ev;
+  struct event *debug_ping_ev;
+  struct timeval debug_ping_interval={1, 0};
 
   /* we're going to be multithreaded, so disable null context tracking */
   talloc_set_abort_fn(tr_abort);
@@ -224,6 +252,10 @@ int main(int argc, char *argv[])
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
+
+  /* for debugging, send a message to peers on a timer */
+  debug_ping_ev=evtimer_new(ev_base, debug_ping, (void *)(tr->trps));
+  evtimer_add(debug_ping_ev, &debug_ping_interval);
 
   tr_event_loop_run(ev_base); /* does not return until we are done */
 

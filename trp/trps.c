@@ -1,12 +1,10 @@
 #include <fcntl.h>
-#include <event2/event.h>
 #include <talloc.h>
 #include <errno.h>
 #include <unistd.h>
 
 #include <gsscon.h>
 #include <tr_rp.h>
-#include <tr_event.h>
 #include <tr_debug.h>
 #include <trp_internal.h>
 
@@ -19,6 +17,7 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
     trps->port=0;
     trps->cookie=NULL;
     trps->conn=NULL;
+    trps->trpc=NULL;
     trps->mq=tr_mq_new(trps);
     if (trps->mq==NULL) {
       /* failed to allocate mq */
@@ -63,29 +62,52 @@ void trps_add_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *new)
   talloc_steal(trps, new);
 }
 
-/* ok to call more than once; guarantees connection no longer in the list */
+/* ok to call more than once; guarantees connection no longer in the list.
+ * Caller is responsible for freeing the removed element afterwards.  */
 void trps_remove_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *remove)
 {
   trps->conn=trp_connection_remove(trps->conn, remove);
 }
 
-int trps_send_msg (TRPS_INSTANCE *trps,
-                   int conn,
-                   gss_ctx_id_t gssctx,
-                   const char *msg_content)
+void trps_add_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *trpc)
 {
-  int err=0;
-  int rc=0;
+  if (trps->trpc==NULL)
+    trps->trpc=trpc;
+  else
+    trpc_append(trps->trpc, trpc);
 
-  /* Send the request over the connection */
-  if (err = gsscon_write_encrypted_token (conn,
-                                          gssctx,
-                                          msg_content, 
-                                          strlen(msg_content))) {
-    tr_err( "trps_send_msg: Error sending message over connection.\n");
-    rc = -1;
+  talloc_steal(trps, trpc);
+}
+
+/* ok to call more than once; guarantees trpc no longer in the list.
+ * Caller is responsible for freeing the removed element afterwards.  */
+void trps_remove_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *remove)
+{
+  trps->trpc=trpc_remove(trps->trpc, remove);
+}
+
+TRP_RC trps_send_msg (TRPS_INSTANCE *trps, void *peer, const char *msg)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_MQ_MSG *mq_msg=NULL;
+  char *msg_dup=NULL;
+  TRP_RC rc=TRP_ERROR;
+
+  /* Currently ignore peer and just send to an open connection.
+   * In reality, need to identify the correct peer and send via that
+   * one.  */
+  if (trps->trpc != NULL) {
+    if (trpc_get_status(trps->trpc)!=TRP_CONNECTION_UP)
+      tr_debug("trps_send_msg: skipping message sent while TRPC connection not up.");
+    else {
+      mq_msg=tr_mq_msg_new(tmp_ctx, "trpc_send");
+      msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
+      tr_mq_msg_set_payload(mq_msg, msg_dup, NULL); /* no need for a free() func */
+      trpc_mq_append(trps->trpc, mq_msg);
+      rc=TRP_SUCCESS;
+    }
   }
-
+  talloc_free(tmp_ctx);
   return rc;
 }
 

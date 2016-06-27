@@ -21,7 +21,6 @@ struct tr_trps_event_cookie {
   TR_CFG_MGR *cfg_mgr;
 };
 
-
 /* callback to schedule event to process messages */
 static void tr_trps_mq_cb(TR_MQ *mq, void *arg)
 {
@@ -84,30 +83,30 @@ static int tr_trps_gss_handler(gss_name_t client_name, gss_buffer_t gss_name,
 }
 
 /* data passed to thread */
-struct thread_data {
+struct trps_thread_data {
   TRP_CONNECTION *conn;
   TRPS_INSTANCE *trps;
 };
 /* thread to handle GSS connections to peers */
-static void *tr_trps_conn_thread(void *arg)
+static void *tr_trps_thread(void *arg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  struct thread_data *thread_data=talloc_get_type_abort(arg, struct thread_data);
+  struct trps_thread_data *thread_data=talloc_get_type_abort(arg, struct trps_thread_data);
   TRP_CONNECTION *conn=thread_data->conn;
   TRPS_INSTANCE *trps=thread_data->trps;
   TR_MQ_MSG *msg=NULL;
 
-  tr_debug("tr_trps_conn_thread: started");
+  tr_debug("tr_trps_thread: started");
   trps_handle_connection(trps, conn);
 
-  msg=tr_mq_msg_new(tmp_ctx, "thread_exit");
+  msg=tr_mq_msg_new(tmp_ctx, "trps_thread_exit");
   tr_mq_msg_set_payload(msg, (void *)conn, NULL); /* do not pass a free routine */
   if (msg==NULL)
-    tr_err("tr_trps_conn_thread: error allocating TR_MQ_MSG");
+    tr_err("tr_trps_thread: error allocating TR_MQ_MSG");
   else
     trps_mq_append(trps, msg);
 
-  tr_debug("tr_trps_conn_thread: exit");
+  tr_debug("tr_trps_thread: exit");
   talloc_free(tmp_ctx);
   return NULL;
 }
@@ -120,7 +119,7 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
   TRP_CONNECTION *conn=NULL;
   TR_NAME *gssname=NULL;
   char *name=NULL;
-  struct thread_data *thread_data;
+  struct trps_thread_data *thread_data=NULL;
 
   if (0==(event & EV_READ)) {
     tr_debug("tr_trps_event_cb: unexpected event on TRPS socket (event=0x%X)", event);
@@ -132,16 +131,16 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
     conn=trp_connection_accept(tmp_ctx, listener, gssname);
     if (conn!=NULL) {
       /* need to monitor this fd and trigger events when read becomes possible */
-      thread_data=talloc(conn, struct thread_data);
+      thread_data=talloc(conn, struct trps_thread_data);
       if (thread_data==NULL) {
-        tr_err("tr_trps_event_cb: unable to allocate thread_data");
+        tr_err("tr_trps_event_cb: unable to allocate trps_thread_data");
         talloc_free(tmp_ctx);
         return;
       }
       thread_data->conn=conn;
       thread_data->trps=trps;
-      pthread_create(conn->thread, NULL, tr_trps_conn_thread, thread_data);
-      pthread_detach(*(conn->thread)); /* we will not rejoin the thread */
+      pthread_create(trp_connection_get_thread(conn), NULL, tr_trps_thread, thread_data);
+      pthread_detach(*(trp_connection_get_thread(conn))); /* we will not rejoin the thread */
       trps_add_connection(trps, conn); /* remember the connection */
     }
   }
@@ -167,7 +166,7 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
     s=tr_mq_msg_get_message(msg);
-    if (0==strcmp(s, "thread_exit")) {
+    if (0==strcmp(s, "trps_thread_exit")) {
       tr_trps_cleanup_thread(trps,
                              talloc_get_type_abort(tr_mq_msg_get_payload(msg),
                                                    TRP_CONNECTION));
@@ -209,9 +208,8 @@ TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
 }
 
 /* Configure the trps instance and set up its event handler.
- * Returns 0 on success, nonzero on failure. Results in 
- * trps_ev, which should be allocated by caller. */
-int tr_trps_event_init(struct event_base *base,
+ * Fills in trps_ev, which should be allocated by caller. */
+TRP_RC tr_trps_event_init(struct event_base *base,
                        TRPS_INSTANCE *trps,
                        TR_CFG_MGR *cfg_mgr,
                        TR_TRPS_EVENTS *trps_ev)
@@ -219,11 +217,11 @@ int tr_trps_event_init(struct event_base *base,
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_socket_event *listen_ev=NULL;
   struct tr_trps_event_cookie *cookie;
-  int retval=0;
+  TRP_RC retval=TRP_ERROR;
 
   if (trps_ev == NULL) {
     tr_debug("tr_trps_event_init: Null trps_ev.");
-    retval=1;
+    retval=TRP_BADARG;
     goto cleanup;
   }
 
@@ -235,7 +233,7 @@ int tr_trps_event_init(struct event_base *base,
   cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
   if (cookie == NULL) {
     tr_debug("tr_trps_event_init: Unable to allocate cookie.");
-    retval=1;
+    retval=TRP_NOMEM;
     goto cleanup;
   }
   cookie->trps=trps;
@@ -251,7 +249,7 @@ int tr_trps_event_init(struct event_base *base,
                                        (void *)cookie);
   if (listen_ev->sock_fd < 0) {
     tr_crit("Error opening TRP server socket.");
-    retval=1;
+    retval=TRP_ERROR;
     goto cleanup;
   }
   
@@ -272,8 +270,161 @@ int tr_trps_event_init(struct event_base *base,
                            (void *)trps);
   tr_mq_set_notify_cb(trps->mq, tr_trps_mq_cb, trps_ev->mq_ev);
 
+  retval=TRP_SUCCESS;
+
 cleanup:
   talloc_free(tmp_ctx);
   return retval;
 }
 
+
+struct trpc_notify_cb_data {
+  int msg_ready;
+  pthread_cond_t cond;
+  pthread_mutex_t mutex;
+};
+
+static void tr_trpc_mq_cb(TR_MQ *mq, void *arg)
+{
+  struct trpc_notify_cb_data *cb_data=(struct trpc_notify_cb_data *) arg;
+  pthread_mutex_lock(&(cb_data->mutex));
+  if (!cb_data->msg_ready) {
+    cb_data->msg_ready=1;
+    pthread_cond_signal(&(cb_data->cond));
+  }
+  pthread_mutex_unlock(&(cb_data->mutex));
+}
+
+/* data passed to thread */
+struct trpc_thread_data {
+  TRPC_INSTANCE *trpc;
+  TRPS_INSTANCE *trps;
+};
+static void *tr_trpc_thread(void *arg)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  struct trpc_thread_data *thread_data=talloc_get_type_abort(arg, struct trpc_thread_data);
+  TRPC_INSTANCE *trpc=thread_data->trpc;
+  TRPS_INSTANCE *trps=thread_data->trps;
+  TRP_RC rc=TRP_ERROR;
+  TR_MQ_MSG *msg=NULL;
+  const char *msg_type=NULL;
+  char *encoded_msg=NULL;
+
+  struct trpc_notify_cb_data cb_data={0,
+                                      PTHREAD_COND_INITIALIZER,
+                                      PTHREAD_MUTEX_INITIALIZER};
+
+  tr_debug("tr_trpc_thread: started");
+
+  /* set up the mq for receiving */
+  pthread_mutex_lock(&(cb_data.mutex)); /* hold this lock until we enter the main loop */
+
+  tr_mq_lock(trpc->mq);
+  tr_mq_set_notify_cb(trpc->mq, tr_trpc_mq_cb, (void *) &cb_data);
+  tr_mq_unlock(trpc->mq);
+
+  rc=trpc_connect(trpc);
+  if (rc!=TRP_SUCCESS) {
+    tr_notice("tr_trpc_thread: failed to initiate connection to %s:%d.",
+              trpc_get_server(trpc),
+              trpc_get_port(trpc));
+  } else {
+    while (1) {
+      cb_data.msg_ready=0;
+      pthread_cond_wait(&(cb_data.cond), &(cb_data.mutex));
+      /* verify the condition */
+      if (cb_data.msg_ready) {
+        msg=trpc_mq_pop(trpc);
+        if (msg==NULL) {
+          /* no message in the queue */
+          tr_err("tr_trpc_thread: notified of msg, but queue empty");
+          break;
+        }
+
+        msg_type=tr_mq_msg_get_message(msg);
+
+        if (0==strcmp(msg_type, "trpc_abort")) {
+          tr_mq_msg_free(msg);
+          break; /* exit loop */
+        }
+        else if (0==strcmp(msg_type, "trpc_send")) {
+          encoded_msg=tr_mq_msg_get_payload(msg);
+          if (encoded_msg==NULL)
+            tr_notice("tr_trpc_thread: null outgoing TRP message.");
+          else {
+            rc = trpc_send_msg(trpc, encoded_msg);
+            if (rc!=TRP_SUCCESS) {
+              tr_notice("tr_trpc_thread: trpc_send_msg failed.");
+              tr_mq_msg_free(msg);
+              break;
+            }
+          }
+        }
+        else
+          tr_notice("tr_trpc_thread: unknown message '%s' received.", msg_type);
+
+        tr_mq_msg_free(msg);
+      }
+    }
+  }
+
+  msg=tr_mq_msg_new(tmp_ctx, "trpc_thread_exit");
+  tr_mq_msg_set_payload(msg, (void *)trpc, NULL); /* do not pass a free routine */
+  if (msg==NULL)
+    tr_err("tr_trpc_thread: error allocating TR_MQ_MSG");
+  else
+    trps_mq_append(trps, msg);
+
+  talloc_free(tmp_ctx);
+  return NULL;
+}
+
+/* starts a trpc thread to connect to server:port */
+TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, const char *server, unsigned int port)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRPC_INSTANCE *trpc=NULL;
+  TRP_CONNECTION *conn=NULL;
+  struct trpc_thread_data *thread_data=NULL;
+
+  tr_debug("tr_trpc_initiate entered");
+  trpc=trpc_new(tmp_ctx);
+  if (trpc==NULL) {
+    tr_crit("tr_trpc_initiate: could not allocate TRPC_INSTANCE.");
+    goto cleanup;
+  }
+  tr_debug("tr_trpc_initiate: allocated trpc");
+
+  conn=trp_connection_new(trpc);
+  if (conn==NULL) {
+    tr_crit("tr_trpc_initiate: could not allocate TRP_CONNECTION.");
+    goto cleanup;
+  }
+  trpc_set_conn(trpc, conn);
+  trpc_set_server(trpc, talloc_strdup(trpc, server));
+  trpc_set_port(trpc, port);
+  tr_debug("tr_trpc_initiate: allocated connection");
+  
+  /* start thread */
+  thread_data=talloc(trpc, struct trpc_thread_data);
+  if (thread_data==NULL) {
+    tr_crit("tr_trpc_initiate: could not allocate struct trpc_thread_data.");
+    goto cleanup;
+  }
+  thread_data->trpc=trpc;
+  thread_data->trps=trps;
+
+  pthread_create(trp_connection_get_thread(conn), NULL, tr_trpc_thread, thread_data);
+  pthread_detach(*(trp_connection_get_thread(conn))); /* we will not rejoin the thread */
+
+  tr_debug("tr_trpc_initiate: started trpc thread");
+  trps_add_trpc(trps, trpc);
+
+  talloc_report_full(trps, stderr);
+  talloc_report_full(tmp_ctx, stderr);
+
+ cleanup:
+  talloc_free(tmp_ctx);
+  return trpc;
+}

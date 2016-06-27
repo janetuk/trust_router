@@ -16,7 +16,7 @@ typedef struct tr_trps_events {
 
 /* prototypes */
 TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx);
-int tr_trps_event_init(struct event_base *base, TRPS_INSTANCE *trps, TR_CFG_MGR *cfg_mgr,
+TRP_RC tr_trps_event_init(struct event_base *base, TRPS_INSTANCE *trps, TR_CFG_MGR *cfg_mgr,
                        TR_TRPS_EVENTS *trps_ev);
-
+TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, const char *server, unsigned int port);
 #endif /* TR_TRP_H */

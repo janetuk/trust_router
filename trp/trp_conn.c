@@ -6,6 +6,20 @@
 #include <tr_debug.h>
 #include <trp_internal.h>
 
+/* Threading note: mutex lock is only used for protecting get_status() and set_status().
+ * If needed, locking for other operations (notably adding/removing connections) must be managed
+ * by whomever is holding on to the connection list. */
+
+int trp_connection_lock(TRP_CONNECTION *conn)
+{
+  return pthread_mutex_lock(&(conn->mutex));
+}
+
+int trp_connection_unlock(TRP_CONNECTION *conn)
+{
+  return pthread_mutex_unlock(&(conn->mutex));
+}
+
 int trp_connection_get_fd(TRP_CONNECTION *conn)
 {
   return conn->fd;
@@ -39,17 +53,17 @@ void trp_connection_set_gssctx(TRP_CONNECTION *conn, gss_ctx_id_t *gssctx)
 TRP_CONNECTION_STATUS trp_connection_get_status(TRP_CONNECTION *conn)
 {
   TRP_CONNECTION_STATUS status;
-  pthread_mutex_lock(&(conn->status_mutex));
+  trp_connection_lock(conn);
   status=conn->status;
-  pthread_mutex_unlock(&(conn->status_mutex));
+  trp_connection_unlock(conn);
   return status;
 }
 
 static void trp_connection_set_status(TRP_CONNECTION *conn, TRP_CONNECTION_STATUS status)
 {
-  pthread_mutex_lock(&(conn->status_mutex));
+  trp_connection_lock(conn);
   conn->status=status;
-  pthread_mutex_unlock(&(conn->status_mutex));
+  trp_connection_unlock(conn);
 }
 
 pthread_t *trp_connection_get_thread(TRP_CONNECTION *conn)
@@ -72,7 +86,7 @@ static void trp_connection_set_next(TRP_CONNECTION *conn, TRP_CONNECTION *next)
   conn->next=next;
 }
 
-/* Ok to call more than once; guarantees connection no longer in the list.
+/* Ok to call more than once; guarantees connection no longer in the list. Does not free removed element.
  * Returns handle to new list, you must replace your old handle on the list with this.  */
 TRP_CONNECTION *trp_connection_remove(TRP_CONNECTION *conn, TRP_CONNECTION *remove)
 {
@@ -85,7 +99,6 @@ TRP_CONNECTION *trp_connection_remove(TRP_CONNECTION *conn, TRP_CONNECTION *remo
   /* first element is a special case */
   if (cur==remove) {
     conn=trp_connection_get_next(cur); /* advance list head */
-    trp_connection_free(cur);
   } else {
     /* it was not the first element */
     last=cur;
@@ -93,7 +106,6 @@ TRP_CONNECTION *trp_connection_remove(TRP_CONNECTION *conn, TRP_CONNECTION *remo
     while (cur!=NULL) {
       if (cur==remove) {
         trp_connection_set_next(last, trp_connection_get_next(cur));
-        trp_connection_free(cur);
         break;
       }
       last=cur;
@@ -117,7 +129,7 @@ void trp_connection_append(TRP_CONNECTION *conn, TRP_CONNECTION *new)
 
 static void trp_connection_mutex_init(TRP_CONNECTION *conn)
 {
-  pthread_mutex_init(&(conn->status_mutex), NULL);
+  pthread_mutex_init(&(conn->mutex), NULL);
 }
 
 /* talloc destructor for a connection: ensures connection is closed, memory freed */
@@ -142,7 +154,7 @@ TRP_CONNECTION *trp_connection_new(TALLOC_CTX *mem_ctx)
   if (new_conn != NULL) {
     trp_connection_set_next(new_conn, NULL);
     trp_connection_set_fd(new_conn, -1);
-    trp_connection_set_gssctx(new_conn, NULL);
+    trp_connection_set_gssname(new_conn, NULL);
     trp_connection_mutex_init(new_conn);
     trp_connection_set_status(new_conn, TRP_CONNECTION_DOWN);
     thread=talloc(new_conn, pthread_t);
@@ -228,3 +240,39 @@ TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *
   return conn;
 }
 
+/* Initiate connection */
+TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, const char *server, unsigned int port)
+{
+  int err = 0;
+  int fd=-1;
+  unsigned int use_port=0;
+
+  if (0 == port)
+    use_port = TRP_PORT;
+  else 
+    use_port = port;
+
+  if (conn==NULL) {
+    tr_err("trp_connection_initiate: null TRP_CONNECTION");
+    return TRP_BADARG;
+  }
+
+  tr_debug("trp_connection_initiate: opening GSS connection to %s:%d",
+           server,
+           use_port);
+  err = gsscon_connect(server,
+                       use_port,
+                       "trustrouter",
+                      &fd,
+                       trp_connection_get_gssctx(conn));
+  tr_debug("trp_connection_initiate: connected");
+
+  if (err) {
+    talloc_free(conn);
+    return TRP_ERROR;
+  } else {
+    trp_connection_set_fd(conn, fd);
+    trp_connection_set_status(conn, TRP_CONNECTION_UP);
+    return TRP_SUCCESS;
+  }
+}

@@ -543,6 +543,12 @@ static TRP_RC tr_msg_encode_inforec_route(json_t *jrec, TRP_INFOREC *rec )
   if (rec==NULL)
     return TRP_BADTYPE;
 
+  if ((trp_inforec_get_comm(rec)==NULL)
+     || (trp_inforec_get_realm(rec)==NULL)
+     || (trp_inforec_get_trust_router(rec)==NULL)) {
+    return TRP_ERROR;
+  }
+
   s=tr_name_strdup(trp_inforec_get_comm(rec));
   if (s==NULL)
     return TRP_NOMEM;
@@ -782,6 +788,7 @@ static json_t *tr_msg_encode_trp_req(TRP_REQ *req)
   json_t *jbody=NULL;
   json_t *jstr=NULL;
   char *s=NULL;
+  TR_NAME *n=NULL;
 
   if (req==NULL)
     return NULL;
@@ -790,7 +797,13 @@ static json_t *tr_msg_encode_trp_req(TRP_REQ *req)
   if (jbody==NULL)
     return NULL;
 
-  s=tr_name_strdup(trp_req_get_comm(req)); /* ensures null termination */
+  if ((NULL==trp_req_get_comm(req))
+     || (NULL==trp_req_get_realm(req))) {
+    json_decref(jbody);
+    return NULL;
+  }
+
+  s=tr_name_strdup(n); /* ensures null termination */
   if (s==NULL) {
     json_decref(jbody);
     return NULL;

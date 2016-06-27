@@ -15,6 +15,7 @@ typedef enum trp_rc {
   TRP_NOMEM, /* allocation error */
   TRP_BADTYPE, /* typing error */
   TRP_UNSUPPORTED, /* unsupported feature */
+  TRP_BADARG, /* bad argument */
 } TRP_RC;
 
 typedef enum trp_inforec_type {
