@@ -1,6 +1,6 @@
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
-bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/dh_test/tr_dh_test common/mq_test/mq_test common/mq_test/thread_test trp/msgtst
+bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/dh_test/tr_dh_test common/mq_test/mq_test common/mq_test/thread_test trp/msgtst trp/test/rtbl_test
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -21,7 +21,8 @@ tid/tidc.c
 trp_srcs = trp/trp_upd.c \
 trp/trp_req.c \
 trp/trp_conn.c \
-trp/trps.c
+trp/trps.c \
+trp/trp_rtable.c
 
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint
@@ -78,8 +79,14 @@ common/tr_rp.c \
 common/tr_config.c \
 common/tr_debug.c 
 
-#trp_msgtst_LDADD = libtr_tid.la $(GLIB_LIBS)
 trp_msgtst_LDADD =  $(GLIB_LIBS)
+
+trp_test_rtbl_test_SOURCES = trp/test/rtbl_test.c \
+common/tr_name.c \
+common/tr_debug.c \
+trp/trp_rtable.c
+
+trp_test_rtbl_test_LDADD =  $(GLIB_LIBS)
 
 tid_example_tidc_SOURCES = tid/example/tidc_main.c 
 
