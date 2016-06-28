@@ -179,7 +179,10 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
 
   *msg=tr_msg_decode(buf, buflen);
   free(buf);
-  return TRP_SUCCESS;
+  if (*msg==NULL)
+    return TRP_NOPARSE;
+  else
+    return TRP_SUCCESS;
 }
 
 int trps_get_listener(TRPS_INSTANCE *trps,

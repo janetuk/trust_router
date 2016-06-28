@@ -124,20 +124,33 @@ static void tr_talloc_log(const char *msg)
 #endif /* TALLOC_DEBUG_ENABLE */
 
 
+struct thingy {
+  TRPS_INSTANCE *trps;
+  struct event *ev;
+};
+
 static void debug_ping(evutil_socket_t fd, short what, void *arg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TRPS_INSTANCE *trps=talloc_get_type_abort(arg, TRPS_INSTANCE);
+  struct thingy *thingy=(struct thingy *)arg;
+  TRPS_INSTANCE *trps=thingy->trps;
   TRP_REQ *req=NULL;
   TR_MSG msg;
   char *encoded=NULL;
+  struct timeval interval={1, 0};
+  static int count=10;
+  TR_NAME *name=NULL;
 
-  tr_debug("debug_ping entered, trps=%p, trps->trpc=%p", trps, trps->trpc);
+  tr_debug("debug_ping entered");
   if (trps->trpc==NULL)
     tr_trpc_initiate(trps, trps->hostname, trps->port);
 
   /* create a TRP route request msg */
   req=trp_req_new(tmp_ctx);
+  name=tr_new_name("community");
+  trp_req_set_comm(req, name);
+  name=tr_new_name("realm");
+  trp_req_set_realm(req, name);
   tr_msg_set_trp_req(&msg, req);
   encoded=tr_msg_encode(&msg);
   if (encoded==NULL)
@@ -147,6 +160,8 @@ static void debug_ping(evutil_socket_t fd, short what, void *arg)
     trps_send_msg(trps, NULL, encoded);
     tr_msg_free_encoded(encoded);
   }
+  if (count-- > 0)
+    evtimer_add(thingy->ev, &interval);
 }
 
 int main(int argc, char *argv[])
@@ -160,7 +175,8 @@ int main(int argc, char *argv[])
   TR_TRPS_EVENTS *trps_ev;
   struct event *cfgwatch_ev;
   struct event *debug_ping_ev;
-  struct timeval debug_ping_interval={1, 0};
+  struct timeval notime={0, 0};
+  struct thingy thingy={NULL};
 
   /* we're going to be multithreaded, so disable null context tracking */
   talloc_set_abort_fn(tr_abort);
@@ -254,8 +270,10 @@ int main(int argc, char *argv[])
   }
 
   /* for debugging, send a message to peers on a timer */
-  debug_ping_ev=evtimer_new(ev_base, debug_ping, (void *)(tr->trps));
-  evtimer_add(debug_ping_ev, &debug_ping_interval);
+  debug_ping_ev=evtimer_new(ev_base, debug_ping, (void *)&thingy);
+  thingy.trps=tr->trps;
+  thingy.ev=debug_ping_ev;
+  evtimer_add(debug_ping_ev, &notime);
 
   tr_event_loop_run(ev_base); /* does not return until we are done */
 

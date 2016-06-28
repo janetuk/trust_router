@@ -788,7 +788,6 @@ static json_t *tr_msg_encode_trp_req(TRP_REQ *req)
   json_t *jbody=NULL;
   json_t *jstr=NULL;
   char *s=NULL;
-  TR_NAME *n=NULL;
 
   if (req==NULL)
     return NULL;
@@ -803,7 +802,7 @@ static json_t *tr_msg_encode_trp_req(TRP_REQ *req)
     return NULL;
   }
 
-  s=tr_name_strdup(n); /* ensures null termination */
+  s=tr_name_strdup(trp_req_get_comm(req)); /* ensures null termination */
   if (s==NULL) {
     json_decref(jbody);
     return NULL;

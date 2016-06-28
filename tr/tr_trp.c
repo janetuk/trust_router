@@ -162,7 +162,6 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   const char *s=NULL;
   char *tmp=NULL;
 
-  tr_debug("tr_trps_process_mw: starting");
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
     s=tr_mq_msg_get_message(msg);
@@ -182,7 +181,6 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
     tr_mq_msg_free(msg);
     msg=trps_mq_pop(trps);
   }
-  tr_debug("tr_trps_process_mw: ending");
 }
 
 static int tr_trps_events_destructor(void *obj)
