@@ -24,9 +24,16 @@ TRP_RTABLE *trp_rtable_new(void);
 void trp_rtable_free(TRP_RTABLE *rtbl);
 void trp_rtable_add(TRP_RTABLE *rtbl, TRP_RENTRY *entry); /* adds or updates */
 void trp_rtable_remove(TRP_RTABLE *rtbl, TRP_RENTRY *entry);
-size_t trp_rtable_get_apc(TRP_RTABLE *rtbl, TR_NAME *apc, TRP_RENTRY **ret); /* all entries in an apc */
-size_t trp_rtable_get_realm(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TRP_RENTRY **ret); /* all entries in realm */
-TRP_RENTRY *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer); /* single entry */
+size_t trp_rtable_size(TRP_RTABLE *rtbl);
+size_t trp_rtable_apc_size(TRP_RTABLE *rtbl, TR_NAME *apc);
+size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm);
+TRP_RENTRY **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out);
+TR_NAME **trp_rtable_get_apcs(TRP_RTABLE *rtbl, size_t *n_out);
+TRP_RENTRY **trp_rtable_get_apc_entries(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_out);
+TR_NAME **trp_rtable_get_apc_realms(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_out);
+TRP_RENTRY **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out);
+TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out);
+TRP_RENTRY *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer);
 
 TRP_RENTRY *trp_rentry_new(TALLOC_CTX *mem_ctx);
 void trp_rentry_free(TRP_RENTRY *entry);
