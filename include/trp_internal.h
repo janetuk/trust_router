@@ -16,6 +16,7 @@ typedef struct trp_inforec_route {
   TR_NAME *comm;
   TR_NAME *realm;
   TR_NAME *trust_router;
+  TR_NAME *next_hop;
   unsigned int metric;
   unsigned int interval;
 } TRP_INFOREC_ROUTE;
@@ -56,6 +57,7 @@ struct trp_connection {
   TRP_CONNECTION *next;
   pthread_t *thread; /* thread servicing this connection */
   int fd;
+  TR_NAME *peer; /* who is this a connection to? */
   TR_NAME *gssname;
   gss_ctx_id_t *gssctx;
   TRP_CONNECTION_STATUS status;

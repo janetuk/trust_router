@@ -76,6 +76,11 @@ static int trp_inforec_route_destructor(void *object)
     body->trust_router=NULL;
     tr_debug("trp_inforec_route_destructor: freed trust_router");
   }
+  if (body->next_hop != NULL) {
+    tr_free_name(body->next_hop);
+    body->hop=NULL;
+    tr_debug("trp_inforec_route_destructor: freed next_hop");
+  }
 
   return 0;
 }
@@ -88,6 +93,7 @@ static void *trp_inforec_route_new(TALLOC_CTX *mem_ctx)
     new_rec->comm=NULL;
     new_rec->realm=NULL;
     new_rec->trust_router=NULL;
+    new_rec->next_hop=NULL;
     new_rec->metric=TRP_METRIC_INFINITY;
     new_rec->interval=0;
     talloc_set_destructor((void *)new_rec, trp_inforec_route_destructor);
@@ -198,6 +204,34 @@ TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router)
   case TRP_INFOREC_TYPE_ROUTE:
     if (rec->data.route!=NULL) {
       rec->data.route->trust_router=trust_router;
+      return TRP_SUCCESS;
+    }
+    break;
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_ROUTE:
+    if (rec->data.route!=NULL)
+      return rec->data.route->next_hop;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_ROUTE:
+    if (rec->data.route!=NULL) {
+      rec->data.route->next_hop=next_hop;
       return TRP_SUCCESS;
     }
     break;

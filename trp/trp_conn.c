@@ -30,6 +30,16 @@ void trp_connection_set_fd(TRP_CONNECTION *conn, int fd)
   conn->fd=fd;
 }
 
+TR_NAME *trp_connection_get_peer(TRP_CONNECTION *conn)
+{
+  return conn->peer;
+}
+
+void trp_connection_set_peer(TRP_CONNECTION *conn, TR_NAME *peer)
+{
+  conn->peer=peer;
+}
+
 TR_NAME *trp_connection_get_gssname(TRP_CONNECTION *conn)
 {
   return conn->gssname;
@@ -139,6 +149,8 @@ static int trp_connection_destructor(void *object)
   if ((trp_connection_get_status(conn)!=TRP_CONNECTION_DOWN)
      && (trp_connection_get_fd(conn)!=-1))
     close(trp_connection_get_fd(conn));
+  if (conn->peer!=NULL)
+    tr_free_name(conn->peer);
   if (conn->gssname!=NULL)
     tr_free_name(conn->gssname);
   return 0;
@@ -154,6 +166,7 @@ TRP_CONNECTION *trp_connection_new(TALLOC_CTX *mem_ctx)
   if (new_conn != NULL) {
     trp_connection_set_next(new_conn, NULL);
     trp_connection_set_fd(new_conn, -1);
+    trp_connection_set_peer(new_conn, NULL);
     trp_connection_set_gssname(new_conn, NULL);
     trp_connection_mutex_init(new_conn);
     trp_connection_set_status(new_conn, TRP_CONNECTION_DOWN);
@@ -272,6 +285,7 @@ TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, const char *server, unsigne
     return TRP_ERROR;
   } else {
     trp_connection_set_fd(conn, fd);
+    trp_connection_set_peer(conn, tr_new_name(server));
     trp_connection_set_status(conn, TRP_CONNECTION_UP);
     return TRP_SUCCESS;
   }

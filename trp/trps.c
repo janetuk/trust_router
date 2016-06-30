@@ -181,8 +181,10 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   free(buf);
   if (*msg==NULL)
     return TRP_NOPARSE;
-  else
-    return TRP_SUCCESS;
+
+  /* fill in the next hop as the peer who just sent this to us */
+  trp_inforec_set_next_hop(*msg, trp_connection_get_peer(conn));
+  return TRP_SUCCESS;
 }
 
 int trps_get_listener(TRPS_INSTANCE *trps,

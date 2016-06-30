@@ -673,6 +673,8 @@ static TRP_INFOREC *tr_msg_decode_trp_inforec(TALLOC_CTX *mem_ctx, json_t *jreco
     goto cleanup;
   talloc_free(s); s=NULL;
 
+  trp_inforec_set_next_hop(rec, NULL); /* make sure this is null (filled in later) */
+
   rc=tr_msg_get_json_integer(jrecord, "metric", &num);
   if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_metric(rec,num)))
     goto cleanup;
