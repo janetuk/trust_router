@@ -10,9 +10,9 @@
 typedef struct trp_rentry {
   TR_NAME *apc;
   TR_NAME *realm;
-  TR_NAME *trust_router;
-  unsigned int metric;
   TR_NAME *peer;
+  unsigned int metric;
+  TR_NAME *trust_router;
   TR_NAME *next_hop;
   int selected;
   struct timespec *expiry;
@@ -34,6 +34,7 @@ TR_NAME **trp_rtable_get_apc_realms(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_ou
 TRP_RENTRY **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out);
 TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out);
 TRP_RENTRY *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer);
+char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, const char *lineterm);
 
 TRP_RENTRY *trp_rentry_new(TALLOC_CTX *mem_ctx);
 void trp_rentry_free(TRP_RENTRY *entry);
@@ -53,5 +54,6 @@ void trp_rentry_set_selected(TRP_RENTRY *entry, int sel);
 int trp_rentry_get_selected(TRP_RENTRY *entry);
 void trp_rentry_set_expiry(TRP_RENTRY *entry, struct timespec *exp);
 struct timespec *trp_rentry_get_expiry(TRP_RENTRY *entry);
+char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep);
 
 #endif /* _TRP_RTABLE_H_ */

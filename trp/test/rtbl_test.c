@@ -245,34 +245,12 @@ static void remove_entries(TRP_RTABLE *table)
   }
 }
 
-static void print_rentry(TRP_RENTRY *entry)
-{
-  printf("{%s,  %s,  %s} = %s,  %s,  %d\n",
-         trp_rentry_get_apc(entry)->buf,
-         trp_rentry_get_realm(entry)->buf,
-         trp_rentry_get_peer(entry)->buf,
-         trp_rentry_get_trust_router(entry)->buf,
-         trp_rentry_get_next_hop(entry)->buf,
-         trp_rentry_get_metric(entry));
-}
 
 static void print_rtable(TRP_RTABLE *table)
 {
-  size_t ii=0, jj=0;
-  TRP_RENTRY **apc_entries=NULL;
-  size_t len=0;
-  TR_NAME *n=0;
-
-  printf("Route Table\n");
-  printf("{APC,   REALM,   peer } = TR_RTR,  next,   metric\n");
-  for (ii=0; ii<n_apc; ii++) {
-    apc_entries=trp_rtable_get_apc_entries(table, n=tr_new_name(apc[ii]), &len);
-    tr_free_name(n); n=NULL;
-    for (jj=0; jj<len; jj++)
-      print_rentry(apc_entries[jj]);
-    talloc_free(apc_entries);
-  }
-  printf("\n");
+  char *s=trp_rtable_to_str(NULL, table, NULL, NULL);
+  printf(s);
+  talloc_free(s);
 }
 
 int main(void)

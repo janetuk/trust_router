@@ -1,5 +1,8 @@
+#include <stdlib.h>
+
 #include <glib.h>
 #include <talloc.h>
+#include <time.h>
 
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
@@ -507,4 +510,138 @@ TRP_RENTRY *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm,
   if (realm_tbl==NULL)
     return NULL;
   return g_hash_table_lookup(realm_tbl, peer); /* does not copy or increment ref count */
+}
+
+static char *timespec_to_str(struct timespec *ts)
+{
+  struct tm tm;
+  char *s=NULL;
+
+  if (localtime_r(&(ts->tv_sec), &tm)==NULL)
+    return NULL;
+
+  s=malloc(40); /* long enough to contain strftime result */
+  if (s==NULL)
+    return NULL;
+
+  if (strftime(s, 40, "%F %T", &tm)==0) {
+    free(s);
+    return NULL;
+  }
+  return s;
+}
+
+/* Pretty print a route table entry to a newly allocated string. If sep is NULL,
+ * returns comma+space separated string. */
+char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep)
+{
+  char *apc=tr_name_strdup(entry->apc);
+  char *realm=tr_name_strdup(entry->realm);
+  char *peer=tr_name_strdup(entry->peer);
+  char *trust_router=tr_name_strdup(entry->trust_router);
+  char *next_hop=tr_name_strdup(entry->next_hop);
+  char *expiry=timespec_to_str(entry->expiry);
+  char *result=NULL;
+
+  if (sep==NULL)
+    sep=", ";
+
+  result=talloc_asprintf(mem_ctx,
+                         "%s%s%s%s%s%s%u%s%s%s%s%s%d%s%s",
+                         apc, sep,
+                         realm, sep,
+                         peer, sep,
+                         entry->metric, sep,
+                         trust_router, sep,
+                         next_hop, sep,
+                         entry->selected, sep,
+                         expiry);
+  free(apc);
+  free(realm);
+  free(peer);
+  free(trust_router);
+  free(next_hop);
+  free(expiry);
+  return result;
+}
+
+static int sort_tr_names_cmp(const void *a, const void *b)
+{
+  TR_NAME **n1=(TR_NAME **)a;
+  TR_NAME **n2=(TR_NAME **)b;
+  return tr_name_cmp(*n1, *n2);
+}
+
+static void sort_tr_names(TR_NAME **names, size_t n_names)
+{
+  qsort(names, n_names, sizeof(TR_NAME *), sort_tr_names_cmp);
+}
+
+char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, const char *lineterm)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_NAME **apcs=NULL;
+  size_t n_apcs=0;
+  TR_NAME **realms=NULL;
+  size_t n_realms=0;
+  TRP_RENTRY **entries=NULL;
+  size_t n_entries=0;
+  char **tbl_strings=NULL;
+  size_t ii_tbl=0; /* counts tbl_strings */
+  size_t tbl_size=0;
+  size_t len=0;
+  size_t ii=0, jj=0, kk=0;
+  char *p=NULL;
+  char *result=NULL;
+
+  if (lineterm==NULL)
+    lineterm="\n";
+
+  tbl_size=trp_rtable_size(rtbl);
+  if (tbl_size==0) {
+    result=talloc_strdup(mem_ctx, lineterm);
+    goto cleanup;
+  }
+
+  tbl_strings=talloc_array(tmp_ctx, char *, tbl_size);
+  if (tbl_strings==NULL) {
+    result=talloc_strdup(mem_ctx, "error");
+    goto cleanup;
+  }
+  
+  apcs=trp_rtable_get_apcs(rtbl, &n_apcs);
+  talloc_steal(tmp_ctx, apcs);
+  sort_tr_names(apcs, n_apcs);
+  ii_tbl=0;
+  len=0;
+  for (ii=0; ii<n_apcs; ii++) {
+    realms=trp_rtable_get_apc_realms(rtbl, apcs[ii], &n_realms);
+    talloc_steal(tmp_ctx, realms);
+    sort_tr_names(realms, n_realms);
+    for (jj=0; jj<n_realms; jj++) {
+      entries=trp_rtable_get_realm_entries(rtbl, apcs[ii], realms[jj], &n_entries);
+      talloc_steal(tmp_ctx, entries);
+      for (kk=0; kk<n_entries; kk++) {
+        tbl_strings[ii_tbl]=trp_rentry_to_str(tmp_ctx, entries[kk], sep);
+        len+=strlen(tbl_strings[ii_tbl]);
+        ii_tbl++;
+      }
+      talloc_free(entries);
+    }
+    talloc_free(realms);
+  }
+  talloc_free(apcs);
+
+  /* now combine all the strings */
+  len += tbl_size*strlen(lineterm); /* space for line terminations*/
+  len += 1; /* nul terminator */
+  result=(char *)talloc_size(tmp_ctx, len);
+  for (p=result,ii=0; ii < tbl_size; ii++) {
+    p+=sprintf(p, "%s%s", tbl_strings[ii], lineterm);
+  }
+  talloc_steal(mem_ctx, result);
+  
+cleanup:
+  talloc_free(tmp_ctx);
+  return result;
 }
