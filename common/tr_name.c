@@ -80,12 +80,22 @@ TR_NAME *tr_dup_name (TR_NAME *from)
 
 int tr_name_cmp(TR_NAME *one, TR_NAME *two)
 {
-  if (one->len != two->len)
-    return 1;
-  else {
-    /* lengths equal */
-    return strncmp(one->buf, two->buf, one->len);
+  int len=one->len;
+  int cmp=0;
+
+  if (two->len<one->len)
+    len=two->len; /* len now min(one->len,two->len) */
+
+  cmp=strncmp(one->buf, two->buf, len);
+  if (cmp==0) {
+    if (one->len<two->len)
+      return -1;
+    else if (one->len==two->len)
+      return 0;
+    else
+      return 1;
   }
+  return cmp;
 }
 
 void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
