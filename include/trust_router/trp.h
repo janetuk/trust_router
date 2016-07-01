@@ -35,7 +35,7 @@ void trp_upd_free(TRP_UPD *update);
 TR_EXPORT TRP_INFOREC *trp_upd_get_inforec(TRP_UPD *upd);
 void trp_upd_set_inforec(TRP_UPD *upd, TRP_INFOREC *rec);
 TR_EXPORT TR_NAME *trp_upd_get_peer(TRP_UPD *upd);
-TRP_RC trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer);
+void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer);
 TR_EXPORT TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type);
 void trp_inforec_free(TRP_INFOREC *rec);
 TR_EXPORT TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec);
@@ -65,6 +65,6 @@ void trp_req_set_comm(TRP_REQ *req, TR_NAME *comm);
 TR_EXPORT TR_NAME *trp_req_get_realm(TRP_REQ *req);
 void trp_req_set_realm(TRP_REQ *req, TR_NAME *realm);
 TR_EXPORT TR_NAME *trp_req_get_peer(TRP_REQ *req);
-TRP_RC trp_req_set_peer(TRP_REQ *req, TR_NAME *peer);
+void trp_req_set_peer(TRP_REQ *req, TR_NAME *peer);
 
 #endif /* TRP_H */

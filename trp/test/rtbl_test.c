@@ -4,6 +4,7 @@
 #include <assert.h>
 
 #include <trust_router/tr_name.h>
+#include <trp_internal.h>
 #include <trp_rtable.h>
 
 char *apc[]={"apc1", "apc2", "apc3"};

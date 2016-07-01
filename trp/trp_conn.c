@@ -1,4 +1,5 @@
 #include <gsscon.h>
+#include <gssapi.h>
 #include <fcntl.h>
 #include <talloc.h>
 #include <unistd.h>
@@ -30,14 +31,68 @@ void trp_connection_set_fd(TRP_CONNECTION *conn, int fd)
   conn->fd=fd;
 }
 
+/* we use the gss name of the peer to identify it */
+static TRP_RC trp_connection_set_peer(TRP_CONNECTION *conn)
+{
+  OM_uint32 major_status=0;
+  OM_uint32 minor_status=0;
+  gss_name_t source_name=GSS_C_NO_NAME;
+  gss_name_t target_name=GSS_C_NO_NAME;
+  gss_buffer_desc peer_display_name={0,NULL};
+  int local=0;
+
+  tr_debug("gssctx = %p", trp_connection_get_gssctx(conn));
+  tr_debug("*gssctx = %p", *trp_connection_get_gssctx(conn));
+  major_status=gss_inquire_context(&minor_status,
+                                   *trp_connection_get_gssctx(conn),
+                                  &source_name,
+                                  &target_name,
+                                   NULL,
+                                   NULL,
+                                   NULL,
+                                  &local,
+                                   NULL);
+
+  if (major_status != GSS_S_COMPLETE) {
+    tr_err("trp_connection_set_peer: unable to identify GSS peer.");
+    if (source_name!=GSS_C_NO_NAME)
+      gss_release_name(&minor_status, &source_name);
+    if (target_name!=GSS_C_NO_NAME)
+      gss_release_name(&minor_status, &target_name);
+    return TRP_ERROR;
+  }
+
+  if (local) {
+    /* we are the source, peer is the target */
+    major_status=gss_display_name(&minor_status, target_name, &peer_display_name, NULL);
+  } else {
+    /* we are the target, peer is the source */
+    major_status=gss_display_name(&minor_status, source_name, &peer_display_name, NULL);
+  }
+  gss_release_name(&minor_status, &source_name);
+  gss_release_name(&minor_status, &target_name);
+
+  conn->peer=tr_new_name(peer_display_name.value);
+  if (conn->peer==NULL)
+    tr_err("trp_connection_set_peer: unable to allocate peer name.");
+  else {
+    if (conn->peer->len != peer_display_name.length) {
+      tr_err("trp_connection_set_peer: error converting GSS display name to TR_NAME.");
+      tr_free_name(conn->peer);
+      conn->peer=NULL;
+    }
+  }
+  gss_release_buffer(&minor_status, &peer_display_name);
+
+  if (conn->peer==NULL)
+    return TRP_ERROR;
+  
+  return TRP_SUCCESS;
+}
+
 TR_NAME *trp_connection_get_peer(TRP_CONNECTION *conn)
 {
   return conn->peer;
-}
-
-void trp_connection_set_peer(TRP_CONNECTION *conn, TR_NAME *peer)
-{
-  conn->peer=peer;
 }
 
 TR_NAME *trp_connection_get_gssname(TRP_CONNECTION *conn)
@@ -166,7 +221,6 @@ TRP_CONNECTION *trp_connection_new(TALLOC_CTX *mem_ctx)
   if (new_conn != NULL) {
     trp_connection_set_next(new_conn, NULL);
     trp_connection_set_fd(new_conn, -1);
-    trp_connection_set_peer(new_conn, NULL);
     trp_connection_set_gssname(new_conn, NULL);
     trp_connection_mutex_init(new_conn);
     trp_connection_set_status(new_conn, TRP_CONNECTION_DOWN);
@@ -226,6 +280,9 @@ int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void 
     return -1;
   }
 
+  trp_connection_set_peer(conn);
+  trp_connection_set_status(conn, TRP_CONNECTION_UP);
+
   if (auth)
     tr_debug("trp_connection_auth: Connection authenticated, fd = %d.", trp_connection_get_fd(conn));
   else
@@ -249,12 +306,11 @@ TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *
   conn=trp_connection_new(mem_ctx);
   trp_connection_set_fd(conn, conn_fd);
   trp_connection_set_gssname(conn, gssname);
-  trp_connection_set_status(conn, TRP_CONNECTION_UP);
   return conn;
 }
 
 /* Initiate connection */
-TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, const char *server, unsigned int port)
+TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int port)
 {
   int err = 0;
   int fd=-1;
@@ -285,7 +341,7 @@ TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, const char *server, unsigne
     return TRP_ERROR;
   } else {
     trp_connection_set_fd(conn, fd);
-    trp_connection_set_peer(conn, tr_new_name(server));
+    trp_connection_set_peer(conn);
     trp_connection_set_status(conn, TRP_CONNECTION_UP);
     return TRP_SUCCESS;
   }

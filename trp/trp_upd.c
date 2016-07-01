@@ -78,7 +78,7 @@ static int trp_inforec_route_destructor(void *object)
   }
   if (body->next_hop != NULL) {
     tr_free_name(body->next_hop);
-    body->hop=NULL;
+    body->next_hop=NULL;
     tr_debug("trp_inforec_route_destructor: freed next_hop");
   }
 
@@ -353,7 +353,7 @@ TRP_UPD *trp_upd_new(TALLOC_CTX *mem_ctx)
   if (new_body!=NULL) {
     new_body->records=NULL;
     new_body->peer=NULL;
-    talloc_set_destructor(new_body, trp_upd_destructor);
+    talloc_set_destructor((void *)new_body, trp_upd_destructor);
   }
   return new_body;
 }
@@ -390,8 +390,10 @@ void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer)
 
   upd->peer=peer;
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    if (trp_inforec_set_next_hop(rec, cpy=tr_dup_name(peer)) != TRP_SUCCESS)
+    if (trp_inforec_set_next_hop(rec, cpy=tr_dup_name(peer)) != TRP_SUCCESS) {
+      tr_err("trp_upd_set_peer: error setting peer.");
       tr_free_name(cpy);
+    }
   }
 }
 

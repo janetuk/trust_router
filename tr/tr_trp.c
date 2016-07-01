@@ -155,12 +155,22 @@ static void tr_trps_cleanup_thread(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
   tr_debug("Deleted connection");
 }
 
+static void tr_trps_print_route_table(TRPS_INSTANCE *trps, FILE *f)
+{
+  char *table=trp_rtable_to_str(NULL, trps->rtable, " | ", NULL);
+  if (table==NULL)
+    fprintf(f, "Unable to print route table.\n");
+  else {
+    fprintf(f, "%s\n", table);
+    talloc_free(table);
+  }
+}
+
 static void tr_trps_process_mq(int socket, short event, void *arg)
 {
   TRPS_INSTANCE *trps=talloc_get_type_abort(arg, TRPS_INSTANCE);
   TR_MQ_MSG *msg=NULL;
   const char *s=NULL;
-  char *tmp=NULL;
 
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
@@ -171,7 +181,11 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
                                                    TRP_CONNECTION));
     }
     else if (0==strcmp(s, "tr_msg")) {
-      trps_handle_tr_msg(trps, msg);
+      if (trps_handle_tr_msg(trps, tr_mq_msg_get_payload(msg))!=TRP_SUCCESS)
+        tr_notice("tr_trps_process_mq: error handling message.");
+      else {
+        tr_trps_print_route_table(trps, stderr);
+      }
     }
     else
       tr_notice("tr_trps_process_mq: unknown message '%s' received.", tr_mq_msg_get_message(msg));

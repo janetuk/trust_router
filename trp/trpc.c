@@ -85,12 +85,12 @@ void trpc_append(TRPC_INSTANCE *trpc, TRPC_INSTANCE *new)
   trpc_set_next(trpc_get_tail(trpc), new);
 }
 
-const char *trpc_get_server(TRPC_INSTANCE *trpc)
+char *trpc_get_server(TRPC_INSTANCE *trpc)
 {
   return trpc->server;
 }
 
-void trpc_set_server(TRPC_INSTANCE *trpc, const char *server)
+void trpc_set_server(TRPC_INSTANCE *trpc, char *server)
 {
   trpc->server=server;
 }

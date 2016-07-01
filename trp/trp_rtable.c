@@ -529,15 +529,17 @@ static char *timespec_to_str(struct timespec *ts)
 
 TRP_RENTRY *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
 {
-  size_t n_entries=0;
-  TRP_RENTRY *entry=trp_rtable_get_realm_entries(rtbl, apc, realm, &n_entries);
-  if (n_entries==0)
+  size_t n=0;
+  TRP_RENTRY **entry=trp_rtable_get_realm_entries(rtbl, apc, realm, &n);
+  TRP_RENTRY *selected=NULL;
+
+  if (n==0)
     return NULL;
 
-  while((entry!=NULL) && (!trp_rentry_get_selected(entry)))
-    entry=trp_rentry_get_next(entry);
-
-  return entry;
+  while(n-- && !trp_rentry_get_selected(entry[n])) { }
+  selected=entry[n];
+  talloc_free(entry);
+  return selected;
 }
 
 /* Pretty print a route table entry to a newly allocated string. If sep is NULL,

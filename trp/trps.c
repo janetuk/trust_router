@@ -5,10 +5,19 @@
 
 #include <gsscon.h>
 #include <tr_rp.h>
-#include <tr_debug.h>
-#include <trp_rtable.h>
+#include <trust_router/tr_name.h>
 #include <trp_internal.h>
+#include <trp_rtable.h>
+#include <tr_debug.h>
 
+
+static int trps_destructor(void *object)
+{
+  TRPS_INSTANCE *trps=talloc_get_type_abort(object, TRPS_INSTANCE);
+  if (trps->rtable!=NULL)
+    trp_rtable_free(trps->rtable);
+  return 0;
+}
 
 TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
 {
@@ -24,6 +33,14 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
       /* failed to allocate mq */
       talloc_free(trps);
       trps=NULL;
+    } else {
+      trps->rtable=trp_rtable_new();
+      if (trps->rtable==NULL) {
+        /* failed to allocate rtable */
+        talloc_free(trps);
+        trps=NULL;
+      } else
+        talloc_set_destructor((void *)trps, trps_destructor);
     }
   }
   return trps;
@@ -114,58 +131,76 @@ TRP_RC trps_send_msg (TRPS_INSTANCE *trps, void *peer, const char *msg)
 
 static int trps_listen (TRPS_INSTANCE *trps, int port) 
 {
-    int rc = 0;
-    int conn = -1;
-    int optval = 1;
+  int rc = 0;
+  int conn = -1;
+  int optval = 1;
 
-    union {
-      struct sockaddr_storage storage;
-      struct sockaddr_in in4;
-    } addr;
+  union {
+    struct sockaddr_storage storage;
+    struct sockaddr_in in4;
+  } addr;
 
-    struct sockaddr_in *saddr = (struct sockaddr_in *) &addr.in4;
+  struct sockaddr_in *saddr = (struct sockaddr_in *) &addr.in4;
 
-    saddr->sin_port = htons (port);
-    saddr->sin_family = AF_INET;
-    saddr->sin_addr.s_addr = INADDR_ANY;
+  saddr->sin_port = htons (port);
+  saddr->sin_family = AF_INET;
+  saddr->sin_addr.s_addr = INADDR_ANY;
 
-    if (0 > (conn = socket (AF_INET, SOCK_STREAM, 0)))
-      return conn;
-
-    setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
-
-    if (0 > (rc = bind (conn, (struct sockaddr *) saddr, sizeof(struct sockaddr_in))))
-      return rc;
-
-    if (0 > (rc = listen(conn, 512)))
-      return rc;
-
-    tr_debug("trps_listen: TRP Server listening on port %d", port);
+  if (0 > (conn = socket (AF_INET, SOCK_STREAM, 0)))
     return conn;
+
+  setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+
+  if (0 > (rc = bind (conn, (struct sockaddr *) saddr, sizeof(struct sockaddr_in))))
+    return rc;
+
+  if (0 > (rc = listen(conn, 512)))
+    return rc;
+
+  tr_debug("trps_listen: TRP Server listening on port %d", port);
+  return conn;
 }
 
+#if 0 /* remove this if I forget to do so */
 /* returns EACCES if authorization is denied */
 int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data)
 {
-  TRPS_INSTANCE *inst = (TRPS_INSTANCE *)data;
+  TRPS_INSTANCE *trps = (TRPS_INSTANCE *)data;
   int result=0;
 
-  if (0!=inst->auth_handler(clientName, displayName, inst->cookie)) {
+  if (0!=trps->auth_handler(clientName, displayName, trps->cookie)) {
     tr_debug("trps_auth_cb: client '%.*s' denied authorization.", displayName->length, displayName->value);
     result=EACCES; /* denied */
   }
 
   return result;
 }
+#endif 
 
 /* get the currently selected route if available */
-TRP_RENTRY *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm)
+TRP_RENTRY *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer)
+{
+  return trp_rtable_get_entry(trps->rtable, comm, realm, peer);
+}
+
+TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm)
 {
   return trp_rtable_get_selected_entry(trps->rtable, comm, realm);
 }
 
+/* copy the result if you want to keep it */
+TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm)
+{
+  TRP_RENTRY *route=trps_get_selected_route(trps, comm, realm);
+  if (route==NULL)
+    return NULL;
+
+  return trp_rentry_get_next_hop(route);
+}
+
+
 /* mark a route as retracted */
-static TRP_RC trps_retract_route(TRPS_INSTANCE *trps, TRP_RENTRY *entry)
+static void trps_retract_route(TRPS_INSTANCE *trps, TRP_RENTRY *entry)
 {
   trp_rentry_set_metric(entry, TRP_METRIC_INFINITY);
 }
@@ -181,13 +216,13 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   int err=0;
   char *buf=NULL;
   size_t buflen = 0;
-  TR_NAME *peer=NULL
+  TR_NAME *peer=NULL;
 
   tr_debug("trps_read_message: started");
   if (err = gsscon_read_encrypted_token(trp_connection_get_fd(conn),
                                        *(trp_connection_get_gssctx(conn)), 
-                                        &buf,
-                                        &buflen)) {
+                                       &buf,
+                                       &buflen)) {
     tr_debug("trps_read_message: error");
     if (buf)
       free(buf);
@@ -206,11 +241,11 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   /* verify we received a message we support, otherwise drop it now */
   switch (tr_msg_get_msg_type(*msg)) {
   case TRP_UPDATE:
-    trp_upd_set_peer(tr_msg_get_trp_upd(msg), tr_name_dup(peer));
+    trp_upd_set_peer(tr_msg_get_trp_upd(*msg), tr_dup_name(peer));
     break;
 
   case TRP_REQUEST:
-    trp_req_set_peer(tr_msg_get_trp_req(msg), tr_name_dup(peer));
+    trp_req_set_peer(tr_msg_get_trp_req(*msg), tr_dup_name(peer));
     break;
 
   default:
@@ -299,6 +334,21 @@ void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
   talloc_free(tmp_ctx);
 }
 
+static TRP_RC trps_validate_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
+{
+  if (trp_upd_get_inforec(upd)==NULL) {
+    tr_notice("trps_validate_update: received TRP update with no info records.");
+    return TRP_ERROR;
+  }
+
+  if (trp_upd_get_peer(upd)==NULL) {
+    tr_notice("trps_validate_update: received TRP update without origin peer information.");
+    return TRP_ERROR;
+  }
+  
+  return TRP_SUCCESS;
+}
+
 /* ensure that the update could be accepted if feasible */
 static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
 {
@@ -307,9 +357,10 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
     if ((trp_inforec_get_comm(rec)==NULL)
        || (trp_inforec_get_realm(rec)==NULL)
        || (trp_inforec_get_trust_router(rec)==NULL)
-       || (trp_inforec_get_next_hop(rec)==NULL))
+       || (trp_inforec_get_next_hop(rec)==NULL)) {
       tr_debug("trps_validate_inforec: missing record info.");
       return TRP_ERROR;
+    }
 
     /* check for valid metric */
     if ((trp_inforec_get_metric(rec)==TRP_METRIC_INVALID)
@@ -326,6 +377,7 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
     break;
 
   default:
+    tr_notice("trps_validate_inforec: unsupported record type.");
     return TRP_UNSUPPORTED;
   }
 
@@ -346,27 +398,28 @@ static unsigned int trps_advertised_metric(TRPS_INSTANCE *trps, TR_NAME *comm, T
   return trp_rentry_get_metric(entry) + trps_cost(trps, peer);
 }
 
-/* returns TRP_SUCCESS if route is feasible, TRP_ERROR otherwise */
-static TRP_RC trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
+static int trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
 {
   unsigned int rec_metric=trp_inforec_get_metric(rec);
   unsigned int new_metric=0;
   unsigned int current_metric=0;
+  TR_NAME *next_hop=NULL;
 
   /* we check these in the validation stage, but just in case... */
   if ((rec_metric==TRP_METRIC_INVALID) || (rec_metric>TRP_METRIC_INFINITY))
-    return TRP_ERROR;
+    return 0;
 
   /* retractions (aka infinite metrics) are always feasible */
   if (rec_metric==TRP_METRIC_INFINITY)
-    return TRP_SUCCESS;
+    return 1;
 
   /* updates from our current next hop are always feasible*/
-  if (0==tr_name_cmp(trp_inforec_get_next_hop(rec),
-                     trps_next_hop(trps,
-                                   trp_inforec_get_comm(rec),
-                                   trp_inforec_get_realm(rec)))) {
-    return TRP_SUCCESS;
+  next_hop=trps_get_next_hop(trps,
+                             trp_inforec_get_comm(rec),
+                             trp_inforec_get_realm(rec));;
+  if ((next_hop!=NULL)
+     && (0==tr_name_cmp(next_hop,trp_inforec_get_next_hop(rec)))) {
+    return 1;
   }
     
 
@@ -378,20 +431,19 @@ static TRP_RC trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
                                         trp_inforec_get_next_hop(rec));
   new_metric=rec_metric + trps_cost(trps, trp_inforec_get_next_hop(rec));
   if (new_metric <= current_metric)
-    return TRP_SUCCESS;
+    return 1;
   else
-    return TRP_ERROR;
+    return 0;
 }
 
-/* uses memory pointed to by *ts, also returns that value */
-static void trps_compute_expiry(unsigned int interval, struct timespec *ts)
+/* uses memory pointed to by *ts, also returns that value. On error, its contents are {0,0} */
+static struct timespec *trps_compute_expiry(TRPS_INSTANCE *trps, unsigned int interval, struct timespec *ts)
 {
   const unsigned int small_factor=3; /* how many intervals we wait before expiring */
   if (0!=clock_gettime(CLOCK_REALTIME, ts)) {
-    tr_error("trps_compute_expiry: could not read realtime clock.");
+    tr_err("trps_compute_expiry: could not read realtime clock.");
     ts->tv_sec=0;
     ts->tv_nsec=0;
-    return NULL;
   }
   ts->tv_sec += small_factor*interval;
   return ts;
@@ -408,7 +460,7 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
   if (entry==NULL) {
     entry=trp_rentry_new(NULL);
     if (entry==NULL) {
-      tr_error("trps_accept_update: unable to allocate new entry.");
+      tr_err("trps_accept_update: unable to allocate new entry.");
       return TRP_NOMEM;
     }
 
@@ -421,9 +473,9 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
        ||(trp_rentry_get_realm(entry)==NULL)
        ||(trp_rentry_get_peer(entry)==NULL)
        ||(trp_rentry_get_trust_router(entry)==NULL)
-       ||(trp_rentry_next_hop(entry)==NULL)) {
+       ||(trp_rentry_get_next_hop(entry)==NULL)) {
       /* at least one field could not be allocated */
-      tr_error("trps_accept_update: unable to allocate all fields for entry.");
+      tr_err("trps_accept_update: unable to allocate all fields for entry.");
       trp_rentry_free(entry);
       return TRP_NOMEM;
     }
@@ -434,9 +486,14 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
    * the metric is infinity. An infinite metric can only occur here if we just retracted an existing
    * route (we never accept retractions as new routes), so there is no risk of leaving the expiry
    * time unset on a new route entry. */
+  tr_debug("trps_accept_update: accepting route update.");
   trp_rentry_set_metric(entry, trp_inforec_get_metric(rec));
-  if (!trps_route_retracted(trps, entry))
-    trp_rentry_set_expiry(entry, trps_compute_expiry(trps, trp_inforec_get_interval(rec)));
+  if (!trps_route_retracted(trps, entry)) {
+    tr_debug("trps_accept_update: route not retracted, setting expiry timer.");
+    trp_rentry_set_expiry(entry, trps_compute_expiry(trps,
+                                                     trp_inforec_get_interval(rec),
+                                                     trp_rentry_get_expiry(entry)));
+  }
   return TRP_SUCCESS;
 }
 
@@ -444,28 +501,31 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
 static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
 {
   unsigned int feas=0;
-  TRP_INFOREC *rec=trp_upd_get_inforec(upd);
+  TRP_INFOREC *rec=NULL;
   TRP_RENTRY *route=NULL;
 
-  if (rec==NULL) {
-    tr_notice("trps_handle_update: received TRP update with no info records.");
+  if (trps_validate_update(trps, upd) != TRP_SUCCESS) {
+    tr_notice("trps_handle_update: received invalid TRP update.");
     return TRP_ERROR;
   }
 
+  rec=trp_upd_get_inforec(upd);
   for (;rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    /* validate/sanity check the update */
-    if (trps_validate_inforec(trps, upd) != TRP_SUCCESS) {
+    /* validate/sanity check the record update */
+    if (trps_validate_inforec(trps, rec) != TRP_SUCCESS) {
       tr_notice("trps_handle_update: invalid record in TRP update.");
       continue;
     }
 
     /* determine feasibility */
     feas=trps_check_feasibility(trps, rec);
+    tr_debug("trps_handle_update: record feasibility=%d", feas);
 
     /* do we have an existing route? */
-    route=trps_get_route(trps, trp_inforec_get_comm(rec), trp_inforec_get_realm(rec));
+    route=trps_get_route(trps, trp_inforec_get_comm(rec), trp_inforec_get_realm(rec), trp_inforec_get_next_hop(rec));
     if (route!=NULL) {
       /* there was a route table entry already */
+      tr_debug("trps_handle_updates: route entry already exists.");
       if (feas) {
         /* Update is feasible. Accept it. */
         trps_accept_update(trps, rec);
@@ -479,7 +539,8 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
       }
     } else {
       /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
-      if (feas && (trp_inforec_get_metric != TRP_METRIC_INFINITY))
+      tr_debug("trps_handle_update: no route entry exists yet.");
+      if (feas && (trp_inforec_get_metric(rec) != TRP_METRIC_INFINITY))
         trps_accept_update(trps, rec);
     }
   }
@@ -490,7 +551,7 @@ TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg)
 {
   switch (tr_msg_get_msg_type(tr_msg)) {
   case TRP_UPDATE:
-    return trps_handle_update(TRPS_INSTANCE *trps, tr_msg_get_trp_upd(tr_msg));
+    return trps_handle_update(trps, tr_msg_get_trp_upd(tr_msg));
 
   case TRP_REQUEST:
     return TRP_UNSUPPORTED;

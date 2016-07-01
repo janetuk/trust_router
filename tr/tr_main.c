@@ -124,6 +124,7 @@ static void tr_talloc_log(const char *msg)
 #endif /* TALLOC_DEBUG_ENABLE */
 
 
+#if DEBUG_PING_SELF
 struct thingy {
   TRPS_INSTANCE *trps;
   struct event *ev;
@@ -163,6 +164,7 @@ static void debug_ping(evutil_socket_t fd, short what, void *arg)
   if (count-- > 0)
     evtimer_add(thingy->ev, &interval);
 }
+#endif /* DEBUG_PING_SELF */
 
 int main(int argc, char *argv[])
 {
@@ -174,9 +176,11 @@ int main(int argc, char *argv[])
   struct tr_socket_event tids_ev;
   TR_TRPS_EVENTS *trps_ev;
   struct event *cfgwatch_ev;
+#if DEBUG_PING_SELF
   struct event *debug_ping_ev;
   struct timeval notime={0, 0};
   struct thingy thingy={NULL};
+#endif /* DEBUG_PING_SELF */
 
   /* we're going to be multithreaded, so disable null context tracking */
   talloc_set_abort_fn(tr_abort);
@@ -269,11 +273,13 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+#if DEBUG_PING_SELF
   /* for debugging, send a message to peers on a timer */
   debug_ping_ev=evtimer_new(ev_base, debug_ping, (void *)&thingy);
   thingy.trps=tr->trps;
   thingy.ev=debug_ping_ev;
   evtimer_add(debug_ping_ev, &notime);
+#endif /* DEBUG_PING_SELF */
 
   tr_event_loop_run(ev_base); /* does not return until we are done */
 

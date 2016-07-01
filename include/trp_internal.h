@@ -8,6 +8,7 @@
 #include <trust_router/tr_dh.h>
 #include <tr_mq.h>
 #include <tr_msg.h>
+#include <trp_rtable.h>
 #include <trust_router/trp.h>
 
 /* info records */
@@ -59,8 +60,8 @@ struct trp_connection {
   TRP_CONNECTION *next;
   pthread_t *thread; /* thread servicing this connection */
   int fd;
-  TR_NAME *peer; /* who is this a connection to? */
   TR_NAME *gssname;
+  TR_NAME *peer;
   gss_ctx_id_t *gssctx;
   TRP_CONNECTION_STATUS status;
 };
@@ -74,7 +75,7 @@ typedef client_cb_fn TRP_AUTH_FUNC;
 typedef struct trpc_instance TRPC_INSTANCE;
 struct trpc_instance {
   TRPC_INSTANCE *next;
-  const char *server;
+  char *server;
   unsigned int port;
   TRP_CONNECTION *conn;
   TR_MQ *mq; /* msgs from master to trpc */
@@ -102,6 +103,7 @@ int trp_connection_lock(TRP_CONNECTION *conn);
 int trp_connection_unlock(TRP_CONNECTION *conn);
 int trp_connection_get_fd(TRP_CONNECTION *conn);
 void trp_connection_set_fd(TRP_CONNECTION *conn, int fd);
+TR_NAME *trp_connection_get_peer(TRP_CONNECTION *conn);
 TR_NAME *trp_connection_get_gssname(TRP_CONNECTION *conn);
 void trp_connection_set_gssname(TRP_CONNECTION *conn, TR_NAME *gssname);
 gss_ctx_id_t *trp_connection_get_gssctx(TRP_CONNECTION *conn);
@@ -114,7 +116,7 @@ TRP_CONNECTION *trp_connection_remove(TRP_CONNECTION *conn, TRP_CONNECTION *remo
 void trp_connection_append(TRP_CONNECTION *conn, TRP_CONNECTION *new);
 int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void *callback_data);
 TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *gssname);
-TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, const char *server, unsigned int port);
+TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int port);
 
 TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx);
 void trpc_free (TRPC_INSTANCE *trpc);
@@ -124,8 +126,8 @@ TRPC_INSTANCE *trpc_get_next(TRPC_INSTANCE *trpc);
 void trpc_set_next(TRPC_INSTANCE *trpc, TRPC_INSTANCE *next);
 TRPC_INSTANCE *trpc_remove(TRPC_INSTANCE *trpc, TRPC_INSTANCE *remove);
 void trpc_append(TRPC_INSTANCE *trpc, TRPC_INSTANCE *new);
-const char *trpc_get_server(TRPC_INSTANCE *trpc);
-void trpc_set_server(TRPC_INSTANCE *trpc, const char *server);
+char *trpc_get_server(TRPC_INSTANCE *trpc);
+void trpc_set_server(TRPC_INSTANCE *trpc, char *server);
 unsigned int trpc_get_port(TRPC_INSTANCE *trpc);
 void trpc_set_port(TRPC_INSTANCE *trpc, unsigned int port);
 DH *trpc_get_dh(TRPC_INSTANCE *trpc);
@@ -153,9 +155,12 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       const char *hostname,
                       unsigned int port,
                       void *cookie);
-int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data);
 TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps);
 void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
 void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn);
 TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg);
+TRP_RENTRY *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer);
+TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
+TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
+
 #endif /* TRP_INTERNAL_H */
