@@ -338,12 +338,22 @@ void trp_inforec_free(TRP_INFOREC *rec)
     talloc_free(rec);
 }
 
+static int trp_upd_destructor(void *object)
+{
+  TRP_UPD *upd=talloc_get_type_abort(object, TRP_UPD);
+  if (upd->peer!=NULL)
+    tr_free_name(upd->peer);
+  return 0;
+}
+
 TRP_UPD *trp_upd_new(TALLOC_CTX *mem_ctx)
 {
   TRP_UPD *new_body=talloc(mem_ctx, TRP_UPD);
 
   if (new_body!=NULL) {
     new_body->records=NULL;
+    new_body->peer=NULL;
+    talloc_set_destructor(new_body, trp_upd_destructor);
   }
   return new_body;
 }
@@ -366,6 +376,23 @@ void trp_upd_set_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
 {
   if (upd!=NULL)
     upd->records=rec;
+}
+
+TR_NAME *trp_upd_get_peer(TRP_UPD *upd)
+{
+  return upd->peer;
+}
+
+void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer)
+{
+  TRP_INFOREC *rec=NULL;
+  TR_NAME *cpy=NULL;
+
+  upd->peer=peer;
+  for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
+    if (trp_inforec_set_next_hop(rec, cpy=tr_dup_name(peer)) != TRP_SUCCESS)
+      tr_free_name(cpy);
+  }
 }
 
 /* pretty print */

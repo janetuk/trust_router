@@ -10,16 +10,15 @@ static int trp_req_destructor(void *object)
   TRP_REQ *req=talloc_get_type_abort(object, TRP_REQ);
   
   /* clean up TR_NAME data, which are not managed by talloc */
-  if (req->comm != NULL) {
+  if (req->comm != NULL)
     tr_free_name(req->comm);
-    req->comm=NULL;
-    tr_debug("trp_req_destructor: freed community");
-  }
-  if (req->realm != NULL) {
+
+  if (req->realm != NULL)
     tr_free_name(req->realm);
-    req->realm=NULL;
-    tr_debug("trp_req_destructor: freed realm");
-  }
+
+  if (req->peer != NULL)
+    tr_free_name(req->peer);
+
   return 0;
 }
 
@@ -30,6 +29,7 @@ TRP_REQ *trp_req_new(TALLOC_CTX *mem_ctx)
   if (new_req != NULL) {
     new_req->comm=NULL;
     new_req->realm=NULL;
+    new_req->peer=NULL;
   }
 
   talloc_set_destructor((void *)new_req, trp_req_destructor);
@@ -69,4 +69,19 @@ void trp_req_set_realm(TRP_REQ *req, TR_NAME *realm)
 {
   if (req)
     req->realm=realm;
+}
+
+TR_NAME *trp_req_get_peer(TRP_REQ *req)
+{
+  if (req!=NULL)
+    return req->peer;
+  else
+    return NULL;
+}
+
+
+void trp_req_set_peer(TRP_REQ *req, TR_NAME *peer)
+{
+  if (req)
+    req->peer=peer;
 }

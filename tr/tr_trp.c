@@ -171,9 +171,7 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
                                                    TRP_CONNECTION));
     }
     else if (0==strcmp(s, "tr_msg")) {
-      tmp=tr_msg_encode(tr_mq_msg_get_payload(msg));
-      tr_debug("tr_msg: %s", tmp);
-      tr_msg_free_encoded(tmp);
+      trps_handle_tr_msg(trps, msg);
     }
     else
       tr_notice("tr_trps_process_mq: unknown message '%s' received.", tr_mq_msg_get_message(msg));

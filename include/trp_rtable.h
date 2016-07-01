@@ -53,6 +53,7 @@ TR_NAME *trp_rentry_get_next_hop(TRP_RENTRY *entry);
 void trp_rentry_set_selected(TRP_RENTRY *entry, int sel);
 int trp_rentry_get_selected(TRP_RENTRY *entry);
 void trp_rentry_set_expiry(TRP_RENTRY *entry, struct timespec *exp);
+TRP_RENTRY *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm);
 struct timespec *trp_rentry_get_expiry(TRP_RENTRY *entry);
 char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep);
 

@@ -36,11 +36,13 @@ struct trp_inforec {
 
 struct trp_update {
   TRP_INFOREC *records;
+  TR_NAME *peer; /* who did this update come from? */
 };
 
 struct trp_req {
   TR_NAME *comm;
   TR_NAME *realm;
+  TR_NAME *peer; /* who did this req come from? */
 };
 
 
@@ -89,6 +91,7 @@ struct trps_instance {
   TRP_CONNECTION *conn; /* connections from peers */
   TRPC_INSTANCE *trpc; /* connections to peers */
   TR_MQ *mq;
+  TRP_RTABLE *rtable; /* route table */
 };
 
 
@@ -154,4 +157,5 @@ int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data);
 TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps);
 void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
 void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn);
+TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg);
 #endif /* TRP_INTERNAL_H */

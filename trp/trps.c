@@ -6,6 +6,7 @@
 #include <gsscon.h>
 #include <tr_rp.h>
 #include <tr_debug.h>
+#include <trp_rtable.h>
 #include <trp_internal.h>
 
 
@@ -157,11 +158,30 @@ int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data)
   return result;
 }
 
+/* get the currently selected route if available */
+TRP_RENTRY *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm)
+{
+  return trp_rtable_get_selected_entry(trps->rtable, comm, realm);
+}
+
+/* mark a route as retracted */
+static TRP_RC trps_retract_route(TRPS_INSTANCE *trps, TRP_RENTRY *entry)
+{
+  trp_rentry_set_metric(entry, TRP_METRIC_INFINITY);
+}
+
+/* is this route retracted? */
+static int trps_route_retracted(TRPS_INSTANCE *trps, TRP_RENTRY *entry)
+{
+  return (trp_rentry_get_metric(entry)==TRP_METRIC_INFINITY);
+}
+
 static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MSG **msg)
 {
   int err=0;
   char *buf=NULL;
   size_t buflen = 0;
+  TR_NAME *peer=NULL
 
   tr_debug("trps_read_message: started");
   if (err = gsscon_read_encrypted_token(trp_connection_get_fd(conn),
@@ -182,8 +202,24 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   if (*msg==NULL)
     return TRP_NOPARSE;
 
-  /* fill in the next hop as the peer who just sent this to us */
-  trp_inforec_set_next_hop(*msg, trp_connection_get_peer(conn));
+  peer=trp_connection_get_peer(conn);
+  /* verify we received a message we support, otherwise drop it now */
+  switch (tr_msg_get_msg_type(*msg)) {
+  case TRP_UPDATE:
+    trp_upd_set_peer(tr_msg_get_trp_upd(msg), tr_name_dup(peer));
+    break;
+
+  case TRP_REQUEST:
+    trp_req_set_peer(tr_msg_get_trp_req(msg), tr_name_dup(peer));
+    break;
+
+  default:
+    tr_debug("trps_read_message: received unsupported message from %.*s", peer->len, peer->buf);
+    tr_msg_free_decoded(*msg);
+    *msg=NULL;
+    return TRP_UNSUPPORTED;
+  }
+  
   return TRP_SUCCESS;
 }
 
@@ -261,4 +297,206 @@ void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
 
   tr_debug("trps_handle_connection: connection closed.");
   talloc_free(tmp_ctx);
+}
+
+/* ensure that the update could be accepted if feasible */
+static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
+{
+  switch(trp_inforec_get_type(rec)) {
+  case TRP_INFOREC_TYPE_ROUTE:
+    if ((trp_inforec_get_comm(rec)==NULL)
+       || (trp_inforec_get_realm(rec)==NULL)
+       || (trp_inforec_get_trust_router(rec)==NULL)
+       || (trp_inforec_get_next_hop(rec)==NULL))
+      tr_debug("trps_validate_inforec: missing record info.");
+      return TRP_ERROR;
+
+    /* check for valid metric */
+    if ((trp_inforec_get_metric(rec)==TRP_METRIC_INVALID)
+       || (trp_inforec_get_metric(rec)>TRP_METRIC_INFINITY)) {
+      tr_debug("trps_validate_inforec: invalid metric.");
+      return TRP_ERROR;
+    }
+
+    /* check for valid interval */
+    if (trp_inforec_get_interval(rec)==TRP_INTERVAL_INVALID) {
+      tr_debug("trps_validate_inforec: invalid interval.");
+      return TRP_ERROR;
+    }
+    break;
+
+  default:
+    return TRP_UNSUPPORTED;
+  }
+
+  return TRP_SUCCESS;
+}
+
+/* link cost to a peer */
+static unsigned int trps_cost(TRPS_INSTANCE *trps, TR_NAME *peer)
+{
+  return 1;
+}
+
+static unsigned int trps_advertised_metric(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer)
+{
+  TRP_RENTRY *entry=trp_rtable_get_entry(trps->rtable, comm, realm, peer);
+  if (entry==NULL)
+    return TRP_METRIC_INFINITY;
+  return trp_rentry_get_metric(entry) + trps_cost(trps, peer);
+}
+
+/* returns TRP_SUCCESS if route is feasible, TRP_ERROR otherwise */
+static TRP_RC trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
+{
+  unsigned int rec_metric=trp_inforec_get_metric(rec);
+  unsigned int new_metric=0;
+  unsigned int current_metric=0;
+
+  /* we check these in the validation stage, but just in case... */
+  if ((rec_metric==TRP_METRIC_INVALID) || (rec_metric>TRP_METRIC_INFINITY))
+    return TRP_ERROR;
+
+  /* retractions (aka infinite metrics) are always feasible */
+  if (rec_metric==TRP_METRIC_INFINITY)
+    return TRP_SUCCESS;
+
+  /* updates from our current next hop are always feasible*/
+  if (0==tr_name_cmp(trp_inforec_get_next_hop(rec),
+                     trps_next_hop(trps,
+                                   trp_inforec_get_comm(rec),
+                                   trp_inforec_get_realm(rec)))) {
+    return TRP_SUCCESS;
+  }
+    
+
+  /* compare the existing metric we advertise to what we would advertise
+   * if we accept this update */
+  current_metric=trps_advertised_metric(trps,
+                                        trp_inforec_get_comm(rec),
+                                        trp_inforec_get_realm(rec),
+                                        trp_inforec_get_next_hop(rec));
+  new_metric=rec_metric + trps_cost(trps, trp_inforec_get_next_hop(rec));
+  if (new_metric <= current_metric)
+    return TRP_SUCCESS;
+  else
+    return TRP_ERROR;
+}
+
+/* uses memory pointed to by *ts, also returns that value */
+static void trps_compute_expiry(unsigned int interval, struct timespec *ts)
+{
+  const unsigned int small_factor=3; /* how many intervals we wait before expiring */
+  if (0!=clock_gettime(CLOCK_REALTIME, ts)) {
+    tr_error("trps_compute_expiry: could not read realtime clock.");
+    ts->tv_sec=0;
+    ts->tv_nsec=0;
+    return NULL;
+  }
+  ts->tv_sec += small_factor*interval;
+  return ts;
+}
+
+static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
+{
+  TRP_RENTRY *entry=NULL;
+
+  entry=trp_rtable_get_entry(trps->rtable,
+                             trp_inforec_get_comm(rec),
+                             trp_inforec_get_realm(rec),
+                             trp_inforec_get_next_hop(rec));
+  if (entry==NULL) {
+    entry=trp_rentry_new(NULL);
+    if (entry==NULL) {
+      tr_error("trps_accept_update: unable to allocate new entry.");
+      return TRP_NOMEM;
+    }
+
+    trp_rentry_set_apc(entry, tr_dup_name(trp_inforec_get_comm(rec)));
+    trp_rentry_set_realm(entry, tr_dup_name(trp_inforec_get_realm(rec)));
+    trp_rentry_set_peer(entry, tr_dup_name(trp_inforec_get_next_hop(rec)));
+    trp_rentry_set_trust_router(entry, tr_dup_name(trp_inforec_get_trust_router(rec)));
+    trp_rentry_set_next_hop(entry, tr_dup_name(trp_inforec_get_next_hop(rec)));
+    if ((trp_rentry_get_apc(entry)==NULL)
+       ||(trp_rentry_get_realm(entry)==NULL)
+       ||(trp_rentry_get_peer(entry)==NULL)
+       ||(trp_rentry_get_trust_router(entry)==NULL)
+       ||(trp_rentry_next_hop(entry)==NULL)) {
+      /* at least one field could not be allocated */
+      tr_error("trps_accept_update: unable to allocate all fields for entry.");
+      trp_rentry_free(entry);
+      return TRP_NOMEM;
+    }
+    trp_rtable_add(trps->rtable, entry);
+  }
+
+  /* We now have an entry in the table, whether it's new or not. Update metric and expiry, unless
+   * the metric is infinity. An infinite metric can only occur here if we just retracted an existing
+   * route (we never accept retractions as new routes), so there is no risk of leaving the expiry
+   * time unset on a new route entry. */
+  trp_rentry_set_metric(entry, trp_inforec_get_metric(rec));
+  if (!trps_route_retracted(trps, entry))
+    trp_rentry_set_expiry(entry, trps_compute_expiry(trps, trp_inforec_get_interval(rec)));
+  return TRP_SUCCESS;
+}
+
+/* TODO: handle community updates */
+static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
+{
+  unsigned int feas=0;
+  TRP_INFOREC *rec=trp_upd_get_inforec(upd);
+  TRP_RENTRY *route=NULL;
+
+  if (rec==NULL) {
+    tr_notice("trps_handle_update: received TRP update with no info records.");
+    return TRP_ERROR;
+  }
+
+  for (;rec!=NULL; rec=trp_inforec_get_next(rec)) {
+    /* validate/sanity check the update */
+    if (trps_validate_inforec(trps, upd) != TRP_SUCCESS) {
+      tr_notice("trps_handle_update: invalid record in TRP update.");
+      continue;
+    }
+
+    /* determine feasibility */
+    feas=trps_check_feasibility(trps, rec);
+
+    /* do we have an existing route? */
+    route=trps_get_route(trps, trp_inforec_get_comm(rec), trp_inforec_get_realm(rec));
+    if (route!=NULL) {
+      /* there was a route table entry already */
+      if (feas) {
+        /* Update is feasible. Accept it. */
+        trps_accept_update(trps, rec);
+      } else {
+        /* Update is infeasible. Ignore it unless the trust router has changed. */
+        if (0!=tr_name_cmp(trp_rentry_get_trust_router(route),
+                           trp_inforec_get_trust_router(rec))) {
+          /* the trust router associated with the route has changed, treat update as a retraction */
+          trps_retract_route(trps, route);
+        }
+      }
+    } else {
+      /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
+      if (feas && (trp_inforec_get_metric != TRP_METRIC_INFINITY))
+        trps_accept_update(trps, rec);
+    }
+  }
+  return TRP_SUCCESS;
+}
+
+TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg)
+{
+  switch (tr_msg_get_msg_type(tr_msg)) {
+  case TRP_UPDATE:
+    return trps_handle_update(TRPS_INSTANCE *trps, tr_msg_get_trp_upd(tr_msg));
+
+  case TRP_REQUEST:
+    return TRP_UNSUPPORTED;
+
+  default:
+    /* unknown error or one we don't care about (e.g., TID messages) */
+    return TRP_ERROR;
+  }
 }

@@ -500,13 +500,9 @@ TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME
 /* Gets a single entry. Do not free it. */
 TRP_RENTRY *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer)
 {
-  GHashTable *apc_tbl=NULL;
   GHashTable *realm_tbl=NULL;
   
-  apc_tbl=g_hash_table_lookup(rtbl, apc);
-  if (apc_tbl==NULL)
-    return NULL;
-  realm_tbl=g_hash_table_lookup(apc_tbl, realm);
+  realm_tbl=trp_rtable_get_realm_table(rtbl, apc, realm);
   if (realm_tbl==NULL)
     return NULL;
   return g_hash_table_lookup(realm_tbl, peer); /* does not copy or increment ref count */
@@ -529,6 +525,19 @@ static char *timespec_to_str(struct timespec *ts)
     return NULL;
   }
   return s;
+}
+
+TRP_RENTRY *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
+{
+  size_t n_entries=0;
+  TRP_RENTRY *entry=trp_rtable_get_realm_entries(rtbl, apc, realm, &n_entries);
+  if (n_entries==0)
+    return NULL;
+
+  while((entry!=NULL) && (!trp_rentry_get_selected(entry)))
+    entry=trp_rentry_get_next(entry);
+
+  return entry;
 }
 
 /* Pretty print a route table entry to a newly allocated string. If sep is NULL,
