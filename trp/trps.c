@@ -547,11 +547,64 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
   return TRP_SUCCESS;
 }
 
+/* TODO: think this through more carefully. At least ought to add hysteresis
+ * to avoid flapping between routers or routes. */
+static TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
+{
+  size_t n_apc=0, ii=0;
+  TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
+  size_t n_realm=0, jj=0;
+  TR_NAME **realm=NULL;
+  size_t n_entry=0, kk=0, kk_min=0;
+  TRP_RENTRY **entry=NULL, *cur_route=NULL;
+  unsigned int min_metric=0, cur_metric=0;
+  
+  
+  for (ii=0; ii<n_apc; ii++) {
+    realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm);
+    for (jj=0; jj<n_realm; jj++) {
+      entry=trp_rtable_get_realm_entries(trps->rtable, apc[ii], realm[jj], &n_entry);
+      for (kk=0,min_metric=TRP_METRIC_INFINITY; kk<n_entry; kk++) {
+        if (trp_rentry_get_metric(entry[kk]) < min_metric) {
+          kk_min=kk;
+          min_metric=trp_rentry_get_metric(entry[kk]);
+        }
+      }
+
+      cur_route=trps_get_selected_route(trps, apc[ii], realm[jj]);
+      if (cur_route!=NULL) {
+        cur_metric=trp_rentry_get_metric(cur_route);
+        if (min_metric < cur_metric) {
+          trp_rentry_set_selected(cur_route, 0);
+          trp_rentry_set_selected(entry[kk_min], 1);
+        } else if (cur_metric==TRP_METRIC_INFINITY)
+          trp_rentry_set_selected(cur_route, 0);
+      } else if (min_metric<TRP_METRIC_INFINITY)
+        trp_rentry_set_selected(entry[kk_min], 1);
+
+      talloc_free(entry);
+      entry=NULL; n_entry=0;
+    }
+    talloc_free(realm);
+    realm=NULL; n_realm=0;
+  }
+  talloc_free(apc);
+  apc=NULL; n_apc=0;
+
+  return TRP_SUCCESS;
+}
+
 TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg)
 {
+  TRP_RC rc=TRP_ERROR;
+
   switch (tr_msg_get_msg_type(tr_msg)) {
   case TRP_UPDATE:
-    return trps_handle_update(trps, tr_msg_get_trp_upd(tr_msg));
+    rc=trps_handle_update(trps, tr_msg_get_trp_upd(tr_msg));
+    if (rc==TRP_SUCCESS) {
+      rc=trps_update_active_routes(trps);
+    }
+    return rc;
 
   case TRP_REQUEST:
     return TRP_UNSUPPORTED;
