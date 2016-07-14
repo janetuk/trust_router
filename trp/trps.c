@@ -558,8 +558,7 @@ static TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
   size_t n_entry=0, kk=0, kk_min=0;
   TRP_RENTRY **entry=NULL, *cur_route=NULL;
   unsigned int min_metric=0, cur_metric=0;
-  
-  
+
   for (ii=0; ii<n_apc; ii++) {
     realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
