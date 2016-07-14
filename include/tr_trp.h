@@ -12,6 +12,7 @@
 typedef struct tr_trps_events {
   struct tr_socket_event *listen_ev;
   struct event *mq_ev;
+  struct event *sweep_ev;
 } TR_TRPS_EVENTS;
 
 /* prototypes */

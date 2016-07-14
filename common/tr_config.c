@@ -96,6 +96,7 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
   json_t *jlogthres = NULL;
   json_t *jcfgpoll = NULL;
   json_t *jcfgsettle = NULL;
+  json_t *jroutesweep = NULL;
 
   if ((!trc) || (!jcfg))
     return TR_CFG_BAD_PARAMS;
@@ -160,6 +161,14 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
 	trc->internal->cfg_settle_count = json_integer_value(jcfgsettle);
       } else {
 	tr_debug("tr_cfg_parse_internal: Parsing error, cfg_settle_count is not a number.");
+	return TR_CFG_NOPARSE;
+      }
+    }
+    if (NULL != (jroutesweep = json_object_get(jint, "route_sweep_interval"))) {
+      if (json_is_number(jroutesweep)) {
+	trc->internal->route_sweep_interval = json_integer_value(jroutesweep);
+      } else {
+	tr_debug("tr_cfg_parse_internal: Parsing error, route_sweep_interval is not a number.");
 	return TR_CFG_NOPARSE;
       }
     }

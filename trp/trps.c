@@ -488,10 +488,11 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
    * time unset on a new route entry. */
   tr_debug("trps_accept_update: accepting route update.");
   trp_rentry_set_metric(entry, trp_inforec_get_metric(rec));
+  trp_rentry_set_interval(entry, trp_inforec_get_interval(rec));
   if (!trps_route_retracted(trps, entry)) {
     tr_debug("trps_accept_update: route not retracted, setting expiry timer.");
     trp_rentry_set_expiry(entry, trps_compute_expiry(trps,
-                                                     trp_inforec_get_interval(rec),
+                                                     trp_rentry_get_interval(entry),
                                                      trp_rentry_get_expiry(entry)));
   }
   return TRP_SUCCESS;
@@ -612,4 +613,55 @@ TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg)
     /* unknown error or one we don't care about (e.g., TID messages) */
     return TRP_ERROR;
   }
+}
+
+/* true if curtime >= expiry */
+static int trps_expired(struct timespec *expiry, struct timespec *curtime)
+{
+  return ((curtime->tv_sec > expiry->tv_sec)
+         || ((curtime->tv_sec == expiry->tv_sec)
+            &&(curtime->tv_nsec > expiry->tv_nsec)));
+}
+
+/* Sweep for expired routes. For each expired route, if its metric is infinite, the route is flushed.
+ * If its metric is finite, the metric is set to infinite and the route's expiration time is updated. */
+TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
+{
+  struct timespec sweep_time={0,0};
+  TRP_RENTRY **entry=NULL;
+  size_t n_entry=0;
+  size_t ii=0;
+
+  /* use a single time for the entire sweep */
+  if (0!=clock_gettime(CLOCK_REALTIME, &sweep_time)) {
+    tr_err("trps_sweep_routes: could not read realtime clock.");
+    sweep_time.tv_sec=0;
+    sweep_time.tv_nsec=0;
+    return TRP_ERROR;
+  }
+
+  entry=trp_rtable_get_entries(trps->rtable, &n_entry); /* must talloc_free *entry */
+
+  /* loop over the entries */
+  for (ii=0; ii<n_entry; ii++) {
+    if (trps_expired(trp_rentry_get_expiry(entry[ii]), &sweep_time)) {
+      tr_debug("trps_sweep_routes: route expired.");
+      if (TRP_METRIC_INFINITY==trp_rentry_get_metric(entry[ii])) {
+        /* flush route */
+        tr_debug("trps_sweep_routes: metric was infinity, flushing route.");
+        trp_rtable_remove(trps->rtable, entry[ii]); /* entry[ii] is no longer valid */
+        entry[ii]=NULL;
+      } else {
+        /* set metric to infinity and reset timer */
+        tr_debug("trps_sweep_routes: setting metric to infinity and resetting expiry.");
+        trp_rentry_set_metric(entry[ii], TRP_METRIC_INFINITY);
+        trp_rentry_set_expiry(entry[ii], trps_compute_expiry(trps,
+                                                             trp_rentry_get_interval(entry[ii]),
+                                                             trp_rentry_get_expiry(entry[ii])));
+      }
+    }
+  }
+
+  talloc_free(entry);
+  return TRP_SUCCESS;
 }

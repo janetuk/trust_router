@@ -69,6 +69,7 @@ typedef struct tr_cfg_internal {
   int console_threshold;
   unsigned int cfg_poll_interval;
   unsigned int cfg_settle_count;
+  unsigned int route_sweep_interval;
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {

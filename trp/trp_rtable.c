@@ -37,6 +37,7 @@ TRP_RENTRY *trp_rentry_new(TALLOC_CTX *mem_ctx)
     entry->peer=NULL;
     entry->next_hop=NULL;
     entry->selected=0;
+    entry->interval=0;
     entry->expiry=talloc(entry, struct timespec);
     if (entry->expiry==NULL) {
       talloc_free(entry);
@@ -121,6 +122,16 @@ void trp_rentry_set_selected(TRP_RENTRY *entry, int sel)
 int trp_rentry_get_selected(TRP_RENTRY *entry)
 {
   return entry->selected;
+}
+
+void trp_rentry_set_interval(TRP_RENTRY *entry, int interval)
+{
+  entry->interval=interval;
+}
+
+int trp_rentry_get_interval(TRP_RENTRY *entry)
+{
+  return entry->interval;
 }
 
 /* copies incoming value, does not assume responsibility for freeing */

@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include <gsscon.h>
 #include <tr_rp.h>
@@ -195,11 +196,20 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   }
 }
 
+static void tr_trps_sweep(int listener, short event, void *arg)
+{
+  TRPS_INSTANCE *trps=talloc_get_type_abort(arg, TRPS_INSTANCE);
+  tr_debug("tr_trps_sweep: sweeping routes");
+  trps_sweep_routes(trps);
+}
+
 static int tr_trps_events_destructor(void *obj)
 {
   TR_TRPS_EVENTS *ev=talloc_get_type_abort(obj, TR_TRPS_EVENTS);
   if (ev->mq_ev!=NULL)
     event_free(ev->mq_ev);
+  if (ev->sweep_ev!=NULL)
+    event_free(ev->sweep_ev);
   return 0;
 }
 TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
@@ -208,6 +218,7 @@ TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
   if (ev!=NULL) {
     ev->listen_ev=talloc(ev, struct tr_socket_event);
     ev->mq_ev=NULL;
+    ev->sweep_ev=NULL;
     if (ev->listen_ev==NULL) {
       talloc_free(ev);
       ev=NULL;
@@ -227,6 +238,7 @@ TRP_RC tr_trps_event_init(struct event_base *base,
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_socket_event *listen_ev=NULL;
   struct tr_trps_event_cookie *cookie;
+  struct timeval two_secs={2, 0};
   TRP_RC retval=TRP_ERROR;
 
   if (trps_ev == NULL) {
@@ -279,6 +291,11 @@ TRP_RC tr_trps_event_init(struct event_base *base,
                            tr_trps_process_mq,
                            (void *)trps);
   tr_mq_set_notify_cb(trps->mq, tr_trps_mq_cb, trps_ev->mq_ev);
+
+  /* now set up the route table sweep timer event */
+  trps_ev->sweep_ev=event_new(base, -1, EV_TIMEOUT|EV_PERSIST, tr_trps_sweep, (void *)trps);
+  /* todo: event_add(trps_ev->sweep_ev, &(cfg_mgr->active->internal->route_sweep_interval)); */
+  event_add(trps_ev->sweep_ev, &two_secs);
 
   retval=TRP_SUCCESS;
 

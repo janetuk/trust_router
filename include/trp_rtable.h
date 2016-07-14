@@ -15,6 +15,7 @@ typedef struct trp_rentry {
   TR_NAME *trust_router;
   TR_NAME *next_hop;
   int selected;
+  unsigned int interval; /* interval from route update */
   struct timespec *expiry;
 } TRP_RENTRY;
 
@@ -52,6 +53,8 @@ void trp_rentry_set_next_hop(TRP_RENTRY *entry, TR_NAME *next_hop);
 TR_NAME *trp_rentry_get_next_hop(TRP_RENTRY *entry);
 void trp_rentry_set_selected(TRP_RENTRY *entry, int sel);
 int trp_rentry_get_selected(TRP_RENTRY *entry);
+void trp_rentry_set_interval(TRP_RENTRY *entry, int interval);
+int trp_rentry_get_interval(TRP_RENTRY *entry);
 void trp_rentry_set_expiry(TRP_RENTRY *entry, struct timespec *exp);
 TRP_RENTRY *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm);
 struct timespec *trp_rentry_get_expiry(TRP_RENTRY *entry);
