@@ -222,7 +222,7 @@ static void trps_retract_route(TRPS_INSTANCE *trps, TRP_RENTRY *entry)
 /* is this route retracted? */
 static int trps_route_retracted(TRPS_INSTANCE *trps, TRP_RENTRY *entry)
 {
-  return (trp_rentry_get_metric(entry)==TRP_METRIC_INFINITY);
+  return (trp_metric_is_infinite(trp_rentry_get_metric(entry)));
 }
 
 static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MSG **msg)
@@ -377,8 +377,7 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
     }
 
     /* check for valid metric */
-    if ((trp_inforec_get_metric(rec)==TRP_METRIC_INVALID)
-       || (trp_inforec_get_metric(rec)>TRP_METRIC_INFINITY)) {
+    if (trp_metric_is_valid(trp_inforec_get_metric(rec))) {
       tr_debug("trps_validate_inforec: invalid metric.");
       return TRP_ERROR;
     }
@@ -420,11 +419,11 @@ static int trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
   TR_NAME *next_hop=NULL;
 
   /* we check these in the validation stage, but just in case... */
-  if ((rec_metric==TRP_METRIC_INVALID) || (rec_metric>TRP_METRIC_INFINITY))
+  if (trp_metric_is_invalid(rec_metric))
     return 0;
 
   /* retractions (aka infinite metrics) are always feasible */
-  if (rec_metric==TRP_METRIC_INFINITY)
+  if (trp_metric_is_infinite(rec_metric))
     return 1;
 
   /* updates from our current next hop are always feasible*/
@@ -555,11 +554,38 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
     } else {
       /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
       tr_debug("trps_handle_update: no route entry exists yet.");
-      if (feas && (trp_inforec_get_metric(rec) != TRP_METRIC_INFINITY))
+      if (feas && trp_metric_is_finite(trp_inforec_get_metric(rec)))
         trps_accept_update(trps, rec);
     }
   }
   return TRP_SUCCESS;
+}
+
+/* choose the best route to comm/realm, optionally excluding routes to a particular peer */
+static TRP_RENTRY *trps_find_best_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TRP_PEER *exclude_peer)
+{
+  TRP_RENTRY **entry=NULL;
+  TRP_RENTRY *best=NULL;
+  size_t n_entry=0;
+  unsigned int kk=0;
+  unsigned int kk_min=0;
+  unsigned int min_metric=TRP_METRIC_INFINITY;
+
+  entry=trp_rtable_get_realm_entries(trps->rtable, comm, realm, &n_entry);
+  for (kk=0; kk<n_entry; kk++) {
+    if (trp_rentry_get_metric(entry[kk]) < min_metric) {
+      if ((exclude_peer==NULL) || (0!=tr_name_cmp(trp_rentry_get_peer(entry[kk]),
+                                                  trp_peer_get_gssname(exclude_peer)))) {
+        kk_min=kk;
+        min_metric=trp_rentry_get_metric(entry[kk]);
+      }
+    }
+  }
+  if (trp_metric_is_finite(min_metric));
+    best=entry[kk_min];
+  
+  talloc_free(entry);
+  return best;
 }
 
 /* TODO: think this through more carefully. At least ought to add hysteresis
@@ -570,39 +596,35 @@ static TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
   TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
   size_t n_realm=0, jj=0;
   TR_NAME **realm=NULL;
-  size_t n_entry=0, kk=0, kk_min=0;
-  TRP_RENTRY **entry=NULL, *cur_route=NULL;
-  unsigned int min_metric=0, cur_metric=0;
+  TRP_RENTRY *best_route=NULL, *cur_route=NULL;
+  unsigned int best_metric=0, cur_metric=0;
 
   for (ii=0; ii<n_apc; ii++) {
     realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
-      entry=trp_rtable_get_realm_entries(trps->rtable, apc[ii], realm[jj], &n_entry);
-      for (kk=0,min_metric=TRP_METRIC_INFINITY; kk<n_entry; kk++) {
-        if (trp_rentry_get_metric(entry[kk]) < min_metric) {
-          kk_min=kk;
-          min_metric=trp_rentry_get_metric(entry[kk]);
-        }
-      }
+      best_route=trps_find_best_route(trps, apc[ii], realm[jj]);
+      if (best_route==NULL)
+        min_metric=TRP_METRIC_INFINITY;
+      else
+        min_metric=trp_rentry_get_metric(best_route);
 
-      cur_route=trps_get_selected_route(trps, apc[ii], realm[jj]);
+      cur_route=trps_get_selected_route(trps, apc[ii], realm[jj], NULL);
       if (cur_route!=NULL) {
         cur_metric=trp_rentry_get_metric(cur_route);
-        if (min_metric < cur_metric) {
+        if ((min_metric < cur_metric) && (trp_metric_is_finite(min_metric))) {
           trp_rentry_set_selected(cur_route, 0);
-          trp_rentry_set_selected(entry[kk_min], 1);
-        } else if (cur_metric==TRP_METRIC_INFINITY)
+          trp_rentry_set_selected(best_route, 1);
+        } else if (!trp_metric_is_finite(cur_metric)) /* rejects infinite or invalid metrics */
           trp_rentry_set_selected(cur_route, 0);
-      } else if (min_metric<TRP_METRIC_INFINITY)
-        trp_rentry_set_selected(entry[kk_min], 1);
-
-      talloc_free(entry);
-      entry=NULL; n_entry=0;
+      } else if (trp_metric_is_finite(min_metric))
+        trp_rentry_set_selected(best_route, 1);
     }
-    talloc_free(realm);
+    if (realm!=NULL)
+      talloc_free(realm);
     realm=NULL; n_realm=0;
   }
-  talloc_free(apc);
+  if (apc!=NULL)
+    talloc_free(apc);
   apc=NULL; n_apc=0;
 
   return TRP_SUCCESS;
@@ -660,7 +682,7 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
   for (ii=0; ii<n_entry; ii++) {
     if (trps_expired(trp_rentry_get_expiry(entry[ii]), &sweep_time)) {
       tr_debug("trps_sweep_routes: route expired.");
-      if (TRP_METRIC_INFINITY==trp_rentry_get_metric(entry[ii])) {
+      if (!trp_metric_is_finite(trp_rentry_get_metric(entry[ii]))) {
         /* flush route */
         tr_debug("trps_sweep_routes: metric was infinity, flushing route.");
         trp_rtable_remove(trps->rtable, entry[ii]); /* entry[ii] is no longer valid */
@@ -678,6 +700,67 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 
   talloc_free(entry);
   return TRP_SUCCESS;
+}
+
+/* select the correct route to comm/realm to be announced to peer */
+static TRP_RENTRY trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME realm, TRP_PEER *peer)
+{
+  TRP_RENTRY *route;
+
+  /* Take the currently selected route unless it is through the peer we're sending the update to.
+   * I.e., enforce the split horizon rule. */
+  route=trp_rtable_get_selected_entry(trps->rtable, comm, realm);
+  if (0==tr_name_cmp(trp_peer_get_gssname(peer), trp_rentry_get_peer(route))) {
+    /* the selected entry goes through the peer we're reporting to, choose an alternate */
+    route=trps_find_best_route(trps, comm, realm, peer);
+    if (!trp_metric_is_finite(trp_rentry_get_metric(route)))
+      route=NULL; /* don't advertise a retracted route */
+  }
+  return route;
+}
+
+/* returns an array of pointers to updates (*not* an array of updates). Returns number of entries
+ * via n_update parameter. (The allocated space will generally be larger than required, see note in
+ * the code.) */
+TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trps, TRP_PEER *peer, size_t *n_update)
+{
+  size_t n_apc=0;
+  TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
+  TR_NAME **realm=NULL;
+  size_t n_realm=0;
+  size_t ii=0, jj=0;
+  TRP_RENTRY *best=NULL;
+  TRP_RENTRY **result=NULL;
+  size_t n_used=0;
+
+  /* Need to allocate space for the results. For simplicity, we just allocate a block
+   * with space for every route table entry to be returned. This is guaranteed to be large
+   * enough. If the routing table gets very large, this may be wasteful, but that seems
+   * unlikely to be significant in the near future. */
+  result=talloc_array(memctx, TRP_RENTRY, trp_rtable_size(trps->rtable));
+  if (result==NULL) {
+    talloc_free(apc);
+    return NULL;
+  }
+  
+  for (ii=0; ii<n_apc; ii++) {
+    realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm) {
+      for (jj=0; jj<n_realm; jj++) {
+        best=trps_select_realm_update(trps, apc[ii], realm[jj], peer);
+        if (best!=NULL)
+          result[n_used++]=best;
+      }
+    }
+    if (realm!=NULL)
+      talloc_free(realm);
+    realm=NULL;
+    n_realm=0;
+  }
+  if (apc!=NULL)
+    talloc_free(apc);
+
+  *n_update=n_used;
+  return result;
 }
 
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer)

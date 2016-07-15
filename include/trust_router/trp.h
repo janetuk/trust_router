@@ -6,6 +6,10 @@
 #define TRP_PORT 12310
 #define TRP_METRIC_INFINITY 0xFFFF
 #define TRP_METRIC_INVALID 0xFFFFFFFF
+#define trp_metric_is_finite(x) (((x)<TRP_METRIC_INFINITY) && ((x)!=TRP_METRIC_INVALID))
+#define trp_metric_is_infinite(x) ((x)==TRP_METRIC_INFINITY)
+#define trp_metric_is_valid(x) (((x)<=TRP_METRIC_INFINITY) && ((x)!=TRP_METRIC_INVALID))
+#define trp_metric_is_invalid(x) (((x)>TRP_METRIC_INFINITY) || ((x)==TRP_METRIC_INVALID))
 #define TRP_INTERVAL_INVALID 0
 
 typedef enum trp_rc {

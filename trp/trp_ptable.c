@@ -82,7 +82,6 @@ void trp_peer_set_linkcost(TRP_PEER *peer, unsigned int linkcost)
   peer->linkcost=linkcost;
 }
 
-
 TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx)
 {
   TRP_PTABLE *ptbl=talloc(memctx, TRP_PTABLE);
