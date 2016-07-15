@@ -7,6 +7,7 @@
 #include <tr_rp.h>
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
+#include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
 
@@ -28,20 +29,29 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
     trps->cookie=NULL;
     trps->conn=NULL;
     trps->trpc=NULL;
+
     trps->mq=tr_mq_new(trps);
     if (trps->mq==NULL) {
       /* failed to allocate mq */
       talloc_free(trps);
-      trps=NULL;
-    } else {
-      trps->rtable=trp_rtable_new();
-      if (trps->rtable==NULL) {
-        /* failed to allocate rtable */
-        talloc_free(trps);
-        trps=NULL;
-      } else
-        talloc_set_destructor((void *)trps, trps_destructor);
+      return NULL;
     }
+
+    trps->ptable=trp_ptable_new(trps);
+    if (trps->ptable==NULL) {
+      /* failed to allocate ptable */
+      talloc_free(trps);
+      return NULL;
+    }
+
+    trps->rtable=trp_rtable_new();
+    if (trps->rtable==NULL) {
+      /* failed to allocate rtable */
+      talloc_free(trps);
+      return NULL;
+    }
+
+    talloc_set_destructor((void *)trps, trps_destructor);
   }
   return trps;
 }
@@ -62,11 +72,15 @@ void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg)
   tr_mq_append(trps->mq, msg);
 }
 
-/* stand-in for a function that finds the connection for a particular peer */
 #if 0
-static TRP_CONNECTION *trps_find_connection(TRPS_INSTANCE *trps)
+static TRP_CONNECTION *trps_find_conn(TRPS_INSTANCE *trps, TR_NAME *peer_gssname)
 {
-  return trps->conn;
+  TRP_CONNECTION *cur=NULL;
+  for (cur=trps->conn; cur!=NULL; cur=trp_connection_get_next(cur)) {
+    if (0==tr_name_cmp(peer_gssname, trp_connection_get_gssname(cur)))
+      break;
+  }
+  return cur;
 }
 #endif
 
@@ -664,4 +678,9 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 
   talloc_free(entry);
   return TRP_SUCCESS;
+}
+
+TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer)
+{
+  return trp_ptable_add(trps->ptable, peer);
 }

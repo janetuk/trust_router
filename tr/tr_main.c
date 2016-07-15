@@ -50,6 +50,8 @@
 #include <tr_debug.h>
 
 #define TALLOC_DEBUG_ENABLE 1
+#define DEBUG_HARDCODED_PEER_TABLE 1
+#define DEBUG_PING_SELF 0
 
 /***** command-line option handling / setup *****/
 
@@ -272,6 +274,39 @@ int main(int argc, char *argv[])
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
+
+#if DEBUG_HARDCODED_PEER_TABLE
+  {
+    TRP_PEER *hc_peer=NULL;
+    char *s=NULL;
+
+    hc_peer=trp_peer_new(main_ctx); /* will later be stolen by ptable context */
+    if (hc_peer==NULL) {
+      tr_crit("Unable to allocate new peer. Aborting.");
+      return 1;
+    }
+    trp_peer_set_server(hc_peer, "epsilon.vmnet");
+    switch (tr->trps->port) {
+    case 10000:
+      trp_peer_set_port(hc_peer, 10001);
+      break;
+    case 10001:
+      trp_peer_set_port(hc_peer, 10000);
+      break;
+    default:
+      tr_crit("Cannot use hardcoded peer table with port other than 10000 or 10001.");
+      return 1;
+    }
+    if (TRP_SUCCESS != trps_add_peer(tr->trps, hc_peer)) {
+      tr_crit("Unable to add peer.");
+      return 1;
+    }
+
+    s=trp_ptable_to_str(main_ctx, tr->trps->ptable, NULL, NULL);
+    tr_debug("Peer Table:\n%s\n", s);
+    talloc_free(s);
+  }
+#endif /* DEBUG_HARDCODED_PEER_TABLE */
 
 #if DEBUG_PING_SELF
   /* for debugging, send a message to peers on a timer */

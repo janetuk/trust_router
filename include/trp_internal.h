@@ -8,6 +8,7 @@
 #include <trust_router/tr_dh.h>
 #include <tr_mq.h>
 #include <tr_msg.h>
+#include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <trust_router/trp.h>
 
@@ -91,7 +92,8 @@ struct trps_instance {
   void *cookie;
   TRP_CONNECTION *conn; /* connections from peers */
   TRPC_INSTANCE *trpc; /* connections to peers */
-  TR_MQ *mq;
+  TR_MQ *mq; /* incoming message queue */
+  TRP_PTABLE *ptable; /* peer table */
   TRP_RTABLE *rtable; /* route table */
 };
 
@@ -163,5 +165,6 @@ TRP_RENTRY *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, T
 TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps);
+TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
 
 #endif /* TRP_INTERNAL_H */

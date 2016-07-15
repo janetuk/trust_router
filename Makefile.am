@@ -22,6 +22,7 @@ trp_srcs = trp/trp_upd.c \
 trp/trp_req.c \
 trp/trp_conn.c \
 trp/trps.c \
+trp/trp_ptable.c \
 trp/trp_rtable.c
 
 check_PROGRAMS = common/t_constraint
