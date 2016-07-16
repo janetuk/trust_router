@@ -562,7 +562,7 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
 }
 
 /* choose the best route to comm/realm, optionally excluding routes to a particular peer */
-static TRP_RENTRY *trps_find_best_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TRP_PEER *exclude_peer)
+static TRP_RENTRY *trps_find_best_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *exclude_peer)
 {
   TRP_RENTRY **entry=NULL;
   TRP_RENTRY *best=NULL;
@@ -575,7 +575,7 @@ static TRP_RENTRY *trps_find_best_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_N
   for (kk=0; kk<n_entry; kk++) {
     if (trp_rentry_get_metric(entry[kk]) < min_metric) {
       if ((exclude_peer==NULL) || (0!=tr_name_cmp(trp_rentry_get_peer(entry[kk]),
-                                                  trp_peer_get_gssname(exclude_peer)))) {
+                                                  exclude_peer))) {
         kk_min=kk;
         min_metric=trp_rentry_get_metric(entry[kk]);
       }
@@ -602,21 +602,21 @@ static TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
   for (ii=0; ii<n_apc; ii++) {
     realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
-      best_route=trps_find_best_route(trps, apc[ii], realm[jj]);
+      best_route=trps_find_best_route(trps, apc[ii], realm[jj], NULL);
       if (best_route==NULL)
-        min_metric=TRP_METRIC_INFINITY;
+        best_metric=TRP_METRIC_INFINITY;
       else
-        min_metric=trp_rentry_get_metric(best_route);
+        best_metric=trp_rentry_get_metric(best_route);
 
-      cur_route=trps_get_selected_route(trps, apc[ii], realm[jj], NULL);
+      cur_route=trps_get_selected_route(trps, apc[ii], realm[jj]);
       if (cur_route!=NULL) {
         cur_metric=trp_rentry_get_metric(cur_route);
-        if ((min_metric < cur_metric) && (trp_metric_is_finite(min_metric))) {
+        if ((best_metric < cur_metric) && (trp_metric_is_finite(best_metric))) {
           trp_rentry_set_selected(cur_route, 0);
           trp_rentry_set_selected(best_route, 1);
         } else if (!trp_metric_is_finite(cur_metric)) /* rejects infinite or invalid metrics */
           trp_rentry_set_selected(cur_route, 0);
-      } else if (trp_metric_is_finite(min_metric))
+      } else if (trp_metric_is_finite(best_metric))
         trp_rentry_set_selected(best_route, 1);
     }
     if (realm!=NULL)
@@ -703,16 +703,16 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 }
 
 /* select the correct route to comm/realm to be announced to peer */
-static TRP_RENTRY trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME realm, TRP_PEER *peer)
+static TRP_RENTRY *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer_gssname)
 {
   TRP_RENTRY *route;
 
   /* Take the currently selected route unless it is through the peer we're sending the update to.
    * I.e., enforce the split horizon rule. */
   route=trp_rtable_get_selected_entry(trps->rtable, comm, realm);
-  if (0==tr_name_cmp(trp_peer_get_gssname(peer), trp_rentry_get_peer(route))) {
+  if (0==tr_name_cmp(peer_gssname, trp_rentry_get_peer(route))) {
     /* the selected entry goes through the peer we're reporting to, choose an alternate */
-    route=trps_find_best_route(trps, comm, realm, peer);
+    route=trps_find_best_route(trps, comm, realm, peer_gssname);
     if (!trp_metric_is_finite(trp_rentry_get_metric(route)))
       route=NULL; /* don't advertise a retracted route */
   }
@@ -722,7 +722,7 @@ static TRP_RENTRY trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, T
 /* returns an array of pointers to updates (*not* an array of updates). Returns number of entries
  * via n_update parameter. (The allocated space will generally be larger than required, see note in
  * the code.) */
-TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trps, TRP_PEER *peer, size_t *n_update)
+TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, size_t *n_update)
 {
   size_t n_apc=0;
   TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
@@ -737,19 +737,18 @@ TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trp
    * with space for every route table entry to be returned. This is guaranteed to be large
    * enough. If the routing table gets very large, this may be wasteful, but that seems
    * unlikely to be significant in the near future. */
-  result=talloc_array(memctx, TRP_RENTRY, trp_rtable_size(trps->rtable));
+  result=talloc_array(memctx, TRP_RENTRY *, trp_rtable_size(trps->rtable));
   if (result==NULL) {
     talloc_free(apc);
     return NULL;
   }
   
   for (ii=0; ii<n_apc; ii++) {
-    realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm) {
-      for (jj=0; jj<n_realm; jj++) {
-        best=trps_select_realm_update(trps, apc[ii], realm[jj], peer);
-        if (best!=NULL)
-          result[n_used++]=best;
-      }
+    realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm);
+    for (jj=0; jj<n_realm; jj++) {
+      best=trps_select_realm_update(trps, apc[ii], realm[jj], peer_gssname);
+      if (best!=NULL)
+        result[n_used++]=best;
     }
     if (realm!=NULL)
       talloc_free(realm);

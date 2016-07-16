@@ -166,5 +166,6 @@ TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME 
 TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps);
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
+TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, size_t *n_update);
 
 #endif /* TRP_INTERNAL_H */
