@@ -38,6 +38,7 @@ TR_EXPORT TRP_UPD *trp_upd_new(TALLOC_CTX *mem_ctx);
 void trp_upd_free(TRP_UPD *update);
 TR_EXPORT TRP_INFOREC *trp_upd_get_inforec(TRP_UPD *upd);
 void trp_upd_set_inforec(TRP_UPD *upd, TRP_INFOREC *rec);
+void trp_upd_add_inforec(TRP_UPD *upd, TRP_INFOREC *rec);
 TR_EXPORT TR_NAME *trp_upd_get_peer(TRP_UPD *upd);
 void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer);
 TR_EXPORT TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type);

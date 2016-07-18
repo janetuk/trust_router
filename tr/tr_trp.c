@@ -16,10 +16,11 @@
 #include <tr_trp.h>
 #include <tr_debug.h>
 
-/* hold a trps instance and a config manager */
+/* data for event callbacks */
 struct tr_trps_event_cookie {
   TRPS_INSTANCE *trps;
   TR_CFG_MGR *cfg_mgr;
+  struct event *ev;
 };
 
 /* callback to schedule event to process messages */
@@ -196,11 +197,27 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   }
 }
 
+static void tr_trps_update(int listener, short event, void *arg)
+{
+  struct tr_trps_event_cookie *cookie=talloc_get_type_abort(arg, struct tr_trps_event_cookie);
+  TRPS_INSTANCE *trps=cookie->trps;
+  struct event *ev=cookie->ev;
+
+  tr_debug("tr_trps_update: sending scheduled route updates.");
+  trps_scheduled_update(trps);
+  event_add(ev, &(trps->update_interval));
+}
+
 static void tr_trps_sweep(int listener, short event, void *arg)
 {
-  TRPS_INSTANCE *trps=talloc_get_type_abort(arg, TRPS_INSTANCE);
+  struct tr_trps_event_cookie *cookie=talloc_get_type_abort(arg, struct tr_trps_event_cookie);
+  TRPS_INSTANCE *trps=cookie->trps;
+  struct event *ev=cookie->ev;
+
   tr_debug("tr_trps_sweep: sweeping routes");
   trps_sweep_routes(trps);
+  /* schedule the event to run again */
+  event_add(ev, &(trps->sweep_interval));
 }
 
 static int tr_trps_events_destructor(void *obj)
@@ -218,6 +235,7 @@ TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
   if (ev!=NULL) {
     ev->listen_ev=talloc(ev, struct tr_socket_event);
     ev->mq_ev=NULL;
+    ev->update_ev=NULL;
     ev->sweep_ev=NULL;
     if (ev->listen_ev==NULL) {
       talloc_free(ev);
@@ -237,8 +255,9 @@ TRP_RC tr_trps_event_init(struct event_base *base,
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_socket_event *listen_ev=NULL;
-  struct tr_trps_event_cookie *cookie;
-  struct timeval two_secs={2, 0};
+  struct tr_trps_event_cookie *trps_cookie=NULL;
+  struct tr_trps_event_cookie *update_cookie=NULL;
+  struct tr_trps_event_cookie *sweep_cookie=NULL;
   TRP_RC retval=TRP_ERROR;
 
   if (trps_ev == NULL) {
@@ -252,15 +271,15 @@ TRP_RC tr_trps_event_init(struct event_base *base,
 
   /* Create the cookie for callbacks. It is part of the trps context, so it will
    * be cleaned up when trps is freed by talloc_free. */
-  cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
-  if (cookie == NULL) {
-    tr_debug("tr_trps_event_init: Unable to allocate cookie.");
+  trps_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
+  if (trps_cookie == NULL) {
+    tr_debug("tr_trps_event_init: Unable to allocate trps_cookie.");
     retval=TRP_NOMEM;
     goto cleanup;
   }
-  cookie->trps=trps;
-  cookie->cfg_mgr=cfg_mgr;
-  talloc_steal(trps, cookie);
+  trps_cookie->trps=trps;
+  trps_cookie->cfg_mgr=cfg_mgr;
+  talloc_steal(trps, trps_cookie);
 
   /* get a trps listener */
   listen_ev->sock_fd=trps_get_listener(trps,
@@ -268,12 +287,13 @@ TRP_RC tr_trps_event_init(struct event_base *base,
                                        tr_trps_gss_handler,
                                        cfg_mgr->active->internal->hostname,
                                        cfg_mgr->active->internal->trps_port,
-                                       (void *)cookie);
+                                       (void *)trps_cookie);
   if (listen_ev->sock_fd < 0) {
     tr_crit("Error opening TRP server socket.");
     retval=TRP_ERROR;
     goto cleanup;
   }
+  trps_cookie->ev=listen_ev->ev; /* in case it needs to frob the event */
   
   /* and its event */
   listen_ev->ev=event_new(base,
@@ -292,10 +312,33 @@ TRP_RC tr_trps_event_init(struct event_base *base,
                            (void *)trps);
   tr_mq_set_notify_cb(trps->mq, tr_trps_mq_cb, trps_ev->mq_ev);
 
+  /* now set up the route update timer event */
+  update_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
+  if (update_cookie == NULL) {
+    tr_debug("tr_trps_event_init: Unable to allocate update_cookie.");
+    retval=TRP_NOMEM;
+    goto cleanup;
+  }
+  update_cookie->trps=trps;
+  update_cookie->cfg_mgr=cfg_mgr;
+  talloc_steal(trps, update_cookie);
+  trps_ev->update_ev=event_new(base, -1, EV_TIMEOUT, tr_trps_update, (void *)update_cookie);
+  update_cookie->ev=trps_ev->update_ev; /* in case it needs to frob the event */
+  event_add(trps_ev->update_ev, &(trps->update_interval));
+
   /* now set up the route table sweep timer event */
-  trps_ev->sweep_ev=event_new(base, -1, EV_TIMEOUT|EV_PERSIST, tr_trps_sweep, (void *)trps);
-  /* todo: event_add(trps_ev->sweep_ev, &(cfg_mgr->active->internal->route_sweep_interval)); */
-  event_add(trps_ev->sweep_ev, &two_secs);
+  sweep_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
+  if (sweep_cookie == NULL) {
+    tr_debug("tr_trps_event_init: Unable to allocate sweep_cookie.");
+    retval=TRP_NOMEM;
+    goto cleanup;
+  }
+  sweep_cookie->trps=trps;
+  sweep_cookie->cfg_mgr=cfg_mgr;
+  talloc_steal(trps, sweep_cookie);
+  trps_ev->sweep_ev=event_new(base, -1, EV_TIMEOUT, tr_trps_sweep, (void *)sweep_cookie);
+  sweep_cookie->ev=trps_ev->sweep_ev; /* in case it needs to frob the event */
+  event_add(trps_ev->sweep_ev, &(trps->sweep_interval));
 
   retval=TRP_SUCCESS;
 
@@ -454,4 +497,13 @@ TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, const char *server, unsigne
  cleanup:
   talloc_free(tmp_ctx);
   return trpc;
+}
+
+/* Called by the config manager after a change to the active configuration.
+ * Updates configuration of objects that do not know about the config manager. */
+void tr_config_changed(TR_CFG *new_cfg, void *cookie)
+{
+  TRPS_INSTANCE *trps=talloc_get_type_abort(cookie, TRPS_INSTANCE);
+  trps_set_update_interval(trps, new_cfg->internal->route_update_interval);
+  trps_set_sweep_interval(trps, new_cfg->internal->route_sweep_interval);
 }

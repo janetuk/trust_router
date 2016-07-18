@@ -11,7 +11,7 @@ struct tr_fstat {
   struct timespec mtime;
 };
 
-struct tr_cfgwatch_data {
+typedef struct tr_cfgwatch_data {
   struct timeval poll_interval; /* how often should we check for updates? */
   struct timeval settling_time; /* how long should we wait for changes to settle before updating? */
   char *config_dir; /* what directory are we watching? */
@@ -20,8 +20,9 @@ struct tr_cfgwatch_data {
   int change_detected; /* have we detected a change? */
   struct timeval last_change_detected; /* when did we last note a changed mtime? */
   TR_CFG_MGR *cfg_mgr; /* what trust router config are we updating? */
-};
-typedef struct tr_cfgwatch_data TR_CFGWATCH;
+  void (*update_cb)(TR_CFG *new_cfg, void *cookie); /* callback after config updated */
+  void *update_cookie; /* data for the update_cb() */
+} TR_CFGWATCH;
 
 
 /* prototypes */

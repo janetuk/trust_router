@@ -18,11 +18,20 @@ typedef struct trp_ptable {
   TRP_PEER *head; /* head of a peer table list */
 } TRP_PTABLE;
 
+/* iterator for the peer table */
+typedef TRP_PEER *TRP_PTABLE_ITER;
+
 TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx);
 void trp_ptable_free(TRP_PTABLE *ptbl);
 TRP_RC trp_ptable_add(TRP_PTABLE *ptbl, TRP_PEER *newpeer);
 TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer);
+TRP_PEER *trp_ptable_find(TRP_PTABLE *ptbl, TR_NAME *gssname);
 char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, const char *lineterm);
+
+TRP_PTABLE_ITER *trp_ptable_iter_new(TALLOC_CTX *mem_ctx);
+TRP_PEER *trp_ptable_iter_first(TRP_PTABLE_ITER *iter, TRP_PTABLE *ptbl);
+TRP_PEER *trp_ptable_iter_next(TRP_PTABLE_ITER *iter);
+void trp_ptable_iter_free(TRP_PTABLE_ITER *iter);
 
 TRP_PEER *trp_peer_new(TALLOC_CTX *memctx);
 void trp_peer_free(TRP_PEER *peer);

@@ -109,6 +109,13 @@ TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec)
     return NULL;
 }
 
+static TRP_INFOREC *trp_inforec_get_tail(TRP_INFOREC *rec)
+{
+  while (rec!=NULL)
+    rec=trp_inforec_get_next(rec);
+  return rec;
+}
+
 void trp_inforec_set_next(TRP_INFOREC *rec, TRP_INFOREC *next_rec)
 {
   if (rec !=NULL)
@@ -376,6 +383,15 @@ void trp_upd_set_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
 {
   if (upd!=NULL)
     upd->records=rec;
+}
+
+void trp_upd_add_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
+{
+  if (upd->records==NULL)
+    upd->records=rec;
+  else
+    trp_inforec_set_next(trp_inforec_get_tail(upd->records), rec);
+  talloc_steal(upd, rec);
 }
 
 TR_NAME *trp_upd_get_peer(TRP_UPD *upd)

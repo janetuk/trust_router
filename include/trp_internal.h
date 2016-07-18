@@ -95,6 +95,8 @@ struct trps_instance {
   TR_MQ *mq; /* incoming message queue */
   TRP_PTABLE *ptable; /* peer table */
   TRP_RTABLE *rtable; /* route table */
+  struct timeval update_interval; /* interval between scheduled updates */
+  struct timeval sweep_interval; /* interval between route table sweeps */
 };
 
 
@@ -146,7 +148,11 @@ TRP_RC trpc_send_msg(TRPC_INSTANCE *trpc, const char *msg_content);
 
 TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx);
 void trps_free (TRPS_INSTANCE *trps);
-TRP_RC trps_send_msg (TRPS_INSTANCE *trps, void *peer, const char *msg);
+void trps_set_update_interval(TRPS_INSTANCE *trps, unsigned int interval);
+unsigned int trps_get_update_interval(TRPS_INSTANCE *trps);
+void trps_set_sweep_interval(TRPS_INSTANCE *trps, unsigned int interval);
+unsigned int trps_get_sweep_interval(TRPS_INSTANCE *trps);
+TRP_RC trps_send_msg (TRPS_INSTANCE *trps, TR_NAME *peer_gssname, const char *msg);
 void trps_add_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *new);
 void trps_remove_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *remove);
 void trps_add_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *trpc);
@@ -166,6 +172,7 @@ TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME 
 TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps);
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
-TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, size_t *n_update);
+TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname);
+TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps);
 
 #endif /* TRP_INTERNAL_H */

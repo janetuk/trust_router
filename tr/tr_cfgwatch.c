@@ -233,11 +233,14 @@ static void tr_cfgwatch_event_cb(int listener, short event, void *arg)
     }
     timersub(&now, &cfg_status->last_change_detected, &diff);
     if (!timercmp(&diff, &cfg_status->settling_time, <)) {
-      tr_notice("Configuration file change settled, updating configuration.");
+      tr_notice("Configuration file change settled, attempting to update configuration.");
       if (0 != tr_read_and_apply_config(cfg_status))
         tr_warning("Configuration file update failed. Using previous configuration.");
-      else
+      else {
+        if (cfg_status->update_cb!=NULL)
+          cfg_status->update_cb(cfg_status->cfg_mgr->active, cfg_status->update_cookie);
         tr_notice("Configuration updated successfully.");
+      }
       cfg_status->change_detected=0;
     }
   }

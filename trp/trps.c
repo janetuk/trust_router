@@ -2,6 +2,7 @@
 #include <talloc.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 #include <gsscon.h>
 #include <tr_rp.h>
@@ -29,6 +30,8 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
     trps->cookie=NULL;
     trps->conn=NULL;
     trps->trpc=NULL;
+    trps->update_interval=(struct timeval){0,0};
+    trps->sweep_interval=(struct timeval){0,0};
 
     trps->mq=tr_mq_new(trps);
     if (trps->mq==NULL) {
@@ -72,17 +75,39 @@ void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg)
   tr_mq_append(trps->mq, msg);
 }
 
-#if 0
-static TRP_CONNECTION *trps_find_conn(TRPS_INSTANCE *trps, TR_NAME *peer_gssname)
+unsigned int trps_get_update_interval(TRPS_INSTANCE *trps)
 {
-  TRP_CONNECTION *cur=NULL;
-  for (cur=trps->conn; cur!=NULL; cur=trp_connection_get_next(cur)) {
-    if (0==tr_name_cmp(peer_gssname, trp_connection_get_gssname(cur)))
+  return trps->update_interval.tv_sec;
+}
+
+void trps_set_update_interval(TRPS_INSTANCE *trps, unsigned int interval)
+{
+  trps->update_interval.tv_sec=interval;
+  trps->update_interval.tv_usec=0;
+}
+
+unsigned int trps_get_sweep_interval(TRPS_INSTANCE *trps)
+{
+  return trps->sweep_interval.tv_sec;
+}
+
+void trps_set_sweep_interval(TRPS_INSTANCE *trps, unsigned int interval)
+{
+  trps->sweep_interval.tv_sec=interval;
+  trps->sweep_interval.tv_usec=0;
+}
+
+static TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TR_NAME *peer_gssname)
+{
+  TRPC_INSTANCE *cur=NULL;
+  for (cur=trps->trpc; cur!=NULL; cur=trpc_get_next(cur)) {
+    if (0==tr_name_cmp(peer_gssname,
+                       trp_connection_get_gssname(trpc_get_conn(cur)))) {
       break;
+    }
   }
   return cur;
 }
-#endif
 
 void trps_add_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *new)
 {
@@ -118,26 +143,27 @@ void trps_remove_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *remove)
   trps->trpc=trpc_remove(trps->trpc, remove);
 }
 
-TRP_RC trps_send_msg (TRPS_INSTANCE *trps, void *peer, const char *msg)
+TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TR_NAME *peer_gssname, const char *msg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_MQ_MSG *mq_msg=NULL;
   char *msg_dup=NULL;
   TRP_RC rc=TRP_ERROR;
+  TRPC_INSTANCE *trpc=NULL;
 
-  /* Currently ignore peer and just send to an open connection.
-   * In reality, need to identify the correct peer and send via that
-   * one.  */
-  if (trps->trpc != NULL) {
-    if (trpc_get_status(trps->trpc)!=TRP_CONNECTION_UP)
-      tr_debug("trps_send_msg: skipping message sent while TRPC connection not up.");
-    else {
-      mq_msg=tr_mq_msg_new(tmp_ctx, "trpc_send");
-      msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
-      tr_mq_msg_set_payload(mq_msg, msg_dup, NULL); /* no need for a free() func */
-      trpc_mq_append(trps->trpc, mq_msg);
-      rc=TRP_SUCCESS;
-    }
+  /* get the connection for this peer */
+  trpc=trps_find_trpc(trps, peer_gssname);
+  if ((trpc==NULL) || (trpc_get_status(trps->trpc)!=TRP_CONNECTION_UP)) {
+    /* We could just let these sit on the queue in the hopes that a connection
+     * is eventually established. However, we'd then have to ensure the queue
+     * didn't keep growing, etc. */
+    tr_warning("trps_send_msg: skipping message queued while TRPC connection not up.");
+  } else {
+    mq_msg=tr_mq_msg_new(tmp_ctx, "trpc_send");
+    msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
+    tr_mq_msg_set_payload(mq_msg, msg_dup, NULL); /* no need for a free() func */
+    trpc_mq_append(trpc, mq_msg);
+    rc=TRP_SUCCESS;
   }
   talloc_free(tmp_ctx);
   return rc;
@@ -722,7 +748,7 @@ static TRP_RENTRY *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, 
 /* returns an array of pointers to updates (*not* an array of updates). Returns number of entries
  * via n_update parameter. (The allocated space will generally be larger than required, see note in
  * the code.) */
-TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, size_t *n_update)
+static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, size_t *n_update)
 {
   size_t n_apc=0;
   TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
@@ -762,7 +788,106 @@ TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trp
   return result;
 }
 
+/* convert an rentry into a new trp update info record */
+static TRP_INFOREC *trps_rentry_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TRP_RENTRY *entry)
+{
+  TRP_INFOREC *rec=trp_inforec_new(mem_ctx, TRP_INFOREC_TYPE_ROUTE);
+  unsigned int linkcost=0;
+
+  if (rec!=NULL) {
+    linkcost=trp_peer_get_linkcost(trps_get_peer(trps,
+                                                 trp_rentry_get_next_hop(entry)));
+
+    /* Note that we leave the next hop empty since the recipient fills that in.
+     * This is where we add the link cost (currently always 1) to the next peer. */
+    if ((trp_inforec_set_comm(rec, trp_rentry_get_apc(entry)) != TRP_SUCCESS)
+       ||(trp_inforec_set_realm(rec, trp_rentry_get_realm(entry)) != TRP_SUCCESS)
+       ||(trp_inforec_set_trust_router(rec, trp_rentry_get_trust_router(entry)) != TRP_SUCCESS)
+       ||(trp_inforec_set_metric(rec, trp_rentry_get_metric(entry)+linkcost) != TRP_SUCCESS)
+       ||(trp_inforec_set_interval(rec, trps_get_update_interval(trps)) != TRP_SUCCESS)) {
+      tr_err("trps_rentry_to_inforec: error creating route update.");
+      talloc_free(rec);
+      rec=NULL;
+    }
+  }
+  return rec;
+}
+
+TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRP_PTABLE_ITER *iter=trp_ptable_iter_new(tmp_ctx);
+  TRP_PEER *peer=NULL;
+  TR_MSG msg; /* not a pointer! */
+  TRP_UPD *upd=NULL;
+  TRP_RENTRY **update_list=NULL;
+  TRP_INFOREC *rec=NULL;
+  size_t n_updates=0, ii=0;
+  char *encoded=NULL;
+  TRP_RC rc=TRP_ERROR;
+
+  if (iter==NULL) {
+    tr_err("trps_scheduled_update: failed to allocate peer table iterator.");
+    talloc_free(tmp_ctx);
+    return TRP_NOMEM;
+  }
+
+  for (peer=trp_ptable_iter_first(iter, trps->ptable);
+       peer!=NULL;
+       peer=trp_ptable_iter_next(iter))
+  {
+    tr_debug("trps_scheduled_update: preparing scheduled route update for %.*%s",
+             trp_peer_get_gssname(peer)->len, trp_peer_get_gssname(peer)->buf);
+    upd=trp_upd_new(tmp_ctx);
+    /* do not fill in peer, recipient does that */
+    update_list=trps_select_updates_for_peer(tmp_ctx, trps, trp_peer_get_gssname(peer), &n_updates);
+    for (ii=0; ii<n_updates; ii++) {
+      rec=trps_rentry_to_inforec(tmp_ctx, trps, update_list[ii]);
+      if (rec==NULL) {
+        tr_err("trps_scheduled_update: could not create all update records.");
+        rc=TRP_ERROR;
+        goto cleanup;
+      }
+      trp_upd_add_inforec(upd, rec);
+    }
+    talloc_free(update_list);
+    update_list=NULL;
+
+    /* now encode the update message */
+    tr_msg_set_trp_upd(&msg, upd);
+    encoded=tr_msg_encode(&msg);
+    if (encoded==NULL) {
+      tr_err("trps_scheduled_update: error encoding update.");
+      rc=TRP_ERROR;
+      goto cleanup;
+    }
+    tr_debug("trps_scheduled_update: adding message to queue.");
+    if (trps_send_msg(trps, trp_peer_get_gssname(peer), encoded) != TRP_SUCCESS) {
+      tr_err("trps_scheduled_update: error queueing update.");
+      rc=TRP_ERROR;
+      tr_msg_free_encoded(encoded);
+      encoded=NULL;
+      goto cleanup;
+    }
+    tr_debug("trps_scheduled_update: message queued successfully.");
+    tr_msg_free_encoded(encoded);
+    encoded=NULL;
+    trp_upd_free(upd);
+    upd=NULL;
+  }
+  
+cleanup:
+  trp_ptable_iter_free(iter);
+  talloc_free(tmp_ctx);
+  return rc;
+}        
+
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   return trp_ptable_add(trps->ptable, peer);
+}
+
+TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname)
+{
+  return trp_ptable_find(trps->ptable, gssname);
 }

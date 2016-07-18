@@ -223,6 +223,8 @@ int main(int argc, char *argv[])
     tr_crit("Error reading configuration, exiting.");
     return 1;
   }
+  tr->cfgwatch->update_cb=tr_config_changed; /* handle configuration changes */
+  tr->cfgwatch->update_cookie=(void *)tr;
 
   /***** initialize the trust path query server instance *****/
   if (NULL == (tr->tids = tids_create (tr))) {

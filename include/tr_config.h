@@ -39,6 +39,7 @@
 #include <dirent.h>
 #include <jansson.h>
 #include <syslog.h>
+#include <sys/time.h>
 #include <talloc.h>
 
 #include <tr_comm.h>
@@ -70,6 +71,7 @@ typedef struct tr_cfg_internal {
   unsigned int cfg_poll_interval;
   unsigned int cfg_settle_count;
   unsigned int route_sweep_interval;
+  unsigned int route_update_interval;
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {

@@ -132,6 +132,14 @@ TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer)
   return TRP_ERROR;
 }
 
+TRP_PEER *trp_ptable_find(TRP_PTABLE *ptbl, TR_NAME *gssname)
+{
+  TRP_PEER *cur=ptbl->head;
+  while ((cur!=NULL) && (0 != tr_name_cmp(trp_peer_get_gssname(cur), gssname)))
+    cur=cur->next;
+  return cur;
+}
+
 char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep)
 {
   if (sep==NULL)
@@ -161,3 +169,29 @@ char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, c
   talloc_free(tmpctx); /* free detritus */
   return result;
 }
+
+TRP_PTABLE_ITER *trp_ptable_iter_new(TALLOC_CTX *mem_ctx)
+{
+  TRP_PTABLE_ITER *iter=talloc(mem_ctx, TRP_PTABLE_ITER);
+  *iter=NULL;
+  return iter;
+}
+
+TRP_PEER *trp_ptable_iter_first(TRP_PTABLE_ITER *iter, TRP_PTABLE *ptbl)
+{
+  *iter=ptbl->head;
+  return *iter;
+}
+
+TRP_PEER *trp_ptable_iter_next(TRP_PTABLE_ITER *iter)
+{
+  if ((*iter)->next!=NULL)
+    *iter=(*iter)->next;
+  return *iter;
+}
+
+void trp_ptable_iter_free(TRP_PTABLE_ITER *iter)
+{
+  talloc_free(iter);
+}
+
