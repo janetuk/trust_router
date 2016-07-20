@@ -1,6 +1,7 @@
 #ifndef _TRP_PTABLE_H_
 #define _TRP_PTABLE_H_
 
+#include <time.h>
 #include <talloc.h>
 
 #include <trust_router/tr_name.h>
@@ -8,10 +9,11 @@
 
 typedef struct trp_peer TRP_PEER;
 struct trp_peer {
+  TRP_PEER *next; /* for making a linked list */
   char *server;
   unsigned int port;
   unsigned int linkcost;
-  TRP_PEER *next; /* for making a linked list */
+  struct timespec last_conn_attempt;
 };
 
 typedef struct trp_ptable {
@@ -41,6 +43,8 @@ TR_NAME *trp_peer_get_gssname(TRP_PEER *peer);
 unsigned int trp_peer_get_port(TRP_PEER *peer);
 void trp_peer_set_port(TRP_PEER *peer, unsigned int port);
 unsigned int trp_peer_get_linkcost(TRP_PEER *peer);
+struct timespec *trp_peer_get_last_conn_attempt(TRP_PEER *peer);
+void trp_peer_set_last_conn_attempt(TRP_PEER *peer, struct timespec *time);
 void trp_peer_set_linkcost(TRP_PEER *peer, unsigned int linkcost);
 char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep);
 

@@ -20,6 +20,7 @@ typedef enum trp_rc {
   TRP_BADTYPE, /* typing error */
   TRP_UNSUPPORTED, /* unsupported feature */
   TRP_BADARG, /* bad argument */
+  TRP_CLOCKERR, /* error reading time */
 } TRP_RC;
 
 typedef enum trp_inforec_type {
@@ -48,12 +49,16 @@ void trp_inforec_set_next(TRP_INFOREC *rec, TRP_INFOREC *next_rec);
 TR_EXPORT TRP_INFOREC_TYPE trp_inforec_get_type(TRP_INFOREC *rec);
 void trp_inforec_set_type(TRP_INFOREC *rec, TRP_INFOREC_TYPE type);
 TR_EXPORT TR_NAME *trp_inforec_get_comm(TRP_INFOREC *rec);
+TR_EXPORT TR_NAME *trp_inforec_dup_comm(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_comm(TRP_INFOREC *rec, TR_NAME *comm);
 TR_EXPORT TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec);
+TR_EXPORT TR_NAME *trp_inforec_dup_realm(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_realm(TRP_INFOREC *rec, TR_NAME *realm);
 TR_EXPORT TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec);
+TR_EXPORT TR_NAME *trp_inforec_dup_trust_router(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router);
 TR_EXPORT TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec);
+TR_EXPORT TR_NAME *trp_inforec_dup_next_hop(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop);
 TR_EXPORT unsigned int trp_inforec_get_metric(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_metric(TRP_INFOREC *rec, unsigned int metric);

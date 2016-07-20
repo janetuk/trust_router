@@ -75,6 +75,17 @@ void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg)
   tr_mq_append(trps->mq, msg);
 }
 
+unsigned int trps_get_connect_interval(TRPS_INSTANCE *trps)
+{
+  return trps->connect_interval.tv_sec;
+}
+
+void trps_set_connect_interval(TRPS_INSTANCE *trps, unsigned int interval)
+{
+  trps->connect_interval.tv_sec=interval;
+  trps->connect_interval.tv_usec=0;
+}
+
 unsigned int trps_get_update_interval(TRPS_INSTANCE *trps)
 {
   return trps->update_interval.tv_sec;
@@ -97,15 +108,19 @@ void trps_set_sweep_interval(TRPS_INSTANCE *trps, unsigned int interval)
   trps->sweep_interval.tv_usec=0;
 }
 
-static TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TR_NAME *peer_gssname)
+TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   TRPC_INSTANCE *cur=NULL;
+  TR_NAME *name=NULL;
+  TR_NAME *peer_gssname=trp_peer_get_gssname(peer);
+
   for (cur=trps->trpc; cur!=NULL; cur=trpc_get_next(cur)) {
-    if (0==tr_name_cmp(peer_gssname,
-                       trp_connection_get_gssname(trpc_get_conn(cur)))) {
+    name=trpc_get_gssname(cur);
+    if ((name!=NULL) && (0==tr_name_cmp(peer_gssname, name))) {
       break;
     }
   }
+  tr_free_name(peer_gssname);
   return cur;
 }
 
@@ -143,7 +158,7 @@ void trps_remove_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *remove)
   trps->trpc=trpc_remove(trps->trpc, remove);
 }
 
-TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TR_NAME *peer_gssname, const char *msg)
+TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_MQ_MSG *mq_msg=NULL;
@@ -152,7 +167,7 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TR_NAME *peer_gssname, const char *msg
   TRPC_INSTANCE *trpc=NULL;
 
   /* get the connection for this peer */
-  trpc=trps_find_trpc(trps, peer_gssname);
+  trpc=trps_find_trpc(trps, peer);
   if ((trpc==NULL) || (trpc_get_status(trps->trpc)!=TRP_CONNECTION_UP)) {
     /* We could just let these sit on the queue in the hopes that a connection
      * is eventually established. However, we'd then have to ensure the queue
@@ -403,8 +418,8 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
     }
 
     /* check for valid metric */
-    if (trp_metric_is_valid(trp_inforec_get_metric(rec))) {
-      tr_debug("trps_validate_inforec: invalid metric.");
+    if (trp_metric_is_invalid(trp_inforec_get_metric(rec))) {
+      tr_debug("trps_validate_inforec: invalid metric (%u).", trp_inforec_get_metric(rec));
       return TRP_ERROR;
     }
 
@@ -766,6 +781,7 @@ static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTAN
   result=talloc_array(memctx, TRP_RENTRY *, trp_rtable_size(trps->rtable));
   if (result==NULL) {
     talloc_free(apc);
+    *n_update=0;
     return NULL;
   }
   
@@ -800,9 +816,9 @@ static TRP_INFOREC *trps_rentry_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *t
 
     /* Note that we leave the next hop empty since the recipient fills that in.
      * This is where we add the link cost (currently always 1) to the next peer. */
-    if ((trp_inforec_set_comm(rec, trp_rentry_get_apc(entry)) != TRP_SUCCESS)
-       ||(trp_inforec_set_realm(rec, trp_rentry_get_realm(entry)) != TRP_SUCCESS)
-       ||(trp_inforec_set_trust_router(rec, trp_rentry_get_trust_router(entry)) != TRP_SUCCESS)
+    if ((trp_inforec_set_comm(rec, trp_rentry_dup_apc(entry)) != TRP_SUCCESS)
+       ||(trp_inforec_set_realm(rec, trp_rentry_dup_realm(entry)) != TRP_SUCCESS)
+       ||(trp_inforec_set_trust_router(rec, trp_rentry_dup_trust_router(entry)) != TRP_SUCCESS)
        ||(trp_inforec_set_metric(rec, trp_rentry_get_metric(entry)+linkcost) != TRP_SUCCESS)
        ||(trp_inforec_set_interval(rec, trps_get_update_interval(trps)) != TRP_SUCCESS)) {
       tr_err("trps_rentry_to_inforec: error creating route update.");
@@ -825,6 +841,7 @@ TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
   size_t n_updates=0, ii=0;
   char *encoded=NULL;
   TRP_RC rc=TRP_ERROR;
+  TR_NAME *peer_gssname=NULL;
 
   if (iter==NULL) {
     tr_err("trps_scheduled_update: failed to allocate peer table iterator.");
@@ -836,44 +853,48 @@ TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
        peer!=NULL;
        peer=trp_ptable_iter_next(iter))
   {
-    tr_debug("trps_scheduled_update: preparing scheduled route update for %.*%s",
-             trp_peer_get_gssname(peer)->len, trp_peer_get_gssname(peer)->buf);
-    upd=trp_upd_new(tmp_ctx);
+    peer_gssname=trp_peer_get_gssname(peer);
+    tr_debug("trps_scheduled_update: preparing scheduled route update for %.*s",
+             peer_gssname->len, peer_gssname->buf);
     /* do not fill in peer, recipient does that */
-    update_list=trps_select_updates_for_peer(tmp_ctx, trps, trp_peer_get_gssname(peer), &n_updates);
-    for (ii=0; ii<n_updates; ii++) {
-      rec=trps_rentry_to_inforec(tmp_ctx, trps, update_list[ii]);
-      if (rec==NULL) {
-        tr_err("trps_scheduled_update: could not create all update records.");
+    update_list=trps_select_updates_for_peer(tmp_ctx, trps, peer_gssname, &n_updates);
+    tr_free_name(peer_gssname); peer_gssname=NULL;
+    if ((n_updates>0) && (update_list!=NULL)) {
+      tr_debug("trps_scheduled_update: sending %u update records.", (unsigned int)n_updates);
+      upd=trp_upd_new(tmp_ctx);
+
+      for (ii=0; ii<n_updates; ii++) {
+        rec=trps_rentry_to_inforec(tmp_ctx, trps, update_list[ii]);
+        if (rec==NULL) {
+          tr_err("trps_scheduled_update: could not create all update records.");
+          rc=TRP_ERROR;
+          goto cleanup;
+        }
+        trp_upd_add_inforec(upd, rec);
+      }
+      talloc_free(update_list);
+      update_list=NULL;
+
+      /* now encode the update message */
+      tr_msg_set_trp_upd(&msg, upd);
+      encoded=tr_msg_encode(&msg);
+      if (encoded==NULL) {
+        tr_err("trps_scheduled_update: error encoding update.");
         rc=TRP_ERROR;
         goto cleanup;
       }
-      trp_upd_add_inforec(upd, rec);
-    }
-    talloc_free(update_list);
-    update_list=NULL;
 
-    /* now encode the update message */
-    tr_msg_set_trp_upd(&msg, upd);
-    encoded=tr_msg_encode(&msg);
-    if (encoded==NULL) {
-      tr_err("trps_scheduled_update: error encoding update.");
-      rc=TRP_ERROR;
-      goto cleanup;
-    }
-    tr_debug("trps_scheduled_update: adding message to queue.");
-    if (trps_send_msg(trps, trp_peer_get_gssname(peer), encoded) != TRP_SUCCESS) {
-      tr_err("trps_scheduled_update: error queueing update.");
-      rc=TRP_ERROR;
-      tr_msg_free_encoded(encoded);
+      tr_debug("trps_scheduled_update: adding message to queue.");
+      if (trps_send_msg(trps, peer, encoded) != TRP_SUCCESS)
+        tr_err("trps_scheduled_update: error queueing update.");
+      else
+        tr_debug("trps_scheduled_update: update queued successfully.");
+
       encoded=NULL;
-      goto cleanup;
+      tr_msg_free_encoded(encoded);
+      trp_upd_free(upd);
+      upd=NULL;
     }
-    tr_debug("trps_scheduled_update: message queued successfully.");
-    tr_msg_free_encoded(encoded);
-    encoded=NULL;
-    trp_upd_free(upd);
-    upd=NULL;
   }
   
 cleanup:

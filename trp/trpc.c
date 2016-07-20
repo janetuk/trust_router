@@ -8,6 +8,13 @@
 #include <tr_debug.h>
 #include <trp_internal.h>
 
+static int trpc_destructor(void *object)
+{
+  TRPC_INSTANCE *trpc=talloc_get_type_abort(object, TRPC_INSTANCE);
+  if (trpc->gssname!=NULL)
+    tr_free_name(trpc->gssname);
+  return 0;
+}
 
 /* also allocates the incoming mq */
 TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
@@ -23,7 +30,9 @@ TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
     if (trpc->mq==NULL) {
       talloc_free(trpc);
       trpc=NULL;
-    }
+    } else
+      talloc_set_destructor((void *)trpc, trpc_destructor);
+    
   }
   return trpc;
 }
@@ -93,6 +102,17 @@ char *trpc_get_server(TRPC_INSTANCE *trpc)
 void trpc_set_server(TRPC_INSTANCE *trpc, char *server)
 {
   trpc->server=server;
+}
+
+TR_NAME *trpc_get_gssname(TRPC_INSTANCE *trpc)
+{
+  return trpc->gssname;
+}
+
+/* takes responsibility for freeing gssname */
+void trpc_set_gssname(TRPC_INSTANCE *trpc, TR_NAME *gssname)
+{
+  trpc->gssname=gssname;
 }
 
 unsigned int trpc_get_port(TRPC_INSTANCE *trpc)

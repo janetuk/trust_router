@@ -98,6 +98,7 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
   json_t *jcfgsettle = NULL;
   json_t *jroutesweep = NULL;
   json_t *jrouteupdate = NULL;
+  json_t *jrouteconnect = NULL;
 
   if ((!trc) || (!jcfg))
     return TR_CFG_BAD_PARAMS;
@@ -165,21 +166,41 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
 	return TR_CFG_NOPARSE;
       }
     }
-    if (NULL != (jroutesweep = json_object_get(jint, "route_sweep_interval"))) {
-      if (json_is_number(jroutesweep)) {
-	trc->internal->route_sweep_interval = json_integer_value(jroutesweep);
+
+    if (NULL != (jrouteconnect = json_object_get(jint, "trp_connect_interval"))) {
+      if (json_is_number(jrouteconnect)) {
+	trc->internal->trp_connect_interval = json_integer_value(jrouteconnect);
       } else {
-	tr_debug("tr_cfg_parse_internal: Parsing error, route_sweep_interval is not a number.");
+	tr_debug("tr_cfg_parse_internal: Parsing error, trp_connect_interval is not a number.");
 	return TR_CFG_NOPARSE;
       }
+    } else {
+      /* if not configured, use the default */
+      trc->internal->trp_connect_interval=TR_DEFAULT_TRP_CONNECT_INTERVAL;
     }
-    if (NULL != (jrouteupdate = json_object_get(jint, "route_update_interval"))) {
-      if (json_is_number(jrouteupdate)) {
-	trc->internal->route_update_interval = json_integer_value(jrouteupdate);
+
+    if (NULL != (jroutesweep = json_object_get(jint, "trp_sweep_interval"))) {
+      if (json_is_number(jroutesweep)) {
+	trc->internal->trp_sweep_interval = json_integer_value(jroutesweep);
       } else {
-	tr_debug("tr_cfg_parse_internal: Parsing error, route_update_interval is not a number.");
+	tr_debug("tr_cfg_parse_internal: Parsing error, trp_sweep_interval is not a number.");
 	return TR_CFG_NOPARSE;
       }
+    } else {
+      /* if not configured, use the default */
+      trc->internal->trp_sweep_interval=TR_DEFAULT_TRP_SWEEP_INTERVAL;
+    }
+
+    if (NULL != (jrouteupdate = json_object_get(jint, "trp_update_interval"))) {
+      if (json_is_number(jrouteupdate)) {
+	trc->internal->trp_update_interval = json_integer_value(jrouteupdate);
+      } else {
+	tr_debug("tr_cfg_parse_internal: Parsing error, trp_update_interval is not a number.");
+	return TR_CFG_NOPARSE;
+      }
+    } else {
+      /* if not configured, use the default */
+      trc->internal->trp_update_interval=TR_DEFAULT_TRP_UPDATE_INTERVAL;
     }
 
     if (NULL != (jlog = json_object_get(jint, "logging"))) {

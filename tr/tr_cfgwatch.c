@@ -195,6 +195,11 @@ int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
     retval=1; goto cleanup;
   }
 
+  /* call callback to notify system of new configuration */
+  tr_debug("tr_read_and_apply_config: calling update callback function.");
+  if (cfgwatch->update_cb!=NULL)
+    cfgwatch->update_cb(cfgwatch->cfg_mgr->active, cfgwatch->update_cookie);
+
   /* give ownership of the new_fstat_list to caller's context */
   if (cfgwatch->fstat_list != NULL) {
     /* free the old one */
@@ -236,11 +241,8 @@ static void tr_cfgwatch_event_cb(int listener, short event, void *arg)
       tr_notice("Configuration file change settled, attempting to update configuration.");
       if (0 != tr_read_and_apply_config(cfg_status))
         tr_warning("Configuration file update failed. Using previous configuration.");
-      else {
-        if (cfg_status->update_cb!=NULL)
-          cfg_status->update_cb(cfg_status->cfg_mgr->active, cfg_status->update_cookie);
+      else
         tr_notice("Configuration updated successfully.");
-      }
       cfg_status->change_detected=0;
     }
   }

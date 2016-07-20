@@ -1,3 +1,4 @@
+#include <time.h>
 #include <talloc.h>
 
 #include <trust_router/tr_name.h>
@@ -9,10 +10,11 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
 {
   TRP_PEER *peer=talloc(memctx, TRP_PEER);
   if (peer!=NULL) {
+    peer->next=NULL;
     peer->server=NULL;
     peer->port=0;
     peer->linkcost=TRP_METRIC_INFINITY;
-    peer->next=NULL;
+    peer->last_conn_attempt=(struct timespec){0,0};
   }
   return peer;
 }
@@ -68,7 +70,10 @@ void trp_peer_set_port(TRP_PEER *peer, unsigned int port)
 
 unsigned int trp_peer_get_linkcost(TRP_PEER *peer)
 {
-  return peer->linkcost;
+  if (peer!=NULL)
+    return peer->linkcost;
+  else
+    return 1;
 }
 
 void trp_peer_set_linkcost(TRP_PEER *peer, unsigned int linkcost)
@@ -80,6 +85,16 @@ void trp_peer_set_linkcost(TRP_PEER *peer, unsigned int linkcost)
     linkcost=TRP_METRIC_INFINITY;
   }
   peer->linkcost=linkcost;
+}
+
+struct timespec *trp_peer_get_last_conn_attempt(TRP_PEER *peer)
+{
+  return &(peer->last_conn_attempt);
+}
+
+void trp_peer_set_last_conn_attempt(TRP_PEER *peer, struct timespec *time)
+{
+  peer->last_conn_attempt=*time;
 }
 
 TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx)
@@ -185,8 +200,7 @@ TRP_PEER *trp_ptable_iter_first(TRP_PTABLE_ITER *iter, TRP_PTABLE *ptbl)
 
 TRP_PEER *trp_ptable_iter_next(TRP_PTABLE_ITER *iter)
 {
-  if ((*iter)->next!=NULL)
-    *iter=(*iter)->next;
+  *iter=(*iter)->next;
   return *iter;
 }
 

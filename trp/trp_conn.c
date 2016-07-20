@@ -224,6 +224,7 @@ TRP_CONNECTION *trp_connection_new(TALLOC_CTX *mem_ctx)
     trp_connection_set_gssname(new_conn, NULL);
     trp_connection_mutex_init(new_conn);
     trp_connection_set_status(new_conn, TRP_CONNECTION_DOWN);
+    new_conn->peer=NULL; /* no true set function for this */
     thread=talloc(new_conn, pthread_t);
     gssctx=talloc(new_conn, gss_ctx_id_t);
     if (gssctx==NULL) {
@@ -334,12 +335,12 @@ TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int 
                        "trustrouter",
                       &fd,
                        trp_connection_get_gssctx(conn));
-  tr_debug("trp_connection_initiate: connected");
-
   if (err) {
+    tr_debug("trp_connection_initiate: connection failed.");
     talloc_free(conn);
     return TRP_ERROR;
   } else {
+    tr_debug("trp_connection_initiate: connected.");
     trp_connection_set_fd(conn, fd);
     trp_connection_set_peer(conn);
     trp_connection_set_status(conn, TRP_CONNECTION_UP);

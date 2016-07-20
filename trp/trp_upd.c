@@ -111,7 +111,7 @@ TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec)
 
 static TRP_INFOREC *trp_inforec_get_tail(TRP_INFOREC *rec)
 {
-  while (rec!=NULL)
+  while ((rec->next)!=NULL)
     rec=trp_inforec_get_next(rec);
   return rec;
 }
@@ -149,6 +149,11 @@ TR_NAME *trp_inforec_get_comm(TRP_INFOREC *rec)
   return NULL;
 }
 
+TR_NAME *trp_inforec_dup_comm(TRP_INFOREC *rec)
+{
+  return tr_dup_name(trp_inforec_get_comm(rec));
+}
+
 TRP_RC trp_inforec_set_comm(TRP_INFOREC *rec, TR_NAME *comm)
 {
   switch (rec->type) {
@@ -175,6 +180,11 @@ TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec)
     break;
   }
   return NULL;
+}
+
+TR_NAME *trp_inforec_dup_realm(TRP_INFOREC *rec)
+{
+  return tr_dup_name(trp_inforec_get_realm(rec));
 }
 
 TRP_RC trp_inforec_set_realm(TRP_INFOREC *rec, TR_NAME *realm)
@@ -205,6 +215,11 @@ TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec)
   return NULL;
 }
 
+TR_NAME *trp_inforec_dup_trust_router(TRP_INFOREC *rec)
+{
+  return tr_dup_name(trp_inforec_get_trust_router(rec));
+}
+
 TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router)
 {
   switch (rec->type) {
@@ -231,6 +246,11 @@ TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec)
     break;
   }
   return NULL;
+}
+
+TR_NAME *trp_inforec_dup_next_hop(TRP_INFOREC *rec)
+{
+  return tr_dup_name(trp_inforec_get_next_hop(rec));
 }
 
 TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop)
@@ -387,6 +407,7 @@ void trp_upd_set_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
 
 void trp_upd_add_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
 {
+  tr_debug("trp_upd_add_inforec: adding record.");
   if (upd->records==NULL)
     upd->records=rec;
   else

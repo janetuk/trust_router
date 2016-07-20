@@ -64,6 +64,11 @@ TR_NAME *trp_rentry_get_apc(TRP_RENTRY *entry)
   return entry->apc;
 }
 
+TR_NAME *trp_rentry_dup_apc(TRP_RENTRY *entry)
+{
+  return tr_dup_name(trp_rentry_get_apc(entry));
+}
+
 void trp_rentry_set_realm(TRP_RENTRY *entry, TR_NAME *realm)
 {
   entry->realm=realm;
@@ -72,6 +77,11 @@ void trp_rentry_set_realm(TRP_RENTRY *entry, TR_NAME *realm)
 TR_NAME *trp_rentry_get_realm(TRP_RENTRY *entry)
 {
   return entry->realm;
+}
+
+TR_NAME *trp_rentry_dup_realm(TRP_RENTRY *entry)
+{
+  return tr_dup_name(trp_rentry_get_realm(entry));
 }
 
 void trp_rentry_set_trust_router(TRP_RENTRY *entry, TR_NAME *tr)
@@ -84,6 +94,11 @@ TR_NAME *trp_rentry_get_trust_router(TRP_RENTRY *entry)
   return entry->trust_router;
 }
 
+TR_NAME *trp_rentry_dup_trust_router(TRP_RENTRY *entry)
+{
+  return tr_dup_name(trp_rentry_get_trust_router(entry));
+}
+
 void trp_rentry_set_peer(TRP_RENTRY *entry, TR_NAME *peer)
 {
   entry->peer=peer;
@@ -92,6 +107,11 @@ void trp_rentry_set_peer(TRP_RENTRY *entry, TR_NAME *peer)
 TR_NAME *trp_rentry_get_peer(TRP_RENTRY *entry)
 {
   return entry->peer;
+}
+
+TR_NAME *trp_rentry_dup_peer(TRP_RENTRY *entry)
+{
+  return tr_dup_name(trp_rentry_get_peer(entry));
 }
 
 void trp_rentry_set_metric(TRP_RENTRY *entry, unsigned int metric)
@@ -112,6 +132,11 @@ void trp_rentry_set_next_hop(TRP_RENTRY *entry, TR_NAME *next_hop)
 TR_NAME *trp_rentry_get_next_hop(TRP_RENTRY *entry)
 {
   return entry->next_hop;
+}
+
+TR_NAME *trp_rentry_dup_next_hop(TRP_RENTRY *entry)
+{
+  return tr_dup_name(trp_rentry_get_next_hop(entry));
 }
 
 void trp_rentry_set_selected(TRP_RENTRY *entry, int sel)

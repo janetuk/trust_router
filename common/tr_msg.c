@@ -717,6 +717,7 @@ static json_t *tr_msg_encode_trp_upd(TRP_UPD *update)
   }
   json_object_set_new(jupdate, "records", jrecords); /* jrecords now a "borrowed" reference */
   for (rec=trp_upd_get_inforec(update); rec!=NULL; rec=trp_inforec_get_next(rec)) {
+    tr_debug("tr_msg_encode_trp_upd: encoding inforec.");
     jrec=tr_msg_encode_inforec(rec);
     if (jrec==NULL) {
       json_decref(jupdate); /* also decs jrecords and any elements */

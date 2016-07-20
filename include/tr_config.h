@@ -52,7 +52,9 @@
 #define TR_DEFAULT_TRPS_PORT 12310
 #define TR_DEFAULT_LOG_THRESHOLD LOG_INFO
 #define TR_DEFAULT_CONSOLE_THRESHOLD LOG_NOTICE
-
+#define TR_DEFAULT_TRP_CONNECT_INTERVAL 10
+#define TR_DEFAULT_TRP_UPDATE_INTERVAL 120
+#define TR_DEFAULT_TRP_SWEEP_INTERVAL 30
 typedef enum tr_cfg_rc {
   TR_CFG_SUCCESS = 0,	/* No error */
   TR_CFG_ERROR,		/* General processing error */
@@ -70,8 +72,9 @@ typedef struct tr_cfg_internal {
   int console_threshold;
   unsigned int cfg_poll_interval;
   unsigned int cfg_settle_count;
-  unsigned int route_sweep_interval;
-  unsigned int route_update_interval;
+  unsigned int trp_sweep_interval;
+  unsigned int trp_update_interval;
+  unsigned int trp_connect_interval;
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {

@@ -6,10 +6,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/time.h>
+#include <time.h>
 
 #include <gsscon.h>
 #include <tr_rp.h>
 #include <trp_internal.h>
+#include <trp_ptable.h>
+#include <trp_rtable.h>
 #include <tr_config.h>
 #include <tr_event.h>
 #include <tr_msg.h>
@@ -149,11 +152,33 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
   talloc_free(tmp_ctx);
 }
 
-static void tr_trps_cleanup_thread(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
+static void tr_trps_cleanup_conn(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
 {
   /* everything belonging to the thread is in the TRP_CONNECTION
    * associated with it */
   trps_remove_connection(trps, conn);
+  trp_connection_free(conn);
+  tr_debug("Deleted connection");
+}
+
+#if 0
+static void tr_trpc_abort(TRPC_INSTANCE *trpc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_MQ_MSG *msg=tr_mq_msg_new(tmp_ctx, "trpc_abort");
+  tr_mq_msg_set_payload(msg, (void *)conn, NULL); /* do not pass a free routine */
+  trpc_mq_append(msg); /* gives msg over to the queue to manage */
+  
+}
+#endif
+
+static void tr_trps_cleanup_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *trpc)
+{
+  /* everything belonging to the thread is in the TRP_CONNECTION
+   * associated with it */
+/*  tr_trpc_abort(trpc); */ /* tell trpc to abort */
+  trps_remove_trpc(trps, trpc);
+  trpc_free(trpc);
   tr_debug("Deleted connection");
 }
 
@@ -178,10 +203,17 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   while (msg!=NULL) {
     s=tr_mq_msg_get_message(msg);
     if (0==strcmp(s, "trps_thread_exit")) {
-      tr_trps_cleanup_thread(trps,
-                             talloc_get_type_abort(tr_mq_msg_get_payload(msg),
-                                                   TRP_CONNECTION));
+      tr_trps_cleanup_conn(trps,
+                           talloc_get_type_abort(tr_mq_msg_get_payload(msg),
+                                                 TRP_CONNECTION));
     }
+    else if (0==strcmp(s, "trpc_thread_exit")) {
+      /* trpc connection died */
+      tr_trps_cleanup_trpc(trps,
+                           talloc_get_type_abort(tr_mq_msg_get_payload(msg),
+                                                 TRPC_INSTANCE));
+    }
+
     else if (0==strcmp(s, "tr_msg")) {
       if (trps_handle_tr_msg(trps, tr_mq_msg_get_payload(msg))!=TRP_SUCCESS)
         tr_notice("tr_trps_process_mq: error handling message.");
@@ -214,10 +246,22 @@ static void tr_trps_sweep(int listener, short event, void *arg)
   TRPS_INSTANCE *trps=cookie->trps;
   struct event *ev=cookie->ev;
 
-  tr_debug("tr_trps_sweep: sweeping routes");
+  tr_debug("tr_trps_sweep: sweeping routes.");
   trps_sweep_routes(trps);
   /* schedule the event to run again */
   event_add(ev, &(trps->sweep_interval));
+}
+
+static void tr_connection_update(int listener, short event, void *arg)
+{
+  struct tr_trps_event_cookie *cookie=talloc_get_type_abort(arg, struct tr_trps_event_cookie);
+  TRPS_INSTANCE *trps=cookie->trps;
+  struct event *ev=cookie->ev;
+
+  tr_debug("tr_connection_update: checking peer connections.");
+  tr_connect_to_peers(trps);
+  /* schedule the event to run again */
+  event_add(ev, &(trps->connect_interval));
 }
 
 static int tr_trps_events_destructor(void *obj)
@@ -225,6 +269,10 @@ static int tr_trps_events_destructor(void *obj)
   TR_TRPS_EVENTS *ev=talloc_get_type_abort(obj, TR_TRPS_EVENTS);
   if (ev->mq_ev!=NULL)
     event_free(ev->mq_ev);
+  if (ev->connect_ev!=NULL)
+    event_free(ev->connect_ev);
+  if (ev->update_ev!=NULL)
+    event_free(ev->update_ev);
   if (ev->sweep_ev!=NULL)
     event_free(ev->sweep_ev);
   return 0;
@@ -235,6 +283,7 @@ TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
   if (ev!=NULL) {
     ev->listen_ev=talloc(ev, struct tr_socket_event);
     ev->mq_ev=NULL;
+    ev->connect_ev=NULL;
     ev->update_ev=NULL;
     ev->sweep_ev=NULL;
     if (ev->listen_ev==NULL) {
@@ -256,6 +305,7 @@ TRP_RC tr_trps_event_init(struct event_base *base,
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_socket_event *listen_ev=NULL;
   struct tr_trps_event_cookie *trps_cookie=NULL;
+  struct tr_trps_event_cookie *connection_cookie=NULL;
   struct tr_trps_event_cookie *update_cookie=NULL;
   struct tr_trps_event_cookie *sweep_cookie=NULL;
   TRP_RC retval=TRP_ERROR;
@@ -311,6 +361,20 @@ TRP_RC tr_trps_event_init(struct event_base *base,
                            tr_trps_process_mq,
                            (void *)trps);
   tr_mq_set_notify_cb(trps->mq, tr_trps_mq_cb, trps_ev->mq_ev);
+
+  /* now set up the peer connection timer event */
+  connection_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
+  if (connection_cookie == NULL) {
+    tr_debug("tr_trps_event_init: Unable to allocate connection_cookie.");
+    retval=TRP_NOMEM;
+    goto cleanup;
+  }
+  connection_cookie->trps=trps;
+  connection_cookie->cfg_mgr=cfg_mgr;
+  talloc_steal(trps, connection_cookie);
+  trps_ev->connect_ev=event_new(base, -1, EV_TIMEOUT, tr_connection_update, (void *)connection_cookie);
+  connection_cookie->ev=trps_ev->connect_ev; /* in case it needs to frob the event */
+  event_add(trps_ev->connect_ev, &(trps->connect_interval));
 
   /* now set up the route update timer event */
   update_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
@@ -451,7 +515,7 @@ static void *tr_trpc_thread(void *arg)
 }
 
 /* starts a trpc thread to connect to server:port */
-TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, const char *server, unsigned int port)
+TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRPC_INSTANCE *trpc=NULL;
@@ -472,8 +536,9 @@ TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, const char *server, unsigne
     goto cleanup;
   }
   trpc_set_conn(trpc, conn);
-  trpc_set_server(trpc, talloc_strdup(trpc, server));
-  trpc_set_port(trpc, port);
+  trpc_set_server(trpc, talloc_strdup(trpc, trp_peer_get_server(peer)));
+  trpc_set_port(trpc, trp_peer_get_port(peer));
+  trpc_set_gssname(trpc, trp_peer_get_gssname(peer));
   tr_debug("tr_trpc_initiate: allocated connection");
   
   /* start thread */
@@ -491,19 +556,68 @@ TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, const char *server, unsigne
   tr_debug("tr_trpc_initiate: started trpc thread");
   trps_add_trpc(trps, trpc);
 
-  talloc_report_full(trps, stderr);
-  talloc_report_full(tmp_ctx, stderr);
-
  cleanup:
   talloc_free(tmp_ctx);
   return trpc;
 }
+
+/* decide how often to attempt to connect to a peer */
+static int tr_conn_attempt_due(TRPS_INSTANCE *trps, TRP_PEER *peer, struct timespec *when)
+{
+  return 1; /* currently make an attempt every cycle */
+}
+
+/* open missing connections to peers */
+TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRP_PTABLE_ITER *iter=trp_ptable_iter_new(tmp_ctx);
+  TRP_PEER *peer=NULL;
+  TRPC_INSTANCE *trpc=NULL;
+  struct timespec curtime={0,0};
+  TRP_RC rc=TRP_ERROR;
+
+  if (clock_gettime(CLOCK_REALTIME, &curtime)) {
+    tr_err("tr_connect_to_peers: failed to read time.");
+    rc=TRP_CLOCKERR;
+    goto cleanup;
+  }
+
+  for (peer=trp_ptable_iter_first(iter, trps->ptable);
+       peer!=NULL;
+       peer=trp_ptable_iter_next(iter))
+  {
+    if (trps_find_trpc(trps, peer)==NULL) {
+      tr_debug("tr_connect_to_peers: %.*s missing connection.",
+               trp_peer_get_gssname(peer)->len, trp_peer_get_gssname(peer)->buf);
+      /* has it been long enough since we last tried? */
+      if (tr_conn_attempt_due(trps, peer, &curtime)) {
+        trp_peer_set_last_conn_attempt(peer, &curtime); /* we are trying again now */
+        trpc=tr_trpc_initiate(trps, peer);
+        if (trpc==NULL) {
+          tr_err("tr_connect_to_peers: unable to initiate TRP connection to %s:%u.",
+                 trp_peer_get_server(peer),
+                 trp_peer_get_port(peer));
+        }
+      }
+    }
+  }
+  rc=TRP_SUCCESS;
+    
+cleanup:
+  trp_ptable_iter_free(iter);
+  talloc_free(tmp_ctx);
+  return rc;
+}
+
 
 /* Called by the config manager after a change to the active configuration.
  * Updates configuration of objects that do not know about the config manager. */
 void tr_config_changed(TR_CFG *new_cfg, void *cookie)
 {
   TRPS_INSTANCE *trps=talloc_get_type_abort(cookie, TRPS_INSTANCE);
-  trps_set_update_interval(trps, new_cfg->internal->route_update_interval);
-  trps_set_sweep_interval(trps, new_cfg->internal->route_sweep_interval);
+  trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
+  trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
+  trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);
 }
+

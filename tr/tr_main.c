@@ -211,21 +211,6 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  /***** process configuration *****/
-  tr->cfgwatch=tr_cfgwatch_create(tr);
-  if (tr->cfgwatch == NULL) {
-    tr_crit("Unable to create configuration watcher object, exiting.");
-    return 1;
-  }
-  tr->cfgwatch->config_dir=opts.config_dir;
-  tr->cfgwatch->cfg_mgr=tr->cfg_mgr;
-  if (0 != tr_read_and_apply_config(tr->cfgwatch)) {
-    tr_crit("Error reading configuration, exiting.");
-    return 1;
-  }
-  tr->cfgwatch->update_cb=tr_config_changed; /* handle configuration changes */
-  tr->cfgwatch->update_cookie=(void *)tr;
-
   /***** initialize the trust path query server instance *****/
   if (NULL == (tr->tids = tids_create (tr))) {
     tr_crit("Error initializing Trust Path Query Server instance.");
@@ -235,6 +220,21 @@ int main(int argc, char *argv[])
   /***** initialize the trust router protocol server instance *****/
   if (NULL == (tr->trps = trps_new(tr))) {
     tr_crit("Error initializing Trust Router Protocol Server instance.");
+    return 1;
+  }
+
+  /***** process configuration *****/
+  tr->cfgwatch=tr_cfgwatch_create(tr);
+  if (tr->cfgwatch == NULL) {
+    tr_crit("Unable to create configuration watcher object, exiting.");
+    return 1;
+  }
+  tr->cfgwatch->config_dir=opts.config_dir;
+  tr->cfgwatch->cfg_mgr=tr->cfg_mgr;
+  tr->cfgwatch->update_cb=tr_config_changed; /* handle configuration changes */
+  tr->cfgwatch->update_cookie=(void *)(tr->trps);
+  if (0 != tr_read_and_apply_config(tr->cfgwatch)) {
+    tr_crit("Error reading configuration, exiting.");
     return 1;
   }
 

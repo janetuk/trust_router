@@ -76,6 +76,7 @@ typedef client_cb_fn TRP_AUTH_FUNC;
 typedef struct trpc_instance TRPC_INSTANCE;
 struct trpc_instance {
   TRPC_INSTANCE *next;
+  TR_NAME *gssname;
   char *server;
   unsigned int port;
   TRP_CONNECTION *conn;
@@ -95,6 +96,7 @@ struct trps_instance {
   TR_MQ *mq; /* incoming message queue */
   TRP_PTABLE *ptable; /* peer table */
   TRP_RTABLE *rtable; /* route table */
+  struct timeval connect_interval; /* interval between connection refreshes */
   struct timeval update_interval; /* interval between scheduled updates */
   struct timeval sweep_interval; /* interval between route table sweeps */
 };
@@ -132,6 +134,8 @@ TRPC_INSTANCE *trpc_remove(TRPC_INSTANCE *trpc, TRPC_INSTANCE *remove);
 void trpc_append(TRPC_INSTANCE *trpc, TRPC_INSTANCE *new);
 char *trpc_get_server(TRPC_INSTANCE *trpc);
 void trpc_set_server(TRPC_INSTANCE *trpc, char *server);
+TR_NAME *trpc_get_gssname(TRPC_INSTANCE *trpc);
+void trpc_set_gssname(TRPC_INSTANCE *trpc, TR_NAME *gssname);
 unsigned int trpc_get_port(TRPC_INSTANCE *trpc);
 void trpc_set_port(TRPC_INSTANCE *trpc, unsigned int port);
 DH *trpc_get_dh(TRPC_INSTANCE *trpc);
@@ -148,11 +152,14 @@ TRP_RC trpc_send_msg(TRPC_INSTANCE *trpc, const char *msg_content);
 
 TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx);
 void trps_free (TRPS_INSTANCE *trps);
+void trps_set_connect_interval(TRPS_INSTANCE *trps, unsigned int interval);
+unsigned int trps_get_connect_interval(TRPS_INSTANCE *trps);
 void trps_set_update_interval(TRPS_INSTANCE *trps, unsigned int interval);
 unsigned int trps_get_update_interval(TRPS_INSTANCE *trps);
 void trps_set_sweep_interval(TRPS_INSTANCE *trps, unsigned int interval);
 unsigned int trps_get_sweep_interval(TRPS_INSTANCE *trps);
-TRP_RC trps_send_msg (TRPS_INSTANCE *trps, TR_NAME *peer_gssname, const char *msg);
+TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TRP_PEER *peer);
+TRP_RC trps_send_msg (TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg);
 void trps_add_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *new);
 void trps_remove_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *remove);
 void trps_add_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *trpc);
