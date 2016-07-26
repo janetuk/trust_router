@@ -3,7 +3,7 @@
 
 #include <talloc.h>
 
-#define TRP_PORT 12310
+#define TRP_PORT 12308
 #define TRP_METRIC_INFINITY 0xFFFF
 #define TRP_METRIC_INVALID 0xFFFFFFFF
 #define trp_metric_is_finite(x) (((x)<TRP_METRIC_INFINITY) && ((x)!=TRP_METRIC_INVALID))
