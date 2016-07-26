@@ -53,6 +53,7 @@ typedef struct trps_instance TRPS_INSTANCE;
 typedef enum trp_connection_status {
   TRP_CONNECTION_DOWN=0,
   TRP_CONNECTION_UP,
+  TRP_CONNECTION_UNKNOWN,
 } TRP_CONNECTION_STATUS;
 
 typedef struct trp_connection TRP_CONNECTION;
@@ -65,6 +66,8 @@ struct trp_connection {
   TR_NAME *peer;
   gss_ctx_id_t *gssctx;
   TRP_CONNECTION_STATUS status;
+  void (*status_change_cb)(TRP_CONNECTION *conn, void *cookie);
+  void *status_change_cookie;
 };
 
 typedef TRP_RC (*TRPS_MSG_FUNC)(TRPS_INSTANCE *, TRP_CONNECTION *, TR_MSG *);
@@ -152,6 +155,8 @@ TRP_RC trpc_send_msg(TRPC_INSTANCE *trpc, const char *msg_content);
 
 TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx);
 void trps_free (TRPS_INSTANCE *trps);
+TRP_RC trps_init_rtable(TRPS_INSTANCE *trps);
+void trps_clear_rtable(TRPS_INSTANCE *trps);
 void trps_set_connect_interval(TRPS_INSTANCE *trps, unsigned int interval);
 unsigned int trps_get_connect_interval(TRPS_INSTANCE *trps);
 void trps_set_update_interval(TRPS_INSTANCE *trps, unsigned int interval);
@@ -173,11 +178,13 @@ int trps_get_listener(TRPS_INSTANCE *trps,
 TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps);
 void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
 void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn);
+TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps);
 TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg);
 TRP_RENTRY *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer);
 TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps);
+TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_RENTRY *route);
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
 TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname);
 TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps);

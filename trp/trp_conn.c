@@ -117,7 +117,7 @@ void trp_connection_set_gssctx(TRP_CONNECTION *conn, gss_ctx_id_t *gssctx)
 
 TRP_CONNECTION_STATUS trp_connection_get_status(TRP_CONNECTION *conn)
 {
-  TRP_CONNECTION_STATUS status;
+  TRP_CONNECTION_STATUS status=TRP_CONNECTION_UNKNOWN;
   trp_connection_lock(conn);
   status=conn->status;
   trp_connection_unlock(conn);
@@ -126,9 +126,13 @@ TRP_CONNECTION_STATUS trp_connection_get_status(TRP_CONNECTION *conn)
 
 static void trp_connection_set_status(TRP_CONNECTION *conn, TRP_CONNECTION_STATUS status)
 {
+  TRP_CONNECTION_STATUS old_status=TRP_CONNECTION_UNKNOWN;
   trp_connection_lock(conn);
+  old_status=conn->status;
   conn->status=status;
   trp_connection_unlock(conn);
+  if ((status!=old_status) && (conn->status_change_cb!=NULL))
+      conn->status_change_cb(conn, conn->status_change_cookie);
 }
 
 pthread_t *trp_connection_get_thread(TRP_CONNECTION *conn)
@@ -223,20 +227,24 @@ TRP_CONNECTION *trp_connection_new(TALLOC_CTX *mem_ctx)
     trp_connection_set_fd(new_conn, -1);
     trp_connection_set_gssname(new_conn, NULL);
     trp_connection_mutex_init(new_conn);
-    trp_connection_set_status(new_conn, TRP_CONNECTION_DOWN);
     new_conn->peer=NULL; /* no true set function for this */
+    new_conn->status_change_cb=NULL;
+    new_conn->status_change_cookie=NULL;
+    new_conn->status=TRP_CONNECTION_DOWN; /* set directly in the constructor */
+
     thread=talloc(new_conn, pthread_t);
+    if (thread==NULL) {
+      talloc_free(new_conn);
+      return NULL;
+    }
+    trp_connection_set_thread(new_conn, thread);
+
     gssctx=talloc(new_conn, gss_ctx_id_t);
     if (gssctx==NULL) {
       talloc_free(new_conn);
       return NULL;
     }
     trp_connection_set_gssctx(new_conn, gssctx);
-    if (thread==NULL) {
-      talloc_free(new_conn);
-      return NULL;
-    }
-    trp_connection_set_thread(new_conn, thread);
     talloc_set_destructor((void *)new_conn, trp_connection_destructor);
   }
   return new_conn;

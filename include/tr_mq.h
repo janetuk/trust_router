@@ -25,6 +25,9 @@ struct tr_mq {
   void *notify_cb_arg;
 };
 
+/* message string for sending trpc messages */
+#define TR_MQMSG_TRPC_SEND "trpc send msg"
+
 TR_MQ_MSG *tr_mq_msg_new(TALLOC_CTX *mem_ctx, const char *msg);
 void tr_mq_msg_free(TR_MQ_MSG *msg);
 const char *tr_mq_msg_get_message(TR_MQ_MSG *msg);

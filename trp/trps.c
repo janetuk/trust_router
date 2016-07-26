@@ -47,8 +47,8 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
       return NULL;
     }
 
-    trps->rtable=trp_rtable_new();
-    if (trps->rtable==NULL) {
+    trps->rtable=NULL;
+    if (trps_init_rtable(trps) != TRP_SUCCESS) {
       /* failed to allocate rtable */
       talloc_free(trps);
       return NULL;
@@ -57,6 +57,26 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
     talloc_set_destructor((void *)trps, trps_destructor);
   }
   return trps;
+}
+
+/* create a new route table, first discarding an old one if necessary */
+TRP_RC trps_init_rtable(TRPS_INSTANCE *trps)
+{
+  if (trps->rtable != NULL) {
+    trp_rtable_free(trps->rtable);
+    trps->rtable=NULL;
+  }
+
+  trps->rtable=trp_rtable_new();
+  if (trps->rtable==NULL) {
+    return TRP_NOMEM;
+  }
+  return TRP_SUCCESS;
+}
+
+void trps_clear_rtable(TRPS_INSTANCE *trps)
+{
+  trp_rtable_clear(trps->rtable);
 }
 
 void trps_free (TRPS_INSTANCE *trps)
@@ -174,7 +194,7 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
      * didn't keep growing, etc. */
     tr_warning("trps_send_msg: skipping message queued while TRPC connection not up.");
   } else {
-    mq_msg=tr_mq_msg_new(tmp_ctx, "trpc_send");
+    mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND);
     msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
     tr_mq_msg_set_payload(mq_msg, msg_dup, NULL); /* no need for a free() func */
     trpc_mq_append(trpc, mq_msg);
@@ -631,7 +651,7 @@ static TRP_RENTRY *trps_find_best_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_N
 
 /* TODO: think this through more carefully. At least ought to add hysteresis
  * to avoid flapping between routers or routes. */
-static TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
+TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
 {
   size_t n_apc=0, ii=0;
   TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
@@ -751,11 +771,16 @@ static TRP_RENTRY *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, 
   /* Take the currently selected route unless it is through the peer we're sending the update to.
    * I.e., enforce the split horizon rule. */
   route=trp_rtable_get_selected_entry(trps->rtable, comm, realm);
+  if (route==NULL) {
+    /* No selected route, this should only happen if the only route has been retracted,
+     * in which case we do not want to advertise it. */
+    return NULL;
+  }
   if (0==tr_name_cmp(peer_gssname, trp_rentry_get_peer(route))) {
     /* the selected entry goes through the peer we're reporting to, choose an alternate */
     route=trps_find_best_route(trps, comm, realm, peer_gssname);
-    if (!trp_metric_is_finite(trp_rentry_get_metric(route)))
-      route=NULL; /* don't advertise a retracted route */
+    if ((route==NULL) || (!trp_metric_is_finite(trp_rentry_get_metric(route))))
+      route=NULL; /* don't advertise a nonexistent or retracted route */
   }
   return route;
 }
@@ -902,6 +927,12 @@ cleanup:
   talloc_free(tmp_ctx);
   return rc;
 }        
+
+TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_RENTRY *route)
+{
+  trp_rtable_add(trps->rtable, route); /* should return status */
+  return TRP_SUCCESS; 
+}
 
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {

@@ -25,6 +25,7 @@ TRP_RTABLE *trp_rtable_new(void);
 void trp_rtable_free(TRP_RTABLE *rtbl);
 void trp_rtable_add(TRP_RTABLE *rtbl, TRP_RENTRY *entry); /* adds or updates */
 void trp_rtable_remove(TRP_RTABLE *rtbl, TRP_RENTRY *entry);
+void trp_rtable_clear(TRP_RTABLE *rtbl);
 size_t trp_rtable_size(TRP_RTABLE *rtbl);
 size_t trp_rtable_apc_size(TRP_RTABLE *rtbl, TR_NAME *apc);
 size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm);

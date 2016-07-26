@@ -255,6 +255,8 @@ void trp_rtable_add(TRP_RTABLE *rtbl, TRP_RENTRY *entry)
   apc_tbl=trp_rtbl_get_or_add_table(rtbl, entry->apc, trp_rtable_destroy_table);
   realm_tbl=trp_rtbl_get_or_add_table(apc_tbl, entry->realm, trp_rtable_destroy_rentry);
   g_hash_table_insert(realm_tbl, tr_dup_name(entry->peer), entry); /* destroys and replaces a duplicate */
+  /* the route entry should not belong to any context, we will manage it ourselves */
+  talloc_steal(NULL, entry);
 }
 
 /* note: the entry pointer passed in is invalid after calling this because the entry is freed */
@@ -279,6 +281,11 @@ void trp_rtable_remove(TRP_RTABLE *rtbl, TRP_RENTRY *entry)
   /* if that was the last realm in the apc, remove the apc table */
   if (g_hash_table_size(apc_tbl)==0)
     g_hash_table_remove(rtbl, entry->apc);
+}
+
+void trp_rtable_clear(TRP_RTABLE *rtbl)
+{
+  g_hash_table_remove_all(rtbl); /* destructors should do all the cleanup */
 }
 
 /* gets the actual hash table, for internal use only */
@@ -537,10 +544,11 @@ TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME
 TRP_RENTRY *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer)
 {
   GHashTable *realm_tbl=NULL;
-  
+
   realm_tbl=trp_rtable_get_realm_table(rtbl, apc, realm);
   if (realm_tbl==NULL)
     return NULL;
+
   return g_hash_table_lookup(realm_tbl, peer); /* does not copy or increment ref count */
 }
 
