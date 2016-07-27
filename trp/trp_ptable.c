@@ -6,15 +6,24 @@
 #include <trp_ptable.h>
 #include <tr_debug.h>
 
+static int trp_peer_destructor(void *object)
+{
+  TRP_PEER *peer=talloc_get_type_abort(object, TRP_PEER);
+  if (peer->gssname!=NULL)
+    tr_free_name(peer->gssname);
+  return 0;
+}
 TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
 {
   TRP_PEER *peer=talloc(memctx, TRP_PEER);
   if (peer!=NULL) {
     peer->next=NULL;
     peer->server=NULL;
+    peer->gssname=NULL;
     peer->port=0;
     peer->linkcost=TRP_METRIC_INFINITY;
     peer->last_conn_attempt=(struct timespec){0,0};
+    talloc_set_destructor((void *)peer, trp_peer_destructor);
   }
   return peer;
 }
@@ -43,19 +52,21 @@ void trp_peer_set_server(TRP_PEER *peer, char *server)
   peer->server=talloc_strdup(peer, server); /* will be null on error */
 }
 
-/* get the peer name based on the server name; caller is responsible for freeing the TR_NAME */
+void trp_peer_set_gssname(TRP_PEER *peer, TR_NAME *gssname)
+{
+  peer->gssname=gssname;
+}
+
+/* get the peer gssname, caller must not free the result */
 TR_NAME *trp_peer_get_gssname(TRP_PEER *peer)
 {
-  TR_NAME *gssname=NULL;
-  char *s=NULL;
+  return peer->gssname;
+}
 
-  if (0<asprintf(&s, "trustrouter@%s", peer->server)) {
-    if (tr_new_name(s)!=NULL) {
-      gssname=tr_new_name(s);
-    }
-    free(s);
-  }
-  return gssname;
+/* get a copy of the peer gssname, caller must free via tr_free_name() */
+TR_NAME *trp_peer_dup_gssname(TRP_PEER *peer)
+{
+  return tr_dup_name(peer->gssname);
 }
 
 unsigned int trp_peer_get_port(TRP_PEER *peer)

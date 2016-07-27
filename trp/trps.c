@@ -140,7 +140,6 @@ TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TRP_PEER *peer)
       break;
     }
   }
-  tr_free_name(peer_gssname);
   return cur;
 }
 
@@ -776,11 +775,14 @@ static TRP_RENTRY *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, 
      * in which case we do not want to advertise it. */
     return NULL;
   }
+  tr_debug("trps_select_realm_update: %s vs %s", peer_gssname->buf,
+           trp_rentry_get_peer(route)->buf);
   if (0==tr_name_cmp(peer_gssname, trp_rentry_get_peer(route))) {
+    tr_debug("trps_select_realm_update: matched, finding alternate route");
     /* the selected entry goes through the peer we're reporting to, choose an alternate */
     route=trps_find_best_route(trps, comm, realm, peer_gssname);
     if ((route==NULL) || (!trp_metric_is_finite(trp_rentry_get_metric(route))))
-      route=NULL; /* don't advertise a nonexistent or retracted route */
+      return NULL; /* don't advertise a nonexistent or retracted route */
   }
   return route;
 }
@@ -879,11 +881,15 @@ TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
        peer=trp_ptable_iter_next(iter))
   {
     peer_gssname=trp_peer_get_gssname(peer);
+    if (!trps_peer_connected(trps, peer)) {
+      tr_debug("trps_scheduled_update: no TRP connection to %.*s, skipping.",
+               peer_gssname->len, peer_gssname->buf);
+      continue;
+    }
     tr_debug("trps_scheduled_update: preparing scheduled route update for %.*s",
              peer_gssname->len, peer_gssname->buf);
     /* do not fill in peer, recipient does that */
     update_list=trps_select_updates_for_peer(tmp_ctx, trps, peer_gssname, &n_updates);
-    tr_free_name(peer_gssname); peer_gssname=NULL;
     if ((n_updates>0) && (update_list!=NULL)) {
       tr_debug("trps_scheduled_update: sending %u update records.", (unsigned int)n_updates);
       upd=trp_upd_new(tmp_ctx);
@@ -942,4 +948,16 @@ TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer)
 TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname)
 {
   return trp_ptable_find(trps->ptable, gssname);
+}
+
+int trps_peer_connected(TRPS_INSTANCE *trps, TRP_PEER *peer)
+{
+  TRPC_INSTANCE *trpc=trps_find_trpc(trps, peer);
+  if (trpc==NULL)
+    return 0;
+
+  if (trpc_get_status(trpc)==TRP_CONNECTION_UP)
+    return 1;
+  else
+    return 0;
 }

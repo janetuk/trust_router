@@ -288,6 +288,7 @@ int main(int argc, char *argv[])
       return 1;
     }
     trp_peer_set_server(hc_peer, "epsilon.vmnet");
+    trp_peer_set_gssname(hc_peer, tr_new_name("trustrouter@apc.painless-security.com"));
     switch (tr->trps->port) {
     case 10000:
       trp_peer_set_port(hc_peer, 10001);

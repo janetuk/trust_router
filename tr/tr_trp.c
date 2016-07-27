@@ -62,7 +62,6 @@ static TRP_RC tr_trps_msg_handler(TRPS_INSTANCE *trps,
 static int tr_trps_gss_handler(gss_name_t client_name, gss_buffer_t gss_name,
                                void *cookie_in)
 {
-  TR_RP_CLIENT *rp;
   struct tr_trps_event_cookie *cookie=(struct tr_trps_event_cookie *)cookie_in;
   TRPS_INSTANCE *trps = cookie->trps;
   TR_CFG_MGR *cfg_mgr = cookie->cfg_mgr;
@@ -75,15 +74,13 @@ static int tr_trps_gss_handler(gss_name_t client_name, gss_buffer_t gss_name,
     return -1;
   }
   
-  /* look up the RP client matching the GSS name */
-  if ((NULL == (rp = tr_rp_client_lookup(cfg_mgr->active->rp_clients, &name)))) {
-    tr_debug("tr_trps_gss_handler: Unknown GSS name %.*s", name.len, name.buf);
+  /* look up the TRPS peer matching the GSS name */
+  if (NULL==trps_get_peer(trps, &name)) {
+    tr_warning("tr_trps_gss_handler: Connection attempt from unknown peer (GSS name: %.*s).", name.len, name.buf);
     return -1;
   }
 
-  /*trps->rp_gss = rp;*/
   tr_debug("Client's GSS Name: %.*s", name.len, name.buf);
-
   return 0;
 }
 
@@ -464,6 +461,7 @@ static void *tr_trpc_thread(void *arg)
               trpc_get_server(trpc),
               trpc_get_port(trpc));
   } else {
+    tr_debug("tr_trpc_thread: connected to peer %s", trpc->conn->peer->buf);
     while (1) {
       cb_data.msg_ready=0;
       pthread_cond_wait(&(cb_data.cond), &(cb_data.mutex));
@@ -574,10 +572,9 @@ static void tr_trpc_status_change(TRP_CONNECTION *conn, void *cookie)
   TR_NAME *gssname=trp_peer_get_gssname(peer);
 
   if (trp_connection_get_status(conn)==TRP_CONNECTION_UP)
-    tr_debug("tr_trpc_status_change: connection now up.");
+    tr_debug("tr_trpc_status_change: connection to %.*s now up.", gssname->len, gssname->buf);
   else
-    tr_debug("tr_trpc_status_change: connection now down.");
-  tr_free_name(gssname);
+    tr_debug("tr_trpc_status_change: connection to %.*s now down.", gssname->len, gssname->buf);
 }
 
 /* starts a trpc thread to connect to server:port */
@@ -618,7 +615,7 @@ TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
   trpc_set_conn(trpc, conn);
   trpc_set_server(trpc, talloc_strdup(trpc, trp_peer_get_server(peer)));
   trpc_set_port(trpc, trp_peer_get_port(peer));
-  trpc_set_gssname(trpc, trp_peer_get_gssname(peer));
+  trpc_set_gssname(trpc, trp_peer_dup_gssname(peer));
   tr_debug("tr_trpc_initiate: allocated connection");
   
   /* start thread */

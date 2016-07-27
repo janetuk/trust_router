@@ -11,6 +11,7 @@ typedef struct trp_peer TRP_PEER;
 struct trp_peer {
   TRP_PEER *next; /* for making a linked list */
   char *server;
+  TR_NAME *gssname;
   unsigned int port;
   unsigned int linkcost;
   struct timespec last_conn_attempt;
@@ -39,7 +40,9 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx);
 void trp_peer_free(TRP_PEER *peer);
 char *trp_peer_get_server(TRP_PEER *peer);
 void trp_peer_set_server(TRP_PEER *peer, char *server);
+void trp_peer_set_gssname(TRP_PEER *peer, TR_NAME *gssname);
 TR_NAME *trp_peer_get_gssname(TRP_PEER *peer);
+TR_NAME *trp_peer_dup_gssname(TRP_PEER *peer);
 unsigned int trp_peer_get_port(TRP_PEER *peer);
 void trp_peer_set_port(TRP_PEER *peer, unsigned int port);
 unsigned int trp_peer_get_linkcost(TRP_PEER *peer);

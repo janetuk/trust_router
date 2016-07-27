@@ -270,7 +270,6 @@ int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void 
   gss_buffer_desc nameBuffer = {0, NULL};
   gss_ctx_id_t *gssctx=trp_connection_get_gssctx(conn);
 
-  /* TODO: shouldn't really peek into TR_NAME... */
   nameBuffer.length = trp_connection_get_gssname(conn)->len;
   nameBuffer.value = trp_connection_get_gssname(conn)->buf;
 

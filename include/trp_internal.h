@@ -188,5 +188,5 @@ TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_RENTRY *route);
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
 TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname);
 TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps);
-
+int trps_peer_connected(TRPS_INSTANCE *trps, TRP_PEER *peer);
 #endif /* TRP_INTERNAL_H */
