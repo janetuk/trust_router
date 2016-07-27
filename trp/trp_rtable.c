@@ -171,6 +171,16 @@ struct timespec *trp_rentry_get_expiry(TRP_RENTRY *entry)
   return entry->expiry;
 }
 
+void trp_rentry_set_triggered(TRP_RENTRY *entry, int trig)
+{
+  entry->triggered=trig;
+}
+
+int trp_rentry_get_triggered(TRP_RENTRY *entry)
+{
+  return entry->triggered;
+}
+
 
 /* result must be freed with g_free */
 static gchar *tr_name_to_g_str(const TR_NAME *n)
@@ -618,6 +628,19 @@ char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep)
   free(next_hop);
   free(expiry);
   return result;
+}
+
+void trp_rtable_clear_triggered(TRP_RTABLE *rtbl)
+{
+  size_t n_entries=0;
+  TRP_RENTRY **entries=trp_rtable_get_entries(rtbl, &n_entries);
+  size_t ii=0;
+
+  if (entries!=NULL) {
+    for (ii=0; ii<n_entries; ii++)
+      trp_rentry_set_triggered(entries[ii], 0);
+    talloc_free(entries);
+  }
 }
 
 static int sort_tr_names_cmp(const void *a, const void *b)

@@ -104,6 +104,10 @@ struct trps_instance {
   struct timeval sweep_interval; /* interval between route table sweeps */
 };
 
+typedef enum trp_update_type {
+  TRP_UPDATE_SCHEDULED=0,
+  TRP_UPDATE_TRIGGERED
+} TRP_UPDATE_TYPE;
 
 TRP_CONNECTION *trp_connection_new(TALLOC_CTX *mem_ctx);
 void trp_connection_free(TRP_CONNECTION *conn);
@@ -187,6 +191,6 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps);
 TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_RENTRY *route);
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
 TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname);
-TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps);
+TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE type);
 int trps_peer_connected(TRPS_INSTANCE *trps, TRP_PEER *peer);
 #endif /* TRP_INTERNAL_H */

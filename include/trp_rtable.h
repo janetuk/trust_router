@@ -17,6 +17,7 @@ typedef struct trp_rentry {
   int selected;
   unsigned int interval; /* interval from route update */
   struct timespec *expiry;
+  int triggered;
 } TRP_RENTRY;
 
 typedef GHashTable TRP_RTABLE;
@@ -37,6 +38,7 @@ TRP_RENTRY **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAM
 TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out);
 TRP_RENTRY *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer);
 TRP_RENTRY *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm);
+void trp_rtable_clear_triggered(TRP_RTABLE *rtbl);
 char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, const char *lineterm);
 
 TRP_RENTRY *trp_rentry_new(TALLOC_CTX *mem_ctx);
@@ -64,6 +66,8 @@ void trp_rentry_set_interval(TRP_RENTRY *entry, int interval);
 int trp_rentry_get_interval(TRP_RENTRY *entry);
 void trp_rentry_set_expiry(TRP_RENTRY *entry, struct timespec *exp);
 struct timespec *trp_rentry_get_expiry(TRP_RENTRY *entry);
+void trp_rentry_set_triggered(TRP_RENTRY *entry, int trig);
+int trp_rentry_get_triggered(TRP_RENTRY *entry);
 char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep);
 
 #endif /* _TRP_RTABLE_H_ */

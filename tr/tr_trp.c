@@ -233,7 +233,7 @@ static void tr_trps_update(int listener, short event, void *arg)
   struct event *ev=cookie->ev;
 
   tr_debug("tr_trps_update: sending scheduled route updates.");
-  trps_scheduled_update(trps);
+  trps_update(trps, TRP_UPDATE_SCHEDULED);
   event_add(ev, &(trps->update_interval));
 }
 
@@ -726,7 +726,8 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);
   trps_clear_rtable(trps); /* should we do this every time??? */
   tr_add_local_routes(trps, new_cfg); /* should we do this every time??? */
-  trps_update_active_routes(trps);
+  trps_update_active_routes(trps); /* find new routes */
+  trps_update(trps, TRP_UPDATE_TRIGGERED); /* send any triggered routes */
   tr_trps_print_route_table(trps, stderr);
 }
 

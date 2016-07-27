@@ -672,8 +672,15 @@ TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
       if (cur_route!=NULL) {
         cur_metric=trp_rentry_get_metric(cur_route);
         if ((best_metric < cur_metric) && (trp_metric_is_finite(best_metric))) {
+          /* The new route has a lower metric than the previous, and is finite. Accept. */
           trp_rentry_set_selected(cur_route, 0);
           trp_rentry_set_selected(best_route, 1);
+          /* Check whether we just changed trust routers for this destination. If so,
+           * we must send a triggered update. (We should probably try to avoid changing
+           * trust routers, perhaps accepting a slightly worse metric, but that is todo.) */
+          if (0!=tr_name_cmp(trp_rentry_get_trust_router(cur_route),
+                             trp_rentry_get_trust_router(best_route)))
+            trp_rentry_set_triggered(best_route, 1); /* need to send a triggered update for this route */
         } else if (!trp_metric_is_finite(cur_metric)) /* rejects infinite or invalid metrics */
           trp_rentry_set_selected(cur_route, 0);
       } else if (trp_metric_is_finite(best_metric))
@@ -699,6 +706,7 @@ TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg)
     rc=trps_handle_update(trps, tr_msg_get_trp_upd(tr_msg));
     if (rc==TRP_SUCCESS) {
       rc=trps_update_active_routes(trps);
+      trps_update(trps, TRP_UPDATE_TRIGGERED); /* send any triggered routes */
     }
     return rc;
 
@@ -789,8 +797,12 @@ static TRP_RENTRY *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, 
 
 /* returns an array of pointers to updates (*not* an array of updates). Returns number of entries
  * via n_update parameter. (The allocated space will generally be larger than required, see note in
- * the code.) */
-static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, size_t *n_update)
+ * the code.) If triggered is set, sends only triggered updates. */
+static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx,
+                                                 TRPS_INSTANCE *trps,
+                                                 TR_NAME *peer_gssname,
+                                                 int triggered,
+                                                 size_t *n_update)
 {
   size_t n_apc=0;
   TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
@@ -816,7 +828,9 @@ static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx, TRPS_INSTAN
     realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
       best=trps_select_realm_update(trps, apc[ii], realm[jj], peer_gssname);
-      if (best!=NULL)
+      /* If we found a route, add it to the list. If triggered!=0, then only
+       * add triggered routes. */
+      if ((best!=NULL) && ((!triggered) || trp_rentry_get_triggered(best)))
         result[n_used++]=best;
     }
     if (realm!=NULL)
@@ -856,7 +870,7 @@ static TRP_INFOREC *trps_rentry_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *t
   return rec;
 }
 
-TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
+TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE triggered)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_PTABLE_ITER *iter=trp_ptable_iter_new(tmp_ctx);
@@ -871,7 +885,7 @@ TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
   TR_NAME *peer_gssname=NULL;
 
   if (iter==NULL) {
-    tr_err("trps_scheduled_update: failed to allocate peer table iterator.");
+    tr_err("trps_update: failed to allocate peer table iterator.");
     talloc_free(tmp_ctx);
     return TRP_NOMEM;
   }
@@ -882,22 +896,31 @@ TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
   {
     peer_gssname=trp_peer_get_gssname(peer);
     if (!trps_peer_connected(trps, peer)) {
-      tr_debug("trps_scheduled_update: no TRP connection to %.*s, skipping.",
+      tr_debug("trps_update: no TRP connection to %.*s, skipping.",
                peer_gssname->len, peer_gssname->buf);
       continue;
     }
-    tr_debug("trps_scheduled_update: preparing scheduled route update for %.*s",
-             peer_gssname->len, peer_gssname->buf);
+    if (triggered==TRP_UPDATE_TRIGGERED) {
+      tr_debug("trps_update: preparing triggered route update for %.*s",
+               peer_gssname->len, peer_gssname->buf);
+    } else {
+      tr_debug("trps_update: preparing scheduled route update for %.*s",
+               peer_gssname->len, peer_gssname->buf);
+    }
     /* do not fill in peer, recipient does that */
-    update_list=trps_select_updates_for_peer(tmp_ctx, trps, peer_gssname, &n_updates);
+    update_list=trps_select_updates_for_peer(tmp_ctx,
+                                             trps,
+                                             peer_gssname,
+                                             triggered==TRP_UPDATE_TRIGGERED,
+                                            &n_updates);
     if ((n_updates>0) && (update_list!=NULL)) {
-      tr_debug("trps_scheduled_update: sending %u update records.", (unsigned int)n_updates);
+      tr_debug("trps_update: sending %u update records.", (unsigned int)n_updates);
       upd=trp_upd_new(tmp_ctx);
 
       for (ii=0; ii<n_updates; ii++) {
         rec=trps_rentry_to_inforec(tmp_ctx, trps, update_list[ii]);
         if (rec==NULL) {
-          tr_err("trps_scheduled_update: could not create all update records.");
+          tr_err("trps_update: could not create all update records.");
           rc=TRP_ERROR;
           goto cleanup;
         }
@@ -910,16 +933,16 @@ TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
       tr_msg_set_trp_upd(&msg, upd);
       encoded=tr_msg_encode(&msg);
       if (encoded==NULL) {
-        tr_err("trps_scheduled_update: error encoding update.");
+        tr_err("trps_update: error encoding update.");
         rc=TRP_ERROR;
         goto cleanup;
       }
 
-      tr_debug("trps_scheduled_update: adding message to queue.");
+      tr_debug("trps_update: adding message to queue.");
       if (trps_send_msg(trps, peer, encoded) != TRP_SUCCESS)
-        tr_err("trps_scheduled_update: error queueing update.");
+        tr_err("trps_update: error queueing update.");
       else
-        tr_debug("trps_scheduled_update: update queued successfully.");
+        tr_debug("trps_update: update queued successfully.");
 
       encoded=NULL;
       tr_msg_free_encoded(encoded);
@@ -930,6 +953,7 @@ TRP_RC trps_scheduled_update(TRPS_INSTANCE *trps)
   
 cleanup:
   trp_ptable_iter_free(iter);
+  trp_rtable_clear_triggered(trps->rtable); /* don't re-send triggered updates */
   talloc_free(tmp_ctx);
   return rc;
 }        
