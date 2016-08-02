@@ -71,7 +71,7 @@ typedef struct tr_cfg_internal {
   int log_threshold;
   int console_threshold;
   unsigned int cfg_poll_interval;
-  unsigned int cfg_settle_count;
+  unsigned int cfg_settling_time;
   unsigned int trp_sweep_interval;
   unsigned int trp_update_interval;
   unsigned int trp_connect_interval;

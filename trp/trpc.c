@@ -25,7 +25,6 @@ TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
     trpc->server=NULL;
     trpc->port=0;
     trpc->conn=NULL;
-    trpc->dh=NULL;
     trpc->mq=tr_mq_new(trpc);
     if (trpc->mq==NULL) {
       talloc_free(trpc);
@@ -133,16 +132,6 @@ TRP_CONNECTION *trpc_get_conn(TRPC_INSTANCE *trpc)
 void trpc_set_conn(TRPC_INSTANCE *trpc, TRP_CONNECTION *conn)
 {
   trpc->conn=conn;
-}
-
-DH *trpc_get_dh(TRPC_INSTANCE *trpc)
-{
-  return trpc->dh;
-}
-
-void trpc_set_dh(TRPC_INSTANCE *trpc, DH *dh)
-{
-  trpc->dh=dh;
 }
 
 TRP_CONNECTION_STATUS trpc_get_status(TRPC_INSTANCE *trpc)

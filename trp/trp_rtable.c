@@ -11,9 +11,9 @@
 
 /* Note: be careful mixing talloc with glib. */
 
-static int trp_rentry_destructor(void *obj)
+static int trp_route_destructor(void *obj)
 {
-  TRP_RENTRY *entry=talloc_get_type_abort(obj, TRP_RENTRY);
+  TRP_ROUTE *entry=talloc_get_type_abort(obj, TRP_ROUTE);
   if (entry->apc!=NULL)
     tr_free_name(entry->apc);
   if (entry->realm!=NULL)
@@ -27,9 +27,9 @@ static int trp_rentry_destructor(void *obj)
   return 0;
 }
 
-TRP_RENTRY *trp_rentry_new(TALLOC_CTX *mem_ctx)
+TRP_ROUTE *trp_route_new(TALLOC_CTX *mem_ctx)
 {
-  TRP_RENTRY *entry=talloc(mem_ctx, TRP_RENTRY);
+  TRP_ROUTE *entry=talloc(mem_ctx, TRP_ROUTE);
   if (entry!=NULL) {
     entry->apc=NULL;
     entry->realm=NULL;
@@ -43,140 +43,163 @@ TRP_RENTRY *trp_rentry_new(TALLOC_CTX *mem_ctx)
       talloc_free(entry);
       return NULL;
     }
-    talloc_set_destructor((void *)entry, trp_rentry_destructor);
+    *(entry->expiry)=(struct timespec){0,0};
+    entry->local=0;
+    entry->triggered=0;
+    talloc_set_destructor((void *)entry, trp_route_destructor);
   }
   return entry;
 }
 
-void trp_rentry_free(TRP_RENTRY *entry)
+void trp_route_free(TRP_ROUTE *entry)
 {
   if (entry!=NULL)
     talloc_free(entry);
 }
 
-void trp_rentry_set_apc(TRP_RENTRY *entry, TR_NAME *apc)
+void trp_route_set_apc(TRP_ROUTE *entry, TR_NAME *apc)
 {
+  if (entry->apc!=NULL)
+    tr_free_name(entry->apc);
   entry->apc=apc;
 }
 
-TR_NAME *trp_rentry_get_apc(TRP_RENTRY *entry)
+TR_NAME *trp_route_get_apc(TRP_ROUTE *entry)
 {
   return entry->apc;
 }
 
-TR_NAME *trp_rentry_dup_apc(TRP_RENTRY *entry)
+TR_NAME *trp_route_dup_apc(TRP_ROUTE *entry)
 {
-  return tr_dup_name(trp_rentry_get_apc(entry));
+  return tr_dup_name(trp_route_get_apc(entry));
 }
 
-void trp_rentry_set_realm(TRP_RENTRY *entry, TR_NAME *realm)
+void trp_route_set_realm(TRP_ROUTE *entry, TR_NAME *realm)
 {
+  if (entry->realm!=NULL)
+    tr_free_name(entry->realm);
   entry->realm=realm;
 }
 
-TR_NAME *trp_rentry_get_realm(TRP_RENTRY *entry)
+TR_NAME *trp_route_get_realm(TRP_ROUTE *entry)
 {
   return entry->realm;
 }
 
-TR_NAME *trp_rentry_dup_realm(TRP_RENTRY *entry)
+TR_NAME *trp_route_dup_realm(TRP_ROUTE *entry)
 {
-  return tr_dup_name(trp_rentry_get_realm(entry));
+  return tr_dup_name(trp_route_get_realm(entry));
 }
 
-void trp_rentry_set_trust_router(TRP_RENTRY *entry, TR_NAME *tr)
+void trp_route_set_trust_router(TRP_ROUTE *entry, TR_NAME *tr)
 {
+  if (entry->trust_router!=NULL)
+    tr_free_name(entry->trust_router);
   entry->trust_router=tr;
 }
 
-TR_NAME *trp_rentry_get_trust_router(TRP_RENTRY *entry)
+TR_NAME *trp_route_get_trust_router(TRP_ROUTE *entry)
 {
   return entry->trust_router;
 }
 
-TR_NAME *trp_rentry_dup_trust_router(TRP_RENTRY *entry)
+TR_NAME *trp_route_dup_trust_router(TRP_ROUTE *entry)
 {
-  return tr_dup_name(trp_rentry_get_trust_router(entry));
+  return tr_dup_name(trp_route_get_trust_router(entry));
 }
 
-void trp_rentry_set_peer(TRP_RENTRY *entry, TR_NAME *peer)
+void trp_route_set_peer(TRP_ROUTE *entry, TR_NAME *peer)
 {
+  if (entry->peer!=NULL)
+    tr_free_name(entry->peer);
   entry->peer=peer;
 }
 
-TR_NAME *trp_rentry_get_peer(TRP_RENTRY *entry)
+TR_NAME *trp_route_get_peer(TRP_ROUTE *entry)
 {
   return entry->peer;
 }
 
-TR_NAME *trp_rentry_dup_peer(TRP_RENTRY *entry)
+TR_NAME *trp_route_dup_peer(TRP_ROUTE *entry)
 {
-  return tr_dup_name(trp_rentry_get_peer(entry));
+  return tr_dup_name(trp_route_get_peer(entry));
 }
 
-void trp_rentry_set_metric(TRP_RENTRY *entry, unsigned int metric)
+void trp_route_set_metric(TRP_ROUTE *entry, unsigned int metric)
 {
   entry->metric=metric;
 }
 
-unsigned int trp_rentry_get_metric(TRP_RENTRY *entry)
+unsigned int trp_route_get_metric(TRP_ROUTE *entry)
 {
   return entry->metric;
 }
 
-void trp_rentry_set_next_hop(TRP_RENTRY *entry, TR_NAME *next_hop)
+void trp_route_set_next_hop(TRP_ROUTE *entry, TR_NAME *next_hop)
 {
+  if (entry->next_hop!=NULL)
+    tr_free_name(entry->next_hop);
   entry->next_hop=next_hop;
 }
 
-TR_NAME *trp_rentry_get_next_hop(TRP_RENTRY *entry)
+TR_NAME *trp_route_get_next_hop(TRP_ROUTE *entry)
 {
   return entry->next_hop;
 }
 
-TR_NAME *trp_rentry_dup_next_hop(TRP_RENTRY *entry)
+TR_NAME *trp_route_dup_next_hop(TRP_ROUTE *entry)
 {
-  return tr_dup_name(trp_rentry_get_next_hop(entry));
+  return tr_dup_name(trp_route_get_next_hop(entry));
 }
 
-void trp_rentry_set_selected(TRP_RENTRY *entry, int sel)
+void trp_route_set_selected(TRP_ROUTE *entry, int sel)
 {
   entry->selected=sel;
 }
 
-int trp_rentry_get_selected(TRP_RENTRY *entry)
+int trp_route_is_selected(TRP_ROUTE *entry)
 {
   return entry->selected;
 }
 
-void trp_rentry_set_interval(TRP_RENTRY *entry, int interval)
+void trp_route_set_interval(TRP_ROUTE *entry, int interval)
 {
   entry->interval=interval;
 }
 
-int trp_rentry_get_interval(TRP_RENTRY *entry)
+int trp_route_get_interval(TRP_ROUTE *entry)
 {
   return entry->interval;
 }
 
 /* copies incoming value, does not assume responsibility for freeing */
-void trp_rentry_set_expiry(TRP_RENTRY *entry, struct timespec *exp)
+void trp_route_set_expiry(TRP_ROUTE *entry, struct timespec *exp)
 {
   entry->expiry->tv_sec=exp->tv_sec;
   entry->expiry->tv_nsec=exp->tv_nsec;
 }
 
-struct timespec *trp_rentry_get_expiry(TRP_RENTRY *entry)
+struct timespec *trp_route_get_expiry(TRP_ROUTE *entry)
 {
   return entry->expiry;
 }
 
-void trp_rentry_set_triggered(TRP_RENTRY *entry, int trig)
+void trp_route_set_local(TRP_ROUTE *entry, int local)
+{
+  entry->local=local;
+}
+
+int trp_route_is_local(TRP_ROUTE *entry)
+{
+  return entry->local;
+}
+
+void trp_route_set_triggered(TRP_ROUTE *entry, int trig)
 {
   entry->triggered=trig;
 }
 
-int trp_rentry_get_triggered(TRP_RENTRY *entry)
+int trp_route_is_triggered(TRP_ROUTE *entry)
 {
   return entry->triggered;
 }
@@ -186,6 +209,8 @@ int trp_rentry_get_triggered(TRP_RENTRY *entry)
 static gchar *tr_name_to_g_str(const TR_NAME *n)
 {
   gchar *s=g_strndup(n->buf, n->len);
+  if (s==NULL)
+    tr_debug("tr_name_to_g_str: allocation failure.");
   return s;
 }
 
@@ -220,7 +245,7 @@ static void trp_rtable_destroy_table(gpointer data)
 
 static void trp_rtable_destroy_rentry(gpointer data)
 {
-  trp_rentry_free(data);
+  trp_route_free(data);
 }
 
 static void trp_rtable_destroy_tr_name(gpointer data)
@@ -257,7 +282,7 @@ static GHashTable *trp_rtbl_get_or_add_table(GHashTable *tbl, TR_NAME *key, GDes
   return val_tbl;
 }
 
-void trp_rtable_add(TRP_RTABLE *rtbl, TRP_RENTRY *entry)
+void trp_rtable_add(TRP_RTABLE *rtbl, TRP_ROUTE *entry)
 {
   GHashTable *apc_tbl=NULL;
   GHashTable *realm_tbl=NULL;
@@ -270,7 +295,7 @@ void trp_rtable_add(TRP_RTABLE *rtbl, TRP_RENTRY *entry)
 }
 
 /* note: the entry pointer passed in is invalid after calling this because the entry is freed */
-void trp_rtable_remove(TRP_RTABLE *rtbl, TRP_RENTRY *entry)
+void trp_rtable_remove(TRP_RTABLE *rtbl, TRP_ROUTE *entry)
 {
   GHashTable *apc_tbl=NULL;
   GHashTable *realm_tbl=NULL;
@@ -361,15 +386,15 @@ size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
                                realm));
 }
 
-/* Returns an array of pointers to TRP_RENTRY, length of array in n_out.
+/* Returns an array of pointers to TRP_ROUTE, length of array in n_out.
  * Caller must free the array (in the talloc NULL context), but must
  * not free its contents. */
-TRP_RENTRY **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
+TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
 {
-  TRP_RENTRY **ret=NULL;
+  TRP_ROUTE **ret=NULL;
   TR_NAME **apc=NULL;
   size_t n_apc=0;
-  TRP_RENTRY **apc_entries=NULL;
+  TRP_ROUTE **apc_entries=NULL;
   size_t n_entries=0;
   size_t ii_ret=0;
 
@@ -377,7 +402,7 @@ TRP_RENTRY **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
   if (*n_out==0)
     return NULL;
 
-  ret=talloc_array(NULL, TRP_RENTRY *, *n_out);
+  ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
     tr_crit("trp_rtable_get_entries: unable to allocate return array.");
     *n_out=0;
@@ -461,21 +486,21 @@ TR_NAME **trp_rtable_get_apc_realms(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_ou
 /* Get all entries in an apc. Returns an array of pointers in NULL talloc context.
  * Caller must free this list with talloc_free, but must not free the entries in the
  * list.. */
-TRP_RENTRY **trp_rtable_get_apc_entries(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_out)
+TRP_ROUTE **trp_rtable_get_apc_entries(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_out)
 {
   size_t ii=0, jj=0;
   TR_NAME **realm=NULL;
   size_t n_realms=0;
-  TRP_RENTRY **realm_entries=NULL;
+  TRP_ROUTE **realm_entries=NULL;
   size_t n_entries=0;
-  TRP_RENTRY **ret=NULL;
+  TRP_ROUTE **ret=NULL;
   size_t ii_ret=0;
 
   *n_out=trp_rtable_apc_size(rtbl, apc);
   if (*n_out==0)
     return NULL;
 
-  ret=talloc_array(NULL, TRP_RENTRY *, *n_out);
+  ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
     tr_crit("trp_rtable_get_apc_entries: could not allocate return array.");
     *n_out=0;
@@ -505,14 +530,14 @@ TRP_RENTRY **trp_rtable_get_apc_entries(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *
 /* Get all entries in an apc/realm. Returns an array of pointers in NULL talloc context.
  * Caller must free this list with talloc_free, but must not free the entries in the
  * list.. */
-TRP_RENTRY **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out)
+TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out)
 {
   size_t ii=0;
-  TRP_RENTRY **ret=NULL;
+  TRP_ROUTE **ret=NULL;
   TR_NAME **peer=NULL;
 
   peer=trp_rtable_get_apc_realm_peers(rtbl, apc, realm, n_out);
-  ret=talloc_array(NULL, TRP_RENTRY *, *n_out);
+  ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
     tr_crit("trp_rtable_get_realm_entries: could not allocate return array.");
     talloc_free(peer);
@@ -551,7 +576,7 @@ TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME
 }
 
 /* Gets a single entry. Do not free it. */
-TRP_RENTRY *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer)
+TRP_ROUTE *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer)
 {
   GHashTable *realm_tbl=NULL;
 
@@ -581,16 +606,16 @@ static char *timespec_to_str(struct timespec *ts)
   return s;
 }
 
-TRP_RENTRY *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
+TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
 {
   size_t n=0;
-  TRP_RENTRY **entry=trp_rtable_get_realm_entries(rtbl, apc, realm, &n);
-  TRP_RENTRY *selected=NULL;
+  TRP_ROUTE **entry=trp_rtable_get_realm_entries(rtbl, apc, realm, &n);
+  TRP_ROUTE *selected=NULL;
 
   if (n==0)
     return NULL;
 
-  while(n-- && !trp_rentry_get_selected(entry[n])) { }
+  while(n-- && !trp_route_is_selected(entry[n])) { }
   selected=entry[n];
   talloc_free(entry);
   return selected;
@@ -598,7 +623,7 @@ TRP_RENTRY *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAM
 
 /* Pretty print a route table entry to a newly allocated string. If sep is NULL,
  * returns comma+space separated string. */
-char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep)
+char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
 {
   char *apc=tr_name_strdup(entry->apc);
   char *realm=tr_name_strdup(entry->realm);
@@ -612,7 +637,7 @@ char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep)
     sep=", ";
 
   result=talloc_asprintf(mem_ctx,
-                         "%s%s%s%s%s%s%u%s%s%s%s%s%d%s%s",
+                         "%s%s%s%s%s%s%u%s%s%s%s%s%u%s%u%s%s%s%u",
                          apc, sep,
                          realm, sep,
                          peer, sep,
@@ -620,7 +645,9 @@ char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep)
                          trust_router, sep,
                          next_hop, sep,
                          entry->selected, sep,
-                         expiry);
+                         entry->local, sep,
+                         expiry, sep,
+                         entry->triggered);
   free(apc);
   free(realm);
   free(peer);
@@ -633,12 +660,12 @@ char *trp_rentry_to_str(TALLOC_CTX *mem_ctx, TRP_RENTRY *entry, const char *sep)
 void trp_rtable_clear_triggered(TRP_RTABLE *rtbl)
 {
   size_t n_entries=0;
-  TRP_RENTRY **entries=trp_rtable_get_entries(rtbl, &n_entries);
+  TRP_ROUTE **entries=trp_rtable_get_entries(rtbl, &n_entries);
   size_t ii=0;
 
   if (entries!=NULL) {
     for (ii=0; ii<n_entries; ii++)
-      trp_rentry_set_triggered(entries[ii], 0);
+      trp_route_set_triggered(entries[ii], 0);
     talloc_free(entries);
   }
 }
@@ -662,7 +689,7 @@ char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, 
   size_t n_apcs=0;
   TR_NAME **realms=NULL;
   size_t n_realms=0;
-  TRP_RENTRY **entries=NULL;
+  TRP_ROUTE **entries=NULL;
   size_t n_entries=0;
   char **tbl_strings=NULL;
   size_t ii_tbl=0; /* counts tbl_strings */
@@ -700,7 +727,7 @@ char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, 
       entries=trp_rtable_get_realm_entries(rtbl, apcs[ii], realms[jj], &n_entries);
       talloc_steal(tmp_ctx, entries);
       for (kk=0; kk<n_entries; kk++) {
-        tbl_strings[ii_tbl]=trp_rentry_to_str(tmp_ctx, entries[kk], sep);
+        tbl_strings[ii_tbl]=trp_route_to_str(tmp_ctx, entries[kk], sep);
         len+=strlen(tbl_strings[ii_tbl]);
         ii_tbl++;
       }

@@ -1,3 +1,4 @@
+#include <stdio.h>  /* TODO: remove this --jlr */
 #include <pthread.h>
 #include <fcntl.h>
 #include <event2/event.h>
@@ -9,6 +10,7 @@
 #include <time.h>
 
 #include <gsscon.h>
+#include <tr.h>
 #include <tr_rp.h>
 #include <trp_internal.h>
 #include <trp_ptable.h>
@@ -48,7 +50,7 @@ static TRP_RC tr_trps_msg_handler(TRPS_INSTANCE *trps,
   /* n.b., conn is available here, but do not hold onto the reference
    * because it may be cleaned up if the originating connection goes
    * down before the message is processed */
-  mq_msg=tr_mq_msg_new(tmp_ctx, "tr_msg");
+  mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_MSG_RECEIVED);
   if (mq_msg==NULL) {
     return TRP_NOMEM;
   }
@@ -89,7 +91,7 @@ struct trps_thread_data {
   TRP_CONNECTION *conn;
   TRPS_INSTANCE *trps;
 };
-/* thread to handle GSS connections to peers */
+/* thread to handle GSS connections from peers */
 static void *tr_trps_thread(void *arg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
@@ -141,9 +143,8 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
       }
       thread_data->conn=conn;
       thread_data->trps=trps;
-      pthread_create(trp_connection_get_thread(conn), NULL, tr_trps_thread, thread_data);
-      pthread_detach(*(trp_connection_get_thread(conn))); /* we will not rejoin the thread */
       trps_add_connection(trps, conn); /* remember the connection */
+      pthread_create(trp_connection_get_thread(conn), NULL, tr_trps_thread, thread_data);
     }
   }
   talloc_free(tmp_ctx);
@@ -153,30 +154,20 @@ static void tr_trps_cleanup_conn(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
 {
   /* everything belonging to the thread is in the TRP_CONNECTION
    * associated with it */
+  tr_debug("tr_trps_cleanup_conn: freeing %p", conn);
+/*  pthread_join(*trp_connection_get_thread(conn), NULL); -- removed while debugging, put back!!! --jlr */
   trps_remove_connection(trps, conn);
+  talloc_report_full(conn, stderr);
   trp_connection_free(conn);
-  tr_debug("Deleted connection");
+  tr_debug("tr_trps_cleanup_conn: deleted connection");
 }
-
-#if 0
-static void tr_trpc_abort(TRPC_INSTANCE *trpc)
-{
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TR_MQ_MSG *msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_ABORT);
-  tr_mq_msg_set_payload(msg, (void *)conn, NULL); /* do not pass a free routine */
-  trpc_mq_append(msg); /* gives msg over to the queue to manage */
-  
-}
-#endif
 
 static void tr_trps_cleanup_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *trpc)
 {
-  /* everything belonging to the thread is in the TRP_CONNECTION
-   * associated with it */
-/*  tr_trpc_abort(trpc); */ /* tell trpc to abort */
+  pthread_join(*trp_connection_get_thread(trpc_get_conn(trpc)), NULL);
   trps_remove_trpc(trps, trpc);
   trpc_free(trpc);
-  tr_debug("Deleted connection");
+  tr_debug("tr_trps_cleanup_trpc: deleted connection");
 }
 
 static void tr_trps_print_route_table(TRPS_INSTANCE *trps, FILE *f)
@@ -196,6 +187,7 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   TR_MQ_MSG *msg=NULL;
   const char *s=NULL;
 
+  talloc_report_full(trps->mq, stderr);
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
     s=tr_mq_msg_get_message(msg);
@@ -211,7 +203,7 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
                                                  TRPC_INSTANCE));
     }
 
-    else if (0==strcmp(s, "tr_msg")) {
+    else if (0==strcmp(s, TR_MQMSG_MSG_RECEIVED)) {
       if (trps_handle_tr_msg(trps, tr_mq_msg_get_payload(msg))!=TRP_SUCCESS)
         tr_notice("tr_trps_process_mq: error handling message.");
       else {
@@ -245,6 +237,7 @@ static void tr_trps_sweep(int listener, short event, void *arg)
 
   tr_debug("tr_trps_sweep: sweeping routes.");
   trps_sweep_routes(trps);
+  tr_trps_print_route_table(trps, stderr);
   /* schedule the event to run again */
   event_add(ev, &(trps->sweep_interval));
 }
@@ -274,7 +267,7 @@ static int tr_trps_events_destructor(void *obj)
     event_free(ev->sweep_ev);
   return 0;
 }
-TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
+static TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
 {
   TR_TRPS_EVENTS *ev=talloc(mem_ctx, TR_TRPS_EVENTS);
   if (ev!=NULL) {
@@ -286,18 +279,21 @@ TR_TRPS_EVENTS *tr_trps_events_new(TALLOC_CTX *mem_ctx)
     if (ev->listen_ev==NULL) {
       talloc_free(ev);
       ev=NULL;
+    } else {
+      talloc_set_destructor((void *)ev, tr_trps_events_destructor);
     }
-    talloc_set_destructor((void *)ev, tr_trps_events_destructor);
   }
   return ev;
 }
 
+static void tr_trps_events_free(TR_TRPS_EVENTS *ev)
+{
+  talloc_free(ev);
+}
+
 /* Configure the trps instance and set up its event handler.
  * Fills in trps_ev, which should be allocated by caller. */
-TRP_RC tr_trps_event_init(struct event_base *base,
-                       TRPS_INSTANCE *trps,
-                       TR_CFG_MGR *cfg_mgr,
-                       TR_TRPS_EVENTS *trps_ev)
+TRP_RC tr_trps_event_init(struct event_base *base, TR_INSTANCE *tr)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_socket_event *listen_ev=NULL;
@@ -305,39 +301,49 @@ TRP_RC tr_trps_event_init(struct event_base *base,
   struct tr_trps_event_cookie *connection_cookie=NULL;
   struct tr_trps_event_cookie *update_cookie=NULL;
   struct tr_trps_event_cookie *sweep_cookie=NULL;
+  struct timeval zero_time={0,0};
   TRP_RC retval=TRP_ERROR;
 
-  if (trps_ev == NULL) {
-    tr_debug("tr_trps_event_init: Null trps_ev.");
-    retval=TRP_BADARG;
+  if (tr->events != NULL) {
+    tr_notice("tr_trps_event_init: tr->events was not null. Freeing before reallocating..");
+    tr_trps_events_free(tr->events);
+  }
+
+  tr->events=tr_trps_events_new(tmp_ctx);
+  if (tr->events == NULL) {
+    tr_debug("tr_trps_event_init: unable to allocate event handles.");
+    retval=TRP_NOMEM;
     goto cleanup;
   }
 
   /* get convenient handles */
-  listen_ev=trps_ev->listen_ev;
+  listen_ev=tr->events->listen_ev;
 
-  /* Create the cookie for callbacks. It is part of the trps context, so it will
+  /* Create the cookie for callbacks. It will end up part of the trps context, so it will
    * be cleaned up when trps is freed by talloc_free. */
-  trps_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
+  trps_cookie=talloc(tr->events, struct tr_trps_event_cookie);
   if (trps_cookie == NULL) {
     tr_debug("tr_trps_event_init: Unable to allocate trps_cookie.");
     retval=TRP_NOMEM;
+    tr_trps_events_free(tr->events);
+    tr->events=NULL;
     goto cleanup;
   }
-  trps_cookie->trps=trps;
-  trps_cookie->cfg_mgr=cfg_mgr;
-  talloc_steal(trps, trps_cookie);
+  trps_cookie->trps=tr->trps;
+  trps_cookie->cfg_mgr=tr->cfg_mgr;
 
   /* get a trps listener */
-  listen_ev->sock_fd=trps_get_listener(trps,
+  listen_ev->sock_fd=trps_get_listener(tr->trps,
                                        tr_trps_msg_handler,
                                        tr_trps_gss_handler,
-                                       cfg_mgr->active->internal->hostname,
-                                       cfg_mgr->active->internal->trps_port,
+                                       tr->cfg_mgr->active->internal->hostname,
+                                       tr->cfg_mgr->active->internal->trps_port,
                                        (void *)trps_cookie);
   if (listen_ev->sock_fd < 0) {
     tr_crit("Error opening TRP server socket.");
     retval=TRP_ERROR;
+    tr_trps_events_free(tr->events);
+    tr->events=NULL;
     goto cleanup;
   }
   trps_cookie->ev=listen_ev->ev; /* in case it needs to frob the event */
@@ -347,60 +353,65 @@ TRP_RC tr_trps_event_init(struct event_base *base,
                           listen_ev->sock_fd,
                           EV_READ|EV_PERSIST,
                           tr_trps_event_cb,
-                          (void *)trps);
+                          (void *)(tr->trps));
   event_add(listen_ev->ev, NULL);
   
   /* now set up message queue processing event, only triggered by
    * tr_trps_mq_cb() */
-  trps_ev->mq_ev=event_new(base,
-                           0,
-                           EV_PERSIST,
-                           tr_trps_process_mq,
-                           (void *)trps);
-  tr_mq_set_notify_cb(trps->mq, tr_trps_mq_cb, trps_ev->mq_ev);
+  tr->events->mq_ev=event_new(base,
+                              0,
+                              EV_PERSIST,
+                              tr_trps_process_mq,
+                              (void *)(tr->trps));
+  tr_mq_set_notify_cb(tr->trps->mq, tr_trps_mq_cb, tr->events->mq_ev);
 
   /* now set up the peer connection timer event */
-  connection_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
+  connection_cookie=talloc(tr->events, struct tr_trps_event_cookie);
   if (connection_cookie == NULL) {
     tr_debug("tr_trps_event_init: Unable to allocate connection_cookie.");
     retval=TRP_NOMEM;
+    tr_trps_events_free(tr->events);
+    tr->events=NULL;
     goto cleanup;
   }
-  connection_cookie->trps=trps;
-  connection_cookie->cfg_mgr=cfg_mgr;
-  talloc_steal(trps, connection_cookie);
-  trps_ev->connect_ev=event_new(base, -1, EV_TIMEOUT, tr_connection_update, (void *)connection_cookie);
-  connection_cookie->ev=trps_ev->connect_ev; /* in case it needs to frob the event */
-  event_add(trps_ev->connect_ev, &(trps->connect_interval));
+  connection_cookie->trps=tr->trps;
+  connection_cookie->cfg_mgr=tr->cfg_mgr;
+  tr->events->connect_ev=event_new(base, -1, EV_TIMEOUT, tr_connection_update, (void *)connection_cookie);
+  connection_cookie->ev=tr->events->connect_ev; /* in case it needs to frob the event */
+  /* The first time, do this immediately. Thereafter, it will retrigger every trps->connect_interval */
+  event_add(tr->events->connect_ev, &zero_time);
 
   /* now set up the route update timer event */
-  update_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
+  update_cookie=talloc(tr->events, struct tr_trps_event_cookie);
   if (update_cookie == NULL) {
     tr_debug("tr_trps_event_init: Unable to allocate update_cookie.");
     retval=TRP_NOMEM;
+    tr_trps_events_free(tr->events);
+    tr->events=NULL;
     goto cleanup;
   }
-  update_cookie->trps=trps;
-  update_cookie->cfg_mgr=cfg_mgr;
-  talloc_steal(trps, update_cookie);
-  trps_ev->update_ev=event_new(base, -1, EV_TIMEOUT, tr_trps_update, (void *)update_cookie);
-  update_cookie->ev=trps_ev->update_ev; /* in case it needs to frob the event */
-  event_add(trps_ev->update_ev, &(trps->update_interval));
+  update_cookie->trps=tr->trps;
+  update_cookie->cfg_mgr=tr->cfg_mgr;
+  tr->events->update_ev=event_new(base, -1, EV_TIMEOUT, tr_trps_update, (void *)update_cookie);
+  update_cookie->ev=tr->events->update_ev; /* in case it needs to frob the event */
+  event_add(tr->events->update_ev, &(tr->trps->update_interval));
 
   /* now set up the route table sweep timer event */
-  sweep_cookie=talloc(tmp_ctx, struct tr_trps_event_cookie);
+  sweep_cookie=talloc(tr->events, struct tr_trps_event_cookie);
   if (sweep_cookie == NULL) {
     tr_debug("tr_trps_event_init: Unable to allocate sweep_cookie.");
     retval=TRP_NOMEM;
+    tr_trps_events_free(tr->events);
+    tr->events=NULL;
     goto cleanup;
   }
-  sweep_cookie->trps=trps;
-  sweep_cookie->cfg_mgr=cfg_mgr;
-  talloc_steal(trps, sweep_cookie);
-  trps_ev->sweep_ev=event_new(base, -1, EV_TIMEOUT, tr_trps_sweep, (void *)sweep_cookie);
-  sweep_cookie->ev=trps_ev->sweep_ev; /* in case it needs to frob the event */
-  event_add(trps_ev->sweep_ev, &(trps->sweep_interval));
+  sweep_cookie->trps=tr->trps;
+  sweep_cookie->cfg_mgr=tr->cfg_mgr;
+  tr->events->sweep_ev=event_new(base, -1, EV_TIMEOUT, tr_trps_sweep, (void *)sweep_cookie);
+  sweep_cookie->ev=tr->events->sweep_ev; /* in case it needs to frob the event */
+  event_add(tr->events->sweep_ev, &(tr->trps->sweep_interval));
 
+  talloc_steal(tr, tr->events);
   retval=TRP_SUCCESS;
 
 cleanup:
@@ -456,10 +467,13 @@ static void *tr_trpc_thread(void *arg)
   tr_mq_unlock(trpc->mq);
 
   rc=trpc_connect(trpc);
+/*  talloc_report_full(trpc, stderr);*/
   if (rc!=TRP_SUCCESS) {
-    tr_notice("tr_trpc_thread: failed to initiate connection to %s:%d.",
-              trpc_get_server(trpc),
-              trpc_get_port(trpc));
+    /* was tr_notice --jlr */
+    fprintf(stderr, "tr_trpc_thread: failed to initiate connection to %s:%d.",
+            trpc_get_server(trpc),
+            trpc_get_port(trpc));
+    fflush(stderr);
   } else {
     tr_debug("tr_trpc_thread: connected to peer %s", trpc->conn->peer->buf);
     while (1) {
@@ -501,6 +515,7 @@ static void *tr_trpc_thread(void *arg)
     }
   }
 
+  tr_debug("tr_trpc_thread: exiting.");
   msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_DISCONNECTED);
   tr_mq_msg_set_payload(msg, (void *)trpc, NULL); /* do not pass a free routine */
   if (msg==NULL)
@@ -513,15 +528,15 @@ static void *tr_trpc_thread(void *arg)
 }
 
 /* convert an IDP realm into routing table entries. Outputs number in *n_routes */
-static TRP_RENTRY **tr_make_local_routes(TALLOC_CTX *mem_ctx,
+static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
                                          TR_IDP_REALM *realm,
                                          char *trust_router,
                                          size_t *n_routes)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_APC *apc=NULL;
-  TRP_RENTRY *new_entry=NULL;
-  TRP_RENTRY **entries=NULL;
+  TRP_ROUTE *new_entry=NULL;
+  TRP_ROUTE **entries=NULL;
   size_t n_apcs=0, ii=0;
 
   *n_routes=0;
@@ -532,22 +547,21 @@ static TRP_RENTRY **tr_make_local_routes(TALLOC_CTX *mem_ctx,
   /* count apcs */
   for (apc=realm->apcs, n_apcs=0; apc!=NULL; apc=apc->next,n_apcs++) {}
 
-  entries=talloc_array(tmp_ctx, TRP_RENTRY *, n_apcs);
+  entries=talloc_array(tmp_ctx, TRP_ROUTE *, n_apcs);
   for (apc=realm->apcs,ii=0; apc!=NULL; apc=apc->next, ii++) {
-    new_entry=trp_rentry_new(entries);
+    new_entry=trp_route_new(entries);
     if (new_entry==NULL) {
       tr_crit("tr_make_local_routes: unable to allocate entry.");
       talloc_free(entries);
       goto cleanup;
     }
-    trp_rentry_set_apc(new_entry, tr_dup_name(apc->id));
-    trp_rentry_set_realm(new_entry, tr_dup_name(realm->realm_id));
-    trp_rentry_set_peer(new_entry, tr_new_name("")); /* no peer, it's us */
-    trp_rentry_set_metric(new_entry, 0);
-    trp_rentry_set_trust_router(new_entry, tr_new_name(trust_router));
-    trp_rentry_set_next_hop(new_entry, tr_new_name(""));
-    /* we do not set selected (tbd later) or expiry/interval (not needed for
-     * local routes) */
+    trp_route_set_apc(new_entry, tr_dup_name(apc->id));
+    trp_route_set_realm(new_entry, tr_dup_name(realm->realm_id));
+    trp_route_set_peer(new_entry, tr_new_name("")); /* no peer, it's us */
+    trp_route_set_metric(new_entry, 0);
+    trp_route_set_trust_router(new_entry, tr_new_name(trust_router));
+    trp_route_set_next_hop(new_entry, tr_new_name(""));
+    trp_route_set_local(new_entry, 1);
     entries[ii]=new_entry;
   }
 
@@ -566,8 +580,6 @@ struct tr_trpc_status_change_cookie {
 static void tr_trpc_status_change(TRP_CONNECTION *conn, void *cookie)
 {
   struct tr_trpc_status_change_cookie *cook=talloc_get_type_abort(cookie, struct tr_trpc_status_change_cookie);
-  /*TRPS_INSTANCE *trps=cook->trps;*/
-  /* TRPC_INSTANCE *trpc=cook->trpc;*/
   TRP_PEER *peer=cook->peer;
   TR_NAME *gssname=trp_peer_get_gssname(peer);
 
@@ -578,18 +590,20 @@ static void tr_trpc_status_change(TRP_CONNECTION *conn, void *cookie)
 }
 
 /* starts a trpc thread to connect to server:port */
-TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
+TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRPC_INSTANCE *trpc=NULL;
   TRP_CONNECTION *conn=NULL;
   struct trpc_thread_data *thread_data=NULL;
   struct tr_trpc_status_change_cookie *status_change_cookie=NULL;
+  TRP_RC rc=TRP_ERROR;
 
   tr_debug("tr_trpc_initiate entered");
   trpc=trpc_new(tmp_ctx);
   if (trpc==NULL) {
     tr_crit("tr_trpc_initiate: could not allocate TRPC_INSTANCE.");
+    rc=TRP_NOMEM;
     goto cleanup;
   }
   tr_debug("tr_trpc_initiate: allocated trpc");
@@ -597,12 +611,14 @@ TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
   conn=trp_connection_new(trpc);
   if (conn==NULL) {
     tr_crit("tr_trpc_initiate: could not allocate TRP_CONNECTION.");
+    rc=TRP_NOMEM;
     goto cleanup;
   }
 
   status_change_cookie=talloc(conn, struct tr_trpc_status_change_cookie);
   if (status_change_cookie==NULL) {
     tr_crit("tr_trpc_initiate: could not allocate connection status cookie.");
+    rc=TRP_NOMEM;
     goto cleanup;
   }
   status_change_cookie->trps=trps;
@@ -622,20 +638,22 @@ TRPC_INSTANCE *tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
   thread_data=talloc(trpc, struct trpc_thread_data);
   if (thread_data==NULL) {
     tr_crit("tr_trpc_initiate: could not allocate struct trpc_thread_data.");
+    rc=TRP_NOMEM;
     goto cleanup;
   }
   thread_data->trpc=trpc;
   thread_data->trps=trps;
 
+  trps_add_trpc(trps, trpc); /* must add before starting thread */
   pthread_create(trp_connection_get_thread(conn), NULL, tr_trpc_thread, thread_data);
-  pthread_detach(*(trp_connection_get_thread(conn))); /* we will not rejoin the thread */
 
   tr_debug("tr_trpc_initiate: started trpc thread");
-  trps_add_trpc(trps, trpc);
+  rc=TRP_SUCCESS;
 
  cleanup:
+  talloc_report_full(tmp_ctx, stderr);
   talloc_free(tmp_ctx);
-  return trpc;
+  return rc;
 }
 
 /* Add local routes to the route table. */
@@ -643,7 +661,7 @@ TRP_RC tr_add_local_routes(TRPS_INSTANCE *trps, TR_CFG *cfg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_IDP_REALM *cur=NULL;
-  TRP_RENTRY **local_routes=NULL;
+  TRP_ROUTE **local_routes=NULL;
   size_t n_routes=0;
   size_t ii=0;
   char *trust_router_name=talloc_asprintf(tmp_ctx, "%s:%d", cfg->internal->hostname, cfg->internal->trps_port);
@@ -678,7 +696,6 @@ TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps)
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_PTABLE_ITER *iter=trp_ptable_iter_new(tmp_ctx);
   TRP_PEER *peer=NULL;
-  TRPC_INSTANCE *trpc=NULL;
   struct timespec curtime={0,0};
   TRP_RC rc=TRP_ERROR;
 
@@ -698,8 +715,7 @@ TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps)
       /* has it been long enough since we last tried? */
       if (tr_conn_attempt_due(trps, peer, &curtime)) {
         trp_peer_set_last_conn_attempt(peer, &curtime); /* we are trying again now */
-        trpc=tr_trpc_initiate(trps, peer);
-        if (trpc==NULL) {
+        if (tr_trpc_initiate(trps, peer)!=TRP_SUCCESS) {
           tr_err("tr_connect_to_peers: unable to initiate TRP connection to %s:%u.",
                  trp_peer_get_server(peer),
                  trp_peer_get_port(peer));
@@ -720,7 +736,15 @@ cleanup:
  * Updates configuration of objects that do not know about the config manager. */
 void tr_config_changed(TR_CFG *new_cfg, void *cookie)
 {
-  TRPS_INSTANCE *trps=talloc_get_type_abort(cookie, TRPS_INSTANCE);
+  TR_INSTANCE *tr=talloc_get_type_abort(cookie, TR_INSTANCE);
+  TRPS_INSTANCE *trps=tr->trps;
+
+  tr->cfgwatch->poll_interval.tv_sec=new_cfg->internal->cfg_poll_interval;
+  tr->cfgwatch->poll_interval.tv_usec=0;
+
+  tr->cfgwatch->settling_time.tv_sec=new_cfg->internal->cfg_settling_time;
+  tr->cfgwatch->settling_time.tv_usec=0;
+
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
   trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);

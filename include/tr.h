@@ -45,12 +45,8 @@
 #include <tr_cfgwatch.h>
 #include <tr_config.h>
 
-typedef struct tr_instance {
-  TR_CFG_MGR *cfg_mgr;
-  TIDS_INSTANCE *tids;
-  TRPS_INSTANCE *trps;
-  TR_CFGWATCH *cfgwatch;
-} TR_INSTANCE;
+/* struct defined in tr_trp.h */
+typedef struct tr_instance TR_INSTANCE;
 
 TR_INSTANCE *tr_create(TALLOC_CTX *mem_ctx);
 void tr_destroy(TR_INSTANCE *tr);

@@ -12,6 +12,8 @@
 #define trp_metric_is_invalid(x) (((x)>TRP_METRIC_INFINITY) || ((x)==TRP_METRIC_INVALID))
 #define TRP_INTERVAL_INVALID 0
 
+#define TRP_LINKCOST_DEFAULT 1
+
 typedef enum trp_rc {
   TRP_SUCCESS=0,
   TRP_ERROR, /* generic error */

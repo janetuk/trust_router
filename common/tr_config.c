@@ -38,11 +38,12 @@
 #include <dirent.h>
 #include <talloc.h>
 
+#include <tr_cfgwatch.h>
 #include <tr_config.h>
 #include <tr_debug.h>
-#include <tr.h>
 #include <tr_filter.h>
 #include <trust_router/tr_constraint.h>
+#include <tr.h>
 
 void tr_print_config (FILE *stream, TR_CFG *cfg) {
   fprintf(stream, "tr_print_config: Not yet implemented.");
@@ -157,14 +158,19 @@ static TR_CFG_RC tr_cfg_parse_internal (TR_CFG *trc, json_t *jcfg) {
 	tr_debug("tr_cfg_parse_internal: Parsing error, cfg_poll_interval is not a number.");
 	return TR_CFG_NOPARSE;
       }
+    } else {
+      trc->internal->cfg_poll_interval = TR_CFGWATCH_DEFAULT_POLL;
     }
-    if (NULL != (jcfgsettle = json_object_get(jint, "cfg_settle_count"))) {
+
+    if (NULL != (jcfgsettle = json_object_get(jint, "cfg_settling_time"))) {
       if (json_is_number(jcfgsettle)) {
-	trc->internal->cfg_settle_count = json_integer_value(jcfgsettle);
+	trc->internal->cfg_settling_time = json_integer_value(jcfgsettle);
       } else {
-	tr_debug("tr_cfg_parse_internal: Parsing error, cfg_settle_count is not a number.");
+	tr_debug("tr_cfg_parse_internal: Parsing error, cfg_settling_time is not a number.");
 	return TR_CFG_NOPARSE;
       }
+    } else {
+      trc->internal->cfg_settling_time = TR_CFGWATCH_DEFAULT_SETTLE;
     }
 
     if (NULL != (jrouteconnect = json_object_get(jint, "trp_connect_interval"))) {

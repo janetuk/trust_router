@@ -5,6 +5,12 @@
 #include <time.h>
 #include <sys/time.h>
 
+#include <tr_config.h>
+#include <tr_event.h>
+/* interval in seconds */
+#define TR_CFGWATCH_DEFAULT_POLL 1
+#define TR_CFGWATCH_DEFAULT_SETTLE 5
+/* note: settling time is minimum - only checked on poll intervals */
 
 struct tr_fstat {
   char *name;

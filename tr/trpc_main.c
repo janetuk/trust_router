@@ -41,7 +41,6 @@
 #include <gsscon.h>
 #include <tr_debug.h>
 #include <tr_trp.h>
-#include <trust_router/tr_dh.h>
 
 
 /* command-line option setup */
@@ -124,9 +123,7 @@ int main (int argc,
 {
   TALLOC_CTX *main_ctx=talloc_new(NULL);
   TRPC_INSTANCE *trpc=NULL;
-  int conn = 0;
-  int rc;
-  gss_ctx_id_t gssctx;
+  TRP_CONNECTION *conn=NULL;
   struct cmdline_args opts;
 
   /* parse the command line*/
@@ -137,7 +134,6 @@ int main (int argc,
   opts.repeat=1;
 
   argp_parse(&argp, argc, argv, 0, 0, &opts);
-  /* TBD -- validity checking, dealing with quotes, etc. */
 
   /* Use standalone logging */
   tr_log_open();
@@ -149,25 +145,27 @@ int main (int argc,
 
   printf("TRPC Client:\nServer = %s, port = %i\n", opts.server, opts.port);
  
-  /* Create a TRP client instance & the client DH */
+  conn=trp_connection_new(trpc);
+  if (conn==NULL) {
+    printf("Could not allocate TRP_CONNECTION.\n");
+    return 1;
+  }
   trpc = trpc_new(main_ctx);
-  if (NULL == (trpc->client_dh = tr_create_dh_params(NULL, 0))) {
-    printf("Error creating client DH params.\n");
+  trpc_set_server(trpc, opts.server);
+  trpc_set_port(trpc, opts.port);
+  trpc_set_conn(trpc, conn);
+  /* Set-up TRP connection */
+  if (TRP_SUCCESS != trpc_connect(trpc)) {
+    /* Handle error */
+    printf("Error in trpc_connect.\n");
     return 1;
   }
 
-  /* Set-up TRP connection */
-  if (-1 == (conn = trpc_open_connection(trpc, opts.server, opts.port, &gssctx))) {
-    /* Handle error */
-    printf("Error in trpc_open_connection.\n");
-    return 1;
-  };
-
   /* Send a TRP message */
   while ((opts.repeat==-1) || (opts.repeat-->0)) {
-    if (0 > (rc = trpc_send_msg(trpc, conn, gssctx, opts.msg, NULL, NULL))) {
+    if (TRP_SUCCESS != trpc_send_msg(trpc, opts.msg)) {
       /* Handle error */
-      printf("Error in trpc_send_request, rc = %d.\n", rc);
+      printf("Error in trpc_send_request.");
       return 1;
     }
     usleep(1000000);

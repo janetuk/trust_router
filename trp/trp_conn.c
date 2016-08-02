@@ -205,7 +205,7 @@ static void trp_connection_mutex_init(TRP_CONNECTION *conn)
 static int trp_connection_destructor(void *object)
 {
   TRP_CONNECTION *conn=talloc_get_type_abort(object, TRP_CONNECTION); /* aborts on wrong type */
-  if ((trp_connection_get_status(conn)!=TRP_CONNECTION_DOWN)
+  if ((trp_connection_get_status(conn)!=TRP_CONNECTION_CLOSED)
      && (trp_connection_get_fd(conn)!=-1))
     close(trp_connection_get_fd(conn));
   if (conn->peer!=NULL)
@@ -230,7 +230,7 @@ TRP_CONNECTION *trp_connection_new(TALLOC_CTX *mem_ctx)
     new_conn->peer=NULL; /* no true set function for this */
     new_conn->status_change_cb=NULL;
     new_conn->status_change_cookie=NULL;
-    new_conn->status=TRP_CONNECTION_DOWN; /* set directly in the constructor */
+    new_conn->status=TRP_CONNECTION_CLOSED;
 
     thread=talloc(new_conn, pthread_t);
     if (thread==NULL) {
@@ -271,13 +271,17 @@ int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void 
   gss_ctx_id_t *gssctx=trp_connection_get_gssctx(conn);
 
   nameBuffer.length = trp_connection_get_gssname(conn)->len;
-  nameBuffer.value = trp_connection_get_gssname(conn)->buf;
+  nameBuffer.value = tr_name_strdup(trp_connection_get_gssname(conn));
 
   tr_debug("trp_connection_auth: beginning passive authentication");
+  if (trp_connection_get_status(conn)!=TRP_CONNECTION_AUTHORIZING)
+    tr_warning("trp_connection_auth: warning: connection was not in TRP_CONNECTION_AUTHORIZING state.");
+
   rc = gsscon_passive_authenticate(trp_connection_get_fd(conn), nameBuffer, gssctx, auth_callback, callback_data);
   gss_release_buffer(NULL, &nameBuffer);
   if (rc!=0) {
     tr_debug("trp_connection_auth: Error from gsscon_passive_authenticate(), rc = 0x%08X.", rc);
+    trp_connection_set_status(conn, TRP_CONNECTION_DOWN);
     return -1;
   }
 
@@ -285,6 +289,7 @@ int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void 
   if (rc = gsscon_authorize(*gssctx, &auth, &autherr)) {
     tr_debug("trp_connection_auth: Error from gsscon_authorize, rc = %d, autherr = %d.", 
              rc, autherr);
+    trp_connection_set_status(conn, TRP_CONNECTION_DOWN);
     return -1;
   }
 
@@ -314,6 +319,7 @@ TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *
   conn=trp_connection_new(mem_ctx);
   trp_connection_set_fd(conn, conn_fd);
   trp_connection_set_gssname(conn, gssname);
+  trp_connection_set_status(conn, TRP_CONNECTION_AUTHORIZING);
   return conn;
 }
 
@@ -344,7 +350,6 @@ TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int 
                        trp_connection_get_gssctx(conn));
   if (err) {
     tr_debug("trp_connection_initiate: connection failed.");
-    talloc_free(conn);
     return TRP_ERROR;
   } else {
     tr_debug("trp_connection_initiate: connected.");

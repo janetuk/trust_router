@@ -35,8 +35,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <talloc.h>
-#include <tr.h>
 #include <tr_config.h>
+#include <tr.h>
 
 TR_INSTANCE *tr_create(TALLOC_CTX *mem_ctx) {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);

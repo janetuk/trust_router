@@ -39,14 +39,16 @@
 #include <event2/event.h>
 #include <talloc.h>
 #include <sys/time.h>
+#include <signal.h>
+#include <pthread.h>
 
-#include <tr.h>
 #include <tid_internal.h>
 #include <tr_tid.h>
 #include <tr_trp.h>
 #include <tr_config.h>
 #include <tr_event.h>
 #include <tr_cfgwatch.h>
+#include <tr.h>
 #include <tr_debug.h>
 
 #define TALLOC_DEBUG_ENABLE 1
@@ -168,6 +170,15 @@ static void debug_ping(evutil_socket_t fd, short what, void *arg)
 }
 #endif /* DEBUG_PING_SELF */
 
+static void configure_signals(void)
+{
+  sigset_t signals;
+  /* ignore SIGPIPE */
+  sigemptyset(&signals);
+  sigaddset(&signals, SIGPIPE);
+  pthread_sigmask(SIG_BLOCK, &signals, NULL);
+}
+
 int main(int argc, char *argv[])
 {
   TALLOC_CTX *main_ctx=NULL;
@@ -176,13 +187,15 @@ int main(int argc, char *argv[])
   struct cmdline_args opts;
   struct event_base *ev_base;
   struct tr_socket_event tids_ev;
-  TR_TRPS_EVENTS *trps_ev;
   struct event *cfgwatch_ev;
+
 #if DEBUG_PING_SELF
   struct event *debug_ping_ev;
   struct timeval notime={0, 0};
   struct thingy thingy={NULL};
 #endif /* DEBUG_PING_SELF */
+
+  configure_signals();
 
   /* we're going to be multithreaded, so disable null context tracking */
   talloc_set_abort_fn(tr_abort);
@@ -232,7 +245,7 @@ int main(int argc, char *argv[])
   tr->cfgwatch->config_dir=opts.config_dir;
   tr->cfgwatch->cfg_mgr=tr->cfg_mgr;
   tr->cfgwatch->update_cb=tr_config_changed; /* handle configuration changes */
-  tr->cfgwatch->update_cookie=(void *)(tr->trps);
+  tr->cfgwatch->update_cookie=(void *)tr;
   if (0 != tr_read_and_apply_config(tr->cfgwatch)) {
     tr_crit("Error reading configuration, exiting.");
     return 1;
@@ -244,11 +257,6 @@ int main(int argc, char *argv[])
     tr_crit("Error initializing event loop.");
     return 1;
   }
-
-  /* install configuration file watching events */
-  tr->cfgwatch->poll_interval=(struct timeval) {1,0}; /* set poll interval in {sec, usec} */
-  tr->cfgwatch->settling_time=(struct timeval) {5,0}; /* delay for changes to settle before updating */
-  /* TODO: pull these settings out of the configuration files */
 
   /* already set config_dir, fstat_list and n_files earlier */
   if (0 != tr_cfgwatch_event_init(ev_base, tr->cfgwatch, &cfgwatch_ev)) {
@@ -268,11 +276,7 @@ int main(int argc, char *argv[])
   }
 
   /* install TRP handler events */
-  trps_ev=tr_trps_events_new(main_ctx);
-  if (0 != tr_trps_event_init(ev_base,
-                              tr->trps,
-                              tr->cfg_mgr,
-                              trps_ev)) {
+  if (TRP_SUCCESS != tr_trps_event_init(ev_base, tr)) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
@@ -305,6 +309,19 @@ int main(int argc, char *argv[])
       return 1;
     }
 
+    hc_peer=trp_peer_new(main_ctx); /* will later be stolen by ptable context */
+    if (hc_peer==NULL) {
+      tr_crit("Unable to allocate new peer. Aborting.");
+      return 1;
+    }
+    trp_peer_set_server(hc_peer, "epsilon.vmnet");
+    trp_peer_set_gssname(hc_peer, tr_new_name("trpc@apc.painless-security.com"));
+    trp_peer_set_port(hc_peer, 10002); /* not really used */
+    if (TRP_SUCCESS != trps_add_peer(tr->trps, hc_peer)) {
+      tr_crit("Unable to add peer.");
+      return 1;
+    }
+    
     s=trp_ptable_to_str(main_ctx, tr->trps->ptable, NULL, NULL);
     tr_debug("Peer Table:\n%s\n", s);
     talloc_free(s);

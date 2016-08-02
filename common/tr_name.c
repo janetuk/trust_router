@@ -55,6 +55,9 @@ TR_NAME *tr_new_name (char *name)
     new->len = strlen(name);
     if (new->buf = malloc((new->len)+1)) {
       strcpy(new->buf, name);
+    } else {
+      free(new);
+      new=NULL;
     }
   }
   return new;
@@ -120,4 +123,3 @@ char * tr_name_strdup(TR_NAME *src)
   return s;
 }
 
-  

@@ -21,7 +21,7 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
     peer->server=NULL;
     peer->gssname=NULL;
     peer->port=0;
-    peer->linkcost=TRP_METRIC_INFINITY;
+    peer->linkcost=TRP_LINKCOST_DEFAULT;
     peer->last_conn_attempt=(struct timespec){0,0};
     talloc_set_destructor((void *)peer, trp_peer_destructor);
   }

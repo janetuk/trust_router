@@ -252,12 +252,12 @@ int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data)
 #endif 
 
 /* get the currently selected route if available */
-TRP_RENTRY *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer)
+TRP_ROUTE *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer)
 {
   return trp_rtable_get_entry(trps->rtable, comm, realm, peer);
 }
 
-TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm)
+TRP_ROUTE *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm)
 {
   return trp_rtable_get_selected_entry(trps->rtable, comm, realm);
 }
@@ -265,24 +265,25 @@ TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME 
 /* copy the result if you want to keep it */
 TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm)
 {
-  TRP_RENTRY *route=trps_get_selected_route(trps, comm, realm);
+  TRP_ROUTE *route=trps_get_selected_route(trps, comm, realm);
   if (route==NULL)
     return NULL;
 
-  return trp_rentry_get_next_hop(route);
+  return trp_route_get_next_hop(route);
 }
 
 
 /* mark a route as retracted */
-static void trps_retract_route(TRPS_INSTANCE *trps, TRP_RENTRY *entry)
+static void trps_retract_route(TRPS_INSTANCE *trps, TRP_ROUTE *entry)
 {
-  trp_rentry_set_metric(entry, TRP_METRIC_INFINITY);
+  trp_route_set_metric(entry, TRP_METRIC_INFINITY);
+  trp_route_set_triggered(entry, 1);
 }
 
 /* is this route retracted? */
-static int trps_route_retracted(TRPS_INSTANCE *trps, TRP_RENTRY *entry)
+static int trps_route_retracted(TRPS_INSTANCE *trps, TRP_ROUTE *entry)
 {
-  return (trp_metric_is_infinite(trp_rentry_get_metric(entry)));
+  return (trp_metric_is_infinite(trp_route_get_metric(entry)));
 }
 
 static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MSG **msg)
@@ -376,36 +377,35 @@ int trps_get_listener(TRPS_INSTANCE *trps,
 
 void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
 {
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_MSG *msg=NULL;
   TRP_RC rc=TRP_ERROR;
 
   /* try to establish a GSS context */
   if (0!=trp_connection_auth(conn, trps->auth_handler, trps->cookie)) {
     tr_notice("tr_trps_conn_thread: failed to authorize connection");
-    pthread_exit(NULL);
-  }
-  tr_notice("trps_handle_connection: authorized connection");
+    trp_connection_close(conn);
+  } else {
+    tr_notice("trps_handle_connection: authorized connection");
   
-  /* loop as long as the connection exists */
-  while (trp_connection_get_status(conn)==TRP_CONNECTION_UP) {
-    rc=trps_read_message(trps, conn, &msg);
-    switch(rc) {
-    case TRP_SUCCESS:
-      trps->msg_handler(trps, conn, msg); /* send the TR_MSG off to the callback */
-      break;
+    /* loop as long as the connection exists */
+    while (trp_connection_get_status(conn)==TRP_CONNECTION_UP) {
+      rc=trps_read_message(trps, conn, &msg);
+      switch(rc) {
+      case TRP_SUCCESS:
+        trps->msg_handler(trps, conn, msg); /* send the TR_MSG off to the callback */
+        break;
 
-    case TRP_ERROR:
-      trp_connection_close(conn);
-      break;
+      case TRP_ERROR:
+        trp_connection_close(conn);
+        break;
 
-    default:
-      tr_debug("trps_handle_connection: trps_read_message failed (%d)", rc);
+      default:
+        tr_debug("trps_handle_connection: trps_read_message failed (%d)", rc);
+      }
     }
-  }
 
-  tr_debug("trps_handle_connection: connection closed.");
-  talloc_free(tmp_ctx);
+    tr_debug("trps_handle_connection: connection closed.");
+  }
 }
 
 static TRP_RC trps_validate_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
@@ -465,10 +465,10 @@ static unsigned int trps_cost(TRPS_INSTANCE *trps, TR_NAME *peer)
 
 static unsigned int trps_advertised_metric(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer)
 {
-  TRP_RENTRY *entry=trp_rtable_get_entry(trps->rtable, comm, realm, peer);
+  TRP_ROUTE *entry=trp_rtable_get_entry(trps->rtable, comm, realm, peer);
   if (entry==NULL)
     return TRP_METRIC_INFINITY;
-  return trp_rentry_get_metric(entry) + trps_cost(trps, peer);
+  return trp_route_get_metric(entry) + trps_cost(trps, peer);
 }
 
 static int trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
@@ -524,32 +524,32 @@ static struct timespec *trps_compute_expiry(TRPS_INSTANCE *trps, unsigned int in
 
 static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
 {
-  TRP_RENTRY *entry=NULL;
+  TRP_ROUTE *entry=NULL;
 
   entry=trp_rtable_get_entry(trps->rtable,
                              trp_inforec_get_comm(rec),
                              trp_inforec_get_realm(rec),
                              trp_inforec_get_next_hop(rec));
   if (entry==NULL) {
-    entry=trp_rentry_new(NULL);
+    entry=trp_route_new(NULL);
     if (entry==NULL) {
       tr_err("trps_accept_update: unable to allocate new entry.");
       return TRP_NOMEM;
     }
 
-    trp_rentry_set_apc(entry, tr_dup_name(trp_inforec_get_comm(rec)));
-    trp_rentry_set_realm(entry, tr_dup_name(trp_inforec_get_realm(rec)));
-    trp_rentry_set_peer(entry, tr_dup_name(trp_inforec_get_next_hop(rec)));
-    trp_rentry_set_trust_router(entry, tr_dup_name(trp_inforec_get_trust_router(rec)));
-    trp_rentry_set_next_hop(entry, tr_dup_name(trp_inforec_get_next_hop(rec)));
-    if ((trp_rentry_get_apc(entry)==NULL)
-       ||(trp_rentry_get_realm(entry)==NULL)
-       ||(trp_rentry_get_peer(entry)==NULL)
-       ||(trp_rentry_get_trust_router(entry)==NULL)
-       ||(trp_rentry_get_next_hop(entry)==NULL)) {
+    trp_route_set_apc(entry, tr_dup_name(trp_inforec_get_comm(rec)));
+    trp_route_set_realm(entry, tr_dup_name(trp_inforec_get_realm(rec)));
+    trp_route_set_peer(entry, tr_dup_name(trp_inforec_get_next_hop(rec)));
+    trp_route_set_trust_router(entry, tr_dup_name(trp_inforec_get_trust_router(rec)));
+    trp_route_set_next_hop(entry, tr_dup_name(trp_inforec_get_next_hop(rec)));
+    if ((trp_route_get_apc(entry)==NULL)
+       ||(trp_route_get_realm(entry)==NULL)
+       ||(trp_route_get_peer(entry)==NULL)
+       ||(trp_route_get_trust_router(entry)==NULL)
+       ||(trp_route_get_next_hop(entry)==NULL)) {
       /* at least one field could not be allocated */
       tr_err("trps_accept_update: unable to allocate all fields for entry.");
-      trp_rentry_free(entry);
+      trp_route_free(entry);
       return TRP_NOMEM;
     }
     trp_rtable_add(trps->rtable, entry);
@@ -560,13 +560,22 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
    * route (we never accept retractions as new routes), so there is no risk of leaving the expiry
    * time unset on a new route entry. */
   tr_debug("trps_accept_update: accepting route update.");
-  trp_rentry_set_metric(entry, trp_inforec_get_metric(rec));
-  trp_rentry_set_interval(entry, trp_inforec_get_interval(rec));
+  trp_route_set_metric(entry, trp_inforec_get_metric(rec));
+  trp_route_set_interval(entry, trp_inforec_get_interval(rec));
+
+  /* check whether the trust router has changed */
+  if (0!=tr_name_cmp(trp_route_get_trust_router(entry),
+                     trp_inforec_get_trust_router(rec))) {
+    /* The name changed. Set this route as triggered. */
+    tr_debug("trps_accept_update: trust router for route changed.");
+    trp_route_set_triggered(entry, 1);
+    trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec)); /* frees old name */
+  }
   if (!trps_route_retracted(trps, entry)) {
     tr_debug("trps_accept_update: route not retracted, setting expiry timer.");
-    trp_rentry_set_expiry(entry, trps_compute_expiry(trps,
-                                                     trp_rentry_get_interval(entry),
-                                                     trp_rentry_get_expiry(entry)));
+    trp_route_set_expiry(entry, trps_compute_expiry(trps,
+                                                     trp_route_get_interval(entry),
+                                                     trp_route_get_expiry(entry)));
   }
   return TRP_SUCCESS;
 }
@@ -576,15 +585,14 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
 {
   unsigned int feas=0;
   TRP_INFOREC *rec=NULL;
-  TRP_RENTRY *route=NULL;
+  TRP_ROUTE *route=NULL;
 
   if (trps_validate_update(trps, upd) != TRP_SUCCESS) {
     tr_notice("trps_handle_update: received invalid TRP update.");
     return TRP_ERROR;
   }
 
-  rec=trp_upd_get_inforec(upd);
-  for (;rec!=NULL; rec=trp_inforec_get_next(rec)) {
+  for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
     /* validate/sanity check the record update */
     if (trps_validate_inforec(trps, rec) != TRP_SUCCESS) {
       tr_notice("trps_handle_update: invalid record in TRP update.");
@@ -596,7 +604,10 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
     tr_debug("trps_handle_update: record feasibility=%d", feas);
 
     /* do we have an existing route? */
-    route=trps_get_route(trps, trp_inforec_get_comm(rec), trp_inforec_get_realm(rec), trp_inforec_get_next_hop(rec));
+    route=trps_get_route(trps,
+                         trp_inforec_get_comm(rec),
+                         trp_inforec_get_realm(rec),
+                         trp_inforec_get_next_hop(rec));
     if (route!=NULL) {
       /* there was a route table entry already */
       tr_debug("trps_handle_updates: route entry already exists.");
@@ -605,7 +616,7 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
         trps_accept_update(trps, rec);
       } else {
         /* Update is infeasible. Ignore it unless the trust router has changed. */
-        if (0!=tr_name_cmp(trp_rentry_get_trust_router(route),
+        if (0!=tr_name_cmp(trp_route_get_trust_router(route),
                            trp_inforec_get_trust_router(rec))) {
           /* the trust router associated with the route has changed, treat update as a retraction */
           trps_retract_route(trps, route);
@@ -622,10 +633,13 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
 }
 
 /* choose the best route to comm/realm, optionally excluding routes to a particular peer */
-static TRP_RENTRY *trps_find_best_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *exclude_peer)
+static TRP_ROUTE *trps_find_best_route(TRPS_INSTANCE *trps,
+                                        TR_NAME *comm,
+                                        TR_NAME *realm,
+                                        TR_NAME *exclude_peer)
 {
-  TRP_RENTRY **entry=NULL;
-  TRP_RENTRY *best=NULL;
+  TRP_ROUTE **entry=NULL;
+  TRP_ROUTE *best=NULL;
   size_t n_entry=0;
   unsigned int kk=0;
   unsigned int kk_min=0;
@@ -633,15 +647,15 @@ static TRP_RENTRY *trps_find_best_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_N
 
   entry=trp_rtable_get_realm_entries(trps->rtable, comm, realm, &n_entry);
   for (kk=0; kk<n_entry; kk++) {
-    if (trp_rentry_get_metric(entry[kk]) < min_metric) {
-      if ((exclude_peer==NULL) || (0!=tr_name_cmp(trp_rentry_get_peer(entry[kk]),
+    if (trp_route_get_metric(entry[kk]) < min_metric) {
+      if ((exclude_peer==NULL) || (0!=tr_name_cmp(trp_route_get_peer(entry[kk]),
                                                   exclude_peer))) {
         kk_min=kk;
-        min_metric=trp_rentry_get_metric(entry[kk]);
-      }
+        min_metric=trp_route_get_metric(entry[kk]);
+      } 
     }
   }
-  if (trp_metric_is_finite(min_metric));
+  if (trp_metric_is_finite(min_metric))
     best=entry[kk_min];
   
   talloc_free(entry);
@@ -656,7 +670,7 @@ TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
   TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
   size_t n_realm=0, jj=0;
   TR_NAME **realm=NULL;
-  TRP_RENTRY *best_route=NULL, *cur_route=NULL;
+  TRP_ROUTE *best_route=NULL, *cur_route=NULL;
   unsigned int best_metric=0, cur_metric=0;
 
   for (ii=0; ii<n_apc; ii++) {
@@ -666,25 +680,20 @@ TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
       if (best_route==NULL)
         best_metric=TRP_METRIC_INFINITY;
       else
-        best_metric=trp_rentry_get_metric(best_route);
+        best_metric=trp_route_get_metric(best_route);
 
       cur_route=trps_get_selected_route(trps, apc[ii], realm[jj]);
       if (cur_route!=NULL) {
-        cur_metric=trp_rentry_get_metric(cur_route);
+        cur_metric=trp_route_get_metric(cur_route);
         if ((best_metric < cur_metric) && (trp_metric_is_finite(best_metric))) {
           /* The new route has a lower metric than the previous, and is finite. Accept. */
-          trp_rentry_set_selected(cur_route, 0);
-          trp_rentry_set_selected(best_route, 1);
-          /* Check whether we just changed trust routers for this destination. If so,
-           * we must send a triggered update. (We should probably try to avoid changing
-           * trust routers, perhaps accepting a slightly worse metric, but that is todo.) */
-          if (0!=tr_name_cmp(trp_rentry_get_trust_router(cur_route),
-                             trp_rentry_get_trust_router(best_route)))
-            trp_rentry_set_triggered(best_route, 1); /* need to send a triggered update for this route */
+          trp_route_set_selected(cur_route, 0);
+          trp_route_set_selected(best_route, 1);
         } else if (!trp_metric_is_finite(cur_metric)) /* rejects infinite or invalid metrics */
-          trp_rentry_set_selected(cur_route, 0);
-      } else if (trp_metric_is_finite(best_metric))
-        trp_rentry_set_selected(best_route, 1);
+          trp_route_set_selected(cur_route, 0);
+      } else if (trp_metric_is_finite(best_metric)) {
+        trp_route_set_selected(best_route, 1);
+      }
     }
     if (realm!=NULL)
       talloc_free(realm);
@@ -732,7 +741,7 @@ static int trps_expired(struct timespec *expiry, struct timespec *curtime)
 TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 {
   struct timespec sweep_time={0,0};
-  TRP_RENTRY **entry=NULL;
+  TRP_ROUTE **entry=NULL;
   size_t n_entry=0;
   size_t ii=0;
 
@@ -748,9 +757,9 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 
   /* loop over the entries */
   for (ii=0; ii<n_entry; ii++) {
-    if (trps_expired(trp_rentry_get_expiry(entry[ii]), &sweep_time)) {
+    if (!trp_route_is_local(entry[ii]) && trps_expired(trp_route_get_expiry(entry[ii]), &sweep_time)) {
       tr_debug("trps_sweep_routes: route expired.");
-      if (!trp_metric_is_finite(trp_rentry_get_metric(entry[ii]))) {
+      if (!trp_metric_is_finite(trp_route_get_metric(entry[ii]))) {
         /* flush route */
         tr_debug("trps_sweep_routes: metric was infinity, flushing route.");
         trp_rtable_remove(trps->rtable, entry[ii]); /* entry[ii] is no longer valid */
@@ -758,10 +767,10 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
       } else {
         /* set metric to infinity and reset timer */
         tr_debug("trps_sweep_routes: setting metric to infinity and resetting expiry.");
-        trp_rentry_set_metric(entry[ii], TRP_METRIC_INFINITY);
-        trp_rentry_set_expiry(entry[ii], trps_compute_expiry(trps,
-                                                             trp_rentry_get_interval(entry[ii]),
-                                                             trp_rentry_get_expiry(entry[ii])));
+        trp_route_set_metric(entry[ii], TRP_METRIC_INFINITY);
+        trp_route_set_expiry(entry[ii], trps_compute_expiry(trps,
+                                                             trp_route_get_interval(entry[ii]),
+                                                             trp_route_get_expiry(entry[ii])));
       }
     }
   }
@@ -771,9 +780,9 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 }
 
 /* select the correct route to comm/realm to be announced to peer */
-static TRP_RENTRY *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer_gssname)
+static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer_gssname)
 {
-  TRP_RENTRY *route;
+  TRP_ROUTE *route;
 
   /* Take the currently selected route unless it is through the peer we're sending the update to.
    * I.e., enforce the split horizon rule. */
@@ -784,12 +793,12 @@ static TRP_RENTRY *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, 
     return NULL;
   }
   tr_debug("trps_select_realm_update: %s vs %s", peer_gssname->buf,
-           trp_rentry_get_peer(route)->buf);
-  if (0==tr_name_cmp(peer_gssname, trp_rentry_get_peer(route))) {
+           trp_route_get_peer(route)->buf);
+  if (0==tr_name_cmp(peer_gssname, trp_route_get_peer(route))) {
     tr_debug("trps_select_realm_update: matched, finding alternate route");
     /* the selected entry goes through the peer we're reporting to, choose an alternate */
     route=trps_find_best_route(trps, comm, realm, peer_gssname);
-    if ((route==NULL) || (!trp_metric_is_finite(trp_rentry_get_metric(route))))
+    if ((route==NULL) || (!trp_metric_is_finite(trp_route_get_metric(route))))
       return NULL; /* don't advertise a nonexistent or retracted route */
   }
   return route;
@@ -798,7 +807,7 @@ static TRP_RENTRY *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, 
 /* returns an array of pointers to updates (*not* an array of updates). Returns number of entries
  * via n_update parameter. (The allocated space will generally be larger than required, see note in
  * the code.) If triggered is set, sends only triggered updates. */
-static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx,
+static TRP_ROUTE **trps_select_updates_for_peer(TALLOC_CTX *memctx,
                                                  TRPS_INSTANCE *trps,
                                                  TR_NAME *peer_gssname,
                                                  int triggered,
@@ -809,15 +818,15 @@ static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx,
   TR_NAME **realm=NULL;
   size_t n_realm=0;
   size_t ii=0, jj=0;
-  TRP_RENTRY *best=NULL;
-  TRP_RENTRY **result=NULL;
+  TRP_ROUTE *best=NULL;
+  TRP_ROUTE **result=NULL;
   size_t n_used=0;
 
   /* Need to allocate space for the results. For simplicity, we just allocate a block
    * with space for every route table entry to be returned. This is guaranteed to be large
    * enough. If the routing table gets very large, this may be wasteful, but that seems
    * unlikely to be significant in the near future. */
-  result=talloc_array(memctx, TRP_RENTRY *, trp_rtable_size(trps->rtable));
+  result=talloc_array(memctx, TRP_ROUTE *, trp_rtable_size(trps->rtable));
   if (result==NULL) {
     talloc_free(apc);
     *n_update=0;
@@ -830,7 +839,7 @@ static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx,
       best=trps_select_realm_update(trps, apc[ii], realm[jj], peer_gssname);
       /* If we found a route, add it to the list. If triggered!=0, then only
        * add triggered routes. */
-      if ((best!=NULL) && ((!triggered) || trp_rentry_get_triggered(best)))
+      if ((best!=NULL) && ((!triggered) || trp_route_is_triggered(best)))
         result[n_used++]=best;
     }
     if (realm!=NULL)
@@ -845,24 +854,45 @@ static TRP_RENTRY **trps_select_updates_for_peer(TALLOC_CTX *memctx,
   return result;
 }
 
+/* add metrics */
+static unsigned int trps_metric_add(unsigned int m1, unsigned int m2)
+{
+  if (trp_metric_is_invalid(m1) || trp_metric_is_invalid(m2))
+    return TRP_METRIC_INVALID;
+
+  if (trp_metric_is_infinite(m1) || trp_metric_is_infinite(m2))
+    return TRP_METRIC_INFINITY;
+
+  if (trp_metric_is_finite(m1+m2))
+    return m1+m2;
+  else
+    return TRP_METRIC_INFINITY;
+}
+
 /* convert an rentry into a new trp update info record */
-static TRP_INFOREC *trps_rentry_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TRP_RENTRY *entry)
+static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TRP_ROUTE *route)
 {
   TRP_INFOREC *rec=trp_inforec_new(mem_ctx, TRP_INFOREC_TYPE_ROUTE);
   unsigned int linkcost=0;
 
   if (rec!=NULL) {
-    linkcost=trp_peer_get_linkcost(trps_get_peer(trps,
-                                                 trp_rentry_get_next_hop(entry)));
+    if (trp_route_is_local(route))
+      linkcost=0;
+    else {
+      linkcost=trp_peer_get_linkcost(trps_get_peer(trps,
+                                                   trp_route_get_next_hop(route)));
+    }
 
     /* Note that we leave the next hop empty since the recipient fills that in.
      * This is where we add the link cost (currently always 1) to the next peer. */
-    if ((trp_inforec_set_comm(rec, trp_rentry_dup_apc(entry)) != TRP_SUCCESS)
-       ||(trp_inforec_set_realm(rec, trp_rentry_dup_realm(entry)) != TRP_SUCCESS)
-       ||(trp_inforec_set_trust_router(rec, trp_rentry_dup_trust_router(entry)) != TRP_SUCCESS)
-       ||(trp_inforec_set_metric(rec, trp_rentry_get_metric(entry)+linkcost) != TRP_SUCCESS)
+    if ((trp_inforec_set_comm(rec, trp_route_dup_apc(route)) != TRP_SUCCESS)
+       ||(trp_inforec_set_realm(rec, trp_route_dup_realm(route)) != TRP_SUCCESS)
+       ||(trp_inforec_set_trust_router(rec, trp_route_dup_trust_router(route)) != TRP_SUCCESS)
+       ||(trp_inforec_set_metric(rec,
+                                 trps_metric_add(trp_route_get_metric(route),
+                                                 linkcost)) != TRP_SUCCESS)
        ||(trp_inforec_set_interval(rec, trps_get_update_interval(trps)) != TRP_SUCCESS)) {
-      tr_err("trps_rentry_to_inforec: error creating route update.");
+      tr_err("trps_route_to_inforec: error creating route update.");
       talloc_free(rec);
       rec=NULL;
     }
@@ -877,7 +907,7 @@ TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE triggered)
   TRP_PEER *peer=NULL;
   TR_MSG msg; /* not a pointer! */
   TRP_UPD *upd=NULL;
-  TRP_RENTRY **update_list=NULL;
+  TRP_ROUTE **update_list=NULL;
   TRP_INFOREC *rec=NULL;
   size_t n_updates=0, ii=0;
   char *encoded=NULL;
@@ -918,7 +948,7 @@ TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE triggered)
       upd=trp_upd_new(tmp_ctx);
 
       for (ii=0; ii<n_updates; ii++) {
-        rec=trps_rentry_to_inforec(tmp_ctx, trps, update_list[ii]);
+        rec=trps_route_to_inforec(tmp_ctx, trps, update_list[ii]);
         if (rec==NULL) {
           tr_err("trps_update: could not create all update records.");
           rc=TRP_ERROR;
@@ -958,12 +988,13 @@ cleanup:
   return rc;
 }        
 
-TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_RENTRY *route)
+TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_ROUTE *route)
 {
   trp_rtable_add(trps->rtable, route); /* should return status */
   return TRP_SUCCESS; 
 }
 
+/* steals the peer object */
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   return trp_ptable_add(trps->ptable, peer);

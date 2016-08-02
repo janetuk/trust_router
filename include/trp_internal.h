@@ -5,7 +5,6 @@
 #include <talloc.h>
 
 #include <gsscon.h>
-#include <trust_router/tr_dh.h>
 #include <tr_mq.h>
 #include <tr_msg.h>
 #include <trp_ptable.h>
@@ -51,7 +50,9 @@ struct trp_req {
 typedef struct trps_instance TRPS_INSTANCE;
 
 typedef enum trp_connection_status {
-  TRP_CONNECTION_DOWN=0,
+  TRP_CONNECTION_CLOSED=0,
+  TRP_CONNECTION_DOWN,  
+  TRP_CONNECTION_AUTHORIZING,  
   TRP_CONNECTION_UP,
   TRP_CONNECTION_UNKNOWN,
 } TRP_CONNECTION_STATUS;
@@ -63,7 +64,7 @@ struct trp_connection {
   pthread_t *thread; /* thread servicing this connection */
   int fd;
   TR_NAME *gssname;
-  TR_NAME *peer;
+  TR_NAME *peer; /* TODO: why is there a peer and a gssname? jlr */
   gss_ctx_id_t *gssctx;
   TRP_CONNECTION_STATUS status;
   void (*status_change_cb)(TRP_CONNECTION *conn, void *cookie);
@@ -84,7 +85,6 @@ struct trpc_instance {
   unsigned int port;
   TRP_CONNECTION *conn;
   TR_MQ *mq; /* msgs from master to trpc */
-  DH *dh;			/* Client's DH struct with priv and pub keys */
 };
 
 /* TRP Server Instance Data */
@@ -145,8 +145,6 @@ TR_NAME *trpc_get_gssname(TRPC_INSTANCE *trpc);
 void trpc_set_gssname(TRPC_INSTANCE *trpc, TR_NAME *gssname);
 unsigned int trpc_get_port(TRPC_INSTANCE *trpc);
 void trpc_set_port(TRPC_INSTANCE *trpc, unsigned int port);
-DH *trpc_get_dh(TRPC_INSTANCE *trpc);
-void trpc_set_dh(TRPC_INSTANCE *trpc, DH *dh);
 TRP_CONNECTION_STATUS trpc_get_status(TRPC_INSTANCE *trpc);
 TR_MQ *trpc_get_mq(TRPC_INSTANCE *trpc);
 void trpc_set_mq(TRPC_INSTANCE *trpc, TR_MQ *mq);
@@ -184,11 +182,11 @@ void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
 void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn);
 TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps);
 TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg);
-TRP_RENTRY *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer);
-TRP_RENTRY *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
+TRP_ROUTE *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer);
+TRP_ROUTE *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps);
-TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_RENTRY *route);
+TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_ROUTE *route);
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
 TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname);
 TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE type);
