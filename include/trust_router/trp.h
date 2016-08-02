@@ -78,5 +78,6 @@ TR_EXPORT TR_NAME *trp_req_get_realm(TRP_REQ *req);
 void trp_req_set_realm(TRP_REQ *req, TR_NAME *realm);
 TR_EXPORT TR_NAME *trp_req_get_peer(TRP_REQ *req);
 void trp_req_set_peer(TRP_REQ *req, TR_NAME *peer);
+int trp_req_is_wildcard(TRP_REQ *req);
 
 #endif /* TRP_H */

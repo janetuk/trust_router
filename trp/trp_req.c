@@ -85,3 +85,16 @@ void trp_req_set_peer(TRP_REQ *req, TR_NAME *peer)
   if (req)
     req->peer=peer;
 }
+
+/* Defines what we use as a wildcard for realm or community name.
+ * Must not be a valid name for either of those. Currently, we
+ * use the empty string. */
+static int trp_req_name_is_wildcard(TR_NAME *name)
+{
+  return (name!=NULL) && (name->len==0) && (name->buf!=NULL) && (name->buf[0]='\0');
+}
+
+int trp_req_is_wildcard(TRP_REQ *req)
+{
+  return (req!=NULL) && trp_req_name_is_wildcard(req->comm) && trp_req_name_is_wildcard(req->realm);
+}

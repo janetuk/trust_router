@@ -106,7 +106,8 @@ struct trps_instance {
 
 typedef enum trp_update_type {
   TRP_UPDATE_SCHEDULED=0,
-  TRP_UPDATE_TRIGGERED
+  TRP_UPDATE_TRIGGERED,
+  TRP_UPDATE_REQUESTED
 } TRP_UPDATE_TYPE;
 
 TRP_CONNECTION *trp_connection_new(TALLOC_CTX *mem_ctx);
