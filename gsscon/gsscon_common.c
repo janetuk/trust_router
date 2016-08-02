@@ -52,8 +52,6 @@
  * or implied warranty.
  */
 
-#include <signal.h>
-
 #include <gsscon.h>
 
 /* --------------------------------------------------------------------------- */
@@ -135,11 +133,7 @@ static int WriteBuffer (int         inSocket,
         do {
             ssize_t count;
 
-            /* disable the SIGPIPE signal while we write so that we can handle a
-             * broken pipe error gracefully */
-            signal(SIGPIPE, SIG_IGN); /* temporarily disable */
             count = write (inSocket, ptr, inBufferLength - bytesWritten);
-            signal(SIGPIPE, SIG_DFL); /* reenable */
 
             if (count < 0) {
                 /* Try again on EINTR */
@@ -177,15 +171,16 @@ int gsscon_read_token (int      inSocket,
     if (!err) {
 	tokenLength = ntohl (tokenLength);
 	token = malloc (tokenLength);
-	memset (token, 0, tokenLength); 
+        if (token==NULL) {
+          err=EIO;
+        } else {
+          memset (token, 0, tokenLength); 
         
-	err = ReadBuffer (inSocket, tokenLength, token);
+          err = ReadBuffer (inSocket, tokenLength, token);
+        }
     }
     
     if (!err) {
-    //    printf ("Read token:\n");
-    //    PrintBuffer (token, tokenLength);
-        
 	*outTokenLength = tokenLength;
         *outTokenValue = token;        
         token = NULL; /* only free on error */
