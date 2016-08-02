@@ -73,17 +73,16 @@ int gsscon_passive_authenticate (int	            inSocket,
     size_t inputTokenBufferLength = 0;
     gss_buffer_desc inputToken;  /* buffer received from the server */
     
-    printf("In gsscon_passive_authenticate(), inNameBuffer = %s\n", inNameBuffer.value);
-
     if (inSocket <  0 ) { err = EINVAL; }
     if (!outGSSContext) { err = EINVAL; }
 
-    if (!err)
+    if (!err) {
       majorStatus = gss_import_name (&minorStatus, &inNameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName); 
-    if (majorStatus != GSS_S_COMPLETE) {
+      if (majorStatus != GSS_S_COMPLETE) {
 	gsscon_print_gss_errors ("gss_import_name(serviceName)", majorStatus, minorStatus);
 	err = minorStatus ? minorStatus : majorStatus; 
       }
+    }
 
     if (!err) {
       majorStatus = gss_acquire_cred ( &minorStatus, serviceName,
