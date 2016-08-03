@@ -41,8 +41,6 @@ static TRP_RC trp_connection_set_peer(TRP_CONNECTION *conn)
   gss_buffer_desc peer_display_name={0,NULL};
   int local=0;
 
-  tr_debug("gssctx = %p", trp_connection_get_gssctx(conn));
-  tr_debug("*gssctx = %p", *trp_connection_get_gssctx(conn));
   major_status=gss_inquire_context(&minor_status,
                                    *trp_connection_get_gssctx(conn),
                                   &source_name,
@@ -86,7 +84,8 @@ static TRP_RC trp_connection_set_peer(TRP_CONNECTION *conn)
 
   if (conn->peer==NULL)
     return TRP_ERROR;
-  
+
+  tr_debug("trp_connection_set_peer: set peer for %p to %.*s (%p).", conn, conn->peer->len, conn->peer->buf, conn->peer);
   return TRP_SUCCESS;
 }
 
@@ -257,7 +256,8 @@ void trp_connection_free(TRP_CONNECTION *conn)
 
 void trp_connection_close(TRP_CONNECTION *conn)
 {
-  close(trp_connection_get_fd(conn));
+  if ((conn->status!=TRP_CONNECTION_DOWN) && (conn->fd>0))
+    close(trp_connection_get_fd(conn));
   trp_connection_set_fd(conn, -1);
   trp_connection_set_status(conn, TRP_CONNECTION_DOWN);
 }
@@ -349,12 +349,16 @@ TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int 
                       &fd,
                        trp_connection_get_gssctx(conn));
   if (err) {
-    tr_debug("trp_connection_initiate: connection failed.");
+    tr_err("trp_connection_initiate: connection failed.");
     return TRP_ERROR;
   } else {
     tr_debug("trp_connection_initiate: connected.");
     trp_connection_set_fd(conn, fd);
-    trp_connection_set_peer(conn);
+    if (trp_connection_set_peer(conn)!=TRP_SUCCESS) {
+      tr_err("trp_connection_initiate: error setting peer gssname.");
+      trp_connection_close(conn);
+      return TRP_ERROR;
+    }
     trp_connection_set_status(conn, TRP_CONNECTION_UP);
     return TRP_SUCCESS;
   }

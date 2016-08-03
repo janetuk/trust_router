@@ -77,7 +77,7 @@ static int tr_trps_gss_handler(gss_name_t client_name, gss_buffer_t gss_name,
   }
   
   /* look up the TRPS peer matching the GSS name */
-  if (NULL==trps_get_peer(trps, &name)) {
+  if (NULL==trps_get_peer_by_gssname(trps, &name)) {
     tr_warning("tr_trps_gss_handler: Connection attempt from unknown peer (GSS name: %.*s).", name.len, name.buf);
     return -1;
   }
@@ -249,7 +249,7 @@ static void tr_connection_update(int listener, short event, void *arg)
   struct event *ev=cookie->ev;
 
   tr_debug("tr_connection_update: checking peer connections.");
-  tr_connect_to_peers(trps);
+  tr_connect_to_peers(trps, ev);
   /* schedule the event to run again */
   event_add(ev, &(trps->connect_interval));
 }
@@ -452,6 +452,7 @@ static void *tr_trpc_thread(void *arg)
   TR_MQ_MSG *msg=NULL;
   const char *msg_type=NULL;
   char *encoded_msg=NULL;
+  TR_NAME *peer_gssname=NULL;
 
   struct trpc_notify_cb_data cb_data={0,
                                       PTHREAD_COND_INITIALIZER,
@@ -467,16 +468,20 @@ static void *tr_trpc_thread(void *arg)
   tr_mq_unlock(trpc->mq);
 
   rc=trpc_connect(trpc);
-/*  talloc_report_full(trpc, stderr);*/
   if (rc!=TRP_SUCCESS) {
-    /* was tr_notice --jlr */
-    fprintf(stderr, "tr_trpc_thread: failed to initiate connection to %s:%d.",
-            trpc_get_server(trpc),
-            trpc_get_port(trpc));
-    fflush(stderr);
+    tr_notice("tr_trpc_thread: failed to initiate connection to %s:%d.",
+              trpc_get_server(trpc),
+              trpc_get_port(trpc));
   } else {
-    tr_debug("tr_trpc_thread: connected to peer %s", trpc->conn->peer->buf);
-    while (1) {
+    peer_gssname=tr_dup_name(trp_connection_get_peer(trpc_get_conn(trpc)));
+    if (peer_gssname==NULL) {
+      tr_err("tr_trpc_thread: could not duplicate peer_gssname.");
+      talloc_free(tmp_ctx);
+      return NULL;
+    }
+    tr_debug("tr_trpc_thread: connected to peer %s", peer_gssname->buf);
+
+    while(1) {
       cb_data.msg_ready=0;
       pthread_cond_wait(&(cb_data.cond), &(cb_data.mutex));
       /* verify the condition */
@@ -572,7 +577,26 @@ static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
   return entries;
 }
 
+struct tr_wildcard_cookie {
+  TRPS_INSTANCE *trps;
+  TR_NAME *peer_servicename;
+};
+
+/* can only be called once, talloc_frees its argument cookie on termination */
+static void tr_send_wildcard(int listener, short event, void *arg)
+{
+  struct tr_wildcard_cookie *cook=talloc_get_type_abort(arg, struct tr_wildcard_cookie);
+
+  /* queue a route request for all route to every peer */
+  if (TRP_SUCCESS!=trps_wildcard_route_req(cook->trps, cook->peer_servicename))
+    tr_err("tr_send_wildcard: error sending wildcard route request.");
+
+  tr_free_name(cook->peer_servicename);
+  talloc_free(cook);
+}
+
 struct tr_trpc_status_change_cookie {
+  struct event_base *evbase;
   TRPS_INSTANCE *trps;
   TRPC_INSTANCE *trpc;
   TRP_PEER *peer;
@@ -580,17 +604,32 @@ struct tr_trpc_status_change_cookie {
 static void tr_trpc_status_change(TRP_CONNECTION *conn, void *cookie)
 {
   struct tr_trpc_status_change_cookie *cook=talloc_get_type_abort(cookie, struct tr_trpc_status_change_cookie);
+  struct event_base *evbase=cook->evbase;
+  TRPS_INSTANCE *trps=cook->trps;
   TRP_PEER *peer=cook->peer;
   TR_NAME *gssname=trp_peer_get_gssname(peer);
-
-  if (trp_connection_get_status(conn)==TRP_CONNECTION_UP)
+  struct timeval zero_time={0,0};
+  struct tr_wildcard_cookie *wc_cookie=NULL;
+  
+  if (trp_connection_get_status(conn)==TRP_CONNECTION_UP) {
     tr_debug("tr_trpc_status_change: connection to %.*s now up.", gssname->len, gssname->buf);
-  else
+    /* add a one-off event to send a wildcard request from the main thread */
+    wc_cookie=talloc(trps, struct tr_wildcard_cookie);
+    if (wc_cookie==NULL) {
+      tr_err("tr_trpc_status_change: error allocating wildcard cookie.");
+      return;
+    }
+    wc_cookie->trps=trps;
+    wc_cookie->peer_servicename=trp_peer_dup_servicename(peer);
+    if (0!=event_base_once(evbase, -1, EV_TIMEOUT, tr_send_wildcard, wc_cookie, &zero_time)) {
+      tr_err("tr_trpc_status_change: error queueing wildcard route request event.");
+    }
+  } else
     tr_debug("tr_trpc_status_change: connection to %.*s now down.", gssname->len, gssname->buf);
 }
 
 /* starts a trpc thread to connect to server:port */
-TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
+TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer, struct event *ev)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRPC_INSTANCE *trpc=NULL;
@@ -621,6 +660,7 @@ TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
     rc=TRP_NOMEM;
     goto cleanup;
   }
+  status_change_cookie->evbase=event_get_base(ev);
   status_change_cookie->trps=trps;
   status_change_cookie->trpc=trpc;
   status_change_cookie->peer=peer;
@@ -651,7 +691,6 @@ TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer)
   rc=TRP_SUCCESS;
 
  cleanup:
-  talloc_report_full(tmp_ctx, stderr);
   talloc_free(tmp_ctx);
   return rc;
 }
@@ -691,7 +730,7 @@ static int tr_conn_attempt_due(TRPS_INSTANCE *trps, TRP_PEER *peer, struct times
 }
 
 /* open missing connections to peers */
-TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps)
+TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps, struct event *ev)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_PTABLE_ITER *iter=trp_ptable_iter_new(tmp_ctx);
@@ -715,11 +754,11 @@ TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps)
       /* has it been long enough since we last tried? */
       if (tr_conn_attempt_due(trps, peer, &curtime)) {
         trp_peer_set_last_conn_attempt(peer, &curtime); /* we are trying again now */
-        if (tr_trpc_initiate(trps, peer)!=TRP_SUCCESS) {
+        if (tr_trpc_initiate(trps, peer, ev)!=TRP_SUCCESS) {
           tr_err("tr_connect_to_peers: unable to initiate TRP connection to %s:%u.",
                  trp_peer_get_server(peer),
                  trp_peer_get_port(peer));
-        }
+        } 
       }
     }
   }

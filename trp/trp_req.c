@@ -98,3 +98,22 @@ int trp_req_is_wildcard(TRP_REQ *req)
 {
   return (req!=NULL) && trp_req_name_is_wildcard(req->comm) && trp_req_name_is_wildcard(req->realm);
 }
+
+TRP_RC trp_req_make_wildcard(TRP_REQ *req)
+{
+  if (req==NULL)
+    return TRP_BADARG;
+
+  req->comm=tr_new_name("");
+  if (req->comm==NULL)
+    return TRP_NOMEM;
+
+  req->realm=tr_new_name("");
+  if (req->realm==NULL) {
+    tr_free_name(req->comm);
+    req->comm=NULL;
+    return TRP_NOMEM;
+  }
+
+  return TRP_SUCCESS;
+}

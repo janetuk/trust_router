@@ -189,7 +189,9 @@ TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps);
 TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_ROUTE *route);
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
-TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname);
+TRP_PEER *trps_get_peer_by_gssname(TRPS_INSTANCE *trps, TR_NAME *gssname);
+TRP_PEER *trps_get_peer_by_servicename(TRPS_INSTANCE *trps, TR_NAME *servicename);
 TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE type);
 int trps_peer_connected(TRPS_INSTANCE *trps, TRP_PEER *peer);
+TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_gssname);
 #endif /* TRP_INTERNAL_H */

@@ -40,7 +40,7 @@ struct tr_instance {
 /* prototypes */
 TRP_RC tr_trps_event_init(struct event_base *base, struct tr_instance *tr);
 TRP_RC tr_add_local_routes(TRPS_INSTANCE *trps, TR_CFG *cfg);
-TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer);
+TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer, struct event *ev);
 void tr_config_changed(TR_CFG *new_cfg, void *cookie);
-TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps);
+TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps, struct event *ev);
 #endif /* TR_TRP_H */

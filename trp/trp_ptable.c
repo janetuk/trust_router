@@ -9,6 +9,8 @@
 static int trp_peer_destructor(void *object)
 {
   TRP_PEER *peer=talloc_get_type_abort(object, TRP_PEER);
+  if (peer->servicename!=NULL)
+    tr_free_name(peer->servicename);
   if (peer->gssname!=NULL)
     tr_free_name(peer->gssname);
   return 0;
@@ -19,6 +21,7 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
   if (peer!=NULL) {
     peer->next=NULL;
     peer->server=NULL;
+    peer->servicename=NULL;
     peer->gssname=NULL;
     peer->port=0;
     peer->linkcost=TRP_LINKCOST_DEFAULT;
@@ -46,10 +49,28 @@ char *trp_peer_get_server(TRP_PEER *peer)
   return peer->server;
 }
 
+static void trp_peer_set_servicename(TRP_PEER *peer, const char *server)
+{
+  char *name=NULL;
+  if (peer->servicename !=NULL)
+    tr_free_name(peer->servicename);
+
+  if (server!=NULL)
+    name=talloc_asprintf(NULL, "trustrouter/%s", server);
+
+  if (name!=NULL) {
+    peer->servicename=tr_new_name(name);
+    talloc_free(name);
+  } else {
+    peer->servicename=NULL;
+  }
+}
+
 /* copies input; on error, peer->gssname will be null */
 void trp_peer_set_server(TRP_PEER *peer, char *server)
 {
   peer->server=talloc_strdup(peer, server); /* will be null on error */
+  trp_peer_set_servicename(peer, server);
 }
 
 void trp_peer_set_gssname(TRP_PEER *peer, TR_NAME *gssname)
@@ -67,6 +88,18 @@ TR_NAME *trp_peer_get_gssname(TRP_PEER *peer)
 TR_NAME *trp_peer_dup_gssname(TRP_PEER *peer)
 {
   return tr_dup_name(peer->gssname);
+}
+
+/* get the service name (i.e., gssname we see when we connect to this peer) */
+TR_NAME *trp_peer_get_servicename(TRP_PEER *peer)
+{
+  return peer->servicename;
+}
+
+/* get a copy of the servicename, caller must free via tr_free_name */
+TR_NAME *trp_peer_dup_servicename(TRP_PEER *peer)
+{
+  return tr_dup_name(peer->servicename);
 }
 
 unsigned int trp_peer_get_port(TRP_PEER *peer)
@@ -158,10 +191,18 @@ TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer)
   return TRP_ERROR;
 }
 
-TRP_PEER *trp_ptable_find(TRP_PTABLE *ptbl, TR_NAME *gssname)
+TRP_PEER *trp_ptable_find_gssname(TRP_PTABLE *ptbl, TR_NAME *gssname)
 {
   TRP_PEER *cur=ptbl->head;
   while ((cur!=NULL) && (0 != tr_name_cmp(trp_peer_get_gssname(cur), gssname)))
+    cur=cur->next;
+  return cur;
+}
+
+TRP_PEER *trp_ptable_find_servicename(TRP_PTABLE *ptbl, TR_NAME *servicename)
+{
+  TRP_PEER *cur=ptbl->head;
+  while ((cur!=NULL) && (0 != tr_name_cmp(trp_peer_get_servicename(cur), servicename)))
     cur=cur->next;
   return cur;
 }

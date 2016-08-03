@@ -12,6 +12,7 @@ struct trp_peer {
   TRP_PEER *next; /* for making a linked list */
   char *server;
   TR_NAME *gssname;
+  TR_NAME *servicename;
   unsigned int port;
   unsigned int linkcost;
   struct timespec last_conn_attempt;
@@ -28,7 +29,8 @@ TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx);
 void trp_ptable_free(TRP_PTABLE *ptbl);
 TRP_RC trp_ptable_add(TRP_PTABLE *ptbl, TRP_PEER *newpeer);
 TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer);
-TRP_PEER *trp_ptable_find(TRP_PTABLE *ptbl, TR_NAME *gssname);
+TRP_PEER *trp_ptable_find_gssname(TRP_PTABLE *ptbl, TR_NAME *gssname);
+TRP_PEER *trp_ptable_find_servicename(TRP_PTABLE *ptbl, TR_NAME *servicename);
 char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, const char *lineterm);
 
 TRP_PTABLE_ITER *trp_ptable_iter_new(TALLOC_CTX *mem_ctx);
@@ -43,6 +45,8 @@ void trp_peer_set_server(TRP_PEER *peer, char *server);
 void trp_peer_set_gssname(TRP_PEER *peer, TR_NAME *gssname);
 TR_NAME *trp_peer_get_gssname(TRP_PEER *peer);
 TR_NAME *trp_peer_dup_gssname(TRP_PEER *peer);
+TR_NAME *trp_peer_get_servicename(TRP_PEER *peer);
+TR_NAME *trp_peer_dup_servicename(TRP_PEER *peer);
 unsigned int trp_peer_get_port(TRP_PEER *peer);
 void trp_peer_set_port(TRP_PEER *peer, unsigned int port);
 unsigned int trp_peer_get_linkcost(TRP_PEER *peer);

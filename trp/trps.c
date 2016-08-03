@@ -386,7 +386,7 @@ void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
     trp_connection_close(conn);
   } else {
     tr_notice("trps_handle_connection: authorized connection");
-  
+
     /* loop as long as the connection exists */
     while (trp_connection_get_status(conn)==TRP_CONNECTION_UP) {
       rc=trps_read_message(trps, conn, &msg);
@@ -888,8 +888,8 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
     if (trp_route_is_local(route))
       linkcost=0;
     else {
-      linkcost=trp_peer_get_linkcost(trps_get_peer(trps,
-                                                   trp_route_get_next_hop(route)));
+      linkcost=trp_peer_get_linkcost(trps_get_peer_by_gssname(trps,
+                                                              trp_route_get_next_hop(route)));
     }
 
     /* Note that we leave the next hop empty since the recipient fills that in.
@@ -924,22 +924,28 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
   size_t n_updates=0, ii=0;
   char *encoded=NULL;
   TRP_RC rc=TRP_ERROR;
-  TRP_PEER *peer=trps_get_peer(trps, peer_gssname);
+  TRP_PEER *peer=trps_get_peer_by_gssname(trps, peer_gssname);
 
   if (!trps_peer_connected(trps, peer)) {
     tr_debug("trps_update_one_peer: no TRP connection to %.*s, skipping.",
              peer_gssname->len, peer_gssname->buf);
     goto cleanup;
   }
-  if (update_type==TRP_UPDATE_TRIGGERED) {
+  switch (update_type) {
+  case TRP_UPDATE_TRIGGERED:
     tr_debug("trps_update_one_peer: preparing triggered route update for %.*s",
              peer_gssname->len, peer_gssname->buf);
-  } else {
+    break;
+  case TRP_UPDATE_SCHEDULED:
     tr_debug("trps_update_one_peer: preparing scheduled route update for %.*s",
              peer_gssname->len, peer_gssname->buf);
+    break;
+  case TRP_UPDATE_REQUESTED:
+    tr_debug("trps_update_one_peer: preparing requested route update for %.*s",
+             peer_gssname->len, peer_gssname->buf);
   }
-  /* do not fill in peer, recipient does that */
 
+  /* do not fill in peer, recipient does that */
   if ((comm==NULL) && (realm==NULL)) {
     /* do all realms */
     update_list=trps_select_updates_for_peer(tmp_ctx,
@@ -957,9 +963,15 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
     }
     *update_list=trps_select_realm_update(trps, comm, realm, peer_gssname);
     if (*update_list==NULL) {
-      /* no update to send */
-      rc=TRP_SUCCESS;
-      goto cleanup;
+      /* we have no actual update to send back, MUST send a retraction */
+      tr_debug("trps_update_one_peer: community/realm without route requested, sending mandatory retraction.");
+      *update_list=trp_route_new(update_list);
+      trp_route_set_apc(*update_list, tr_dup_name(comm));
+      trp_route_set_realm(*update_list, tr_dup_name(realm));
+      trp_route_set_peer(*update_list, tr_new_name(""));
+      trp_route_set_metric(*update_list, TRP_METRIC_INFINITY);
+      trp_route_set_trust_router(*update_list, tr_new_name(""));
+      trp_route_set_next_hop(*update_list, tr_new_name(""));
     }
     n_updates=1;
   } else {
@@ -998,8 +1010,8 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
     else
       tr_debug("trps_update_one_peer: update queued successfully.");
 
-    encoded=NULL;
     tr_msg_free_encoded(encoded);
+    encoded=NULL;
     trp_upd_free(upd);
     upd=NULL;
   }
@@ -1048,9 +1060,14 @@ TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer)
   return trp_ptable_add(trps->ptable, peer);
 }
 
-TRP_PEER *trps_get_peer(TRPS_INSTANCE *trps, TR_NAME *gssname)
+TRP_PEER *trps_get_peer_by_gssname(TRPS_INSTANCE *trps, TR_NAME *gssname)
 {
-  return trp_ptable_find(trps->ptable, gssname);
+  return trp_ptable_find_gssname(trps->ptable, gssname);
+}
+
+TRP_PEER *trps_get_peer_by_servicename(TRPS_INSTANCE *trps, TR_NAME *servicename)
+{
+  return trp_ptable_find_servicename(trps->ptable, servicename);
 }
 
 int trps_peer_connected(TRPS_INSTANCE *trps, TRP_PEER *peer)
@@ -1113,3 +1130,50 @@ TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg)
   }
 }
 
+/* send wildcard route request to a peer */
+TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_servicename)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRP_PEER *peer=trps_get_peer_by_servicename(trps, peer_servicename);
+  TR_MSG msg; /* not a pointer */
+  TRP_REQ *req=trp_req_new(tmp_ctx);
+  char *encoded=NULL;
+  TRP_RC rc=TRP_ERROR;
+
+  if (peer==NULL) {
+    tr_err("trps_wildcard_route_req: unknown peer (%.*s).", peer_servicename->len, peer_servicename->buf);
+    rc=TRP_BADARG;
+    goto cleanup;
+  }
+  if ((req==NULL) || (trp_req_make_wildcard(req)!=TRP_SUCCESS)) {
+    tr_err("trps_wildcard_route_req: unable to create wildcard TRP request.");
+    rc=TRP_NOMEM;
+    goto cleanup;
+  }
+
+  tr_msg_set_trp_req(&msg, req);
+  encoded=tr_msg_encode(&msg);
+  if (encoded==NULL) {
+    tr_err("trps_wildcard_route_req: error encoding wildcard TRP request.");
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+
+  tr_debug("trps_wildcard_route_req: adding message to queue.");
+  if (trps_send_msg(trps, peer, encoded) != TRP_SUCCESS) {
+    tr_err("trps_wildcard_route_req: error queueing request.");
+    rc=TRP_ERROR;
+  } else {
+    tr_debug("trps_wildcard_route_req: request queued successfully.");
+    rc=TRP_SUCCESS;
+  }
+  tr_crit("got here");
+cleanup:
+  if (encoded!=NULL)
+    tr_msg_free_encoded(encoded);
+  if (req!=NULL)
+    trp_req_free(req);
+
+  talloc_free(tmp_ctx);
+  return rc;
+}
