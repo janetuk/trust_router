@@ -612,7 +612,7 @@ static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
 
   *n_routes=0;
 
-  if (realm==NULL)
+  if ((realm==NULL) || (realm->origin!=TR_REALM_LOCAL))
     goto cleanup;
 
   /* count apcs */

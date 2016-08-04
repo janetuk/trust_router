@@ -32,6 +32,8 @@
  *
  */
 
+#include <talloc.h>
+
 #include <trust_router/tr_name.h>
 #include <tr_idp.h>
 #include <tr_config.h>
@@ -58,4 +60,20 @@ TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME 
     return NULL;
 
   return(default_servers);
+}
+
+
+TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
+{
+  TR_IDP_REALM *idp=talloc(mem_ctx, TR_IDP_REALM);
+  if (idp!=NULL) {
+    idp->next=NULL;
+    idp->comm_next=NULL;
+    idp->realm_id=NULL;
+    idp->shared_config=0;
+    idp->aaa_servers=NULL;
+    idp->apcs=NULL;
+    idp->origin=TR_REALM_LOCAL;
+  }
+  return idp;
 }

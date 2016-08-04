@@ -43,6 +43,7 @@
 #include <tr_debug.h>
 #include <tr_filter.h>
 #include <trust_router/tr_constraint.h>
+#include <tr_idp.h>
 #include <tr.h>
 
 void tr_print_config (FILE *stream, TR_CFG *cfg) {
@@ -605,6 +606,7 @@ static TR_APC *tr_cfg_parse_apcs (TR_CFG *trc, json_t *japcs, TR_CFG_RC *rc)
 
 static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_CFG_RC *rc) {
   TR_IDP_REALM *idp = NULL;
+  json_t *jremote = NULL;
   json_t *jrid = NULL;
   json_t *jscfg = NULL;
   json_t *jsrvrs = NULL;
@@ -617,38 +619,50 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
     return NULL;
   }
 
-  if (NULL == (idp = talloc_zero(trc, TR_IDP_REALM))) {
+  if (NULL == (idp = tr_idp_realm_new(trc))) {
     tr_debug("tr_cfg_parse_one_idp_realm: Out of memory.");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
 
-  if ((NULL == (jrid = json_object_get(jidp, "realm_id"))) ||
-      (!json_is_string(jrid)) ||
-      (NULL == (jscfg = json_object_get(jidp, "shared_config"))) ||
-      (!json_is_string(jscfg)) ||
-      (NULL == (jsrvrs = json_object_get(jidp, "aaa_servers"))) ||
-      (!json_is_array(jsrvrs))) {
-    tr_debug("tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration.");
-    *rc = TR_CFG_NOPARSE;
+  /* Assume local route unless specified as remote. */
+  jremote = json_object_get(jidp, "remote");
+  if ((jremote!=NULL) && (!json_is_number(jremote))) {
+    tr_debug("tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration (remote is not a number).");
+    *rc=TR_CFG_NOPARSE;
     return NULL;
   }
 
-  if (0 == strcmp(json_string_value(jscfg), "no")) {
-    idp->shared_config = 0;
-  } else {
-    idp->shared_config = 1;
+  if ((NULL == (jrid = json_object_get(jidp, "realm_id"))) ||
+      (!json_is_string(jrid))) {
+      tr_debug("tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration (realm_id missing or invalid).");
+      *rc = TR_CFG_NOPARSE;
+      return NULL;
   }
+        
+  if ((jremote==NULL) || (0==json_integer_value(jremote))) {
+    idp->origin=TR_REALM_LOCAL;
+
+    if ((NULL == (jscfg = json_object_get(jidp, "shared_config"))) ||
+        (!json_is_string(jscfg)) ||
+        (NULL == (jsrvrs = json_object_get(jidp, "aaa_servers"))) ||
+        (!json_is_array(jsrvrs))) {
+      tr_debug("tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration.");
+      *rc = TR_CFG_NOPARSE;
+      return NULL;
+    }
+
+    if (0 == strcmp(json_string_value(jscfg), "no")) {
+      idp->shared_config = 0;
+    } else {
+      idp->shared_config = 1;
+    }
+  } else
+    idp->origin=TR_REALM_REMOTE_INCOMPLETE;
 
   if (NULL == (idp->realm_id = tr_new_name((char *)json_string_value(jrid)))) {
     tr_debug("tr_cfg_parse_one_idp_realm: No memory for realm id.");
     *rc = TR_CFG_NOMEM;
-    return NULL;
-  }
-
-  if (NULL == (idp->aaa_servers = tr_cfg_parse_aaa_servers(trc, jsrvrs, rc))) {
-    tr_debug("tr_cfg_parse_one_idp_realm: Can't parse AAA servers for realm %s.", idp->realm_id->buf);
-    tr_free_name(idp->realm_id);
     return NULL;
   }
 
@@ -657,10 +671,18 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
     if (NULL == (idp->apcs = tr_cfg_parse_apcs(trc, japcs, rc))) {
       tr_debug("tr_cfg_parse_one_idp_realm: Can't parse APCs for realm %s .", idp->realm_id->buf);
       tr_free_name(idp->realm_id);
-      /* TBD -- free aaa_servers */;
+      /* TBD -- free aaa_servers */
       return NULL;
     }
   } 
+
+  if ((idp->origin==TR_REALM_LOCAL) &&
+      (NULL == (idp->aaa_servers = tr_cfg_parse_aaa_servers(trc, jsrvrs, rc)))) {
+    tr_debug("tr_cfg_parse_one_idp_realm: Can't parse AAA servers for realm %s.", idp->realm_id->buf);
+    tr_free_name(idp->realm_id);
+    return NULL;
+  }
+
   return idp;
 }
 
