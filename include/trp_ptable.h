@@ -7,6 +7,11 @@
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
 
+typedef enum trp_peer_conn_status {
+  PEER_DISCONNECTED=0,
+  PEER_CONNECTED
+} TRP_PEER_CONN_STATUS;
+
 typedef struct trp_peer TRP_PEER;
 struct trp_peer {
   TRP_PEER *next; /* for making a linked list */
@@ -16,6 +21,10 @@ struct trp_peer {
   unsigned int port;
   unsigned int linkcost;
   struct timespec last_conn_attempt;
+  TRP_PEER_CONN_STATUS outgoing_status;
+  TRP_PEER_CONN_STATUS incoming_status;
+  void (*conn_status_cb)(TRP_PEER *, void *); /* callback for connected status change */
+  void *conn_status_cookie;
 };
 
 typedef struct trp_ptable {
@@ -52,7 +61,13 @@ void trp_peer_set_port(TRP_PEER *peer, unsigned int port);
 unsigned int trp_peer_get_linkcost(TRP_PEER *peer);
 struct timespec *trp_peer_get_last_conn_attempt(TRP_PEER *peer);
 void trp_peer_set_last_conn_attempt(TRP_PEER *peer, struct timespec *time);
+TRP_PEER_CONN_STATUS trp_peer_get_outgoing_status(TRP_PEER *peer);
+void trp_peer_set_outgoing_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status);
+TRP_PEER_CONN_STATUS trp_peer_get_incoming_status(TRP_PEER *peer);
+void trp_peer_set_incoming_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status);
+int trp_peer_is_connected(TRP_PEER *peer);
 void trp_peer_set_linkcost(TRP_PEER *peer, unsigned int linkcost);
+void trp_peer_set_conn_status_cb(TRP_PEER *peer, void (*cb)(TRP_PEER *, void *), void *cookie);
 char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep);
 
 #endif /* _TRP_PTABLE_H_ */

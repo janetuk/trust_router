@@ -293,6 +293,7 @@ int main(int argc, char *argv[])
     }
     trp_peer_set_server(hc_peer, "epsilon.vmnet");
     trp_peer_set_gssname(hc_peer, tr_new_name("tr-epsilon-vmnet@apc.painless-security.com"));
+    trp_peer_set_conn_status_cb(hc_peer, tr_peer_status_change, (void *)(tr->trps));
     switch (tr->trps->port) {
     case 10000:
       trp_peer_set_port(hc_peer, 10001);

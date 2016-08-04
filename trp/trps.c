@@ -90,9 +90,9 @@ TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps)
   return tr_mq_pop(trps->mq);
 }
 
-void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg)
+void trps_mq_add(TRPS_INSTANCE *trps, TR_MQ_MSG *msg)
 {
-  tr_mq_append(trps->mq, msg);
+  tr_mq_add(trps->mq, msg);
 }
 
 unsigned int trps_get_connect_interval(TRPS_INSTANCE *trps)
@@ -187,16 +187,15 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
 
   /* get the connection for this peer */
   trpc=trps_find_trpc(trps, peer);
-  if ((trpc==NULL) || (trpc_get_status(trps->trpc)!=TRP_CONNECTION_UP)) {
-    /* We could just let these sit on the queue in the hopes that a connection
-     * is eventually established. However, we'd then have to ensure the queue
-     * didn't keep growing, etc. */
-    tr_warning("trps_send_msg: skipping message queued while TRPC connection not up.");
+  /* instead, let's let that happen and then clear the queue when an attempt to
+   * connect fails */
+  if (trpc==NULL) {
+    tr_warning("trps_send_msg: skipping message queued for missing TRP client entry.");
   } else {
-    mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND);
+    mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND, TR_MQ_PRIO_NORMAL);
     msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
     tr_mq_msg_set_payload(mq_msg, msg_dup, NULL); /* no need for a free() func */
-    trpc_mq_append(trpc, mq_msg);
+    trpc_mq_add(trpc, mq_msg);
     rc=TRP_SUCCESS;
   }
   talloc_free(tmp_ctx);
@@ -234,22 +233,6 @@ static int trps_listen (TRPS_INSTANCE *trps, int port)
   tr_debug("trps_listen: TRP Server listening on port %d", port);
   return conn;
 }
-
-#if 0 /* remove this if I forget to do so */
-/* returns EACCES if authorization is denied */
-int trps_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data)
-{
-  TRPS_INSTANCE *trps = (TRPS_INSTANCE *)data;
-  int result=0;
-
-  if (0!=trps->auth_handler(clientName, displayName, trps->cookie)) {
-    tr_debug("trps_auth_cb: client '%.*s' denied authorization.", displayName->length, displayName->value);
-    result=EACCES; /* denied */
-  }
-
-  return result;
-}
-#endif 
 
 /* get the currently selected route if available */
 TRP_ROUTE *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer)
@@ -375,37 +358,41 @@ int trps_get_listener(TRPS_INSTANCE *trps,
   return listen;
 }
 
+TRP_RC trps_authorize_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
+{
+  /* try to establish a GSS context */
+  if (0!=trp_connection_auth(conn, trps->auth_handler, trps->cookie)) {
+    tr_notice("trps_authorize_connection: failed to authorize connection");
+    trp_connection_close(conn);
+    return TRP_ERROR;
+  }
+  tr_notice("trps_authorize_connection: authorized connection");
+  return TRP_SUCCESS;
+}
+
 void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
 {
   TR_MSG *msg=NULL;
   TRP_RC rc=TRP_ERROR;
 
-  /* try to establish a GSS context */
-  if (0!=trp_connection_auth(conn, trps->auth_handler, trps->cookie)) {
-    tr_notice("tr_trps_conn_thread: failed to authorize connection");
-    trp_connection_close(conn);
-  } else {
-    tr_notice("trps_handle_connection: authorized connection");
+  /* loop as long as the connection exists */
+  while (trp_connection_get_status(conn)==TRP_CONNECTION_UP) {
+    rc=trps_read_message(trps, conn, &msg);
+    switch(rc) {
+    case TRP_SUCCESS:
+      trps->msg_handler(trps, conn, msg); /* send the TR_MSG off to the callback */
+      break;
 
-    /* loop as long as the connection exists */
-    while (trp_connection_get_status(conn)==TRP_CONNECTION_UP) {
-      rc=trps_read_message(trps, conn, &msg);
-      switch(rc) {
-      case TRP_SUCCESS:
-        trps->msg_handler(trps, conn, msg); /* send the TR_MSG off to the callback */
-        break;
+    case TRP_ERROR:
+      trp_connection_close(conn);
+      break;
 
-      case TRP_ERROR:
-        trp_connection_close(conn);
-        break;
-
-      default:
-        tr_debug("trps_handle_connection: trps_read_message failed (%d)", rc);
-      }
+    default:
+      tr_debug("trps_handle_connection: trps_read_message failed (%d)", rc);
     }
-
-    tr_debug("trps_handle_connection: connection closed.");
   }
+
+  tr_debug("trps_handle_connection: connection closed.");
 }
 
 static TRP_RC trps_validate_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
@@ -1167,7 +1154,7 @@ TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_servicename)
     tr_debug("trps_wildcard_route_req: request queued successfully.");
     rc=TRP_SUCCESS;
   }
-  tr_crit("got here");
+
 cleanup:
   if (encoded!=NULL)
     tr_msg_free_encoded(encoded);

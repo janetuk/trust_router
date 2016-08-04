@@ -11,6 +11,7 @@
 
 #include <gsscon.h>
 #include <tr.h>
+#include <tr_mq.h>
 #include <tr_rp.h>
 #include <trp_internal.h>
 #include <trp_ptable.h>
@@ -39,6 +40,12 @@ static void msg_free_helper(void *p)
 {
   tr_msg_free_decoded((TR_MSG *)p);
 }
+
+static void tr_free_name_helper(void *arg)
+{
+  tr_free_name((TR_NAME *)arg);
+}
+
 /* takes a TR_MSG and puts it in a TR_MQ_MSG for processing by the main thread */
 static TRP_RC tr_trps_msg_handler(TRPS_INSTANCE *trps,
                                   TRP_CONNECTION *conn,
@@ -50,12 +57,12 @@ static TRP_RC tr_trps_msg_handler(TRPS_INSTANCE *trps,
   /* n.b., conn is available here, but do not hold onto the reference
    * because it may be cleaned up if the originating connection goes
    * down before the message is processed */
-  mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_MSG_RECEIVED);
+  mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_MSG_RECEIVED, TR_MQ_PRIO_NORMAL);
   if (mq_msg==NULL) {
     return TRP_NOMEM;
   }
   tr_mq_msg_set_payload(mq_msg, (void *)tr_msg, msg_free_helper);
-  trps_mq_append(trps, mq_msg);
+  trps_mq_add(trps, mq_msg);
   talloc_free(tmp_ctx); /* cleans up the message if it did not get appended correctly */
   return TRP_SUCCESS;
 }
@@ -101,15 +108,27 @@ static void *tr_trps_thread(void *arg)
   TR_MQ_MSG *msg=NULL;
 
   tr_debug("tr_trps_thread: started");
+  if (trps_authorize_connection(trps, conn)!=TRP_SUCCESS)
+    goto cleanup;
+
+  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_CONNECTED, TR_MQ_PRIO_HIGH);
+  tr_mq_msg_set_payload(msg, (void *)tr_dup_name(trp_connection_get_peer(conn)), tr_free_name_helper);
+  if (msg==NULL) {
+    tr_err("tr_trps_thread: error allocating TR_MQ_MSG");
+    goto cleanup;
+  } 
+  trps_mq_add(trps, msg); /* steals msg context */
+  msg=NULL;
+
   trps_handle_connection(trps, conn);
 
-  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_DISCONNECTED);
+cleanup:
+  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_DISCONNECTED, TR_MQ_PRIO_HIGH);
   tr_mq_msg_set_payload(msg, (void *)conn, NULL); /* do not pass a free routine */
   if (msg==NULL)
     tr_err("tr_trps_thread: error allocating TR_MQ_MSG");
   else
-    trps_mq_append(trps, msg);
-
+    trps_mq_add(trps, msg);
   tr_debug("tr_trps_thread: exit");
   talloc_free(tmp_ctx);
   return NULL;
@@ -191,16 +210,51 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
     s=tr_mq_msg_get_message(msg);
-    if (0==strcmp(s, TR_MQMSG_TRPS_DISCONNECTED)) {
-      tr_trps_cleanup_conn(trps,
-                           talloc_get_type_abort(tr_mq_msg_get_payload(msg),
-                                                 TRP_CONNECTION));
+    if (0==strcmp(s, TR_MQMSG_TRPS_CONNECTED)) {
+      TR_NAME *gssname=(TR_NAME *)tr_mq_msg_get_payload(msg);
+      TRP_PEER *peer=trps_get_peer_by_gssname(trps, gssname);
+      if (peer==NULL)
+        tr_err("tr_trps_process_mq: incoming connection to unknown peer (%s) reported.", gssname->buf);
+      else {
+        trp_peer_set_incoming_status(peer, PEER_CONNECTED);
+        tr_err("tr_trps_process_mq: incoming connection to %s established.", gssname->buf);
+      }
+    }
+    else if (0==strcmp(s, TR_MQMSG_TRPS_DISCONNECTED)) {
+      TRP_CONNECTION *conn=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TRP_CONNECTION);
+      TR_NAME *gssname=trp_connection_get_gssname(conn);
+      TRP_PEER *peer=trps_get_peer_by_gssname(trps, gssname);
+      if (peer==NULL) {
+        tr_err("tr_trps_process_mq: disconnection of unknown peer (%s) reported.",
+               trp_connection_get_gssname(conn)->buf);
+      } else {
+        trp_peer_set_incoming_status(peer, PEER_DISCONNECTED);
+        tr_trps_cleanup_conn(trps, conn);
+        tr_err("tr_trps_process_mq: incoming connection to %s lost.", gssname->buf);
+      }
+    }
+    else if (0==strcmp(s, TR_MQMSG_TRPC_CONNECTED)) {
+      TR_NAME *svcname=(TR_NAME *)tr_mq_msg_get_payload(msg);
+      TRP_PEER *peer=trps_get_peer_by_servicename(trps, svcname);
+      if (peer==NULL)
+        tr_err("tr_trps_process_mq: connection to unknown peer (%s) reported.", svcname->buf);
+      else {
+        trp_peer_set_outgoing_status(peer, PEER_CONNECTED);
+        tr_err("tr_trps_process_mq: outgoing connection to %s established.", svcname->buf);
+      }
     }
     else if (0==strcmp(s, TR_MQMSG_TRPC_DISCONNECTED)) {
       /* trpc connection died */
-      tr_trps_cleanup_trpc(trps,
-                           talloc_get_type_abort(tr_mq_msg_get_payload(msg),
-                                                 TRPC_INSTANCE));
+      TRPC_INSTANCE *trpc=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TRPC_INSTANCE);
+      TR_NAME *gssname=trpc_get_gssname(trpc);
+      TRP_PEER *peer=trps_get_peer_by_gssname(trps, gssname);
+      if (peer==NULL)
+        tr_err("tr_trps_process_mq: disconnection of unknown peer (%s) reported.", gssname->buf);
+      else {
+        trp_peer_set_outgoing_status(peer, PEER_DISCONNECTED);
+        tr_err("tr_trps_process_mq: outgoing connection to %s lost.", gssname->buf);
+        tr_trps_cleanup_trpc(trps, trpc);
+      }
     }
 
     else if (0==strcmp(s, TR_MQMSG_MSG_RECEIVED)) {
@@ -473,13 +527,25 @@ static void *tr_trpc_thread(void *arg)
               trpc_get_server(trpc),
               trpc_get_port(trpc));
   } else {
-    peer_gssname=tr_dup_name(trp_connection_get_peer(trpc_get_conn(trpc)));
+    peer_gssname=trp_connection_get_peer(trpc_get_conn(trpc));
     if (peer_gssname==NULL) {
       tr_err("tr_trpc_thread: could not duplicate peer_gssname.");
       talloc_free(tmp_ctx);
       return NULL;
     }
     tr_debug("tr_trpc_thread: connected to peer %s", peer_gssname->buf);
+
+    msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_CONNECTED, TR_MQ_PRIO_HIGH);
+    tr_mq_msg_set_payload(msg, (void *)tr_dup_name(peer_gssname), tr_free_name_helper);
+    if (msg==NULL) {
+      tr_err("tr_trpc_thread: error allocating TR_MQ_MSG");
+      talloc_free(tmp_ctx);
+      return NULL;
+    }
+    tr_debug("queuing********************************************************************************");
+    trps_mq_add(trps, msg); /* steals msg context */
+    tr_debug("queued********************************************************************************");
+    msg=NULL;
 
     while(1) {
       cb_data.msg_ready=0;
@@ -521,12 +587,14 @@ static void *tr_trpc_thread(void *arg)
   }
 
   tr_debug("tr_trpc_thread: exiting.");
-  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_DISCONNECTED);
+  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_DISCONNECTED, TR_MQ_PRIO_HIGH);
   tr_mq_msg_set_payload(msg, (void *)trpc, NULL); /* do not pass a free routine */
   if (msg==NULL)
     tr_err("tr_trpc_thread: error allocating TR_MQ_MSG");
   else
-    trps_mq_append(trps, msg);
+    trps_mq_add(trps, msg);
+
+  trpc_mq_clear(trpc); /* clear any queued messages */
 
   talloc_free(tmp_ctx);
   return NULL;
@@ -577,55 +645,12 @@ static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
   return entries;
 }
 
-struct tr_wildcard_cookie {
-  TRPS_INSTANCE *trps;
-  TR_NAME *peer_servicename;
-};
-
-/* can only be called once, talloc_frees its argument cookie on termination */
-static void tr_send_wildcard(int listener, short event, void *arg)
+void tr_peer_status_change(TRP_PEER *peer, void *cookie)
 {
-  struct tr_wildcard_cookie *cook=talloc_get_type_abort(arg, struct tr_wildcard_cookie);
+  TRPS_INSTANCE *trps=talloc_get_type_abort(cookie, TRPS_INSTANCE);
 
-  /* queue a route request for all route to every peer */
-  if (TRP_SUCCESS!=trps_wildcard_route_req(cook->trps, cook->peer_servicename))
+  if (TRP_SUCCESS!=trps_wildcard_route_req(trps, trp_peer_get_servicename(peer)))
     tr_err("tr_send_wildcard: error sending wildcard route request.");
-
-  tr_free_name(cook->peer_servicename);
-  talloc_free(cook);
-}
-
-struct tr_trpc_status_change_cookie {
-  struct event_base *evbase;
-  TRPS_INSTANCE *trps;
-  TRPC_INSTANCE *trpc;
-  TRP_PEER *peer;
-};
-static void tr_trpc_status_change(TRP_CONNECTION *conn, void *cookie)
-{
-  struct tr_trpc_status_change_cookie *cook=talloc_get_type_abort(cookie, struct tr_trpc_status_change_cookie);
-  struct event_base *evbase=cook->evbase;
-  TRPS_INSTANCE *trps=cook->trps;
-  TRP_PEER *peer=cook->peer;
-  TR_NAME *gssname=trp_peer_get_gssname(peer);
-  struct timeval zero_time={0,0};
-  struct tr_wildcard_cookie *wc_cookie=NULL;
-  
-  if (trp_connection_get_status(conn)==TRP_CONNECTION_UP) {
-    tr_debug("tr_trpc_status_change: connection to %.*s now up.", gssname->len, gssname->buf);
-    /* add a one-off event to send a wildcard request from the main thread */
-    wc_cookie=talloc(trps, struct tr_wildcard_cookie);
-    if (wc_cookie==NULL) {
-      tr_err("tr_trpc_status_change: error allocating wildcard cookie.");
-      return;
-    }
-    wc_cookie->trps=trps;
-    wc_cookie->peer_servicename=trp_peer_dup_servicename(peer);
-    if (0!=event_base_once(evbase, -1, EV_TIMEOUT, tr_send_wildcard, wc_cookie, &zero_time)) {
-      tr_err("tr_trpc_status_change: error queueing wildcard route request event.");
-    }
-  } else
-    tr_debug("tr_trpc_status_change: connection to %.*s now down.", gssname->len, gssname->buf);
 }
 
 /* starts a trpc thread to connect to server:port */
@@ -635,7 +660,6 @@ TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer, struct event *ev)
   TRPC_INSTANCE *trpc=NULL;
   TRP_CONNECTION *conn=NULL;
   struct trpc_thread_data *thread_data=NULL;
-  struct tr_trpc_status_change_cookie *status_change_cookie=NULL;
   TRP_RC rc=TRP_ERROR;
 
   tr_debug("tr_trpc_initiate entered");
@@ -653,20 +677,6 @@ TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer, struct event *ev)
     rc=TRP_NOMEM;
     goto cleanup;
   }
-
-  status_change_cookie=talloc(conn, struct tr_trpc_status_change_cookie);
-  if (status_change_cookie==NULL) {
-    tr_crit("tr_trpc_initiate: could not allocate connection status cookie.");
-    rc=TRP_NOMEM;
-    goto cleanup;
-  }
-  status_change_cookie->evbase=event_get_base(ev);
-  status_change_cookie->trps=trps;
-  status_change_cookie->trpc=trpc;
-  status_change_cookie->peer=peer;
-  conn->status_change_cookie=status_change_cookie;
-  status_change_cookie=NULL;
-  conn->status_change_cb=tr_trpc_status_change;
 
   trpc_set_conn(trpc, conn);
   trpc_set_server(trpc, talloc_strdup(trpc, trp_peer_get_server(peer)));

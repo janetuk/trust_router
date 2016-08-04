@@ -149,9 +149,10 @@ void trpc_set_port(TRPC_INSTANCE *trpc, unsigned int port);
 TRP_CONNECTION_STATUS trpc_get_status(TRPC_INSTANCE *trpc);
 TR_MQ *trpc_get_mq(TRPC_INSTANCE *trpc);
 void trpc_set_mq(TRPC_INSTANCE *trpc, TR_MQ *mq);
-void trpc_mq_append(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
+void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
 TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc);
-void trpc_master_mq_append(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
+void trpc_mq_clear(TRPC_INSTANCE *trpc);
+void trpc_master_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
 TR_MQ_MSG *trpc_master_mq_pop(TRPC_INSTANCE *trpc);
 TRP_RC trpc_connect(TRPC_INSTANCE *trpc);
 TRP_RC trpc_send_msg(TRPC_INSTANCE *trpc, const char *msg_content);
@@ -179,7 +180,8 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       unsigned int port,
                       void *cookie);
 TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps);
-void trps_mq_append(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
+void trps_mq_add(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
+TRP_RC trps_authorize_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn);
 void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn);
 TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps);
 TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg);

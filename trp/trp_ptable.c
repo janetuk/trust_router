@@ -26,6 +26,10 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
     peer->port=0;
     peer->linkcost=TRP_LINKCOST_DEFAULT;
     peer->last_conn_attempt=(struct timespec){0,0};
+    peer->outgoing_status=PEER_DISCONNECTED;
+    peer->incoming_status=PEER_DISCONNECTED;
+    peer->conn_status_cb=NULL;
+    peer->conn_status_cookie=NULL;
     talloc_set_destructor((void *)peer, trp_peer_destructor);
   }
   return peer;
@@ -131,6 +135,12 @@ void trp_peer_set_linkcost(TRP_PEER *peer, unsigned int linkcost)
   peer->linkcost=linkcost;
 }
 
+void trp_peer_set_conn_status_cb(TRP_PEER *peer, void (*cb)(TRP_PEER *, void *), void *cookie)
+{
+  peer->conn_status_cb=cb;
+  peer->conn_status_cookie=cookie;
+}
+
 struct timespec *trp_peer_get_last_conn_attempt(TRP_PEER *peer)
 {
   return &(peer->last_conn_attempt);
@@ -148,6 +158,41 @@ TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx)
     ptbl->head=NULL;
   }
   return ptbl;
+}
+
+void trp_peer_set_outgoing_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status)
+{
+  int was_connected=trp_peer_is_connected(peer);
+  peer->outgoing_status=status;
+  tr_debug("trp_peer_set_outgoing_status: %s: status=%d peer connected was %d now %d.",
+           trp_peer_get_gssname(peer)->buf, status, was_connected, trp_peer_is_connected(peer));
+  if ((trp_peer_is_connected(peer) != was_connected) && (peer->conn_status_cb!=NULL))
+    peer->conn_status_cb(peer, peer->conn_status_cookie);
+}
+
+TRP_PEER_CONN_STATUS trp_peer_get_outgoing_status(TRP_PEER *peer)
+{
+  return peer->outgoing_status;
+}
+
+void trp_peer_set_incoming_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status)
+{
+  int was_connected=trp_peer_is_connected(peer);
+  peer->incoming_status=status;
+  tr_debug("trp_peer_set_incoming_status: %s: status=%d peer connected was %d now %d.",
+           trp_peer_get_gssname(peer)->buf, status, was_connected, trp_peer_is_connected(peer));
+  if ((trp_peer_is_connected(peer) != was_connected) && (peer->conn_status_cb!=NULL))
+    peer->conn_status_cb(peer, peer->conn_status_cookie);
+}
+
+TRP_PEER_CONN_STATUS trp_peer_get_incoming_status(TRP_PEER *peer)
+{
+  return peer->incoming_status;
+}
+
+int trp_peer_is_connected(TRP_PEER *peer)
+{
+  return (peer->outgoing_status==PEER_CONNECTED) && (peer->incoming_status==PEER_CONNECTED);
 }
 
 void trp_ptable_free(TRP_PTABLE *ptbl)

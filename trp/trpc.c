@@ -150,14 +150,19 @@ void trpc_set_mq(TRPC_INSTANCE *trpc, TR_MQ *mq)
 }
 
 /* submit msg to trpc for transmission */
-void trpc_mq_append(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg)
+void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg)
 {
-  tr_mq_append(trpc->mq, msg);
+  tr_mq_add(trpc->mq, msg);
 }
 
 TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc)
 {
   return tr_mq_pop(trpc->mq);
+}
+
+void trpc_mq_clear(TRPC_INSTANCE *trpc)
+{
+  tr_mq_clear(trpc->mq);
 }
 
 TRP_RC trpc_connect(TRPC_INSTANCE *trpc)
