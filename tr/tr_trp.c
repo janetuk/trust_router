@@ -542,9 +542,7 @@ static void *tr_trpc_thread(void *arg)
       talloc_free(tmp_ctx);
       return NULL;
     }
-    tr_debug("queuing********************************************************************************");
     trps_mq_add(trps, msg); /* steals msg context */
-    tr_debug("queued********************************************************************************");
     msg=NULL;
 
     while(1) {

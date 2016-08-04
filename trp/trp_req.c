@@ -91,7 +91,7 @@ void trp_req_set_peer(TRP_REQ *req, TR_NAME *peer)
  * use the empty string. */
 static int trp_req_name_is_wildcard(TR_NAME *name)
 {
-  return (name!=NULL) && (name->len==0) && (name->buf!=NULL) && (name->buf[0]='\0');
+  return (name!=NULL) && (name->len==0);
 }
 
 int trp_req_is_wildcard(TRP_REQ *req)

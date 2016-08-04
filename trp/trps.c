@@ -913,11 +913,6 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
   TRP_RC rc=TRP_ERROR;
   TRP_PEER *peer=trps_get_peer_by_gssname(trps, peer_gssname);
 
-  if (!trps_peer_connected(trps, peer)) {
-    tr_debug("trps_update_one_peer: no TRP connection to %.*s, skipping.",
-             peer_gssname->len, peer_gssname->buf);
-    goto cleanup;
-  }
   switch (update_type) {
   case TRP_UPDATE_TRIGGERED:
     tr_debug("trps_update_one_peer: preparing triggered route update for %.*s",
@@ -1026,6 +1021,12 @@ TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE update_type)
        peer!=NULL && rc==TRP_SUCCESS;
        peer=trp_ptable_iter_next(iter))
   {
+    if (!trps_peer_connected(trps, peer)) {
+      TR_NAME *peer_gssname=trp_peer_get_gssname(peer);
+      tr_debug("trps_update: no TRP connection to %.*s, skipping.",
+               peer_gssname->len, peer_gssname->buf);
+      continue;
+    }
     rc=trps_update_one_peer(trps, trp_peer_get_gssname(peer), update_type, NULL, NULL);
   }
   
@@ -1089,6 +1090,7 @@ static TRP_RC trps_handle_request(TRPS_INSTANCE *trps, TRP_REQ *req)
              comm->len, comm->buf, realm->len, realm->buf);
   } else {
     tr_debug("trps_handle_request: all routes requested.");
+    /* leave comm/realm NULL */
   }
   return trps_update_one_peer(trps, trp_req_get_peer(req), TRP_UPDATE_REQUESTED, comm, realm);
 }
