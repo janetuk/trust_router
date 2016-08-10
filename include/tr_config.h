@@ -101,7 +101,11 @@ TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx);
 TR_CFG_MGR *tr_cfg_mgr_new(TALLOC_CTX *mem_ctx);
 void tr_cfg_free(TR_CFG *cfg);
 void tr_cfg_mgr_free(TR_CFG_MGR *cfg);
-void tr_print_config(FILE *stream, TR_CFG *cfg);
+
+void tr_print_config(TR_CFG *cfg);
+void tr_print_comms(TR_COMM *comm_list);
+void tr_print_comm_idps(TR_IDP_REALM *idp_list);
+void tr_print_comm_rps(TR_RP_REALM *rp_list);
 
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
 TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
