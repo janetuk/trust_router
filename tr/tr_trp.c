@@ -1,4 +1,4 @@
-#include <stdio.h>  /* TODO: remove this --jlr */
+#include <stdio.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <event2/event.h>
@@ -214,10 +214,10 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
       TR_NAME *gssname=(TR_NAME *)tr_mq_msg_get_payload(msg);
       TRP_PEER *peer=trps_get_peer_by_gssname(trps, gssname);
       if (peer==NULL)
-        tr_err("tr_trps_process_mq: incoming connection to unknown peer (%s) reported.", gssname->buf);
+        tr_err("tr_trps_process_mq: incoming connection from unknown peer (%s) reported.", gssname->buf);
       else {
         trp_peer_set_incoming_status(peer, PEER_CONNECTED);
-        tr_err("tr_trps_process_mq: incoming connection to %s established.", gssname->buf);
+        tr_err("tr_trps_process_mq: incoming connection from %s established.", gssname->buf);
       }
     }
     else if (0==strcmp(s, TR_MQMSG_TRPS_DISCONNECTED)) {
@@ -225,19 +225,19 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
       TR_NAME *gssname=trp_connection_get_gssname(conn);
       TRP_PEER *peer=trps_get_peer_by_gssname(trps, gssname);
       if (peer==NULL) {
-        tr_err("tr_trps_process_mq: disconnection of unknown peer (%s) reported.",
+        tr_err("tr_trps_process_mq: incoming connection from unknown peer (%s) lost.",
                trp_connection_get_gssname(conn)->buf);
       } else {
         trp_peer_set_incoming_status(peer, PEER_DISCONNECTED);
         tr_trps_cleanup_conn(trps, conn);
-        tr_err("tr_trps_process_mq: incoming connection to %s lost.", gssname->buf);
+        tr_err("tr_trps_process_mq: incoming connection from %s lost.", gssname->buf);
       }
     }
     else if (0==strcmp(s, TR_MQMSG_TRPC_CONNECTED)) {
       TR_NAME *svcname=(TR_NAME *)tr_mq_msg_get_payload(msg);
       TRP_PEER *peer=trps_get_peer_by_servicename(trps, svcname);
       if (peer==NULL)
-        tr_err("tr_trps_process_mq: connection to unknown peer (%s) reported.", svcname->buf);
+        tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) reported.", svcname->buf);
       else {
         trp_peer_set_outgoing_status(peer, PEER_CONNECTED);
         tr_err("tr_trps_process_mq: outgoing connection to %s established.", svcname->buf);
@@ -247,9 +247,9 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
       /* trpc connection died */
       TRPC_INSTANCE *trpc=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TRPC_INSTANCE);
       TR_NAME *gssname=trpc_get_gssname(trpc);
-      TRP_PEER *peer=trps_get_peer_by_gssname(trps, gssname);
+      TRP_PEER *peer=trps_get_peer_by_servicename(trps, gssname);
       if (peer==NULL)
-        tr_err("tr_trps_process_mq: disconnection of unknown peer (%s) reported.", gssname->buf);
+        tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) lost.", gssname->buf);
       else {
         trp_peer_set_outgoing_status(peer, PEER_DISCONNECTED);
         tr_err("tr_trps_process_mq: outgoing connection to %s lost.", gssname->buf);
@@ -605,28 +605,28 @@ static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
                                          size_t *n_routes)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TR_APC *apc=NULL;
+  TR_APC *comm=NULL;
   TRP_ROUTE *new_entry=NULL;
   TRP_ROUTE **entries=NULL;
-  size_t n_apcs=0, ii=0;
+  size_t n_comms=0, ii=0;
 
   *n_routes=0;
 
   if ((realm==NULL) || (realm->origin!=TR_REALM_LOCAL))
     goto cleanup;
 
-  /* count apcs */
-  for (apc=realm->apcs, n_apcs=0; apc!=NULL; apc=apc->next,n_apcs++) {}
+  /* count comms */
+  for (comm=realm->apcs, n_comms=0; comm!=NULL; comm=comm->next,n_comms++) {}
 
-  entries=talloc_array(tmp_ctx, TRP_ROUTE *, n_apcs);
-  for (apc=realm->apcs,ii=0; apc!=NULL; apc=apc->next, ii++) {
+  entries=talloc_array(tmp_ctx, TRP_ROUTE *, n_comms);
+  for (comm=realm->apcs,ii=0; comm!=NULL; comm=comm->next, ii++) {
     new_entry=trp_route_new(entries);
     if (new_entry==NULL) {
       tr_crit("tr_make_local_routes: unable to allocate entry.");
       talloc_free(entries);
       goto cleanup;
     }
-    trp_route_set_apc(new_entry, tr_dup_name(apc->id));
+    trp_route_set_comm(new_entry, tr_dup_name(comm->id));
     trp_route_set_realm(new_entry, tr_dup_name(realm->realm_id));
     trp_route_set_peer(new_entry, tr_new_name("")); /* no peer, it's us */
     trp_route_set_metric(new_entry, 0);
@@ -637,7 +637,7 @@ static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
   }
 
   talloc_steal(mem_ctx, entries);
-  *n_routes=n_apcs;
+  *n_routes=n_comms;
  cleanup:
   talloc_free(tmp_ctx);
   return entries;
@@ -679,7 +679,7 @@ TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer, struct event *ev)
   trpc_set_conn(trpc, conn);
   trpc_set_server(trpc, talloc_strdup(trpc, trp_peer_get_server(peer)));
   trpc_set_port(trpc, trp_peer_get_port(peer));
-  trpc_set_gssname(trpc, trp_peer_dup_gssname(peer));
+  trpc_set_gssname(trpc, trp_peer_dup_servicename(peer));
   tr_debug("tr_trpc_initiate: allocated connection");
   
   /* start thread */

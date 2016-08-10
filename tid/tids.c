@@ -345,6 +345,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
       tr_crit("tids_handle_connection: Error creating response structure.");
       /* try to send an error */
       tids_send_err_response(tids, tr_msg_get_req(mreq), "Error creating response.");
+      tr_msg_free_decoded(mreq);
       return;
     }
 
@@ -362,6 +363,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
     }
     
     tids_destroy_response(tids, resp);
+    tr_msg_free_decoded(mreq);
     return;
   } 
 }
@@ -375,7 +377,7 @@ TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx)
  * connections with tids_accept() */
 int tids_get_listener(TIDS_INSTANCE *tids, 
                       TIDS_REQ_FUNC *req_handler,
-                      tids_auth_func *auth_handler,
+                      TIDS_AUTH_FUNC *auth_handler,
                       const char *hostname,
                       unsigned int port,
                       void *cookie)
@@ -449,7 +451,7 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
 /* Process tids requests forever. Should not return except on error. */
 int tids_start (TIDS_INSTANCE *tids, 
 		TIDS_REQ_FUNC *req_handler,
-		tids_auth_func *auth_handler,
+		TIDS_AUTH_FUNC *auth_handler,
 	        const char *hostname,
 		unsigned int port,
 		void *cookie)

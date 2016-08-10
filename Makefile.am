@@ -38,6 +38,7 @@ tr_trust_router_SOURCES = $(common_srcs) \
 tr/tr_main.c \
 common/tr_config.c \
 common/tr_idp.c \
+common/tr_apc.c \
 common/tr_comm.c \
 common/tr_filter.c \
 common/tr_rp.c \
@@ -50,7 +51,7 @@ tr/tr_trp.c \
 $(trp_srcs) \
 $(tid_srcs)
 
-tr_trust_router_CFLAGS = $(AM_CFLAGS) -pthread
+tr_trust_router_CFLAGS = $(AM_CFLAGS) -pthread -v -da -Q
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads
 #tr_trust_router_LDADD = gsscon/libgsscon.la libtr_tid.la libtr_trp.la $(GLIB_LIBS)
 tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
@@ -74,6 +75,7 @@ tid/tid_resp.c \
 common/tr_msg.c \
 common/tr_name.c \
 common/tr_idp.c \
+common/tr_apc.c \
 common/tr_comm.c \
 common/tr_filter.c \
 common/tr_rp.c \

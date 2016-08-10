@@ -35,11 +35,20 @@
 #ifndef TR_APC_H
 #define TR_APC_H
 
+#include <talloc.h>
+
+#include <trust_router/tr_name.h>
+
 /* Used to hold lists of APC names in cfg. */
 typedef struct tr_apc {
   struct tr_apc *next;
   TR_NAME *id;
 } TR_APC;
+
+TR_APC *tr_apc_new(TALLOC_CTX *mem_ctx);
+void tr_apc_free(TR_APC *apc);
+void tr_apc_set_id(TR_APC *apc, TR_NAME *id);
+TR_NAME *tr_apc_get_id(TR_APC *apc);
 
 #endif
 

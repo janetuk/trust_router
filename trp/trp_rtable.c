@@ -14,8 +14,8 @@
 static int trp_route_destructor(void *obj)
 {
   TRP_ROUTE *entry=talloc_get_type_abort(obj, TRP_ROUTE);
-  if (entry->apc!=NULL)
-    tr_free_name(entry->apc);
+  if (entry->comm!=NULL)
+    tr_free_name(entry->comm);
   if (entry->realm!=NULL)
     tr_free_name(entry->realm);
   if (entry->trust_router!=NULL)
@@ -31,7 +31,7 @@ TRP_ROUTE *trp_route_new(TALLOC_CTX *mem_ctx)
 {
   TRP_ROUTE *entry=talloc(mem_ctx, TRP_ROUTE);
   if (entry!=NULL) {
-    entry->apc=NULL;
+    entry->comm=NULL;
     entry->realm=NULL;
     entry->trust_router=NULL;
     entry->peer=NULL;
@@ -57,21 +57,21 @@ void trp_route_free(TRP_ROUTE *entry)
     talloc_free(entry);
 }
 
-void trp_route_set_apc(TRP_ROUTE *entry, TR_NAME *apc)
+void trp_route_set_comm(TRP_ROUTE *entry, TR_NAME *comm)
 {
-  if (entry->apc!=NULL)
-    tr_free_name(entry->apc);
-  entry->apc=apc;
+  if (entry->comm!=NULL)
+    tr_free_name(entry->comm);
+  entry->comm=comm;
 }
 
-TR_NAME *trp_route_get_apc(TRP_ROUTE *entry)
+TR_NAME *trp_route_get_comm(TRP_ROUTE *entry)
 {
-  return entry->apc;
+  return entry->comm;
 }
 
-TR_NAME *trp_route_dup_apc(TRP_ROUTE *entry)
+TR_NAME *trp_route_dup_comm(TRP_ROUTE *entry)
 {
-  return tr_dup_name(trp_route_get_apc(entry));
+  return tr_dup_name(trp_route_get_comm(entry));
 }
 
 void trp_route_set_realm(TRP_ROUTE *entry, TR_NAME *realm)
@@ -237,7 +237,7 @@ static gboolean trp_tr_name_equal(gconstpointer key1, gconstpointer key2)
   return equal;
 }
 
-/* free a value to the top level rtable (a hash of all entries in the apc) */
+/* free a value to the top level rtable (a hash of all entries in the comm) */
 static void trp_rtable_destroy_table(gpointer data)
 {
   g_hash_table_destroy(data);
@@ -284,11 +284,11 @@ static GHashTable *trp_rtbl_get_or_add_table(GHashTable *tbl, TR_NAME *key, GDes
 
 void trp_rtable_add(TRP_RTABLE *rtbl, TRP_ROUTE *entry)
 {
-  GHashTable *apc_tbl=NULL;
+  GHashTable *comm_tbl=NULL;
   GHashTable *realm_tbl=NULL;
 
-  apc_tbl=trp_rtbl_get_or_add_table(rtbl, entry->apc, trp_rtable_destroy_table);
-  realm_tbl=trp_rtbl_get_or_add_table(apc_tbl, entry->realm, trp_rtable_destroy_rentry);
+  comm_tbl=trp_rtbl_get_or_add_table(rtbl, entry->comm, trp_rtable_destroy_table);
+  realm_tbl=trp_rtbl_get_or_add_table(comm_tbl, entry->realm, trp_rtable_destroy_rentry);
   g_hash_table_insert(realm_tbl, tr_dup_name(entry->peer), entry); /* destroys and replaces a duplicate */
   /* the route entry should not belong to any context, we will manage it ourselves */
   talloc_steal(NULL, entry);
@@ -297,14 +297,14 @@ void trp_rtable_add(TRP_RTABLE *rtbl, TRP_ROUTE *entry)
 /* note: the entry pointer passed in is invalid after calling this because the entry is freed */
 void trp_rtable_remove(TRP_RTABLE *rtbl, TRP_ROUTE *entry)
 {
-  GHashTable *apc_tbl=NULL;
+  GHashTable *comm_tbl=NULL;
   GHashTable *realm_tbl=NULL;
 
-  apc_tbl=g_hash_table_lookup(rtbl, entry->apc);
-  if (apc_tbl==NULL)
+  comm_tbl=g_hash_table_lookup(rtbl, entry->comm);
+  if (comm_tbl==NULL)
     return;
 
-  realm_tbl=g_hash_table_lookup(apc_tbl, entry->realm);
+  realm_tbl=g_hash_table_lookup(comm_tbl, entry->realm);
   if (realm_tbl==NULL)
     return;
 
@@ -312,10 +312,10 @@ void trp_rtable_remove(TRP_RTABLE *rtbl, TRP_ROUTE *entry)
   g_hash_table_remove(realm_tbl, entry->peer);
   /* if that was the last entry in the realm, remove the realm table */
   if (g_hash_table_size(realm_tbl)==0)
-    g_hash_table_remove(apc_tbl, entry->realm);
-  /* if that was the last realm in the apc, remove the apc table */
-  if (g_hash_table_size(apc_tbl)==0)
-    g_hash_table_remove(rtbl, entry->apc);
+    g_hash_table_remove(comm_tbl, entry->realm);
+  /* if that was the last realm in the comm, remove the comm table */
+  if (g_hash_table_size(comm_tbl)==0)
+    g_hash_table_remove(rtbl, entry->comm);
 }
 
 void trp_rtable_clear(TRP_RTABLE *rtbl)
@@ -324,19 +324,19 @@ void trp_rtable_clear(TRP_RTABLE *rtbl)
 }
 
 /* gets the actual hash table, for internal use only */
-static GHashTable *trp_rtable_get_apc_table(TRP_RTABLE *rtbl, TR_NAME *apc)
+static GHashTable *trp_rtable_get_comm_table(TRP_RTABLE *rtbl, TR_NAME *comm)
 {
-  return g_hash_table_lookup(rtbl, apc);
+  return g_hash_table_lookup(rtbl, comm);
 }
 
 /* gets the actual hash table, for internal use only */
-static GHashTable *trp_rtable_get_realm_table(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
+static GHashTable *trp_rtable_get_realm_table(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm)
 {
-  GHashTable *apc_tbl=trp_rtable_get_apc_table(rtbl, apc);
-  if (apc_tbl==NULL)
+  GHashTable *comm_tbl=trp_rtable_get_comm_table(rtbl, comm);
+  if (comm_tbl==NULL)
     return NULL;
   else
-    return g_hash_table_lookup(apc_tbl, realm);
+    return g_hash_table_lookup(comm_tbl, realm);
 }
 
 struct table_size_cookie {
@@ -346,7 +346,7 @@ struct table_size_cookie {
 static void trp_rtable_size_helper(gpointer key, gpointer value, gpointer user_data)
 {
   struct table_size_cookie *data=(struct table_size_cookie *)user_data;
-  data->size += trp_rtable_apc_size(data->rtbl, (TR_NAME *)key);
+  data->size += trp_rtable_comm_size(data->rtbl, (TR_NAME *)key);
 };
 size_t trp_rtable_size(TRP_RTABLE *rtbl)
 {
@@ -355,34 +355,34 @@ size_t trp_rtable_size(TRP_RTABLE *rtbl)
   return data.size;
 }
 
-struct table_apc_size_cookie {
-  TR_NAME *apc;
+struct table_comm_size_cookie {
+  TR_NAME *comm;
   TRP_RTABLE *rtbl;
   size_t size;
 };
-static void table_apc_size_helper(gpointer key, gpointer value, gpointer user_data)
+static void table_comm_size_helper(gpointer key, gpointer value, gpointer user_data)
 {
-  struct table_apc_size_cookie *data=(struct table_apc_size_cookie *)user_data;
-  data->size += trp_rtable_realm_size(data->rtbl, data->apc, (TR_NAME *)key);
+  struct table_comm_size_cookie *data=(struct table_comm_size_cookie *)user_data;
+  data->size += trp_rtable_realm_size(data->rtbl, data->comm, (TR_NAME *)key);
 }
-size_t trp_rtable_apc_size(TRP_RTABLE *rtbl, TR_NAME *apc)
+size_t trp_rtable_comm_size(TRP_RTABLE *rtbl, TR_NAME *comm)
 {
-  struct table_apc_size_cookie data={apc, rtbl, 0};
-  GHashTable *apc_tbl=trp_rtable_get_apc_table(rtbl, apc);
-  if (apc_tbl==NULL)
+  struct table_comm_size_cookie data={comm, rtbl, 0};
+  GHashTable *comm_tbl=trp_rtable_get_comm_table(rtbl, comm);
+  if (comm_tbl==NULL)
     return 0;;
-  g_hash_table_foreach(apc_tbl, table_apc_size_helper, &data);
+  g_hash_table_foreach(comm_tbl, table_comm_size_helper, &data);
   return data.size;
 }
 
-size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
+size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm)
 {
-  GHashTable *realm_tbl=trp_rtable_get_realm_table(rtbl, apc, realm);
+  GHashTable *realm_tbl=trp_rtable_get_realm_table(rtbl, comm, realm);
   if (realm_tbl==NULL)
     return 0;
   else
     return g_hash_table_size(g_hash_table_lookup(
-                               g_hash_table_lookup(rtbl, apc),
+                               g_hash_table_lookup(rtbl, comm),
                                realm));
 }
 
@@ -392,9 +392,9 @@ size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
 TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
 {
   TRP_ROUTE **ret=NULL;
-  TR_NAME **apc=NULL;
-  size_t n_apc=0;
-  TRP_ROUTE **apc_entries=NULL;
+  TR_NAME **comm=NULL;
+  size_t n_comm=0;
+  TRP_ROUTE **comm_entries=NULL;
   size_t n_entries=0;
   size_t ii_ret=0;
 
@@ -410,14 +410,14 @@ TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
   }
 
   ii_ret=0; /* counts output entries */
-  apc=trp_rtable_get_apcs(rtbl, &n_apc);
-  while(n_apc--) {
-    apc_entries=trp_rtable_get_apc_entries(rtbl, apc[n_apc], &n_entries);
+  comm=trp_rtable_get_comms(rtbl, &n_comm);
+  while(n_comm--) {
+    comm_entries=trp_rtable_get_comm_entries(rtbl, comm[n_comm], &n_entries);
     while (n_entries--)
-      ret[ii_ret++]=apc_entries[n_entries];
-    talloc_free(apc_entries);
+      ret[ii_ret++]=comm_entries[n_entries];
+    talloc_free(comm_entries);
   }
-  talloc_free(apc);
+  talloc_free(comm);
 
   if (ii_ret!=*n_out) {
     tr_crit("trp_rtable_get_entries: found incorrect number of entries.");
@@ -430,11 +430,11 @@ TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
 
 /* Returns an array of pointers to TR_NAME, length of array in n_out.
  * Caller must free the array (in the talloc NULL context). */
-TR_NAME **trp_rtable_get_apcs(TRP_RTABLE *rtbl, size_t *n_out)
+TR_NAME **trp_rtable_get_comms(TRP_RTABLE *rtbl, size_t *n_out)
 {
-  size_t len=g_hash_table_size(rtbl); /* known apcs are keys in top level hash table */
+  size_t len=g_hash_table_size(rtbl); /* known comms are keys in top level hash table */
   size_t ii=0;
-  GList *apcs=NULL;;
+  GList *comms=NULL;;
   GList *p=NULL;
   TR_NAME **ret=NULL;
 
@@ -445,15 +445,15 @@ TR_NAME **trp_rtable_get_apcs(TRP_RTABLE *rtbl, size_t *n_out)
     
   ret=talloc_array(NULL, TR_NAME *, len);
   if (ret==NULL) {
-    tr_crit("trp_rtable_get_apcs: unable to allocate return array.");
+    tr_crit("trp_rtable_get_comms: unable to allocate return array.");
     *n_out=0;
     return NULL;
   }
-  apcs=g_hash_table_get_keys(rtbl);
-  for (ii=0,p=apcs; p!=NULL; ii++,p=g_list_next(p))
+  comms=g_hash_table_get_keys(rtbl);
+  for (ii=0,p=comms; p!=NULL; ii++,p=g_list_next(p))
     ret[ii]=(TR_NAME *)p->data;
 
-  g_list_free(apcs);
+  g_list_free(comms);
 
   *n_out=len;
   return ret;
@@ -461,21 +461,21 @@ TR_NAME **trp_rtable_get_apcs(TRP_RTABLE *rtbl, size_t *n_out)
 
 /* Returns an array of pointers to TR_NAME, length of array in n_out.
  * Caller must free the array (in the talloc NULL context). */
-TR_NAME **trp_rtable_get_apc_realms(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_out)
+TR_NAME **trp_rtable_get_comm_realms(TRP_RTABLE *rtbl, TR_NAME *comm, size_t *n_out)
 {
   size_t ii=0;
-  TRP_RTABLE *apc_tbl=g_hash_table_lookup(rtbl, apc);;
+  TRP_RTABLE *comm_tbl=g_hash_table_lookup(rtbl, comm);;
   GList *entries=NULL;
   GList *p=NULL;
   TR_NAME **ret=NULL;
 
-  if (apc_tbl==NULL) {
+  if (comm_tbl==NULL) {
     *n_out=0;
     return NULL;
   }
-  *n_out=g_hash_table_size(apc_tbl); /* set output length */
+  *n_out=g_hash_table_size(comm_tbl); /* set output length */
   ret=talloc_array(NULL, TR_NAME *, *n_out);
-  entries=g_hash_table_get_keys(apc_tbl);
+  entries=g_hash_table_get_keys(comm_tbl);
   for (ii=0,p=entries; p!=NULL; ii++,p=g_list_next(p))
     ret[ii]=(TR_NAME *)p->data;
 
@@ -483,10 +483,10 @@ TR_NAME **trp_rtable_get_apc_realms(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_ou
   return ret;
 }
 
-/* Get all entries in an apc. Returns an array of pointers in NULL talloc context.
+/* Get all entries in an comm. Returns an array of pointers in NULL talloc context.
  * Caller must free this list with talloc_free, but must not free the entries in the
  * list.. */
-TRP_ROUTE **trp_rtable_get_apc_entries(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n_out)
+TRP_ROUTE **trp_rtable_get_comm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, size_t *n_out)
 {
   size_t ii=0, jj=0;
   TR_NAME **realm=NULL;
@@ -496,21 +496,21 @@ TRP_ROUTE **trp_rtable_get_apc_entries(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n
   TRP_ROUTE **ret=NULL;
   size_t ii_ret=0;
 
-  *n_out=trp_rtable_apc_size(rtbl, apc);
+  *n_out=trp_rtable_comm_size(rtbl, comm);
   if (*n_out==0)
     return NULL;
 
   ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
-    tr_crit("trp_rtable_get_apc_entries: could not allocate return array.");
+    tr_crit("trp_rtable_get_comm_entries: could not allocate return array.");
     *n_out=0;
     return NULL;
   }
   
   ii_ret=0; /* counts entries in the output array */
-  realm=trp_rtable_get_apc_realms(rtbl, apc, &n_realms);
+  realm=trp_rtable_get_comm_realms(rtbl, comm, &n_realms);
   for (ii=0; ii<n_realms; ii++) {
-    realm_entries=trp_rtable_get_realm_entries(rtbl, apc, realm[ii], &n_entries);
+    realm_entries=trp_rtable_get_realm_entries(rtbl, comm, realm[ii], &n_entries);
     for (jj=0; jj<n_entries; jj++)
       ret[ii_ret++]=realm_entries[jj];
     talloc_free(realm_entries);
@@ -518,7 +518,7 @@ TRP_ROUTE **trp_rtable_get_apc_entries(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n
   talloc_free(realm);
 
   if (ii_ret!=*n_out) {
-    tr_crit("trp_rtable_get_apc_entries: found incorrect number of entries.");
+    tr_crit("trp_rtable_get_comm_entries: found incorrect number of entries.");
     talloc_free(ret);
     *n_out=0;
     return NULL;
@@ -527,16 +527,16 @@ TRP_ROUTE **trp_rtable_get_apc_entries(TRP_RTABLE *rtbl, TR_NAME *apc, size_t *n
   return ret;
 }
 
-/* Get all entries in an apc/realm. Returns an array of pointers in NULL talloc context.
+/* Get all entries in an comm/realm. Returns an array of pointers in NULL talloc context.
  * Caller must free this list with talloc_free, but must not free the entries in the
  * list.. */
-TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out)
+TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm, size_t *n_out)
 {
   size_t ii=0;
   TRP_ROUTE **ret=NULL;
   TR_NAME **peer=NULL;
 
-  peer=trp_rtable_get_apc_realm_peers(rtbl, apc, realm, n_out);
+  peer=trp_rtable_get_comm_realm_peers(rtbl, comm, realm, n_out);
   ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
     tr_crit("trp_rtable_get_realm_entries: could not allocate return array.");
@@ -545,12 +545,12 @@ TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME
     return NULL;
   }
   for (ii=0; ii<*n_out; ii++)
-    ret[ii]=trp_rtable_get_entry(rtbl, apc, realm, peer[ii]);
+    ret[ii]=trp_rtable_get_entry(rtbl, comm, realm, peer[ii]);
   talloc_free(peer);
   return ret;
 }
 
-TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, size_t *n_out)
+TR_NAME **trp_rtable_get_comm_realm_peers(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm, size_t *n_out)
 {
   TR_NAME **ret=NULL;
   GHashTable *realm_tbl=NULL;
@@ -558,13 +558,13 @@ TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME
   GList *p=NULL;
   size_t ii=0;
 
-  *n_out=trp_rtable_realm_size(rtbl, apc, realm);
+  *n_out=trp_rtable_realm_size(rtbl, comm, realm);
   if (*n_out==0)
     return NULL;
-  realm_tbl=trp_rtable_get_realm_table(rtbl, apc, realm);
+  realm_tbl=trp_rtable_get_realm_table(rtbl, comm, realm);
   ret=talloc_array(NULL, TR_NAME *, *n_out);
   if (ret==NULL) {
-    tr_crit("trp_rtable_get_apc_realm_peers: could not allocate return array.");
+    tr_crit("trp_rtable_get_comm_realm_peers: could not allocate return array.");
     *n_out=0;
     return NULL;
   }
@@ -576,11 +576,11 @@ TR_NAME **trp_rtable_get_apc_realm_peers(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME
 }
 
 /* Gets a single entry. Do not free it. */
-TRP_ROUTE *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm, TR_NAME *peer)
+TRP_ROUTE *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer)
 {
   GHashTable *realm_tbl=NULL;
 
-  realm_tbl=trp_rtable_get_realm_table(rtbl, apc, realm);
+  realm_tbl=trp_rtable_get_realm_table(rtbl, comm, realm);
   if (realm_tbl==NULL)
     return NULL;
 
@@ -606,10 +606,10 @@ static char *timespec_to_str(struct timespec *ts)
   return s;
 }
 
-TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME *realm)
+TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm)
 {
   size_t n=0;
-  TRP_ROUTE **entry=trp_rtable_get_realm_entries(rtbl, apc, realm, &n);
+  TRP_ROUTE **entry=trp_rtable_get_realm_entries(rtbl, comm, realm, &n);
   TRP_ROUTE *selected=NULL;
 
   if (n==0)
@@ -625,7 +625,7 @@ TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *apc, TR_NAME
  * returns comma+space separated string. */
 char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
 {
-  char *apc=tr_name_strdup(entry->apc);
+  char *comm=tr_name_strdup(entry->comm);
   char *realm=tr_name_strdup(entry->realm);
   char *peer=tr_name_strdup(entry->peer);
   char *trust_router=tr_name_strdup(entry->trust_router);
@@ -638,7 +638,7 @@ char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
 
   result=talloc_asprintf(mem_ctx,
                          "%s%s%s%s%s%s%u%s%s%s%s%s%u%s%u%s%s%s%u",
-                         apc, sep,
+                         comm, sep,
                          realm, sep,
                          peer, sep,
                          entry->metric, sep,
@@ -648,7 +648,7 @@ char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
                          entry->local, sep,
                          expiry, sep,
                          entry->triggered);
-  free(apc);
+  free(comm);
   free(realm);
   free(peer);
   free(trust_router);
@@ -685,8 +685,8 @@ static void sort_tr_names(TR_NAME **names, size_t n_names)
 char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, const char *lineterm)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TR_NAME **apcs=NULL;
-  size_t n_apcs=0;
+  TR_NAME **comms=NULL;
+  size_t n_comms=0;
   TR_NAME **realms=NULL;
   size_t n_realms=0;
   TRP_ROUTE **entries=NULL;
@@ -714,17 +714,17 @@ char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, 
     goto cleanup;
   }
   
-  apcs=trp_rtable_get_apcs(rtbl, &n_apcs);
-  talloc_steal(tmp_ctx, apcs);
-  sort_tr_names(apcs, n_apcs);
+  comms=trp_rtable_get_comms(rtbl, &n_comms);
+  talloc_steal(tmp_ctx, comms);
+  sort_tr_names(comms, n_comms);
   ii_tbl=0;
   len=0;
-  for (ii=0; ii<n_apcs; ii++) {
-    realms=trp_rtable_get_apc_realms(rtbl, apcs[ii], &n_realms);
+  for (ii=0; ii<n_comms; ii++) {
+    realms=trp_rtable_get_comm_realms(rtbl, comms[ii], &n_realms);
     talloc_steal(tmp_ctx, realms);
     sort_tr_names(realms, n_realms);
     for (jj=0; jj<n_realms; jj++) {
-      entries=trp_rtable_get_realm_entries(rtbl, apcs[ii], realms[jj], &n_entries);
+      entries=trp_rtable_get_realm_entries(rtbl, comms[ii], realms[jj], &n_entries);
       talloc_steal(tmp_ctx, entries);
       for (kk=0; kk<n_entries; kk++) {
         tbl_strings[ii_tbl]=trp_route_to_str(tmp_ctx, entries[kk], sep);
@@ -735,7 +735,7 @@ char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, 
     }
     talloc_free(realms);
   }
-  talloc_free(apcs);
+  talloc_free(comms);
 
   /* now combine all the strings */
   len += tbl_size*strlen(lineterm); /* space for line terminations*/

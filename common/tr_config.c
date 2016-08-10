@@ -531,8 +531,9 @@ static TR_CFG_RC tr_cfg_parse_rp_clients (TR_CFG *trc, json_t *jcfg) {
   return rc;
 }
 
-static TR_AAA_SERVER *tr_cfg_parse_one_aaa_server (TR_CFG *trc, json_t *jaddr, TR_CFG_RC *rc) {
+static TR_AAA_SERVER *tr_cfg_parse_one_aaa_server (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t *jaddr, TR_CFG_RC *rc) {
   TR_AAA_SERVER *aaa = NULL;
+  TR_NAME *name=NULL;
 
   if ((!trc) || (!jaddr) || (!json_is_string(jaddr))) {
     tr_debug("tr_cfg_parse_one_aaa_server: Bad parameters.");
@@ -540,25 +541,34 @@ static TR_AAA_SERVER *tr_cfg_parse_one_aaa_server (TR_CFG *trc, json_t *jaddr, T
     return NULL;
   }
 
-  if (NULL == (aaa = talloc_zero(trc, TR_AAA_SERVER))) {
-    tr_debug("tr_cfg_parse_one_aaa_server: Out of memory.");
+  name=tr_new_name((char *)(json_string_value(jaddr)));
+  if (name==NULL) {
+    tr_debug("tr_cfg_parse_one_aaa_server: Out of memory allocating hostname.");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
 
-  aaa->hostname = tr_new_name((char *)(json_string_value(jaddr)));
+  aaa=tr_aaa_server_new(mem_ctx, name);
+  if (aaa==NULL) {
+    tr_free_name(name);
+    tr_debug("tr_cfg_parse_one_aaa_server: Out of memory allocating AAA server.");
+    *rc = TR_CFG_NOMEM;
+    return NULL;
+  }
 
   return aaa;
 }
 
-static TR_AAA_SERVER *tr_cfg_parse_aaa_servers (TR_CFG *trc, json_t *jaaas, TR_CFG_RC *rc) 
+static TR_AAA_SERVER *tr_cfg_parse_aaa_servers (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t *jaaas, TR_CFG_RC *rc) 
 {
+  TALLOC_CTX *tmp_ctx=NULL;
   TR_AAA_SERVER *aaa = NULL;
   TR_AAA_SERVER *temp_aaa = NULL;
   int i = 0;
 
   for (i = 0; i < json_array_size(jaaas); i++) {
-    if (NULL == (temp_aaa = tr_cfg_parse_one_aaa_server(trc, json_array_get(jaaas, i), rc))) {
+    if (NULL == (temp_aaa = tr_cfg_parse_one_aaa_server(mem_ctx, trc, json_array_get(jaaas, i), rc))) {
+      talloc_free(tmp_ctx);
       return NULL;
     }
     /* TBD -- IPv6 addresses */
@@ -567,10 +577,14 @@ static TR_AAA_SERVER *tr_cfg_parse_aaa_servers (TR_CFG *trc, json_t *jaaas, TR_C
     aaa = temp_aaa;
   }
   tr_debug("tr_cfg_parse_aaa_servers: Finished (rc=%d)", *rc);
+
+  for (temp_aaa=aaa; temp_aaa!=NULL; temp_aaa=temp_aaa->next)
+    talloc_steal(mem_ctx, temp_aaa);
+  talloc_free(tmp_ctx);
   return aaa;
 }
 
-static TR_APC *tr_cfg_parse_apcs (TR_CFG *trc, json_t *japcs, TR_CFG_RC *rc)
+static TR_APC *tr_cfg_parse_apcs (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t *japcs, TR_CFG_RC *rc)
 {
   TR_APC *apc;
 
@@ -583,7 +597,8 @@ static TR_APC *tr_cfg_parse_apcs (TR_CFG *trc, json_t *japcs, TR_CFG_RC *rc)
     return NULL;
   }
 
-  if (NULL == (apc = talloc_zero(trc, TR_APC))) {
+  apc=tr_apc_new(mem_ctx);
+  if (apc==NULL) {
     tr_debug("tr_cfg_parse_apcs: Out of memory.");
     *rc = TR_CFG_NOMEM;
     return NULL;
@@ -591,12 +606,15 @@ static TR_APC *tr_cfg_parse_apcs (TR_CFG *trc, json_t *japcs, TR_CFG_RC *rc)
 
   /* TBD, deal with more than one APC.  In the meantime, though...                */
   /* Only parse the first APC, because we only know how to deal with one, anyway. */
-  if (0 == json_array_size(japcs))
+  if (0 == json_array_size(japcs)) {
+    talloc_free(apc);
     return NULL;
+  }
 
   if (NULL == (apc->id = tr_new_name((char *)json_string_value(json_array_get(japcs, 0))))) {
     tr_debug("tr_cfg_parse_apcs: No memory for APC name.");
     *rc = TR_CFG_NOMEM;
+    talloc_free(apc);
     return NULL;
   }
 
@@ -605,6 +623,7 @@ static TR_APC *tr_cfg_parse_apcs (TR_CFG *trc, json_t *japcs, TR_CFG_RC *rc)
 }
 
 static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_CFG_RC *rc) {
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_IDP_REALM *idp = NULL;
   json_t *jremote = NULL;
   json_t *jrid = NULL;
@@ -619,9 +638,10 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
     return NULL;
   }
 
-  if (NULL == (idp = tr_idp_realm_new(trc))) {
+  if (NULL == (idp = tr_idp_realm_new(tmp_ctx))) {
     tr_debug("tr_cfg_parse_one_idp_realm: Out of memory.");
     *rc = TR_CFG_NOMEM;
+    talloc_free(tmp_ctx);
     return NULL;
   }
 
@@ -630,6 +650,7 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
   if ((jremote!=NULL) && (!json_is_number(jremote))) {
     tr_debug("tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration (remote is not a number).");
     *rc=TR_CFG_NOPARSE;
+    talloc_free(tmp_ctx);
     return NULL;
   }
 
@@ -637,6 +658,7 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
       (!json_is_string(jrid))) {
       tr_debug("tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration (realm_id missing or invalid).");
       *rc = TR_CFG_NOPARSE;
+      talloc_free(tmp_ctx);
       return NULL;
   }
         
@@ -649,6 +671,7 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
         (!json_is_array(jsrvrs))) {
       tr_debug("tr_cfg_parse_one_idp_realm: Error parsing IDP realm configuration.");
       *rc = TR_CFG_NOPARSE;
+      talloc_free(tmp_ctx);
       return NULL;
     }
 
@@ -663,26 +686,28 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm (TR_CFG *trc, json_t *jidp, TR_C
   if (NULL == (idp->realm_id = tr_new_name((char *)json_string_value(jrid)))) {
     tr_debug("tr_cfg_parse_one_idp_realm: No memory for realm id.");
     *rc = TR_CFG_NOMEM;
+    talloc_free(tmp_ctx);
     return NULL;
   }
 
   if ((NULL != (japcs = json_object_get(jidp, "apcs"))) &&
       (json_is_array(japcs))) {
-    if (NULL == (idp->apcs = tr_cfg_parse_apcs(trc, japcs, rc))) {
+    if (NULL == (idp->apcs = tr_cfg_parse_apcs(idp, trc, japcs, rc))) {
       tr_debug("tr_cfg_parse_one_idp_realm: Can't parse APCs for realm %s .", idp->realm_id->buf);
-      tr_free_name(idp->realm_id);
-      /* TBD -- free aaa_servers */
+      talloc_free(tmp_ctx);
       return NULL;
     }
   } 
 
   if ((idp->origin==TR_REALM_LOCAL) &&
-      (NULL == (idp->aaa_servers = tr_cfg_parse_aaa_servers(trc, jsrvrs, rc)))) {
+      (NULL == (idp->aaa_servers = tr_cfg_parse_aaa_servers(idp, trc, jsrvrs, rc)))) {
     tr_debug("tr_cfg_parse_one_idp_realm: Can't parse AAA servers for realm %s.", idp->realm_id->buf);
-    tr_free_name(idp->realm_id);
+    talloc_free(tmp_ctx);
     return NULL;
   }
 
+  talloc_steal(trc, idp);
+  talloc_free(tmp_ctx);
   return idp;
 }
 
@@ -702,7 +727,7 @@ static TR_CFG_RC tr_cfg_parse_default_servers (TR_CFG *trc, json_t *jcfg)
       (0 < json_array_size(jdss))) {
 
     for (i = 0; i < json_array_size(jdss); i++) {
-      if (NULL == (ds = tr_cfg_parse_one_aaa_server(trc, 
+      if (NULL == (ds = tr_cfg_parse_one_aaa_server(trc, trc, 
 						  json_array_get(jdss, i), 
 						  &rc))) {
 	return rc;
@@ -859,7 +884,7 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
     comm->type = TR_COMM_APC;
   } else if (0 == strcmp(json_string_value(jtype), "coi")) {
     comm->type = TR_COMM_COI;
-    if (NULL == (comm->apcs = tr_cfg_parse_apcs(trc, japcs, rc))) {
+    if (NULL == (comm->apcs = tr_cfg_parse_apcs(trc, trc, japcs, rc))) {
       tr_debug("tr_cfg_parse_one_comm: Can't parse APCs for COI %s.", comm->id->buf);
       tr_free_name(comm->id);
       return NULL;

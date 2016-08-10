@@ -76,6 +76,10 @@ typedef void (*TRP_RESP_FUNC)();
 /*typedef int (*TRP_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);*/
 typedef client_cb_fn TRP_AUTH_FUNC;
 
+/* function to look up comm/realm entries */
+typedef TRP_ROUTE *(TRP_LOOKUP_FUNC)(TR_NAME *, TR_NAME *, void *);
+
+
 /* TRP Client Instance Data */
 typedef struct trpc_instance TRPC_INSTANCE;
 struct trpc_instance {

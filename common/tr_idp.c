@@ -38,6 +38,29 @@
 #include <tr_idp.h>
 #include <tr_config.h>
 
+static int tr_aaa_server_destructor(void *obj)
+{
+  TR_AAA_SERVER *aaa=talloc_get_type_abort(obj, TR_AAA_SERVER);
+  if (aaa->hostname!=NULL)
+    tr_free_name(aaa->hostname);
+  return 0;
+}
+
+TR_AAA_SERVER *tr_aaa_server_new(TALLOC_CTX *mem_ctx, TR_NAME *hostname)
+{
+  TR_AAA_SERVER *aaa=talloc(mem_ctx, TR_AAA_SERVER);
+  if (aaa!=NULL) {
+    aaa->hostname=hostname;
+    talloc_set_destructor((void *)aaa, tr_aaa_server_destructor);
+  }
+  return aaa;
+}
+
+void tr_aaa_server_free(TR_AAA_SERVER *aaa)
+{
+  talloc_free(aaa);
+}
+
 TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm)
 {
   TR_IDP_REALM *idp = NULL;
@@ -62,6 +85,13 @@ TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME 
   return(default_servers);
 }
 
+static int tr_idp_realm_destructor(void *obj)
+{
+  TR_IDP_REALM *idp=talloc_get_type_abort(obj, TR_IDP_REALM);
+  if (idp->realm_id!=NULL)
+    tr_free_name(idp->realm_id);
+  return 0;
+}
 
 TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
 {
@@ -74,6 +104,7 @@ TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
     idp->aaa_servers=NULL;
     idp->apcs=NULL;
     idp->origin=TR_REALM_LOCAL;
+    talloc_set_destructor((void *)idp, tr_idp_realm_destructor);
   }
   return idp;
 }

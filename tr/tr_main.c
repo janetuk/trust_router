@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
       tr_crit("Unable to allocate new peer. Aborting.");
       return 1;
     }
-    trp_peer_set_server(hc_peer, "epsilon.vmnet");
+    trp_peer_set_server(hc_peer, "epsilon-trpc.vmnet");
     trp_peer_set_gssname(hc_peer, tr_new_name("trpc@apc.painless-security.com"));
     trp_peer_set_port(hc_peer, 10002); /* not really used */
     if (TRP_SUCCESS != trps_add_peer(tr->trps, hc_peer)) {

@@ -95,7 +95,7 @@ struct tids_instance {
   char *ipaddr;
   const char *hostname;
   TIDS_REQ_FUNC *req_handler;
-  tids_auth_func *auth_handler;
+  TIDS_AUTH_FUNC *auth_handler;
   void *cookie;
   uint16_t tids_port;
   struct tr_rp_client *rp_gss;		/* Client matching GSS name */

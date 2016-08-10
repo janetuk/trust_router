@@ -45,6 +45,7 @@
 #include <tr_comm.h>
 #include <tr_rp.h>
 #include <tr_idp.h>
+#include <trp_internal.h>
 
 #define TR_DEFAULT_MAX_TREE_DEPTH 12
 #define TR_DEFAULT_TR_PORT 12308
@@ -84,8 +85,6 @@ typedef struct tr_cfg {
   TR_COMM *comms;			/* locally-known communities */
   TR_AAA_SERVER *default_servers;	/* default server list */
   /* TBD -- Global Filters */
-  /* TBD -- Trust Router Peers */
-  /* TBD -- Trust Links */
 } TR_CFG;
 
 typedef struct tr_cfg_mgr {

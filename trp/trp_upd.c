@@ -420,6 +420,11 @@ TR_NAME *trp_upd_get_peer(TRP_UPD *upd)
   return upd->peer;
 }
 
+TR_NAME *trp_upd_dup_peer(TRP_UPD *upd)
+{
+  return tr_dup_name(upd->peer);
+}
+
 void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer)
 {
   TRP_INFOREC *rec=NULL;

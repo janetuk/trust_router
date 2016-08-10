@@ -71,7 +71,7 @@ typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
 
 typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP *, void *);
-typedef int (tids_auth_func)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
+typedef int (TIDS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 
 
 
@@ -151,10 +151,10 @@ TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 /* TID Server functions, in tid/tids.c */
 TR_EXPORT TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx);
 TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-			  tids_auth_func *auth_handler, const char *hostname, 
+			  TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
 			  unsigned int port, void *cookie);
 TR_EXPORT int tids_get_listener (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-			  tids_auth_func *auth_handler, const char *hostname, 
+			  TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
 			  unsigned int port, void *cookie);
 TR_EXPORT int tids_accept(TIDS_INSTANCE *tids, int listen);
 TR_EXPORT int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp);

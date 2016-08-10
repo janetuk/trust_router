@@ -287,7 +287,7 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
     return TRP_ERROR;
   }
 
-  tr_debug("trps_read_message(): Request Received, %u bytes.", (unsigned) buflen);
+  tr_debug("trps_read_message(): message received, %u bytes.", (unsigned) buflen);
   tr_debug("trps_read_message(): %.*s", buflen, buf);
 
   *msg=tr_msg_decode(buf, buflen);
@@ -514,7 +514,7 @@ static struct timespec *trps_compute_expiry(TRPS_INSTANCE *trps, unsigned int in
   return ts;
 }
 
-static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
+static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC *rec)
 {
   TRP_ROUTE *entry=NULL;
 
@@ -529,12 +529,12 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
       return TRP_NOMEM;
     }
 
-    trp_route_set_apc(entry, tr_dup_name(trp_inforec_get_comm(rec)));
-    trp_route_set_realm(entry, tr_dup_name(trp_inforec_get_realm(rec)));
-    trp_route_set_peer(entry, tr_dup_name(trp_inforec_get_next_hop(rec)));
-    trp_route_set_trust_router(entry, tr_dup_name(trp_inforec_get_trust_router(rec)));
-    trp_route_set_next_hop(entry, tr_dup_name(trp_inforec_get_next_hop(rec)));
-    if ((trp_route_get_apc(entry)==NULL)
+    trp_route_set_comm(entry, trp_inforec_dup_comm(rec));
+    trp_route_set_realm(entry, trp_inforec_dup_realm(rec));
+    trp_route_set_peer(entry, trp_upd_dup_peer(upd));
+    trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec));
+    trp_route_set_next_hop(entry, trp_inforec_dup_next_hop(rec));
+    if ((trp_route_get_comm(entry)==NULL)
        ||(trp_route_get_realm(entry)==NULL)
        ||(trp_route_get_peer(entry)==NULL)
        ||(trp_route_get_trust_router(entry)==NULL)
@@ -600,13 +600,13 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
     route=trps_get_route(trps,
                          trp_inforec_get_comm(rec),
                          trp_inforec_get_realm(rec),
-                         trp_inforec_get_next_hop(rec));
+                         trp_upd_get_peer(upd));
     if (route!=NULL) {
       /* there was a route table entry already */
       tr_debug("trps_handle_updates: route entry already exists.");
       if (feas) {
         /* Update is feasible. Accept it. */
-        trps_accept_update(trps, rec);
+        trps_accept_update(trps, upd, rec);
       } else {
         /* Update is infeasible. Ignore it unless the trust router has changed. */
         if (0!=tr_name_cmp(trp_route_get_trust_router(route),
@@ -619,7 +619,7 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
       /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
       tr_debug("trps_handle_update: no route entry exists yet.");
       if (feas && trp_metric_is_finite(trp_inforec_get_metric(rec)))
-        trps_accept_update(trps, rec);
+        trps_accept_update(trps, upd, rec);
     }
   }
   return TRP_SUCCESS;
@@ -684,23 +684,23 @@ static TRP_ROUTE *trps_find_best_route(TRPS_INSTANCE *trps,
  * to avoid flapping between routers or routes. */
 TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
 {
-  size_t n_apc=0, ii=0;
-  TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
+  size_t n_comm=0, ii=0;
+  TR_NAME **comm=trp_rtable_get_comms(trps->rtable, &n_comm);
   size_t n_realm=0, jj=0;
   TR_NAME **realm=NULL;
   TRP_ROUTE *best_route=NULL, *cur_route=NULL;
   unsigned int best_metric=0, cur_metric=0;
 
-  for (ii=0; ii<n_apc; ii++) {
-    realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm);
+  for (ii=0; ii<n_comm; ii++) {
+    realm=trp_rtable_get_comm_realms(trps->rtable, comm[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
-      best_route=trps_find_best_route(trps, apc[ii], realm[jj], NULL);
+      best_route=trps_find_best_route(trps, comm[ii], realm[jj], NULL);
       if (best_route==NULL)
         best_metric=TRP_METRIC_INFINITY;
       else
         best_metric=trp_route_get_metric(best_route);
 
-      cur_route=trps_get_selected_route(trps, apc[ii], realm[jj]);
+      cur_route=trps_get_selected_route(trps, comm[ii], realm[jj]);
       if (cur_route!=NULL) {
         cur_metric=trp_route_get_metric(cur_route);
         if ((best_metric < cur_metric) && (trp_metric_is_finite(best_metric))) {
@@ -717,9 +717,9 @@ TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
       talloc_free(realm);
     realm=NULL; n_realm=0;
   }
-  if (apc!=NULL)
-    talloc_free(apc);
-  apc=NULL; n_apc=0;
+  if (comm!=NULL)
+    talloc_free(comm);
+  comm=NULL; n_comm=0;
 
   return TRP_SUCCESS;
 }
@@ -809,8 +809,8 @@ static TRP_ROUTE **trps_select_updates_for_peer(TALLOC_CTX *memctx,
                                                  int triggered,
                                                  size_t *n_update)
 {
-  size_t n_apc=0;
-  TR_NAME **apc=trp_rtable_get_apcs(trps->rtable, &n_apc);
+  size_t n_comm=0;
+  TR_NAME **comm=trp_rtable_get_comms(trps->rtable, &n_comm);
   TR_NAME **realm=NULL;
   size_t n_realm=0;
   size_t ii=0, jj=0;
@@ -824,15 +824,15 @@ static TRP_ROUTE **trps_select_updates_for_peer(TALLOC_CTX *memctx,
    * unlikely to be significant in the near future. */
   result=talloc_array(memctx, TRP_ROUTE *, trp_rtable_size(trps->rtable));
   if (result==NULL) {
-    talloc_free(apc);
+    talloc_free(comm);
     *n_update=0;
     return NULL;
   }
   
-  for (ii=0; ii<n_apc; ii++) {
-    realm=trp_rtable_get_apc_realms(trps->rtable, apc[ii], &n_realm);
+  for (ii=0; ii<n_comm; ii++) {
+    realm=trp_rtable_get_comm_realms(trps->rtable, comm[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
-      best=trps_select_realm_update(trps, apc[ii], realm[jj], peer_gssname);
+      best=trps_select_realm_update(trps, comm[ii], realm[jj], peer_gssname);
       /* If we found a route, add it to the list. If triggered!=0, then only
        * add triggered routes. */
       if ((best!=NULL) && ((!triggered) || trp_route_is_triggered(best)))
@@ -843,8 +843,8 @@ static TRP_ROUTE **trps_select_updates_for_peer(TALLOC_CTX *memctx,
     realm=NULL;
     n_realm=0;
   }
-  if (apc!=NULL)
-    talloc_free(apc);
+  if (comm!=NULL)
+    talloc_free(comm);
 
   *n_update=n_used;
   return result;
@@ -876,12 +876,12 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
       linkcost=0;
     else {
       linkcost=trp_peer_get_linkcost(trps_get_peer_by_gssname(trps,
-                                                              trp_route_get_next_hop(route)));
+                                                              trp_route_get_peer(route)));
     }
 
     /* Note that we leave the next hop empty since the recipient fills that in.
      * This is where we add the link cost (currently always 1) to the next peer. */
-    if ((trp_inforec_set_comm(rec, trp_route_dup_apc(route)) != TRP_SUCCESS)
+    if ((trp_inforec_set_comm(rec, trp_route_dup_comm(route)) != TRP_SUCCESS)
        ||(trp_inforec_set_realm(rec, trp_route_dup_realm(route)) != TRP_SUCCESS)
        ||(trp_inforec_set_trust_router(rec, trp_route_dup_trust_router(route)) != TRP_SUCCESS)
        ||(trp_inforec_set_metric(rec,
@@ -948,7 +948,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
       /* we have no actual update to send back, MUST send a retraction */
       tr_debug("trps_update_one_peer: community/realm without route requested, sending mandatory retraction.");
       *update_list=trp_route_new(update_list);
-      trp_route_set_apc(*update_list, tr_dup_name(comm));
+      trp_route_set_comm(*update_list, tr_dup_name(comm));
       trp_route_set_realm(*update_list, tr_dup_name(realm));
       trp_route_set_peer(*update_list, tr_new_name(""));
       trp_route_set_metric(*update_list, TRP_METRIC_INFINITY);
