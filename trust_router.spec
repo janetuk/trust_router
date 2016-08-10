@@ -94,7 +94,7 @@ exit 0
 %post
 # Data directory
 tr_home=/var/lib/trust_router
-tr_schema=${tr_home}/.schema_1.5.1
+tr_schema=${tr_home}/.schema_1.5.2
 test -d ${tr_home} ||mkdir ${tr_home}
 chown trustrouter:trustrouter ${tr_home}
 test -e $tr_schema || rm -f $tr_home/keys
