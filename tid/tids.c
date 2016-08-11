@@ -51,7 +51,8 @@
 
 static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req) 
 {
-  TID_RESP *resp;
+  TID_RESP *resp=NULL;
+  int success=0;
 
   if ((NULL == (resp = talloc_zero(req, TID_RESP)))) {
     tr_crit("tids_create_response: Error allocating response structure.");
@@ -63,13 +64,29 @@ static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req)
       (NULL == (resp->realm = tr_dup_name(req->realm))) ||
       (NULL == (resp->comm = tr_dup_name(req->comm)))) {
     tr_crit("tids_create_response: Error allocating fields in response.");
-    return NULL;
+    goto cleanup;
   }
   if (req->orig_coi) {
     if (NULL == (resp->orig_coi = tr_dup_name(req->orig_coi))) {
       tr_crit("tids_create_response: Error allocating fields in response.");
-      return NULL;
+      goto cleanup;
     }
+  }
+
+  success=1;
+
+cleanup:
+  if ((!success) && (resp!=NULL)) {
+    if (resp->rp_realm!=NULL)
+      tr_free_name(resp->rp_realm);
+    if (resp->realm!=NULL)
+      tr_free_name(resp->realm);
+    if (resp->comm!=NULL)
+      tr_free_name(resp->comm);
+    if (resp->orig_coi!=NULL)
+      tr_free_name(resp->orig_coi);
+    talloc_free(resp);
+    resp=NULL;
   }
   return resp;
 }
