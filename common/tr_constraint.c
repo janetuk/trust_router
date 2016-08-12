@@ -42,6 +42,40 @@
 #include <trust_router/tr_constraint.h>
 #include <tid_internal.h>
 
+
+static int tr_constraint_destructor(void *obj)
+{
+  TR_CONSTRAINT *cons=talloc_get_type_abort(obj, TR_CONSTRAINT);
+  int ii=0;
+
+  if (cons->type!=NULL)
+    tr_free_name(cons->type);
+  for (ii=0; ii<TR_MAX_CONST_MATCHES; ii++) {
+    if (cons->matches[ii]!=NULL)
+      tr_free_name(cons->matches[ii]);
+  }
+  return 0;
+}
+
+TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx)
+{
+  TR_CONSTRAINT *cons=talloc(mem_ctx, TR_CONSTRAINT);
+  int ii=0;
+
+  if (cons!=NULL) {
+    cons->type=NULL;
+    for (ii=0; ii<<TR_MAX_CONST_MATCHES; ii++)
+      cons->matches[ii]=NULL;
+    talloc_set_destructor((void *)cons, tr_constraint_destructor);
+  }
+  return cons;
+}
+
+void tr_constraint_free(TR_CONSTRAINT *cons)
+{
+  talloc_free(cons);
+}
+
 /* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
  */
 int tr_prefix_wildcard_match (const char *str, const char *wc_str) {

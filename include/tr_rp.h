@@ -54,5 +54,5 @@ typedef struct tr_rp_realm {
 
 /* prototypes */
 TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name);
-
+TR_RP_REALM *tr_rp_realm_add(TR_RP_REALM *head, TR_RP_REALM *new);
 #endif

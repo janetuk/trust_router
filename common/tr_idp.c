@@ -93,6 +93,10 @@ static int tr_idp_realm_destructor(void *obj)
   return 0;
 }
 
+/* talloc note: lists of idp realms should be assembled using
+ * tr_idp_realm_add(). This will put all of the elements in the
+ * list, other than the head, as children of the head context.
+ * The head can then be placed in whatever context is desired. */
 TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
 {
   TR_IDP_REALM *idp=talloc(mem_ctx, TR_IDP_REALM);
@@ -107,4 +111,26 @@ TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
     talloc_set_destructor((void *)idp, tr_idp_realm_destructor);
   }
   return idp;
+}
+
+static TR_IDP_REALM *tr_idp_realm_tail(TR_IDP_REALM *idp)
+{
+  while (idp!=NULL)
+    idp=idp->next;
+  return idp;
+}
+
+/* for correct behavior, call like: idp_realms=tr_idp_realm_add(idp_realms, new_realm); */
+TR_IDP_REALM *tr_idp_realm_add(TR_IDP_REALM *head, TR_IDP_REALM *new)
+{
+  if (head==NULL)
+    head=new;
+  else {
+    tr_idp_realm_tail(head)->next=new;
+    while (new!=NULL) {
+      talloc_steal(head, new); /* put it in the right context */
+      new=new->next;
+    }
+  }
+  return head;
 }

@@ -32,6 +32,8 @@
  *
  */
 
+#include <talloc.h>
+
 #include <tr.h>
 #include <trust_router/tr_name.h>
 #include <tr_config.h>
@@ -56,3 +58,30 @@ TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name) {
   } 
   return NULL;
  }
+
+/* talloc note: lists of idp realms should be assembled using
+ * tr_idp_realm_add(). This will put all of the elements in the
+ * list, other than the head, as children of the head context.
+ * The head can then be placed in whatever context is desired. */
+
+static TR_RP_REALM *tr_rp_realm_tail(TR_RP_REALM *realm)
+{
+  while (realm!=NULL)
+    realm=realm->next;
+  return realm;
+}
+
+/* for correct behavior, call like: rp_realms=tr_rp_realm_add(rp_realms, new_realm); */
+TR_RP_REALM *tr_rp_realm_add(TR_RP_REALM *head, TR_RP_REALM *new)
+{
+  if (head==NULL)
+    head=new;
+  else {
+    tr_rp_realm_tail(head)->next=new;
+    while (new!=NULL) {
+      talloc_steal(head, new); /* put it in the right context */
+      new=new->next;
+    }
+  }
+  return head;
+}

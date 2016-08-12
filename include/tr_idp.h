@@ -64,10 +64,12 @@ typedef struct tr_idp_realm {
 } TR_IDP_REALM;
   
 TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx);
+TR_IDP_REALM *tr_idp_realm_add(TR_IDP_REALM *head, TR_IDP_REALM *new);
 
 TR_AAA_SERVER *tr_aaa_server_new(TALLOC_CTX *mem_ctx, TR_NAME *hostname);
 void tr_aaa_server_free(TR_AAA_SERVER *aaa);
 
 TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm);
 TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME *comm);
+
 #endif
