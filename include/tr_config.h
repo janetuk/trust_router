@@ -53,9 +53,11 @@
 #define TR_DEFAULT_TRPS_PORT 12310
 #define TR_DEFAULT_LOG_THRESHOLD LOG_INFO
 #define TR_DEFAULT_CONSOLE_THRESHOLD LOG_NOTICE
+#define TR_DEFAULT_APC_EXPIRATION_INTERVAL 43200
 #define TR_DEFAULT_TRP_CONNECT_INTERVAL 10
 #define TR_DEFAULT_TRP_UPDATE_INTERVAL 120
 #define TR_DEFAULT_TRP_SWEEP_INTERVAL 30
+
 typedef enum tr_cfg_rc {
   TR_CFG_SUCCESS = 0,	/* No error */
   TR_CFG_ERROR,		/* General processing error */
@@ -95,6 +97,7 @@ typedef struct tr_cfg_mgr {
 int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files);
 void tr_free_config_file_list(int n, struct dirent ***cfg_files);
 TR_CFG_RC tr_parse_config (TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, struct dirent **cfg_files);
+TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path);
 TR_CFG_RC tr_apply_new_config (TR_CFG_MGR *cfg_mgr);
 TR_CFG_RC tr_cfg_validate (TR_CFG *trc);
 TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx);

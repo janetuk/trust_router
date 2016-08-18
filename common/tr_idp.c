@@ -115,7 +115,10 @@ TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
 
 static TR_IDP_REALM *tr_idp_realm_tail(TR_IDP_REALM *idp)
 {
-  while (idp!=NULL)
+  if (idp==NULL)
+    return NULL;
+
+  while (idp->next!=NULL)
     idp=idp->next;
   return idp;
 }

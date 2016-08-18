@@ -27,6 +27,37 @@ void tr_apc_free(TR_APC *apc)
   talloc_free(apc);
 }
 
+static TR_APC *tr_apc_tail(TR_APC *apc)
+{
+  if (apc==NULL)
+    return NULL;
+
+  while (apc->next!=NULL)
+    apc=apc->next;
+  return apc;
+}
+
+TR_APC *tr_apc_add(TR_APC *head, TR_APC *new)
+{
+  if (head==NULL)
+    head=new;
+  else {
+    tr_apc_tail(head)->next=new;
+    while (new!=NULL) {
+      talloc_steal(head, new);
+      new=new->next;
+    }
+  }
+}
+
+/* does not copy next pointer */
+TR_APC *tr_apc_dup(TALLOC_CTX *mem_ctx, TR_APC *apc)
+{
+  TR_APC *new=tr_apc_new(mem_ctx);
+  tr_apc_set_id(new, tr_apc_dup_id(apc));
+  return new;
+}
+
 void tr_apc_set_id(TR_APC *apc, TR_NAME *id)
 {
   if (apc->id)
@@ -37,4 +68,9 @@ void tr_apc_set_id(TR_APC *apc, TR_NAME *id)
 TR_NAME *tr_apc_get_id(TR_APC *apc)
 {
   return apc->id;
+}
+
+TR_NAME *tr_apc_dup_id(TR_APC *apc)
+{
+  return tr_dup_name(apc->id);;
 }

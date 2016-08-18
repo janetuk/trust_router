@@ -1,6 +1,6 @@
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
-bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/dh_test/tr_dh_test common/mq_test/mq_test common/mq_test/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test
+bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/dh_test/tr_dh_test common/mq_test/mq_test common/mq_test/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/cfg_test/cfg_test
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -118,6 +118,21 @@ common/mq_test/mq_test.c
 
 common_mq_test_mq_test_CFLAGS = -pthread
 common_mq_test_mq_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
+
+common_cfg_test_cfg_test_SOURCES = common/tr_config.c \
+common/tr_rp.c \
+common/tr_idp.c \
+common/tr_filter.c \
+common/tr_constraint.c \
+common/tr_debug.c \
+common/tr_name.c \
+common/tr_apc.c \
+common/tr_comm.c \
+tid/tid_req.c \
+common/cfg_test/cfg_test.c
+
+common_cfg_test_cfg_test_CFLAGS = -pthread
+common_cfg_test_cfg_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
 
 common_mq_test_thread_test_SOURCES = common/tr_mq.c \
 common/tr_debug.c \
