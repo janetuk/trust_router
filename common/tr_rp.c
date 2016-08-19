@@ -40,7 +40,84 @@
 #include <tr_rp.h>
 #include <tr_debug.h>
 
-TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name) {
+static int tr_rp_client_destructor(void *obj)
+{
+  TR_RP_CLIENT *client=talloc_get_type_abort(obj, TR_RP_CLIENT);
+  int ii=0;
+
+  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
+    if (client->gss_names[ii]!=NULL)
+      tr_free_name(client->gss_names[ii]);
+  }
+  return 0;
+}
+
+TR_RP_CLIENT *tr_rp_client_new(TALLOC_CTX *mem_ctx)
+{
+  TR_RP_CLIENT *client=talloc(mem_ctx, TR_RP_CLIENT);
+  int ii=0;
+
+  if (client!=NULL) {
+    client->next=NULL;
+    client->comm_next=NULL;
+    for (ii=0; ii<TR_MAX_GSS_NAMES; ii++)
+      client->gss_names[ii]=NULL;
+    client->filter=NULL;
+    talloc_set_destructor((void *)client, tr_rp_client_destructor);
+  }
+  return client;
+}
+
+void tr_rp_client_free(TR_RP_CLIENT *client)
+{
+  talloc_free(client);
+}
+
+static TR_RP_CLIENT *tr_rp_client_tail(TR_RP_CLIENT *client)
+{
+  while (client!=NULL)
+    client=client->next;
+  return client;
+}
+
+TR_RP_CLIENT *tr_rp_client_add(TR_RP_CLIENT *clients, TR_RP_CLIENT *new)
+{
+  if (clients==NULL)
+    clients=new;
+  else {
+    tr_rp_client_tail(clients)->next=new;
+    while (new!=NULL) {
+      talloc_steal(clients, new); /* put it in the right context */
+      new=new->next;
+    }
+  }
+  return clients;
+}
+
+
+int tr_rp_client_add_gss_name(TR_RP_CLIENT *rp_client, TR_NAME *gss_name)
+{
+  int ii=0;
+  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
+    if (NULL==rp_client->gss_names[ii]) {
+      rp_client->gss_names[ii]=gss_name;
+      return 0; /* success */
+    }
+  }
+  return -1; /* error */
+}
+
+int tr_rp_client_set_filter(TR_RP_CLIENT *client, TR_FILTER *filt)
+{
+  if (client->filter!=NULL)
+    tr_filter_free(client->filter);
+  client->filter=filt;
+  talloc_steal(client, filt);
+  return 0; /* success */
+}
+
+TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name)
+{
   TR_RP_CLIENT *rp = NULL;
   int i = 0;
 

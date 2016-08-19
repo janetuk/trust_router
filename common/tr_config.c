@@ -362,7 +362,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       goto cleanup;
     }
  
-    if ((NULL==(jfspecs=json_object_get(json_array_get(jfilt, i), "filter_specs"))) ||
+    if ((NULL==(jfspecs=json_object_get(json_array_get(jfilt, i), "specs"))) ||
         (!json_is_array(jfspecs)) ||
         (0==json_array_size(jfspecs))) {
       tr_debug("tr_cfg_parse_one_filter: Error parsing filter specs.");
@@ -371,7 +371,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
     }
   
     if (TR_MAX_FILTER_SPECS < json_array_size(jfspecs)) {
-      tr_debug("tr_cfg_parse_one_filter: Filter has too many filter_specs, maximimum of %d.", TR_MAX_FILTER_SPECS);
+      tr_debug("tr_cfg_parse_one_filter: Filter has too many specs, maximimum of %d.", TR_MAX_FILTER_SPECS);
       *rc=TR_CFG_NOPARSE;
       goto cleanup;
     }
@@ -413,56 +413,98 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
         }
       }
     }
-  }
 
-  if (NULL!=(jdc=json_object_get(json_array_get(jfilt, i), "domain_constraints"))) {
-    if (!json_is_array(jdc)) {
-      tr_err("tr_cfg_parse_one_filter: cannot parse domain_constraints, not an array.");
-      *rc=TR_CFG_NOPARSE;
-      goto cleanup;
-    } else if (json_array_size(jdc)>TR_MAX_CONST_MATCHES) {
-      tr_err("tr_cfg_parse_one_filter: domain_constraints has too many entries, maximum of %d.",
-             TR_MAX_CONST_MATCHES);
-      *rc=TR_CFG_NOPARSE;
-      goto cleanup;
-    } else if (json_array_size(jdc)>0) {
-      if (NULL==(filt->lines[i]->domain_cons=tr_cfg_parse_one_constraint(filt->lines[i], "domain", jdc, rc))) {
-        tr_debug("tr_cfg_parse_one_filter: Error parsing domain constraint");
+    if (NULL!=(jdc=json_object_get(json_array_get(jfilt, i), "domain_constraints"))) {
+      if (!json_is_array(jdc)) {
+        tr_err("tr_cfg_parse_one_filter: cannot parse domain_constraints, not an array.");
         *rc=TR_CFG_NOPARSE;
+        goto cleanup;
+      } else if (json_array_size(jdc)>TR_MAX_CONST_MATCHES) {
+        tr_err("tr_cfg_parse_one_filter: domain_constraints has too many entries, maximum of %d.",
+               TR_MAX_CONST_MATCHES);
+        *rc=TR_CFG_NOPARSE;
+        goto cleanup;
+      } else if (json_array_size(jdc)>0) {
+        if (NULL==(filt->lines[i]->domain_cons=tr_cfg_parse_one_constraint(filt->lines[i], "domain", jdc, rc))) {
+          tr_debug("tr_cfg_parse_one_filter: Error parsing domain constraint");
+          *rc=TR_CFG_NOPARSE;
+          goto cleanup;
+        }
+      }
+    }
+
+    /*For each filter spec within the filter line... */
+    for (j=0; j <json_array_size(jfspecs); j++) {
+      if ((NULL==(jffield=json_object_get(json_array_get(jfspecs, j), "field"))) ||
+          (!json_is_string(jffield)) ||
+          (NULL==(jfmatch=json_object_get(json_array_get(jfspecs, j), "match"))) ||
+          (!json_is_string(jfmatch))) {
+        tr_debug("tr_cfg_parse_one_filter: Error parsing filter field and match for filter spec %d, filter line %d.", i, j);
+        *rc=TR_CFG_NOPARSE;
+        goto cleanup;
+      }
+
+      if (NULL==(filt->lines[i]->specs[j]=tr_fspec_new(filt->lines[i]))) {
+        tr_debug("tr_cfg_parse_one_filter: Out of memory.");
+        *rc=TR_CFG_NOMEM;
+        goto cleanup;
+      }
+
+      if ((NULL==(filt->lines[i]->specs[j]->field=tr_new_name(json_string_value(jffield)))) ||
+          (NULL==(filt->lines[i]->specs[j]->match=tr_new_name(json_string_value(jfmatch))))) {
+        tr_debug("tr_cfg_parse_one_filter: Out of memory.");
+        *rc=TR_CFG_NOMEM;
         goto cleanup;
       }
     }
   }
-
-  /*For each filter spec within the filter line... */
-  for (j=0; j <json_array_size(jfspecs); j++) {
-    if ((NULL==(jffield=json_object_get(json_array_get(jfspecs, j), "field"))) ||
-        (!json_is_string(jffield)) ||
-        (NULL==(jfmatch=json_object_get(json_array_get(jfspecs, j), "match"))) ||
-        (!json_is_string(jfmatch))) {
-      tr_debug("tr_cfg_parse_one_filter: Error parsing filter field and match for filter spec %d, filter line %d.", i, j);
-      *rc=TR_CFG_NOPARSE;
-      goto cleanup;
-    }
-
-    if (NULL==(filt->lines[i]->specs[j]=tr_fspec_new(filt->lines[i]))) {
-      tr_debug("tr_cfg_parse_one_filter: Out of memory.");
-      *rc=TR_CFG_NOMEM;
-      goto cleanup;
-    }
-
-    if ((NULL==(filt->lines[i]->specs[j]->field=tr_new_name(json_string_value(jffield)))) ||
-          (NULL==(filt->lines[i]->specs[j]->match=tr_new_name(json_string_value(jfmatch))))) {
-      tr_debug("tr_cfg_parse_one_filter: Out of memory.");
-      *rc=TR_CFG_NOMEM;
-      goto cleanup;
-    }
-  }
-  
   *rc=TR_CFG_SUCCESS;
   talloc_steal(mem_ctx, filt);
   
  cleanup:
+  talloc_free(tmp_ctx);
+  return filt;
+}
+
+static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_CFG_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  json_t *jfilt;
+  TR_FILTER *filt=NULL;
+  int ii=0;
+
+  *rc=TR_CFG_ERROR;
+
+  /* no filters */
+  if (jfilts==NULL) {
+    *rc=TR_CFG_SUCCESS;
+    goto cleanup;
+  }
+
+  jfilt=json_object_get(jfilts, "tid_inbound");
+  if (jfilt!=NULL) {
+    filt=tr_cfg_parse_one_filter(tmp_ctx, jfilt, TR_FILTER_TYPE_TID_INCOMING, rc);
+    if (*rc!=TR_CFG_SUCCESS) {
+      tr_debug("tr_cfg_parse_filters: Error parsing tid_inbound filter.");
+      *rc=TR_CFG_NOPARSE;
+      goto cleanup;
+    }
+  } else {
+    tr_debug("tr_cfg_parse_filters: Unknown filter types in filter block.");
+    *rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+  
+  *rc=TR_CFG_SUCCESS;
+
+ cleanup:
+  if (*rc==TR_CFG_SUCCESS)
+    talloc_steal(mem_ctx, filt);
+  else {
+    talloc_free(filt);
+    filt=NULL;
+  }
+
   talloc_free(tmp_ctx);
   return filt;
 }
@@ -659,10 +701,6 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm(TALLOC_CTX *mem_ctx, json_t *jre
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_IDP_REALM *realm=NULL;
-  json_t *jremote=NULL;
-  json_t *jscfg=NULL;
-  json_t *jsrvrs=NULL;
-  json_t *japcs=NULL;
   TR_CFG_RC call_rc=TR_CFG_ERROR;
 
   *rc=TR_CFG_ERROR; /* default to error if not set */
@@ -761,6 +799,143 @@ cleanup:
   return realms;
 }
 
+static TR_CFG_RC tr_cfg_parse_gss_names(TR_RP_CLIENT *client, json_t *jgss_names)
+{
+  json_t *jname=NULL;
+  int ii=0;
+  TR_NAME *name=NULL;
+
+  if ((client==NULL) || (jgss_names==NULL)) {
+    tr_err("tr_cfg_parse_gss_names: Bad parameters.");
+    return TR_CFG_BAD_PARAMS;
+  }
+
+  if (!json_is_array(jgss_names)) {
+    tr_err("tr_cfg_parse_gss_names: gss_names not an array.");
+    return TR_CFG_NOPARSE;
+  }
+
+  for (ii=0; ii<json_array_size(jgss_names); ii++) {
+    jname=json_array_get(jgss_names, ii);
+    if (!json_is_string(jname)) {
+      tr_err("tr_cfg_parse_gss_names: Encountered non-string gss name.");
+      return TR_CFG_NOPARSE;
+    }
+    name=tr_new_name(json_string_value(jname));
+    if (name==NULL) {
+      tr_err("tr_cfg_parse_gss_names: Out of memory allocating gss name.");
+      return TR_CFG_NOMEM;
+    }
+    if (tr_rp_client_add_gss_name(client, name)!=0) {
+      tr_free_name(name);
+      tr_err("tr_cfg_parse_gss_names: Unable to add gss name to RP client.");
+      return TR_CFG_ERROR;
+    }
+  }
+
+  return TR_CFG_SUCCESS;
+}
+
+/* parses rp client */
+static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jrealm, TR_CFG_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_RP_CLIENT *client=NULL;
+  TR_CFG_RC call_rc=TR_CFG_ERROR;
+  TR_FILTER *new_filt=NULL;
+
+  *rc=TR_CFG_ERROR; /* default to error if not set */
+
+  if ((!jrealm) || (!rc)) {
+    tr_err("tr_cfg_parse_one_rp_client: Bad parameters.");
+    if (rc)
+      *rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
+  }
+
+  if (NULL==(client=tr_rp_client_new(tmp_ctx))) {
+    tr_err("tr_cfg_parse_one_rp_client: could not allocate rp client.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  call_rc=tr_cfg_parse_gss_names(client, json_object_get(jrealm, "gss_names"));
+  if (call_rc!=TR_CFG_SUCCESS) {
+    tr_err("tr_cfg_parse_one_rp_client: could not parse gss_names.");
+    *rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  /* parse filters */
+  new_filt=tr_cfg_parse_filters(tmp_ctx, json_object_get(jrealm, "filters"), &call_rc);
+  if (call_rc!=TR_CFG_SUCCESS) {
+    tr_err("tr_cfg_parse_one_rp_client: could not parse filters.");
+    *rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  tr_rp_client_set_filter(client, new_filt);
+  *rc=TR_CFG_SUCCESS;
+
+  cleanup:
+    if (*rc==TR_CFG_SUCCESS)
+      talloc_steal(mem_ctx, client);
+    else {
+      talloc_free(client);
+      client=NULL;
+    }
+
+    talloc_free(tmp_ctx);
+    return client;
+  }
+
+  /* Determine whether the realm is an RP realm */
+static int tr_cfg_is_rp_realm(json_t *jrealm)
+{
+  /* Check that we have a gss name. */
+  if (NULL != json_object_get(jrealm, "gss_names"))
+    return 1;
+  else
+    return 0;
+}
+
+/* Parse any rp clients in the j_realms object. Ignores other realms. */
+static TR_RP_CLIENT *tr_cfg_parse_rp_clients(TALLOC_CTX *mem_ctx, json_t *jrealms, TR_CFG_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_RP_CLIENT *clients=NULL;
+  TR_RP_CLIENT *new_client=NULL;
+  json_t *this_jrealm=NULL;
+  int ii=0;
+
+  *rc=TR_CFG_ERROR;
+  if ((jrealms==NULL) || (!json_is_array(jrealms))) {
+    tr_err("tr_cfg_parse_rp_clients: realms not an array");
+    *rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
+  }
+
+  for (ii=0; ii<json_array_size(jrealms); ii++) {
+    this_jrealm=json_array_get(jrealms, ii);
+    if (tr_cfg_is_rp_realm(this_jrealm)) {
+      new_client=tr_cfg_parse_one_rp_client(tmp_ctx, this_jrealm, rc);
+      if ((*rc)!=TR_CFG_SUCCESS) {
+        tr_err("tr_cfg_parse_rp_clients: error decoding realm entry %d", ii+1);
+        *rc=TR_CFG_NOPARSE;
+        goto cleanup;
+      }
+      clients=tr_rp_client_add(clients, new_client);
+    }
+  }
+  
+  *rc=TR_CFG_SUCCESS;
+  talloc_steal(mem_ctx, clients);
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return clients;
+}
+
 /* takes a talloc context, but currently does not use it */
 static TR_NAME *tr_cfg_parse_org_name(TALLOC_CTX *mem_ctx, json_t *j_org, TR_CFG_RC *rc)
 {
@@ -839,7 +1014,7 @@ static TR_CFG_RC tr_cfg_parse_one_local_org(TR_CFG *trc, json_t *jlorg)
   json_t *j_org=NULL;
   json_t *j_realms=NULL;
   TR_IDP_REALM *new_idp_realms=NULL;
-  TR_RP_REALM *new_rp_realms=NULL;
+  TR_RP_CLIENT *new_rp_clients=NULL;
 
   tr_debug("tr_cfg_parse_one_local_org: parsing local organization");
 
@@ -868,11 +1043,9 @@ static TR_CFG_RC tr_cfg_parse_one_local_org(TR_CFG *trc, json_t *jlorg)
     if (rc!=TR_CFG_SUCCESS)
       goto cleanup;
 
-#if 0
-    new_rp_realms=tr_cfg_parse_rp_realms(tmp_ctx, j_realms, &rc);
+    new_rp_clients=tr_cfg_parse_rp_clients(tmp_ctx, j_realms, &rc);
     if (rc!=TR_CFG_SUCCESS)
       goto cleanup;
-#endif
   }
   retval=TR_CFG_SUCCESS;
   
@@ -884,10 +1057,11 @@ cleanup:
       talloc_steal(trc, trc->idp_realms); /* make sure the head is in the right context */
       trc->comms=tr_cfg_comm_idp_update(trc, trc->comms, new_idp_realms, &rc); /* put realm info in community table */
     }
-#if 0
-    if (new_rp_realms!=NULL)
-      trc->rp_realms=tr_rp_realm_add(trc->rp_realms, new_rp_realms); /* fixes talloc contexts */
-#endif
+
+    if (new_rp_clients!=NULL) {
+      trc->rp_clients=tr_rp_client_add(trc->rp_clients, new_rp_clients); /* fixes talloc contexts */
+      talloc_steal(trc, trc->rp_clients); /* make sure head is in the right context */
+    }
   }
 
   talloc_free(tmp_ctx);

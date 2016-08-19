@@ -64,7 +64,7 @@ TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx)
 
   if (cons!=NULL) {
     cons->type=NULL;
-    for (ii=0; ii<<TR_MAX_CONST_MATCHES; ii++)
+    for (ii=0; ii<TR_MAX_CONST_MATCHES; ii++)
       cons->matches[ii]=NULL;
     talloc_set_destructor((void *)cons, tr_constraint_destructor);
   }

@@ -65,6 +65,23 @@ static int verify_idp_cfg(TR_CFG *cfg)
   return 0;
 }
 
+static int verify_rp_cfg(TR_CFG *cfg)
+{
+  int ii=0;
+  TR_NAME *name=NULL;
+
+  assert(cfg!=NULL);
+  assert(cfg->rp_clients!=NULL);
+  assert(cfg->rp_clients->next==NULL);
+  assert(cfg->rp_clients->comm_next==NULL);
+  for (ii=1; ii<TR_MAX_GSS_NAMES; ii++)
+    assert(cfg->rp_clients->gss_names[ii]==NULL);
+  assert(cfg->rp_clients->gss_names[0]!=NULL);
+  name=tr_new_name("gss@example.com");
+  assert(tr_name_cmp(name, cfg->rp_clients->gss_names[0])==0);
+  return 0;
+}
+
 int main(void)
 {
   TALLOC_CTX *mem_ctx=talloc_new(NULL);
@@ -96,8 +113,15 @@ int main(void)
     break;
   }
 
-  printf("Verifying parse results... ");
+  printf("Verifying IDP parse results... ");
   if (verify_idp_cfg(cfg)!=0) {
+    printf("Error!\n");
+    exit(-1);
+  }
+  printf("success!\n");
+
+  printf("Verifying RP parse results... ");
+  if (verify_rp_cfg(cfg)!=0) {
     printf("Error!\n");
     exit(-1);
   }
@@ -105,5 +129,40 @@ int main(void)
 
   talloc_report_full(mem_ctx, stderr);
   tr_cfg_free(cfg);
+
+  printf("Cleared configuration for next test.\n\n");
+
+  cfg=tr_cfg_new(mem_ctx);
+  
+  printf("Parsing rp.cfg.\n");
+  rc=tr_cfg_parse_one_config_file(cfg, "rp.cfg");
+  switch(rc) {
+  case TR_CFG_SUCCESS:
+    tr_debug("main: TR_CFG_SUCCESS");
+    break;
+  case TR_CFG_ERROR:
+    tr_debug("main: TR_CFG_ERROR");
+    break;
+  case TR_CFG_BAD_PARAMS:
+    tr_debug("main: TR_CFG_BAD_PARAMS");
+    break;
+  case TR_CFG_NOPARSE:
+    tr_debug("main: TR_CFG_NOPARSE");
+    break;
+  case TR_CFG_NOMEM:
+    tr_debug("main: TR_CFG_NOMEM");
+    break;
+  }
+
+#if 0
+  printf("Verifying RP parse results... ");
+  if (verify_rp_cfg(cfg)!=0) {
+    printf("Error!\n");
+    exit(-1);
+  }
+  printf("success!\n");
+#endif
+
+  talloc_free(mem_ctx);
   return 0;
 }
