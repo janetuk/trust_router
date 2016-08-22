@@ -326,10 +326,12 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
   json_t *jfaction=NULL;
   json_t *jfspecs=NULL;
   json_t *jffield=NULL;
+  json_t *jfmatches=NULL;
   json_t *jfmatch=NULL;
   json_t *jrc=NULL;
   json_t *jdc=NULL;
-  int i=0, j=0;
+  TR_NAME *name=NULL;
+  int i=0, j=0, k=0;
 
   *rc=TR_CFG_ERROR;
 
@@ -436,26 +438,60 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
     /*For each filter spec within the filter line... */
     for (j=0; j <json_array_size(jfspecs); j++) {
       if ((NULL==(jffield=json_object_get(json_array_get(jfspecs, j), "field"))) ||
-          (!json_is_string(jffield)) ||
-          (NULL==(jfmatch=json_object_get(json_array_get(jfspecs, j), "match"))) ||
-          (!json_is_string(jfmatch))) {
-        tr_debug("tr_cfg_parse_one_filter: Error parsing filter field and match for filter spec %d, filter line %d.", i, j);
+          (!json_is_string(jffield))) {
+        tr_debug("tr_cfg_parse_one_filter: Error parsing filter: missing field for filer spec %d, filter line %d.", i, j);
         *rc=TR_CFG_NOPARSE;
         goto cleanup;
       }
 
+      /* check that we have a match attribute */
+      if (NULL==(jfmatches=json_object_get(json_array_get(jfspecs, j), "match"))) {
+        tr_debug("tr_cfg_parse_one_filter: Error parsing filter: missing match for filer spec %d, filter line %d.", i, j);
+        *rc=TR_CFG_NOPARSE;
+        goto cleanup;
+      }
+
+      /* check that match is an array */
+      if (!json_is_array(jfmatches)) {
+        tr_debug("tr_cfg_parse_one_filter: Error parsing filter: match not an array for filter spec %d, filter line %d.", i, j);
+        *rc=TR_CFG_NOPARSE;
+        goto cleanup;
+      }
+
+      /* allocate the filter spec */
       if (NULL==(filt->lines[i]->specs[j]=tr_fspec_new(filt->lines[i]))) {
         tr_debug("tr_cfg_parse_one_filter: Out of memory.");
         *rc=TR_CFG_NOMEM;
         goto cleanup;
       }
 
-      if ((NULL==(filt->lines[i]->specs[j]->field=tr_new_name(json_string_value(jffield)))) ||
-          (NULL==(filt->lines[i]->specs[j]->match=tr_new_name(json_string_value(jfmatch))))) {
+      /* fill in the field */
+      if (NULL==(filt->lines[i]->specs[j]->field=tr_new_name(json_string_value(jffield)))) {
         tr_debug("tr_cfg_parse_one_filter: Out of memory.");
         *rc=TR_CFG_NOMEM;
         goto cleanup;
       }
+
+      /* fill in the matches */
+      for (k=0; k<json_array_size(jfmatches); k++) {
+        if (NULL==(jfmatch=json_array_get(jfmatches, k))) {
+          tr_debug("tr_cfg_parse_one_filter: Error parsing filter: unable to load match %d for filter spec %d, filter line %d.", k, i, j); 
+          *rc=TR_CFG_NOPARSE;
+          goto cleanup;
+        }
+        if (NULL==(name=tr_new_name(json_string_value(jfmatch)))) {
+          tr_debug("tr_cfg_parse_one_filter: Out of memory.");
+          *rc=TR_CFG_NOMEM;
+          goto cleanup;
+        }
+        if (0!=tr_fspec_add_match(filt->lines[i]->specs[j], name)) {
+          tr_debug("tr_cfg_parse_one_filter: Could not add match %d to filter spec %d, filter line %d.", k, i, j);
+          tr_free_name(name);
+          *rc=TR_CFG_ERROR;
+          goto cleanup;
+        }
+      }
+
     }
   }
   *rc=TR_CFG_SUCCESS;
@@ -463,6 +499,8 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
   
  cleanup:
   talloc_free(tmp_ctx);
+  if (*rc!=TR_CFG_SUCCESS)
+    filt=NULL;
   return filt;
 }
 
@@ -499,7 +537,7 @@ static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_C
  cleanup:
   if (*rc==TR_CFG_SUCCESS)
     talloc_steal(mem_ctx, filt);
-  else {
+  else if (filt!=NULL) {
     talloc_free(filt);
     filt=NULL;
   }
@@ -990,6 +1028,7 @@ static TR_NAME *tr_cfg_parse_org_name(TALLOC_CTX *mem_ctx, json_t *j_org, TR_CFG
   return name;
 }
 
+#if 0
 /* Update the community information with data from a new batch of IDP realms.
  * May partially add realms if there is a failure, no guarantees.
  * Call like comms=tr_comm_idp_update(comms, new_realms, &rc) */
@@ -1037,7 +1076,7 @@ static TR_COMM *tr_cfg_comm_idp_update(TALLOC_CTX *mem_ctx, TR_COMM *comms, TR_I
   talloc_free(tmp_ctx);
   return comms;
 }
-
+#endif
 
 static TR_CFG_RC tr_cfg_parse_one_local_org(TR_CFG *trc, json_t *jlorg)
 {
@@ -1089,7 +1128,9 @@ cleanup:
     if (new_idp_realms!=NULL) {
       trc->idp_realms=tr_idp_realm_add(trc->idp_realms, new_idp_realms); /* fixes talloc contexts except for head*/
       talloc_steal(trc, trc->idp_realms); /* make sure the head is in the right context */
+#if 0
       trc->comms=tr_cfg_comm_idp_update(trc, trc->comms, new_idp_realms, &rc); /* put realm info in community table */
+#endif
     }
 
     if (new_rp_clients!=NULL) {
@@ -1127,6 +1168,238 @@ static TR_CFG_RC tr_cfg_parse_local_orgs(TR_CFG *trc, json_t *jcfg)
   return TR_CFG_SUCCESS;
 }
              
+static TR_CFG_RC tr_cfg_parse_default_servers (TR_CFG *trc, json_t *jcfg) 
+{
+  json_t *jdss = NULL;
+  TR_CFG_RC rc = TR_CFG_SUCCESS;
+  TR_AAA_SERVER *ds = NULL;
+  int i = 0;
+
+  if ((!trc) || (!jcfg))
+    return TR_CFG_BAD_PARAMS;
+
+  /* If there are default servers, store them */
+  if ((NULL != (jdss = json_object_get(jcfg, "default_servers"))) &&
+      (json_is_array(jdss)) &&
+      (0 < json_array_size(jdss))) {
+
+    for (i = 0; i < json_array_size(jdss); i++) {
+      if (NULL == (ds = tr_cfg_parse_one_aaa_server(trc,
+                                                    json_array_get(jdss, i), 
+                                                   &rc))) {
+	return rc;
+      }
+      tr_debug("tr_cfg_parse_default_servers: Default server configured: %s", ds->hostname->buf);
+      ds->next = trc->default_servers;
+      trc->default_servers = ds;
+    }
+  } 
+
+  tr_debug("tr_cfg_parse_default_servers: Finished (rc=%d)", rc);
+  return rc;
+}
+
+static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_CFG *trc, json_t *jidps, TR_CFG_RC *rc)
+{
+  TR_IDP_REALM *idp = NULL;
+  TR_IDP_REALM *found_idp = NULL;
+  TR_IDP_REALM *temp_idp = NULL;
+  int i = 0;
+
+  if ((!trc) ||
+      (!jidps) ||
+      (!json_is_array(jidps))) {
+    if (rc)
+      *rc = TR_CFG_BAD_PARAMS;
+    return NULL;
+  }
+
+  for (i = 0; i < json_array_size(jidps); i++) {
+    if (NULL == (temp_idp = talloc(trc, TR_IDP_REALM))) {
+      tr_debug("tr_cfg_parse_comm_idps: Can't allocate memory for IdP Realm.");
+      if (rc)
+        *rc = TR_CFG_NOMEM;
+      return NULL;
+    }
+    memset (temp_idp, 0, sizeof(TR_IDP_REALM));
+    
+    if (NULL == (found_idp = (tr_cfg_find_idp(trc, 
+                                              tr_new_name((char *)json_string_value(json_array_get(jidps, i))), 
+                                              rc)))) {
+      tr_debug("tr_cfg_parse_comm_idps: Unknown IDP %s.", 
+               (char *)json_string_value(json_array_get(jidps, i)));
+      return NULL;
+    }
+
+    // We *MUST* do a dereferenced copy here or the second community will corrupt the linked list we create here.
+    *temp_idp = *found_idp;
+
+    temp_idp->comm_next = idp;
+    idp = temp_idp;
+  }
+
+  return idp;
+}
+
+static TR_RP_REALM *tr_cfg_parse_comm_rps (TR_CFG *trc, json_t *jrps, TR_CFG_RC *rc)
+{
+  TR_RP_REALM *rp = NULL;
+  TR_RP_REALM *temp_rp = NULL;
+  int i = 0;
+
+  if ((!trc) ||
+      (!jrps) ||
+      (!json_is_array(jrps))) {
+    if (rc)
+      *rc = TR_CFG_BAD_PARAMS;
+    return NULL;
+  }
+
+  for (i = (json_array_size(jrps)-1); i >= 0; i--) {
+    if (NULL == (temp_rp = talloc_zero(trc, TR_RP_REALM))) {
+      tr_debug("tr_cfg_parse_comm_rps: Can't allocate memory for RP Realm.");
+      if (rc)
+	*rc = TR_CFG_NOMEM;
+      return NULL;
+    }
+
+    if (NULL == (temp_rp->realm_name = tr_new_name((char *)json_string_value(json_array_get(jrps, i))))) {
+      tr_debug("tr_cfg_parse_comm_rps: No memory for RP Realm Name.");
+      if (rc)
+	*rc = TR_CFG_NOMEM;
+      return NULL;
+    }
+
+    temp_rp->next = rp;
+    rp = temp_rp;
+  }
+
+  return rp;
+}
+
+static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc) {
+  TR_COMM *comm = NULL;
+  json_t *jid = NULL;
+  json_t *jtype = NULL;
+  json_t *japcs = NULL;
+  json_t *jidps = NULL;
+  json_t *jrps = NULL;
+
+  if ((!trc) || (!jcomm) || (!rc)) {
+    tr_debug("tr_cfg_parse_one_comm: Bad parameters.");
+    if (rc)
+      *rc = TR_CFG_BAD_PARAMS;
+    return NULL;
+  }
+
+  if (NULL == (comm = talloc_zero(trc, TR_COMM))) {
+    tr_crit("tr_cfg_parse_one_comm: Out of memory.");
+    *rc = TR_CFG_NOMEM;
+    return NULL;
+  }
+
+
+  if ((NULL == (jid = json_object_get(jcomm, "community_id"))) ||
+      (!json_is_string(jid)) ||
+      (NULL == (jtype = json_object_get(jcomm, "type"))) ||
+      (!json_is_string(jtype)) ||
+      (NULL == (japcs = json_object_get(jcomm, "apcs"))) ||
+      (!json_is_array(japcs)) ||
+      (NULL == (jidps = json_object_get(jcomm, "idp_realms"))) ||
+      (!json_is_array(jidps)) ||
+      (NULL == (jrps = json_object_get(jcomm, "rp_realms"))) ||
+      (!json_is_array(jrps))) {
+    tr_debug("tr_cfg_parse_one_comm: Error parsing Communities configuration.");
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  if (NULL == (comm->id = tr_new_name((char *)json_string_value(jid)))) {
+    tr_debug("tr_cfg_parse_one_comm: No memory for community id.");
+    *rc = TR_CFG_NOMEM;
+    return NULL;
+  }
+
+  if (0 == strcmp(json_string_value(jtype), "apc")) {
+    comm->type = TR_COMM_APC;
+  } else if (0 == strcmp(json_string_value(jtype), "coi")) {
+    comm->type = TR_COMM_COI;
+    if (NULL == (comm->apcs = tr_cfg_parse_apcs(trc, japcs, rc))) {
+      tr_debug("tr_cfg_parse_one_comm: Can't parse APCs for COI %s.", comm->id->buf);
+      tr_free_name(comm->id);
+      return NULL;
+    }
+  } else {
+    tr_debug("tr_cfg_parse_one_comm: Invalid community type, comm = %s, type = %s", comm->id->buf, json_string_value(jtype));
+    tr_free_name(comm->id);
+    *rc = TR_CFG_NOPARSE;
+    return NULL;
+  }
+
+  comm->idp_realms = tr_cfg_parse_comm_idps(trc, jidps, rc);
+  if (TR_CFG_SUCCESS != *rc) {
+    tr_debug("tr_cfg_parse_one_comm: Can't parse IDP realms for comm %s.", comm->id->buf);
+    tr_free_name(comm->id);
+    return NULL;
+  }
+
+  comm->rp_realms = tr_cfg_parse_comm_rps(trc, jrps, rc);
+  if (TR_CFG_SUCCESS != *rc) {
+    tr_debug("tr_cfg_parse_comm: Can't parse RP realms for comm %s .", comm->id->buf);
+    tr_free_name(comm->id);
+    return NULL;
+  }
+
+  if (TR_COMM_APC == comm->type) {
+    json_t *jexpire  = json_object_get(jcomm, "expiration_interval");
+    comm->expiration_interval = 43200; /*30 days*/
+    if (jexpire) {
+	if (!json_is_integer(jexpire)) {
+	  fprintf(stderr, "tr_parse_comm: expirae_interval is not an integer\n");
+	  return NULL;
+	}
+	comm->expiration_interval = json_integer_value(jexpire);
+	if (comm->expiration_interval <= 10)
+	  comm->expiration_interval = 11; /* Freeradius waits 10 minutes between successful TR queries*/
+	if (comm->expiration_interval > 129600) /* 90 days*/
+	comm->expiration_interval = 129600;
+    }
+  }
+  
+  return comm;
+}
+
+static TR_CFG_RC tr_cfg_parse_comms (TR_CFG *trc, json_t *jcfg) 
+{
+  json_t *jcomms = NULL;
+  TR_CFG_RC rc = TR_CFG_SUCCESS;
+  TR_COMM *comm = NULL;
+  int i = 0;
+
+  if ((!trc) || (!jcfg)) {
+    tr_debug("tr_cfg_parse_comms: Bad Parameters.");
+    return TR_CFG_BAD_PARAMS;
+  }
+
+  if (NULL != (jcomms = json_object_get(jcfg, "communities"))) {
+    if (!json_is_array(jcomms)) {
+      return TR_CFG_NOPARSE;
+    }
+
+    for (i = 0; i < json_array_size(jcomms); i++) {
+      if (NULL == (comm = tr_cfg_parse_one_comm(trc, 
+						json_array_get(jcomms, i), 
+						&rc))) {
+	return rc;
+      }
+      tr_debug("tr_cfg_parse_comms: Community configured: %s.", comm->id->buf);
+      comm->next = trc->comms;
+      trc->comms = comm;
+    }
+  }
+  tr_debug("tr_cfg_parse_comms: Finished (rc=%d)", rc);
+  return rc;
+}
 
 TR_CFG_RC tr_cfg_validate(TR_CFG *trc)
 {
@@ -1174,7 +1447,7 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
 
   if (NULL==(jcfg=json_load_file(file_with_path, 
                                  JSON_DISABLE_EOF_CHECK, &rc))) {
-    tr_debug("tr_parse_config: Error parsing config file %s.", 
+    tr_debug("tr_parse_one_config_file: Error parsing config file %s.", 
              file_with_path);
     return TR_CFG_NOPARSE;
   }
@@ -1182,7 +1455,7 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
   // Look for serial number and log it if it exists
   if (NULL!=(jser=json_object_get(jcfg, "serial_number"))) {
     if (json_is_number(jser)) {
-      tr_notice("tr_read_config: Attempting to load revision %" JSON_INTEGER_FORMAT " of '%s'.",
+      tr_notice("tr_parse_one_config_file: Attempting to load revision %" JSON_INTEGER_FORMAT " of '%s'.",
                 json_integer_value(jser),
                 file_with_path);
     }
@@ -1199,7 +1472,9 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
   }
 #endif
   if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_local_orgs(cfg, jcfg)))
+      (TR_CFG_SUCCESS != tr_cfg_parse_local_orgs(cfg, jcfg)) ||
+      (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(cfg, jcfg)) ||
+      (TR_CFG_SUCCESS != tr_cfg_parse_comms(cfg, jcfg)))
     return TR_CFG_ERROR;
 
   return TR_CFG_SUCCESS;
@@ -1237,7 +1512,7 @@ TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, st
     tr_debug("tr_parse_config: Parsing %s.", cfg_files[ii]->d_name); /* print the filename without the path */
     cfg_rc=tr_cfg_parse_one_config_file(cfg_mgr->new, file_with_path);
     if (cfg_rc!=TR_CFG_SUCCESS) {
-      tr_crit("tr_parse_config: error parsing %s", file_with_path);
+      tr_crit("tr_parse_config: Error parsing %s", file_with_path);
       goto cleanup;
     }
     talloc_free(file_with_path); /* done with filename */
