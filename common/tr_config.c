@@ -471,7 +471,6 @@ static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_C
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   json_t *jfilt;
   TR_FILTER *filt=NULL;
-  int ii=0;
 
   *rc=TR_CFG_ERROR;
 
@@ -564,7 +563,7 @@ static TR_AAA_SERVER *tr_cfg_parse_aaa_servers(TALLOC_CTX *mem_ctx, json_t *jaaa
   return aaa;
 }
 
-static TR_APC *tr_cfg_parse_apc(TALLOC_CTX *mem_ctx, json_t *japc, TR_CFG_RC *rc)
+static TR_APC *tr_cfg_parse_one_apc(TALLOC_CTX *mem_ctx, json_t *japc, TR_CFG_RC *rc)
 {
   TR_APC *apc=NULL;
   TR_NAME *name=NULL;
@@ -572,7 +571,7 @@ static TR_APC *tr_cfg_parse_apc(TALLOC_CTX *mem_ctx, json_t *japc, TR_CFG_RC *rc
   *rc = TR_CFG_SUCCESS;         /* presume success */
 
   if ((!japc) || (!rc) || (!json_is_string(japc))) {
-    tr_debug("tr_cfg_parse_apc: Bad parameters.");
+    tr_debug("tr_cfg_parse_one_apc: Bad parameters.");
     if (rc) 
       *rc = TR_CFG_BAD_PARAMS;
     return NULL;
@@ -580,14 +579,14 @@ static TR_APC *tr_cfg_parse_apc(TALLOC_CTX *mem_ctx, json_t *japc, TR_CFG_RC *rc
 
   apc=tr_apc_new(mem_ctx);
   if (apc==NULL) {
-    tr_debug("tr_cfg_parse_apc: Out of memory.");
+    tr_debug("tr_cfg_parse_one_apc: Out of memory.");
     *rc = TR_CFG_NOMEM;
     return NULL;
   }
 
   name=tr_new_name(json_string_value(japc));
   if (name==NULL) {
-    tr_debug("tr_cfg_parse_apc: No memory for APC name.");
+    tr_debug("tr_cfg_parse_one_apc: No memory for APC name.");
     tr_apc_free(apc);
     *rc = TR_CFG_NOMEM;
     return NULL;
@@ -595,6 +594,41 @@ static TR_APC *tr_cfg_parse_apc(TALLOC_CTX *mem_ctx, json_t *japc, TR_CFG_RC *rc
   tr_apc_set_id(apc, name); /* apc is now responsible for freeing the name */
 
   return apc;
+}
+
+static TR_APC *tr_cfg_parse_apcs(TALLOC_CTX *mem_ctx, json_t *japcs, TR_CFG_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_APC *apcs=NULL;
+  TR_APC *new_apc=NULL;
+  int ii=0;
+  TR_CFG_RC call_rc=TR_CFG_ERROR;
+  
+  *rc = TR_CFG_SUCCESS;         /* presume success */
+
+  if ((!japcs) || (!rc) || (!json_is_array(japcs))) {
+    tr_debug("tr_cfg_parse_one_apc: Bad parameters.");
+    if (rc) 
+      *rc = TR_CFG_BAD_PARAMS;
+    return NULL;
+  }
+
+  for (ii=0; ii<json_array_size(japcs); ii++) {
+    new_apc=tr_cfg_parse_one_apc(tmp_ctx, json_array_get(japcs, ii), &call_rc);
+    if ((call_rc!=TR_CFG_SUCCESS) || (new_apc==NULL)) {
+      tr_debug("tr_cfg_parse_apcs: Error parsing APC %d.", ii+1);
+      *rc=TR_CFG_NOPARSE;
+      goto cleanup;
+    }
+    apcs=tr_apc_add(apcs, new_apc);
+  }
+
+  talloc_steal(mem_ctx, apcs);
+  *rc=TR_CFG_SUCCESS;
+
+ cleanup:
+  talloc_free(tmp_ctx);
+  return apcs;
 }
 
 static TR_NAME *tr_cfg_parse_name(TALLOC_CTX *mem_ctx, json_t *jname, TR_CFG_RC *rc)
@@ -661,7 +695,7 @@ static TR_CFG_RC tr_cfg_parse_idp(TR_IDP_REALM *idp, json_t *jidp)
     goto cleanup;
   }
 
-  apcs=tr_cfg_parse_apc(tmp_ctx, json_object_get(jidp, "apc"), &rc);
+  apcs=tr_cfg_parse_apcs(tmp_ctx, json_object_get(jidp, "apcs"), &rc);
   if ((rc!=TR_CFG_SUCCESS) || (apcs==NULL)) {
     tr_err("tr_cfg_parse_idp: unable to parse APC");
     rc=TR_CFG_NOPARSE;
@@ -672,7 +706,7 @@ static TR_CFG_RC tr_cfg_parse_idp(TR_IDP_REALM *idp, json_t *jidp)
            apcs->id->buf);
 
   aaa=tr_cfg_parse_aaa_servers(idp, json_object_get(jidp, "aaa_servers"), &rc);
-  if ((rc!=TR_CFG_SUCCESS) || (aaa==NULL)) {
+  if (rc!=TR_CFG_SUCCESS) {
     tr_err("tr_cfg_parse_idp: unable to parse AAA servers");
     rc=TR_CFG_NOPARSE;
     goto cleanup;
@@ -1164,7 +1198,8 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
 
   }
 #endif
-  if (TR_CFG_SUCCESS != tr_cfg_parse_local_orgs(cfg, jcfg))
+  if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(cfg, jcfg)) ||
+      (TR_CFG_SUCCESS != tr_cfg_parse_local_orgs(cfg, jcfg)))
     return TR_CFG_ERROR;
 
   return TR_CFG_SUCCESS;
@@ -1174,9 +1209,6 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
 TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, struct dirent **cfg_files)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  json_t *jcfg;
-  json_t *jser;
-  json_error_t rc;
   char *file_with_path;
   int ii;
   TR_CFG_RC cfg_rc=TR_CFG_ERROR;

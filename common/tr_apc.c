@@ -48,6 +48,7 @@ TR_APC *tr_apc_add(TR_APC *head, TR_APC *new)
       new=new->next;
     }
   }
+  return head;
 }
 
 /* does not copy next pointer */

@@ -75,8 +75,8 @@ void tr_comm_add_idp_realm(TR_COMM *comm, TR_IDP_REALM *realm)
   if (comm->idp_realms==NULL)
     comm->idp_realms=realm;
   else {
-    for (cur=comm->idp_realms; cur->next!=NULL; cur=cur->next) { }
-    cur->next=realm;
+    for (cur=comm->idp_realms; cur->comm_next!=NULL; cur=cur->comm_next) { }
+    cur->comm_next=realm;
   }
 }
 

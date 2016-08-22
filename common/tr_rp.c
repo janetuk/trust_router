@@ -75,7 +75,10 @@ void tr_rp_client_free(TR_RP_CLIENT *client)
 
 static TR_RP_CLIENT *tr_rp_client_tail(TR_RP_CLIENT *client)
 {
-  while (client!=NULL)
+  if (client==NULL)
+    return NULL;
+
+  while (client->next!=NULL)
     client=client->next;
   return client;
 }

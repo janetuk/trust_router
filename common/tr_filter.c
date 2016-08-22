@@ -82,7 +82,7 @@ void tr_fspec_free(TR_FSPEC *fspec)
   talloc_free(fspec);
 }
 
-int tr_fspec_destructor(void *obj)
+static int tr_fspec_destructor(void *obj)
 {
   TR_FSPEC *fspec=talloc_get_type_abort(obj, TR_FSPEC);
   if (fspec->field!=NULL)

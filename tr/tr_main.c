@@ -52,7 +52,7 @@
 #include <tr_debug.h>
 
 #define TALLOC_DEBUG_ENABLE 1
-#define DEBUG_HARDCODED_PEER_TABLE 1
+#define DEBUG_HARDCODED_PEER_TABLE 0
 #define DEBUG_PING_SELF 0
 
 /***** command-line option handling / setup *****/
