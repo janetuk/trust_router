@@ -757,8 +757,9 @@ TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps, struct event *ev)
        peer=trp_ptable_iter_next(iter))
   {
     if (trps_find_trpc(trps, peer)==NULL) {
+      TR_NAME *label=trp_peer_get_label(peer);
       tr_debug("tr_connect_to_peers: %.*s missing connection.",
-               trp_peer_get_gssname(peer)->len, trp_peer_get_gssname(peer)->buf);
+               label->len, label->buf);
       /* has it been long enough since we last tried? */
       if (tr_conn_attempt_due(trps, peer, &curtime)) {
         trp_peer_set_last_conn_attempt(peer, &curtime); /* we are trying again now */
@@ -795,6 +796,7 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
   trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);
+  trps_set_ptable(trps, new_cfg->peers);
   trps_clear_rtable(trps); /* should we do this every time??? */
   tr_add_local_routes(trps, new_cfg); /* should we do this every time??? */
   trps_update_active_routes(trps); /* find new routes */

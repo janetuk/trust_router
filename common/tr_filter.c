@@ -126,13 +126,14 @@ int tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match)
     return -1; /* no space left */
 }
 
-/* returns 1 if the spec exactly matches */
+/* returns 1 if the spec matches */
 int tr_fspec_matches(TR_FSPEC *fspec, TR_NAME *name)
 {
   int ii=0;
 
   for (ii=0; ii<TR_MAX_FILTER_MATCHES; ii++) {
-    if (0!=tr_prefix_wildcard_match(name->buf, fspec->match[ii]->buf))
+    if ((fspec->match[ii]!=NULL) &&
+        (0!=tr_prefix_wildcard_match(name->buf, fspec->match[ii]->buf)))
       return 1;
   }
   return 0;

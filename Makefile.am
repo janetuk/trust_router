@@ -43,6 +43,7 @@ common/tr_comm.c \
 common/tr_filter.c \
 common/tr_rp.c \
 common/tr_mq.c \
+common/tr_gss.c \
 tr/tr.c \
 tr/tr_event.c \
 tr/tr_cfgwatch.c \
@@ -74,6 +75,7 @@ tid/tid_req.c \
 tid/tid_resp.c \
 common/tr_msg.c \
 common/tr_name.c \
+common/tr_gss.c \
 common/tr_idp.c \
 common/tr_apc.c \
 common/tr_comm.c \
@@ -86,6 +88,7 @@ trp_msgtst_LDADD =  $(GLIB_LIBS)
 
 trp_test_rtbl_test_SOURCES = trp/test/rtbl_test.c \
 common/tr_name.c \
+common/tr_gss.c \
 common/tr_debug.c \
 trp/trp_rtable.c
 
@@ -126,6 +129,7 @@ common/tr_filter.c \
 common/tr_constraint.c \
 common/tr_debug.c \
 common/tr_name.c \
+common/tr_gss.c \
 common/tr_apc.c \
 common/tr_comm.c \
 tid/tid_req.c \

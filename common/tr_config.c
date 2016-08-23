@@ -41,11 +41,13 @@
 #include <tr_cfgwatch.h>
 #include <tr_comm.h>
 #include <tr_config.h>
+#include <tr_gss.h>
 #include <tr_debug.h>
 #include <tr_filter.h>
 #include <trust_router/tr_constraint.h>
 #include <tr_idp.h>
 #include <tr.h>
+#include <trust_router/trp.h>
 
 void tr_print_config (TR_CFG *cfg) {
   tr_notice("tr_print_config: Logging running trust router configuration.");
@@ -871,41 +873,58 @@ cleanup:
   return realms;
 }
 
-static TR_CFG_RC tr_cfg_parse_gss_names(TR_RP_CLIENT *client, json_t *jgss_names)
+static TR_GSS_NAMES *tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR_CFG_RC *rc)
 {
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_GSS_NAMES *gn=NULL;
   json_t *jname=NULL;
   int ii=0;
   TR_NAME *name=NULL;
 
-  if ((client==NULL) || (jgss_names==NULL)) {
+  if ((rc==NULL) || (jgss_names==NULL)) {
     tr_err("tr_cfg_parse_gss_names: Bad parameters.");
-    return TR_CFG_BAD_PARAMS;
+    *rc=TR_CFG_BAD_PARAMS;
+
   }
 
   if (!json_is_array(jgss_names)) {
     tr_err("tr_cfg_parse_gss_names: gss_names not an array.");
-    return TR_CFG_NOPARSE;
+    *rc=TR_CFG_NOPARSE;
+    goto cleanup;
   }
 
+  gn=tr_gss_names_new(tmp_ctx);
   for (ii=0; ii<json_array_size(jgss_names); ii++) {
     jname=json_array_get(jgss_names, ii);
     if (!json_is_string(jname)) {
       tr_err("tr_cfg_parse_gss_names: Encountered non-string gss name.");
-      return TR_CFG_NOPARSE;
+      *rc=TR_CFG_NOPARSE;
+      goto cleanup;
     }
+
     name=tr_new_name(json_string_value(jname));
     if (name==NULL) {
       tr_err("tr_cfg_parse_gss_names: Out of memory allocating gss name.");
-      return TR_CFG_NOMEM;
+      *rc=TR_CFG_NOMEM;
+      goto cleanup;
     }
-    if (tr_rp_client_add_gss_name(client, name)!=0) {
+
+    if (tr_gss_names_add(gn, name)!=0) {
       tr_free_name(name);
       tr_err("tr_cfg_parse_gss_names: Unable to add gss name to RP client.");
-      return TR_CFG_ERROR;
+      *rc=TR_CFG_ERROR;
+      goto cleanup;
     }
   }
 
-  return TR_CFG_SUCCESS;
+  talloc_steal(mem_ctx, gn);
+  *rc=TR_CFG_SUCCESS;
+
+ cleanup:
+  talloc_free(tmp_ctx);
+  if ((*rc!=TR_CFG_SUCCESS) && (gn!=NULL))
+    gn=NULL;
+  return gn;
 }
 
 /* parses rp client */
@@ -931,7 +950,8 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
     goto cleanup;
   }
 
-  call_rc=tr_cfg_parse_gss_names(client, json_object_get(jrealm, "gss_names"));
+  client->gss_names=tr_cfg_parse_gss_names(client, json_object_get(jrealm, "gss_names"), &call_rc);
+
   if (call_rc!=TR_CFG_SUCCESS) {
     tr_err("tr_cfg_parse_one_rp_client: could not parse gss_names.");
     *rc=TR_CFG_NOPARSE;
@@ -1128,9 +1148,6 @@ cleanup:
     if (new_idp_realms!=NULL) {
       trc->idp_realms=tr_idp_realm_add(trc->idp_realms, new_idp_realms); /* fixes talloc contexts except for head*/
       talloc_steal(trc, trc->idp_realms); /* make sure the head is in the right context */
-#if 0
-      trc->comms=tr_cfg_comm_idp_update(trc, trc->comms, new_idp_realms, &rc); /* put realm info in community table */
-#endif
     }
 
     if (new_rp_clients!=NULL) {
@@ -1161,6 +1178,94 @@ static TR_CFG_RC tr_cfg_parse_local_orgs(TR_CFG *trc, json_t *jcfg)
   for (ii=0; ii<json_array_size(jlocorgs); ii++) {
     if (tr_cfg_parse_one_local_org(trc, json_array_get(jlocorgs, ii))!=TR_CFG_SUCCESS) {
       tr_err("tr_cfg_parse_local_orgs: error parsing local_organization %d.", ii+1);
+      return TR_CFG_NOPARSE;
+    }
+  }
+
+  return TR_CFG_SUCCESS;
+}
+
+static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  json_t *jhost=NULL;
+  json_t *jport=NULL;
+  json_t *jgss=NULL;
+  TRP_PEER *new_peer=NULL;
+  TR_GSS_NAMES *names=NULL;
+  TR_CFG_RC rc=TR_CFG_ERROR;
+
+  jhost=json_object_get(jporg, "hostname");
+  jport=json_object_get(jporg, "port");
+  jgss=json_object_get(jporg, "gss_names");
+
+  if ((jhost==NULL) || (!json_is_string(jhost))) {
+    tr_err("tr_cfg_parse_one_peer_org: hostname not specified or not a string.");
+    rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  if ((jport!=NULL) && (!json_is_number(jport))) {
+    /* note that not specifying the port is allowed, but if set it must be a number */
+    tr_err("tr_cfg_parse_one_peer_org: port is not a number.");
+    rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+  
+  if ((jgss==NULL) || (!json_is_array(jgss))) {
+    tr_err("tr_cfg_parse_one_peer_org: gss_names not specified or not an array.");
+    rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  new_peer=trp_peer_new(tmp_ctx);
+  if (new_peer==NULL) {
+    tr_err("tr_cfg_parse_one_peer_org: could not allocate new peer.");
+    rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  trp_peer_set_server(new_peer, json_string_value(jhost));
+  if (jport==NULL)
+    trp_peer_set_port(new_peer, TRP_PORT);
+  else
+    trp_peer_set_port(new_peer, json_integer_value(jport));
+
+  names=tr_cfg_parse_gss_names(tmp_ctx, jgss, &rc);
+  if (rc!=TR_CFG_SUCCESS) {
+    tr_err("tr_cfg_parse_one_peer_org: unable to parse gss names.");
+    rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+  trp_peer_set_gss_names(new_peer, names);
+
+  /* success! */
+  trp_ptable_add(trc->peers, new_peer);
+  rc=TR_CFG_SUCCESS;
+
+ cleanup:
+  talloc_free(tmp_ctx);
+  return rc;
+}
+
+/* Parse peer organizations, if present. Returns success if there are none. */
+static TR_CFG_RC tr_cfg_parse_peer_orgs(TR_CFG *trc, json_t *jcfg)
+{
+  json_t *jpeerorgs=NULL;
+  int ii=0;
+
+  jpeerorgs=json_object_get(jcfg, "peer_organizations");
+  if (jpeerorgs==NULL)
+    return TR_CFG_SUCCESS;
+
+  if (!json_is_array(jpeerorgs)) {
+    tr_err("tr_cfg_parse_peer_orgs: peer_organizations is not an array.");
+    return TR_CFG_NOPARSE;
+  }
+
+  for (ii=0; ii<json_array_size(jpeerorgs); ii++) {
+    if (tr_cfg_parse_one_peer_org(trc, json_array_get(jpeerorgs, ii))!=TR_CFG_SUCCESS) {
+      tr_err("tr_cfg_parse_peer_orgs: error parsing peer_organization %d.", ii+1);
       return TR_CFG_NOPARSE;
     }
   }
@@ -1461,18 +1566,9 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
     }
   }
 
-  /* TODO: parse using the new functions */
-#if 0
-  if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_rp_clients(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_idp_realms(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_comms(cfg, jcfg))) {
-
-  }
-#endif
   if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(cfg, jcfg)) ||
       (TR_CFG_SUCCESS != tr_cfg_parse_local_orgs(cfg, jcfg)) ||
+      (TR_CFG_SUCCESS != tr_cfg_parse_peer_orgs(cfg, jcfg)) ||
       (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(cfg, jcfg)) ||
       (TR_CFG_SUCCESS != tr_cfg_parse_comms(cfg, jcfg)))
     return TR_CFG_ERROR;
@@ -1500,6 +1596,8 @@ TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, st
     cfg_rc=TR_CFG_NOMEM;
     goto cleanup;
   }
+
+  cfg_mgr->new->peers=trp_ptable_new(cfg_mgr);
 
   /* Parse configuration information from each config file */
   for (ii=0; ii<n; ii++) {
@@ -1558,7 +1656,6 @@ TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc)
 TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc)
 {
   TR_RP_CLIENT *cfg_rp;
-  int i;
 
   if ((!tr_cfg) || (!rp_gss)) {
     if (rc)
@@ -1567,11 +1664,9 @@ TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc)
   }
 
   for (cfg_rp = tr_cfg->rp_clients; NULL != cfg_rp; cfg_rp = cfg_rp->next) {
-    for (i = 0; i < TR_MAX_GSS_NAMES; i++) {
-      if (!tr_name_cmp (rp_gss, cfg_rp->gss_names[i])) {
-        tr_debug("tr_cfg_find_rp: Found %s.", rp_gss->buf);
-        return cfg_rp;
-      }
+    if (tr_gss_names_matches(cfg_rp->gss_names, rp_gss)) {
+      tr_debug("tr_cfg_find_rp: Found %s.", rp_gss->buf);
+      return cfg_rp;
     }
   }
   /* if we didn't find one, return NULL */ 

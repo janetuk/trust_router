@@ -8,6 +8,7 @@
 #include <tr_rp.h>
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
+#include <tr_gss.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
@@ -32,17 +33,11 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
     trps->trpc=NULL;
     trps->update_interval=(struct timeval){0,0};
     trps->sweep_interval=(struct timeval){0,0};
+    trps->ptable=NULL;
 
     trps->mq=tr_mq_new(trps);
     if (trps->mq==NULL) {
       /* failed to allocate mq */
-      talloc_free(trps);
-      return NULL;
-    }
-
-    trps->ptable=trp_ptable_new(trps);
-    if (trps->ptable==NULL) {
-      /* failed to allocate ptable */
       talloc_free(trps);
       return NULL;
     }
@@ -128,15 +123,22 @@ void trps_set_sweep_interval(TRPS_INSTANCE *trps, unsigned int interval)
   trps->sweep_interval.tv_usec=0;
 }
 
+void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable)
+{
+  if (trps->ptable!=NULL)
+    trp_ptable_free(trps->ptable);
+  trps->ptable=ptable;
+}
+
 TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   TRPC_INSTANCE *cur=NULL;
   TR_NAME *name=NULL;
-  TR_NAME *peer_gssname=trp_peer_get_gssname(peer);
+  TR_GSS_NAMES *peer_gssnames=trp_peer_get_gss_names(peer);
 
   for (cur=trps->trpc; cur!=NULL; cur=trpc_get_next(cur)) {
     name=trpc_get_gssname(cur);
-    if ((name!=NULL) && (0==tr_name_cmp(peer_gssname, name))) {
+    if ((name!=NULL) && (tr_gss_names_matches(peer_gssnames, name))) {
       break;
     }
   }
@@ -898,7 +900,7 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
 
 /* all routes to a single peer, unless comm/realm are specified (both or neither must be NULL) */
 static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
-                                   TR_NAME *peer_gssname,
+                                   TRP_PEER *peer,
                                    TRP_UPDATE_TYPE update_type,
                                    TR_NAME *comm,
                                    TR_NAME *realm)
@@ -911,20 +913,20 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
   size_t n_updates=0, ii=0;
   char *encoded=NULL;
   TRP_RC rc=TRP_ERROR;
-  TRP_PEER *peer=trps_get_peer_by_gssname(trps, peer_gssname);
+  TR_NAME *peer_label=trp_peer_get_label(peer);
 
   switch (update_type) {
   case TRP_UPDATE_TRIGGERED:
     tr_debug("trps_update_one_peer: preparing triggered route update for %.*s",
-             peer_gssname->len, peer_gssname->buf);
+             peer_label->len, peer_label->buf);
     break;
   case TRP_UPDATE_SCHEDULED:
     tr_debug("trps_update_one_peer: preparing scheduled route update for %.*s",
-             peer_gssname->len, peer_gssname->buf);
+             peer_label->len, peer_label->buf);
     break;
   case TRP_UPDATE_REQUESTED:
     tr_debug("trps_update_one_peer: preparing requested route update for %.*s",
-             peer_gssname->len, peer_gssname->buf);
+             peer_label->len, peer_label->buf);
   }
 
   /* do not fill in peer, recipient does that */
@@ -932,7 +934,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
     /* do all realms */
     update_list=trps_select_updates_for_peer(tmp_ctx,
                                              trps,
-                                             peer_gssname,
+                                             peer_label,
                                              update_type==TRP_UPDATE_TRIGGERED,
                                             &n_updates);
   } else if ((comm!=NULL) && (realm!=NULL)) {
@@ -943,7 +945,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
       rc=TRP_NOMEM;
       goto cleanup;
     }
-    *update_list=trps_select_realm_update(trps, comm, realm, peer_gssname);
+    *update_list=trps_select_realm_update(trps, comm, realm, peer_label);
     if (*update_list==NULL) {
       /* we have no actual update to send back, MUST send a retraction */
       tr_debug("trps_update_one_peer: community/realm without route requested, sending mandatory retraction.");
@@ -1011,6 +1013,9 @@ TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE update_type)
   TRP_PEER *peer=NULL;
   TRP_RC rc=TRP_SUCCESS;
 
+  if (trps->ptable==NULL)
+    return TRP_SUCCESS; /* no peers, nothing to do */
+
   if (iter==NULL) {
     tr_err("trps_update: failed to allocate peer table iterator.");
     talloc_free(tmp_ctx);
@@ -1022,12 +1027,12 @@ TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE update_type)
        peer=trp_ptable_iter_next(iter))
   {
     if (!trps_peer_connected(trps, peer)) {
-      TR_NAME *peer_gssname=trp_peer_get_gssname(peer);
+      TR_NAME *peer_label=trp_peer_get_label(peer);
       tr_debug("trps_update: no TRP connection to %.*s, skipping.",
-               peer_gssname->len, peer_gssname->buf);
+               peer_label->len, peer_label->buf);
       continue;
     }
-    rc=trps_update_one_peer(trps, trp_peer_get_gssname(peer), update_type, NULL, NULL);
+    rc=trps_update_one_peer(trps, peer, update_type, NULL, NULL);
   }
   
   trp_ptable_iter_free(iter);
@@ -1045,16 +1050,27 @@ TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_ROUTE *route)
 /* steals the peer object */
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
+  if (trps->ptable==NULL) {
+    trps->ptable=trp_ptable_new(trps);
+    if (trps->ptable==NULL)
+      return TRP_NOMEM;
+  }
   return trp_ptable_add(trps->ptable, peer);
 }
 
 TRP_PEER *trps_get_peer_by_gssname(TRPS_INSTANCE *trps, TR_NAME *gssname)
 {
-  return trp_ptable_find_gssname(trps->ptable, gssname);
+  if (trps->ptable==NULL)
+    return NULL;
+
+  return trp_ptable_find_gss_name(trps->ptable, gssname);
 }
 
 TRP_PEER *trps_get_peer_by_servicename(TRPS_INSTANCE *trps, TR_NAME *servicename)
 {
+  if (trps->ptable==NULL)
+    return NULL;
+
   return trp_ptable_find_servicename(trps->ptable, servicename);
 }
 
@@ -1092,7 +1108,11 @@ static TRP_RC trps_handle_request(TRPS_INSTANCE *trps, TRP_REQ *req)
     tr_debug("trps_handle_request: all routes requested.");
     /* leave comm/realm NULL */
   }
-  return trps_update_one_peer(trps, trp_req_get_peer(req), TRP_UPDATE_REQUESTED, comm, realm);
+  return trps_update_one_peer(trps,
+                              trps_get_peer_by_gssname(trps, trp_req_get_peer(req)),
+                              TRP_UPDATE_REQUESTED,
+                              comm,
+                              realm);
 }
 
 

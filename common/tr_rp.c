@@ -36,32 +36,24 @@
 
 #include <tr.h>
 #include <trust_router/tr_name.h>
+#include <tr_gss.h>
 #include <tr_config.h>
 #include <tr_rp.h>
 #include <tr_debug.h>
 
 static int tr_rp_client_destructor(void *obj)
 {
-  TR_RP_CLIENT *client=talloc_get_type_abort(obj, TR_RP_CLIENT);
-  int ii=0;
-
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if (client->gss_names[ii]!=NULL)
-      tr_free_name(client->gss_names[ii]);
-  }
   return 0;
 }
 
 TR_RP_CLIENT *tr_rp_client_new(TALLOC_CTX *mem_ctx)
 {
   TR_RP_CLIENT *client=talloc(mem_ctx, TR_RP_CLIENT);
-  int ii=0;
 
   if (client!=NULL) {
     client->next=NULL;
     client->comm_next=NULL;
-    for (ii=0; ii<TR_MAX_GSS_NAMES; ii++)
-      client->gss_names[ii]=NULL;
+    client->gss_names=NULL;
     client->filter=NULL;
     talloc_set_destructor((void *)client, tr_rp_client_destructor);
   }
@@ -100,14 +92,7 @@ TR_RP_CLIENT *tr_rp_client_add(TR_RP_CLIENT *clients, TR_RP_CLIENT *new)
 
 int tr_rp_client_add_gss_name(TR_RP_CLIENT *rp_client, TR_NAME *gss_name)
 {
-  int ii=0;
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if (NULL==rp_client->gss_names[ii]) {
-      rp_client->gss_names[ii]=gss_name;
-      return 0; /* success */
-    }
-  }
-  return -1; /* error */
+  return tr_gss_names_add(rp_client->gss_names, gss_name);
 }
 
 int tr_rp_client_set_filter(TR_RP_CLIENT *client, TR_FILTER *filt)
@@ -122,7 +107,6 @@ int tr_rp_client_set_filter(TR_RP_CLIENT *client, TR_FILTER *filt)
 TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name)
 {
   TR_RP_CLIENT *rp = NULL;
-  int i = 0;
 
   if ((!rp_clients) || (!gss_name)) {
     tr_debug("tr_rp_client_lookup: Bad parameters.");
@@ -130,14 +114,11 @@ TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name)
   }
 
   for (rp = rp_clients; NULL != rp; rp = rp->next) {
-    for (i = 0; ((i < TR_MAX_GSS_NAMES) && (NULL != (rp->gss_names[i]))); i++) {
-	if (!tr_name_cmp(gss_name, rp->gss_names[i])) {
-	return rp;
-      }
-    }
+    if (tr_gss_names_matches(rp->gss_names, gss_name))
+      return rp;
   } 
   return NULL;
- }
+}
 
 /* talloc note: lists of idp realms should be assembled using
  * tr_idp_realm_add(). This will put all of the elements in the

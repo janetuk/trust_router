@@ -37,14 +37,13 @@
 
 #include <talloc.h>
 
+#include <tr_gss.h>
 #include <tr_filter.h>
-
-#define TR_MAX_GSS_NAMES 5
 
 typedef struct tr_rp_client {
   struct tr_rp_client *next;
   struct tr_rp_client *comm_next;
-  TR_NAME *gss_names[TR_MAX_GSS_NAMES];
+  TR_GSS_NAMES *gss_names;
   TR_FILTER *filter;
 } TR_RP_CLIENT;
 

@@ -3,6 +3,7 @@
 
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
+#include <tr_gss.h>
 #include <trp_ptable.h>
 #include <tr_debug.h>
 
@@ -11,8 +12,6 @@ static int trp_peer_destructor(void *object)
   TRP_PEER *peer=talloc_get_type_abort(object, TRP_PEER);
   if (peer->servicename!=NULL)
     tr_free_name(peer->servicename);
-  if (peer->gssname!=NULL)
-    tr_free_name(peer->gssname);
   return 0;
 }
 TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
@@ -22,7 +21,7 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
     peer->next=NULL;
     peer->server=NULL;
     peer->servicename=NULL;
-    peer->gssname=NULL;
+    peer->gss_names=NULL;
     peer->port=0;
     peer->linkcost=TRP_LINKCOST_DEFAULT;
     peer->last_conn_attempt=(struct timespec){0,0};
@@ -48,6 +47,29 @@ static TRP_PEER *trp_peer_tail(TRP_PEER *peer)
   return peer;
 }
 
+
+/* Get a name that identifies this peer for display to the user, etc. 
+ * Do not modify or free the label. */
+TR_NAME *trp_peer_get_label(TRP_PEER *peer)
+{
+  TR_GSS_NAMES_ITER *iter=tr_gss_names_iter_new(NULL);
+  TR_NAME *name=NULL;
+
+  /* for now, use the first gss name */
+  if (iter!=NULL) {
+    name=tr_gss_names_iter_first(iter, peer->gss_names);
+    talloc_free(iter);
+  }
+  return name;
+}
+
+/* Get a name that identifies this peer for display to the user, etc. 
+ * Makes a copy, caller is responsible for freeing.  */
+TR_NAME *trp_peer_dup_label(TRP_PEER *peer)
+{
+  return tr_dup_name(trp_peer_get_label(peer));;
+}
+
 char *trp_peer_get_server(TRP_PEER *peer)
 {
   return peer->server;
@@ -70,28 +92,33 @@ static void trp_peer_set_servicename(TRP_PEER *peer, const char *server)
   }
 }
 
-/* copies input; on error, peer->gssname will be null */
-void trp_peer_set_server(TRP_PEER *peer, char *server)
+/* copies input; on error, peer->servicename will be null */
+void trp_peer_set_server(TRP_PEER *peer, const char *server)
 {
   peer->server=talloc_strdup(peer, server); /* will be null on error */
   trp_peer_set_servicename(peer, server);
 }
 
-void trp_peer_set_gssname(TRP_PEER *peer, TR_NAME *gssname)
+void trp_peer_add_gss_name(TRP_PEER *peer, TR_NAME *gss_name)
 {
-  peer->gssname=gssname;
+  if (peer->gss_names==NULL)
+    trp_peer_set_gss_names(peer, tr_gss_names_new(peer));
+  tr_gss_names_add(peer->gss_names, gss_name);
 }
 
-/* get the peer gssname, caller must not free the result */
-TR_NAME *trp_peer_get_gssname(TRP_PEER *peer)
+void trp_peer_set_gss_names(TRP_PEER *peer, TR_GSS_NAMES *gss_names)
 {
-  return peer->gssname;
+  if (peer->gss_names!=NULL)
+    talloc_free(peer->gss_names);
+
+  peer->gss_names=gss_names;
+  talloc_steal(peer, gss_names);
 }
 
-/* get a copy of the peer gssname, caller must free via tr_free_name() */
-TR_NAME *trp_peer_dup_gssname(TRP_PEER *peer)
+/* get the peer gss_names, caller must not free the result */
+TR_GSS_NAMES *trp_peer_get_gss_names(TRP_PEER *peer)
 {
-  return tr_dup_name(peer->gssname);
+  return peer->gss_names;
 }
 
 /* get the service name (i.e., gssname we see when we connect to this peer) */
@@ -162,10 +189,11 @@ TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx)
 
 void trp_peer_set_outgoing_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status)
 {
+  TR_NAME *peer_label=trp_peer_get_label(peer);
   int was_connected=trp_peer_is_connected(peer);
   peer->outgoing_status=status;
   tr_debug("trp_peer_set_outgoing_status: %s: status=%d peer connected was %d now %d.",
-           trp_peer_get_gssname(peer)->buf, status, was_connected, trp_peer_is_connected(peer));
+           peer_label->buf, status, was_connected, trp_peer_is_connected(peer));
   if ((trp_peer_is_connected(peer) != was_connected) && (peer->conn_status_cb!=NULL))
     peer->conn_status_cb(peer, peer->conn_status_cookie);
 }
@@ -177,10 +205,11 @@ TRP_PEER_CONN_STATUS trp_peer_get_outgoing_status(TRP_PEER *peer)
 
 void trp_peer_set_incoming_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status)
 {
+  TR_NAME *peer_label=trp_peer_get_label(peer);
   int was_connected=trp_peer_is_connected(peer);
   peer->incoming_status=status;
   tr_debug("trp_peer_set_incoming_status: %s: status=%d peer connected was %d now %d.",
-           trp_peer_get_gssname(peer)->buf, status, was_connected, trp_peer_is_connected(peer));
+           peer_label->buf, status, was_connected, trp_peer_is_connected(peer));
   if ((trp_peer_is_connected(peer) != was_connected) && (peer->conn_status_cb!=NULL))
     peer->conn_status_cb(peer, peer->conn_status_cookie);
 }
@@ -202,12 +231,12 @@ void trp_ptable_free(TRP_PTABLE *ptbl)
 
 TRP_RC trp_ptable_add(TRP_PTABLE *ptbl, TRP_PEER *newpeer)
 {
-  if (ptbl->head==NULL) {
+  if (ptbl->head==NULL)
     ptbl->head=newpeer;
-  } else {
+  else
     trp_peer_tail(ptbl->head)->next=newpeer;
-    talloc_steal(ptbl, newpeer);
-  }
+
+  talloc_steal(ptbl, newpeer);
   return TRP_SUCCESS;
 }
 
@@ -236,10 +265,10 @@ TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer)
   return TRP_ERROR;
 }
 
-TRP_PEER *trp_ptable_find_gssname(TRP_PTABLE *ptbl, TR_NAME *gssname)
+TRP_PEER *trp_ptable_find_gss_name(TRP_PTABLE *ptbl, TR_NAME *gssname)
 {
   TRP_PEER *cur=ptbl->head;
-  while ((cur!=NULL) && (0 != tr_name_cmp(trp_peer_get_gssname(cur), gssname)))
+  while ((cur!=NULL) && (!tr_gss_names_matches(trp_peer_get_gss_names(cur), gssname)))
     cur=cur->next;
   return cur;
 }
@@ -291,13 +320,17 @@ TRP_PTABLE_ITER *trp_ptable_iter_new(TALLOC_CTX *mem_ctx)
 
 TRP_PEER *trp_ptable_iter_first(TRP_PTABLE_ITER *iter, TRP_PTABLE *ptbl)
 {
-  *iter=ptbl->head;
+  if (ptbl==NULL)
+    *iter=NULL;
+  else
+    *iter=ptbl->head;
   return *iter;
 }
 
 TRP_PEER *trp_ptable_iter_next(TRP_PTABLE_ITER *iter)
 {
-  *iter=(*iter)->next;
+  if (*iter!=NULL)
+    *iter=(*iter)->next;
   return *iter;
 }
 

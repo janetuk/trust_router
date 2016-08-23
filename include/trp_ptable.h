@@ -5,7 +5,8 @@
 #include <talloc.h>
 
 #include <trust_router/tr_name.h>
-#include <trp_internal.h>
+#include <tr_gss.h>
+#include <trust_router/trp.h>
 
 typedef enum trp_peer_conn_status {
   PEER_DISCONNECTED=0,
@@ -16,7 +17,7 @@ typedef struct trp_peer TRP_PEER;
 struct trp_peer {
   TRP_PEER *next; /* for making a linked list */
   char *server;
-  TR_NAME *gssname;
+  TR_GSS_NAMES *gss_names;
   TR_NAME *servicename;
   unsigned int port;
   unsigned int linkcost;
@@ -38,7 +39,7 @@ TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx);
 void trp_ptable_free(TRP_PTABLE *ptbl);
 TRP_RC trp_ptable_add(TRP_PTABLE *ptbl, TRP_PEER *newpeer);
 TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer);
-TRP_PEER *trp_ptable_find_gssname(TRP_PTABLE *ptbl, TR_NAME *gssname);
+TRP_PEER *trp_ptable_find_gss_name(TRP_PTABLE *ptbl, TR_NAME *gssname);
 TRP_PEER *trp_ptable_find_servicename(TRP_PTABLE *ptbl, TR_NAME *servicename);
 char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, const char *lineterm);
 
@@ -49,11 +50,13 @@ void trp_ptable_iter_free(TRP_PTABLE_ITER *iter);
 
 TRP_PEER *trp_peer_new(TALLOC_CTX *memctx);
 void trp_peer_free(TRP_PEER *peer);
+TR_NAME *trp_peer_get_label(TRP_PEER *peer);
+TR_NAME *trp_peer_dup_label(TRP_PEER *peer);
 char *trp_peer_get_server(TRP_PEER *peer);
-void trp_peer_set_server(TRP_PEER *peer, char *server);
-void trp_peer_set_gssname(TRP_PEER *peer, TR_NAME *gssname);
-TR_NAME *trp_peer_get_gssname(TRP_PEER *peer);
-TR_NAME *trp_peer_dup_gssname(TRP_PEER *peer);
+void trp_peer_set_server(TRP_PEER *peer, const char *server);
+void trp_peer_add_gss_name(TRP_PEER *peer, TR_NAME *gssname);
+void trp_peer_set_gss_names(TRP_PEER *peer, TR_GSS_NAMES *gss_names);
+TR_GSS_NAMES *trp_peer_get_gss_names(TRP_PEER *peer);
 TR_NAME *trp_peer_get_servicename(TRP_PEER *peer);
 TR_NAME *trp_peer_dup_servicename(TRP_PEER *peer);
 unsigned int trp_peer_get_port(TRP_PEER *peer);

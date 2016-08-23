@@ -45,6 +45,7 @@
 #include <tr_comm.h>
 #include <tr_rp.h>
 #include <tr_idp.h>
+#include <trp_ptable.h>
 #include <trp_internal.h>
 
 #define TR_DEFAULT_MAX_TREE_DEPTH 12
@@ -84,6 +85,7 @@ typedef struct tr_cfg {
   TR_CFG_INTERNAL *internal;		/* internal trust router config */
   TR_IDP_REALM *idp_realms;		/* locally associated IDP Realms */
   TR_RP_CLIENT *rp_clients;		/* locally associated RP Clients */
+  TRP_PTABLE *peers; /* TRP peer table */
   TR_COMM *comms;			/* locally-known communities */
   TR_AAA_SERVER *default_servers;	/* default server list */
   /* TBD -- Global Filters */
