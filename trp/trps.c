@@ -134,11 +134,11 @@ TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   TRPC_INSTANCE *cur=NULL;
   TR_NAME *name=NULL;
-  TR_GSS_NAMES *peer_gssnames=trp_peer_get_gss_names(peer);
+  TR_NAME *peer_servicename=trp_peer_get_servicename(peer);
 
   for (cur=trps->trpc; cur!=NULL; cur=trpc_get_next(cur)) {
     name=trpc_get_gssname(cur);
-    if ((name!=NULL) && (tr_gss_names_matches(peer_gssnames, name))) {
+    if ((name!=NULL) && (0==tr_name_cmp(peer_servicename, name))) {
       break;
     }
   }
