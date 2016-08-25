@@ -50,5 +50,6 @@ TR_EXPORT void tr_free_name (TR_NAME *name);
 TR_EXPORT int tr_name_cmp (TR_NAME *one, TR_NAME *two);
 TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
 TR_EXPORT char *tr_name_strdup(TR_NAME *);
+TR_NAME *tr_name_cat(TR_NAME *n1, TR_NAME *n2);
 
 #endif

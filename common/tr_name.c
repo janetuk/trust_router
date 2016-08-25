@@ -122,3 +122,18 @@ char * tr_name_strdup(TR_NAME *src)
   }
   return s;
 }
+
+TR_NAME *tr_name_cat(TR_NAME *n1, TR_NAME *n2)
+{
+  char *s=malloc(n1->len+n2->len+1);
+  TR_NAME *name=NULL;
+
+  if (s==NULL)
+    return NULL;
+  *s=0;
+  strncat(s, n1->buf, n1->len);
+  strncat(s, n2->buf, n2->len);
+  name=tr_new_name(s);
+  free(s);
+  return name;
+}

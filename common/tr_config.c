@@ -927,6 +927,151 @@ static TR_GSS_NAMES *tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_na
   return gn;
 }
 
+/* default filter accepts realm and *.realm */
+static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_CFG_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_FILTER *filt=NULL;
+  TR_CONSTRAINT *cons=NULL;
+  TR_NAME *name=NULL;
+  TR_NAME *n_prefix=tr_new_name("*.");
+  TR_NAME *n_rp_realm=tr_new_name("rp_realm");
+  TR_NAME *n_domain=tr_new_name("domain");
+  TR_NAME *n_realm=tr_new_name("realm");
+  
+
+  if ((realm==NULL) || (rc==NULL)) {
+    tr_debug("tr_cfg_default_filter: invalid arguments.");
+    if (rc!=NULL)
+      *rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
+  }
+
+  if ((n_prefix==NULL) || (n_rp_realm==NULL) || (n_domain==NULL) || (n_realm==NULL)) {
+    tr_debug("tr_cfg_default_filter: unable to allocate names.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  filt=tr_filter_new(tmp_ctx);
+  if (filt==NULL) {
+    tr_debug("tr_cfg_default_filter: could not allocate filter.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  tr_filter_set_type(filt, TR_FILTER_TYPE_TID_INCOMING);
+  filt->lines[0]=tr_fline_new(filt);
+  if (filt->lines[0]==NULL) {
+    tr_debug("tr_cfg_default_filter: could not allocate filter line.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  filt->lines[0]->action=TR_FILTER_ACTION_ACCEPT;
+  filt->lines[0]->specs[0]=tr_fspec_new(filt->lines[0]);
+  filt->lines[0]->specs[0]->field=n_rp_realm;
+  n_rp_realm=NULL; /* we don't own this name any more */
+
+  name=tr_dup_name(realm);
+  if (name==NULL) {
+    tr_debug("tr_cfg_default_filter: could not allocate realm name.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  if (0!=tr_fspec_add_match(filt->lines[0]->specs[0], name)) {
+    tr_debug("tr_cfg_default_filter: could not add realm name to filter spec.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  name=NULL; /* we no longer own the name */
+
+  if (NULL==(name=tr_name_cat(n_prefix, realm))) {
+    tr_debug("tr_cfg_default_filter: could not allocate wildcard realm name.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  if (0!=tr_fspec_add_match(filt->lines[0]->specs[0], name)) {
+    tr_debug("tr_cfg_default_filter: could not add wildcard realm name to filter spec.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  name=NULL; /* we no longer own the name */
+
+  /* domain constraint */
+  if (NULL==(cons=tr_constraint_new(filt->lines[0]))) {
+    tr_debug("tr_cfg_default_filter: could not allocate domain constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  cons->type=n_domain;
+  n_domain=NULL; /* belongs to the constraint now */
+  name=tr_dup_name(realm);
+  if (name==NULL) {
+    tr_debug("tr_cfg_default_filter: could not allocate realm name for domain constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  cons->matches[0]=name;
+  name=tr_name_cat(n_prefix, realm);
+  if (name==NULL) {
+    tr_debug("tr_cfg_default_filter: could not allocate wildcard realm name for domain constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  cons->matches[1]=name;
+  name=NULL;
+  filt->lines[0]->domain_cons=cons;
+
+
+  /* realm constraint */
+  if (NULL==(cons=tr_constraint_new(filt->lines[0]))) {
+    tr_debug("tr_cfg_default_filter: could not allocate realm constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  cons->type=n_realm;
+  n_realm=NULL; /* belongs to the constraint now */
+  name=tr_dup_name(realm);
+  if (name==NULL) {
+    tr_debug("tr_cfg_default_filter: could not allocate realm name for realm constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  cons->matches[0]=name;
+  name=tr_name_cat(n_prefix, realm);
+  if (name==NULL) {
+    tr_debug("tr_cfg_default_filter: could not allocate wildcard realm name for realm constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  cons->matches[1]=name;
+  name=NULL;
+  filt->lines[0]->realm_cons=cons;
+
+  talloc_steal(mem_ctx, filt);
+cleanup:
+  talloc_free(tmp_ctx);
+
+  if (*rc!=TR_CFG_SUCCESS)
+    filt=NULL;
+
+  if (n_prefix!=NULL)
+    tr_free_name(n_prefix);
+  if (n_rp_realm!=NULL)
+    tr_free_name(n_rp_realm);
+  if (n_realm!=NULL)
+    tr_free_name(n_realm);
+  if (n_domain!=NULL)
+    tr_free_name(n_domain);
+  if (name!=NULL)
+    tr_free_name(name);
+
+  return filt;
+}
+
 /* parses rp client */
 static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jrealm, TR_CFG_RC *rc)
 {
@@ -934,6 +1079,9 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
   TR_RP_CLIENT *client=NULL;
   TR_CFG_RC call_rc=TR_CFG_ERROR;
   TR_FILTER *new_filt=NULL;
+  TR_NAME *realm=NULL;
+  json_t *jfilt=NULL;
+  json_t *jrealm_id=NULL;
 
   *rc=TR_CFG_ERROR; /* default to error if not set */
 
@@ -941,6 +1089,20 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
     tr_err("tr_cfg_parse_one_rp_client: Bad parameters.");
     if (rc)
       *rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
+  }
+
+  if ((NULL==(jrealm_id=json_object_get(jrealm, "realm"))) || (!json_is_string(jrealm_id))) {
+    tr_debug("tr_cfg_parse_one_rp_client: no realm ID found.");
+    *rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
+  } 
+
+  tr_debug("tr_cfg_parse_one_rp_client: realm_id=\"%s\"", json_string_value(jrealm_id));
+  realm=tr_new_name(json_string_value(jrealm_id));
+  if (realm==NULL) {
+    tr_err("tr_cfg_parse_one_rp_client: could not allocate realm ID.");
+    *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
 
@@ -959,17 +1121,31 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
   }
 
   /* parse filters */
-  new_filt=tr_cfg_parse_filters(tmp_ctx, json_object_get(jrealm, "filters"), &call_rc);
-  if (call_rc!=TR_CFG_SUCCESS) {
-    tr_err("tr_cfg_parse_one_rp_client: could not parse filters.");
-    *rc=TR_CFG_NOPARSE;
-    goto cleanup;
+  jfilt=json_object_get(jrealm, "filters");
+  if (jfilt!=NULL) {
+    new_filt=tr_cfg_parse_filters(tmp_ctx, jfilt, &call_rc);
+    if (call_rc!=TR_CFG_SUCCESS) {
+      tr_err("tr_cfg_parse_one_rp_client: could not parse filters.");
+      *rc=TR_CFG_NOPARSE;
+      goto cleanup;
+    }
+  } else {
+    tr_debug("tr_cfg_parse_one_rp_client: no filters specified, using default filters.");
+    new_filt=tr_cfg_default_filter(tmp_ctx, realm, &call_rc);
+    if (call_rc!=TR_CFG_SUCCESS) {
+      tr_err("tr_cfg_parse_one_rp_client: could not set default filters.");
+      *rc=TR_CFG_NOPARSE;
+      goto cleanup;
+    }
   }
 
   tr_rp_client_set_filter(client, new_filt);
   *rc=TR_CFG_SUCCESS;
 
   cleanup:
+  if (realm!=NULL)
+    tr_free_name(realm);
+
     if (*rc==TR_CFG_SUCCESS)
       talloc_steal(mem_ctx, client);
     else {
