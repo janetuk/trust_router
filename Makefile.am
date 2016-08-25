@@ -5,6 +5,7 @@ AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
 common_srcs = common/tr_name.c \
+	common/tr_gss.c \
 	common/tr_constraint.c \
 	common/jansson_iterators.h \
 	common/tr_msg.c \
@@ -43,7 +44,6 @@ common/tr_comm.c \
 common/tr_filter.c \
 common/tr_rp.c \
 common/tr_mq.c \
-common/tr_gss.c \
 tr/tr.c \
 tr/tr_event.c \
 tr/tr_cfgwatch.c \
