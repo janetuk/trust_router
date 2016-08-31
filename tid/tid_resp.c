@@ -59,6 +59,16 @@ TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx)
 {
   TID_RESP *resp=talloc(mem_ctx, TID_RESP);
   if (resp!=NULL) {
+    resp->result=TID_ERROR;
+    resp->err_msg=NULL;
+    resp->rp_realm=NULL;
+    resp->realm=NULL;
+    resp->comm=NULL;
+    resp->cons=NULL;
+    resp->orig_coi=NULL;
+    resp->servers=NULL;
+    resp->num_servers=0;
+    resp->error_path=NULL;
     talloc_set_destructor((void *)resp, tid_resp_destructor);
   }
   return resp;
