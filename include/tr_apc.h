@@ -54,6 +54,8 @@ void tr_apc_set_id(TR_APC *apc, TR_NAME *id);
 TR_NAME *tr_apc_get_id(TR_APC *apc);
 TR_NAME *tr_apc_dup_id(TR_APC *apc);
 
+char *tr_apc_to_str(TALLOC_CTX *mem_ctx, TR_APC *apc);
+
 #endif
 
 

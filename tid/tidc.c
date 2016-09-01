@@ -74,6 +74,7 @@ int tidc_open_connection (TIDC_INSTANCE *tidc,
   else
     use_port = port;
 
+  tr_debug("tidc_open_connection: opening tidc connection to %s:%d", server, port);
   err = gsscon_connect(server, use_port, "trustidentity", &conn, gssctx);
 
   if (!err)
@@ -184,9 +185,11 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
     goto error;
   }
 
-  if (resp_handler)
+  if (resp_handler) {
     /* Call the caller's response function */
+    tr_debug("tidc_fwd_request: calling response callback function.");
     (*resp_handler)(tidc, tid_req, tr_msg_get_resp(resp_msg), cookie);
+  }
   goto cleanup;
 
  error:

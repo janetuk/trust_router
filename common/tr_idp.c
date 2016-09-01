@@ -137,3 +137,103 @@ TR_IDP_REALM *tr_idp_realm_add(TR_IDP_REALM *head, TR_IDP_REALM *new)
   }
   return head;
 }
+
+static int tr_idp_realm_apc_count(TR_IDP_REALM *idp)
+{
+  int ii=0;
+  TR_APC *apc=idp->apcs;
+  while (apc!=NULL) {
+    apc=apc->next;
+    ii++;
+  }
+  return ii;
+}
+
+static int tr_idp_realm_aaa_server_count(TR_IDP_REALM *idp)
+{
+  int ii=0;
+  TR_AAA_SERVER *aaa=idp->aaa_servers;
+  while (aaa!=NULL) {
+    aaa=aaa->next;
+    ii++;
+  }
+  return ii;
+}
+
+static char *tr_aaa_server_to_str(TALLOC_CTX *mem_ctx, TR_AAA_SERVER *aaa)
+{
+  return talloc_strndup(mem_ctx, aaa->hostname->buf, aaa->hostname->len);
+}
+
+char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  char **s_aaa=NULL, *aaa_servers=NULL;
+  char **s_apc=NULL, *apcs=NULL;
+  int ii=0, aaa_servers_strlen=0, apcs_strlen=0;
+  int n_aaa_servers=tr_idp_realm_aaa_server_count(idp);
+  int n_apcs=tr_idp_realm_apc_count(idp);
+  TR_AAA_SERVER *aaa=NULL;
+  TR_APC *apc=NULL;
+  char *result=NULL;
+
+  /* get the AAA servers */
+  if (n_aaa_servers<=0)
+    aaa_servers=talloc_strdup(tmp_ctx, "");
+  else {
+    s_aaa=talloc_array(tmp_ctx, char *, n_aaa_servers);
+    for (aaa=idp->aaa_servers,ii=0; aaa!=NULL; aaa=aaa->next,ii++) {
+      s_aaa[ii]=tr_aaa_server_to_str(s_aaa, aaa);
+      aaa_servers_strlen+=strlen(s_aaa[ii]);
+    }
+
+    /* add space for comma-space separators */
+    aaa_servers_strlen+=2*(n_aaa_servers-1);
+
+    aaa_servers=talloc_array(tmp_ctx, char, aaa_servers_strlen+1);
+    aaa_servers[0]='\0';
+    for (ii=0; ii<n_aaa_servers; ii++) {
+      strcat(aaa_servers, s_aaa[ii]);
+      if (ii<(n_aaa_servers-1))
+        strcat(aaa_servers, ", ");
+    }
+    talloc_free(s_aaa);
+  }
+
+  /* get the APCs */
+  if (n_apcs<=0)
+    apcs=talloc_strdup(tmp_ctx, "");
+  else {
+    s_apc=talloc_array(tmp_ctx, char *, n_apcs);
+    for (apc=idp->apcs,ii=0; apc!=NULL; apc=apc->next,ii++) {
+      s_apc[ii]=tr_apc_to_str(s_apc, apc);
+      apcs_strlen+=strlen(s_apc[ii]);
+    }
+
+    /* add space for comma-space separators */
+    apcs_strlen+=2*(n_apcs-1);
+
+    apcs=talloc_array(tmp_ctx, char, apcs_strlen+1);
+    apcs[0]='\0';
+    for (ii=0; ii<n_apcs; ii++) {
+      strcat(apcs, s_apc[ii]);
+      if (ii<(n_apcs-1))
+        strcat(apcs, ", ");
+    }
+    talloc_free(s_apc);
+  }
+
+  result=talloc_asprintf(mem_ctx,
+                         "IDP realm: \"%.*s\"\n"
+                         "  shared: %s\n"
+                         "  local: %s\n"
+                         "  AAA servers: %s\n"
+                         "  APCs: %s\n",
+                         idp->realm_id->len, idp->realm_id->buf,
+                         (idp->shared_config)?"yes":"no",
+                         (idp->origin==TR_REALM_LOCAL)?"yes":"no",
+                         aaa_servers,
+                         apcs);
+  talloc_free(tmp_ctx);
+  return result;
+}

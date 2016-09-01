@@ -70,9 +70,14 @@ void tr_print_comms (TR_COMM *comm_list) {
 
 void tr_print_comm_idps (TR_IDP_REALM *idp_list) {
   TR_IDP_REALM *idp = NULL;
+  char *s=NULL;
 
   for (idp = idp_list; NULL != idp; idp = idp->comm_next) {
-    tr_notice("tr_print_config:    - @%s", idp->realm_id->buf);
+    s=tr_idp_realm_to_str(NULL, idp);
+    if (s!=NULL)
+      tr_notice("tr_print_config:    - @%s", s);
+    else
+      tr_notice("tr_print_config: unable to allocate idp output string.");
   }
 }
 

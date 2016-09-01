@@ -58,9 +58,9 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   int oaction = TR_FILTER_ACTION_REJECT;
   int rc = 0;
   time_t expiration_interval=0;
-  struct tr_tids_event_cookie *cookie=(struct tr_tids_event_cookie *)cookie_in;
-  TR_CFG_MGR *cfg_mgr=talloc_get_type_abort(cookie, TR_CFG_MGR);
-  TRPS_INSTANCE *trps=talloc_get_type_abort(cookie, TRPS_INSTANCE);
+  struct tr_tids_event_cookie *cookie=talloc_get_type_abort(cookie_in, struct tr_tids_event_cookie);
+  TR_CFG_MGR *cfg_mgr=cookie->cfg_mgr;
+  TRPS_INSTANCE *trps=cookie->trps;
   TRP_ROUTE *route=NULL;
   int retval=-1;
 
@@ -151,6 +151,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   }
 
   /* Look up the route for this community/realm. */
+  tr_debug("tr_tids_req_handler: looking up route.");
   route=trps_get_selected_route(trps, orig_req->comm, orig_req->realm);
   if (route==NULL) {
     tr_notice("tr_tids_req_handler: no route table entry found for realm (%s) in community (%s).",
@@ -159,11 +160,14 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     retval=-1;
     goto cleanup;
   }
+  tr_debug("tr_tids_req_handler: found route.");
   if (trp_route_is_local(route)) {
+  tr_debug("tr_tids_req_handler: route is local.");
     aaa_servers = tr_idp_aaa_server_lookup(cfg_mgr->active->idp_realms, 
                                            orig_req->realm, 
                                            orig_req->comm);
   } else {
+    tr_debug("tr_tids_req_handler: route not local.");
     aaa_servers = tr_aaa_server_new(tmp_ctx, trp_route_get_next_hop(route));
   }
 
@@ -235,6 +239,9 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     retval=-1;
     goto cleanup;
   }
+
+  /* success! */
+  retval=0;
     
 cleanup:
   talloc_free(tmp_ctx);
@@ -245,7 +252,7 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
                                void *data)
 {
   TR_RP_CLIENT *rp;
-  struct tr_tids_event_cookie *cookie=(struct tr_tids_event_cookie *)data;
+  struct tr_tids_event_cookie *cookie=talloc_get_type_abort(data, struct tr_tids_event_cookie);
   TIDS_INSTANCE *tids = cookie->tids;
   TR_CFG_MGR *cfg_mgr = cookie->cfg_mgr;
 
@@ -287,6 +294,7 @@ static void tr_tids_event_cb(int listener, short event, void *arg)
 int tr_tids_event_init(struct event_base *base,
                        TIDS_INSTANCE *tids,
                        TR_CFG_MGR *cfg_mgr,
+                       TRPS_INSTANCE *trps,
                        struct tr_socket_event *tids_ev)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
@@ -309,6 +317,7 @@ int tr_tids_event_init(struct event_base *base,
   }
   cookie->tids=tids;
   cookie->cfg_mgr=cfg_mgr;
+  cookie->trps=trps;
   talloc_steal(tids, cookie);
 
   /* get a tids listener */

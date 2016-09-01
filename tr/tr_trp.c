@@ -801,6 +801,7 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   tr_add_local_routes(trps, new_cfg); /* should we do this every time??? */
   trps_update_active_routes(trps); /* find new routes */
   trps_update(trps, TRP_UPDATE_TRIGGERED); /* send any triggered routes */
+  tr_print_config(new_cfg);
   tr_trps_print_route_table(trps, stderr);
 }
 

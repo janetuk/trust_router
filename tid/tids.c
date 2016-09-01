@@ -224,7 +224,7 @@ static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssct
 
 static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *resp) 
 {
-  int rc;
+  int rc=-1;
 
   /* Check that this is a valid TID Request.  If not, send an error return. */
   if ((!tr_msg_get_req(mreq)) ||
@@ -237,18 +237,21 @@ static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *res
     return -1;
   }
 
+  tr_debug("tids_handle_request: adding self to req path.");
   tid_req_add_path(tr_msg_get_req(mreq), tids->hostname, tids->tids_port);
   
   /* Call the caller's request handler */
   /* TBD -- Handle different error returns/msgs */
   if (0 > (rc = (*tids->req_handler)(tids, tr_msg_get_req(mreq), resp, tids->cookie))) {
     /* set-up an error response */
+    tr_debug("tids_handle_request: req_handler returned error.");
     resp->result = TID_ERROR;
     if (!resp->err_msg)	/* Use msg set by handler, if any */
       resp->err_msg = tr_new_name("Internal processing error");
   }
   else {
     /* set-up a success response */
+    tr_debug("tids_handle_request: req_handler returned success.");
     resp->result = TID_SUCCESS;
     resp->err_msg = NULL;	/* No error msg on successful return */
   }

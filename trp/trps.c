@@ -244,6 +244,7 @@ TRP_ROUTE *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR
 
 TRP_ROUTE *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm)
 {
+  tr_debug("trps_get_selected_route: entered. trps=%p, comm=%p, realm=%p", trps, comm, realm);
   return trp_rtable_get_selected_entry(trps->rtable, comm, realm);
 }
 

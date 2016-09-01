@@ -75,3 +75,9 @@ TR_NAME *tr_apc_dup_id(TR_APC *apc)
 {
   return tr_dup_name(apc->id);;
 }
+
+
+char *tr_apc_to_str(TALLOC_CTX *mem_ctx, TR_APC *apc)
+{
+  return talloc_strndup(mem_ctx, apc->id->buf, apc->id->len);
+}

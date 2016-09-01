@@ -872,9 +872,13 @@ cleanup:
 
 char *tr_msg_encode(TR_MSG *msg) 
 {
-  json_t *jmsg;
-  json_t *jmsg_type;
-  char *encoded;
+  json_t *jmsg=NULL;
+  json_t *jmsg_type=NULL;
+  char *encoded=NULL;
+  TID_RESP *tidresp=NULL;
+  TID_REQ *tidreq=NULL;
+  TRP_UPD *trpupd=NULL;
+  TRP_REQ *trpreq=NULL;
 
   /* TBD -- add error handling */
   jmsg = json_object();
@@ -884,25 +888,29 @@ char *tr_msg_encode(TR_MSG *msg)
     case TID_REQUEST:
       jmsg_type = json_string("tid_request");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidreq(tr_msg_get_req(msg)));
+      tidreq=tr_msg_get_req(msg);
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidreq(tidreq));
       break;
 
     case TID_RESPONSE:
       jmsg_type = json_string("tid_response");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidresp(tr_msg_get_resp(msg)));
+      tidresp=tr_msg_get_resp(msg);
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidresp(tidresp));
       break;
 
     case TRP_UPDATE:
       jmsg_type = json_string("trp_update");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_upd(tr_msg_get_trp_upd(msg)));
+      trpupd=tr_msg_get_trp_upd(msg);
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_upd(trpupd));
       break;
 
     case TRP_REQUEST:
       jmsg_type = json_string("trp_request");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_req(tr_msg_get_trp_req(msg)));
+      trpreq=tr_msg_get_trp_req(msg);
+      json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_req(trpreq));
       break;
 
     default:

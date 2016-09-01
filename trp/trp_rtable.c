@@ -536,6 +536,7 @@ TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAM
   TRP_ROUTE **ret=NULL;
   TR_NAME **peer=NULL;
 
+  tr_debug("trp_rtable_get_realm_entries: entered.");
   peer=trp_rtable_get_comm_realm_peers(rtbl, comm, realm, n_out);
   ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
@@ -615,8 +616,14 @@ TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAM
   if (n==0)
     return NULL;
 
+  tr_debug("trp_rtable_get_selected_entry: looking through route table entries for realm %.*s.",
+           realm->len, realm->buf);
   while(n-- && !trp_route_is_selected(entry[n])) { }
-  selected=entry[n];
+  tr_debug("trp_rtable_get_selected_entry: n=%d.", n);
+
+  if (n>=0)
+    selected=entry[n];
+
   talloc_free(entry);
   return selected;
 }

@@ -270,6 +270,7 @@ int main(int argc, char *argv[])
   if (0 != tr_tids_event_init(ev_base,
                               tr->tids,
                               tr->cfg_mgr,
+                              tr->trps,
                              &tids_ev)) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
