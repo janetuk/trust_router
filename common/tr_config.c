@@ -721,6 +721,26 @@ static int tr_cfg_parse_shared_config(json_t *jsc, TR_CFG_RC *rc)
   return -1;
 }
 
+static TR_REALM_ORIGIN tr_cfg_realm_origin(json_t *jrealm)
+{
+  json_t *jremote=json_object_get(jrealm, "remote");
+  const char *s=NULL;
+
+  if (jremote==NULL)
+    return TR_REALM_LOCAL;
+  if (!json_is_string(jremote)) {
+    tr_warning("tr_cfg_realm_origin: \"remote\" is not a string, assuming this is a local realm.");
+    return TR_REALM_LOCAL;
+  }
+  s=json_string_value(jremote);
+  if (strcasecmp(s, "yes")==0)
+    return TR_REALM_REMOTE_INCOMPLETE;
+  else if (strcasecmp(s, "no")!=0)
+    tr_warning("tr_cfg_realm_origin: \"remote\" is neither 'yes' nor 'no', assuming this is a local realm.");
+
+  return TR_REALM_LOCAL;
+}
+
 /* Parse the identity provider object from a realm and fill in the given TR_IDP_REALM. */
 static TR_CFG_RC tr_cfg_parse_idp(TR_IDP_REALM *idp, json_t *jidp)
 {
@@ -728,11 +748,17 @@ static TR_CFG_RC tr_cfg_parse_idp(TR_IDP_REALM *idp, json_t *jidp)
   TR_APC *apcs=NULL;
   TR_AAA_SERVER *aaa=NULL;
   TR_CFG_RC rc=TR_CFG_ERROR;
-
+  
   if (jidp==NULL)
     goto cleanup;
 
-  idp->origin=TR_REALM_LOCAL; /* if we're parsing it from a config file, it's local */
+  idp->origin=tr_cfg_realm_origin(jidp);
+  if (idp->origin!=TR_REALM_LOCAL) {
+    tr_debug("tr_cfg_parse_idp: realm is remote, should not have full IdP info.");
+    rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
   idp->shared_config=tr_cfg_parse_shared_config(json_object_get(jidp, "shared_config"), &rc);
   if (rc!=TR_CFG_SUCCESS) {
     tr_err("tr_cfg_parse_idp: missing or malformed shared_config specification");
@@ -746,31 +772,32 @@ static TR_CFG_RC tr_cfg_parse_idp(TR_IDP_REALM *idp, json_t *jidp)
     rc=TR_CFG_NOPARSE;
     goto cleanup;
   }
-  tr_debug("tr_cfg_parse_idp: APC=\"%.*s\"",
-           apcs->id->len,
-           apcs->id->buf);
-
+  
   aaa=tr_cfg_parse_aaa_servers(idp, json_object_get(jidp, "aaa_servers"), &rc);
   if (rc!=TR_CFG_SUCCESS) {
     tr_err("tr_cfg_parse_idp: unable to parse AAA servers");
     rc=TR_CFG_NOPARSE;
     goto cleanup;
   }
-
+  
+  tr_debug("tr_cfg_parse_idp: APC=\"%.*s\"",
+           apcs->id->len,
+           apcs->id->buf);
+  
   /* done, fill in the idp structures */
   idp->apcs=apcs;
   talloc_steal(idp, apcs);
   idp->aaa_servers=aaa;
   rc=TR_CFG_SUCCESS;
-
- cleanup:
+  
+cleanup:
   if (rc!=TR_CFG_SUCCESS) {
     if (apcs!=NULL)
       tr_apc_free(apcs);
     if (aaa!=NULL)
       tr_aaa_server_free(aaa);
   }
-
+  
   talloc_free(tmp_ctx);
   return rc;
 }
@@ -816,20 +843,20 @@ static TR_IDP_REALM *tr_cfg_parse_one_idp_realm(TALLOC_CTX *mem_ctx, json_t *jre
     *rc=TR_CFG_NOPARSE;
     goto cleanup;
   }
-
+  
   *rc=TR_CFG_SUCCESS;
 
-  cleanup:
-    if (*rc==TR_CFG_SUCCESS)
-      talloc_steal(mem_ctx, realm);
-    else {
-      talloc_free(realm);
-      realm=NULL;
-    }
-
-    talloc_free(tmp_ctx);
-    return realm;
+cleanup:
+  if (*rc==TR_CFG_SUCCESS)
+    talloc_steal(mem_ctx, realm);
+  else {
+    talloc_free(realm);
+    realm=NULL;
   }
+  
+  talloc_free(tmp_ctx);
+  return realm;
+}
 
   /* Determine whether the realm is an IDP realm */
 static int tr_cfg_is_idp_realm(json_t *jrealm)
@@ -839,6 +866,59 @@ static int tr_cfg_is_idp_realm(json_t *jrealm)
     return 1;
   else
     return 0;
+}
+
+static TR_IDP_REALM *tr_cfg_parse_one_remote_realm(TALLOC_CTX *mem_ctx, json_t *jrealm, TR_CFG_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_IDP_REALM *realm=talloc(mem_ctx, TR_IDP_REALM);
+  
+  *rc=TR_CFG_ERROR; /* default to error if not set */
+
+  if ((!jrealm) || (!rc)) {
+    tr_err("tr_cfg_parse_one_remote_realm: Bad parameters.");
+    if (rc)
+      *rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
+  }
+
+  if (NULL==(realm=tr_idp_realm_new(tmp_ctx))) {
+    tr_err("tr_cfg_parse_one_remote_realm: could not allocate idp realm.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  /* must have a name */
+  realm->realm_id=tr_cfg_parse_name(realm,
+                                    json_object_get(jrealm, "realm"),
+                                    rc);
+  if ((*rc!=TR_CFG_SUCCESS) || (realm->realm_id==NULL)) {
+    tr_err("tr_cfg_parse_one_remote_realm: could not parse realm name");
+    *rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+  tr_debug("tr_cfg_parse_one_remote_realm: realm_id=\"%.*s\"",
+           realm->realm_id->len,
+           realm->realm_id->buf);
+
+  realm->origin=tr_cfg_realm_origin(jrealm);
+  *rc=TR_CFG_SUCCESS;
+
+cleanup:
+  if (*rc==TR_CFG_SUCCESS)
+    talloc_steal(mem_ctx, realm);
+  else {
+    talloc_free(realm);
+    realm=NULL;
+  }
+  
+  talloc_free(tmp_ctx);
+  return realm;
+}
+
+static int tr_cfg_is_remote_realm(json_t *jrealm)
+{
+  return (tr_cfg_realm_origin(jrealm)!=TR_REALM_LOCAL);
 }
 
 /* Parse any idp realms in the j_realms object. Ignores other realm types. */
@@ -867,6 +947,14 @@ static TR_IDP_REALM *tr_cfg_parse_idp_realms(TALLOC_CTX *mem_ctx, json_t *jrealm
         goto cleanup;
       }
       realms=tr_idp_realm_add(realms, new_realm);
+    } else if (tr_cfg_is_remote_realm(this_jrealm)) {
+      new_realm=tr_cfg_parse_one_remote_realm(tmp_ctx, this_jrealm, rc);
+      if ((*rc)!=TR_CFG_SUCCESS) {
+        tr_err("tr_cfg_parse_idp_realms: error decoding remote realm entry %d", ii+1);
+        *rc=TR_CFG_NOPARSE;
+        goto cleanup;
+      }
+      realms=tr_idp_realm_add(realms, new_realm);
     }
   }
   
@@ -877,6 +965,44 @@ cleanup:
   talloc_free(tmp_ctx);
   return realms;
 }
+
+#if 0
+static TR_IDP_REALM *tr_cfg_parse_remote_realms(TALLOC_CTX *mem_ctx, json_t *jrealms, TR_CFG_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_IDP_REALM *realms=NULL;
+  TR_IDP_REALM *new_realm=NULL;
+  json_t *this_jrealm=NULL;
+  int ii=0;
+
+  *rc=TR_CFG_ERROR;
+  if ((jrealms==NULL) || (!json_is_array(jrealms))) {
+    tr_err("tr_cfg_parse_remote_realms: realms not an array");
+    *rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
+  }
+
+  for (ii=0; ii<json_array_size(jrealms); ii++) {
+    this_jrealm=json_array_get(jrealms, ii);
+    if (tr_cfg_is_remote_realm(this_jrealm)) {
+      new_realm=tr_cfg_parse_one_remote_realm(tmp_ctx, this_jrealm, rc);
+      if ((*rc)!=TR_CFG_SUCCESS) {
+        tr_err("tr_cfg_parse_remote_realms: error decoding remote realm entry %d", ii+1);
+        *rc=TR_CFG_NOPARSE;
+        goto cleanup;
+      }
+      realms=tr_idp_realm_add(realms, new_realm);
+    }
+  }
+  
+  *rc=TR_CFG_SUCCESS;
+  talloc_steal(mem_ctx, realms);
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return realms;
+}
+#endif /* 0 */
 
 static TR_GSS_NAMES *tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR_CFG_RC *rc)
 {
