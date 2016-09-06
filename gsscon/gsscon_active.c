@@ -54,6 +54,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <netdb.h>
 
 #include <gsscon.h>
 
@@ -85,7 +86,7 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
     
     if (!err) {
         hp = gethostbyname (inHost);
-        if (hp == NULL) { err = errno; }
+        if (hp == NULL) { err = h_errno; }
     }
     
     if (!err) {
