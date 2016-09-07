@@ -130,6 +130,19 @@ void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable)
   trps->ptable=ptable;
 }
 
+void trps_set_peer_status_callback(TRPS_INSTANCE *trps, void (*cb)(TRP_PEER *, void *), void *cookie)
+{
+  TRP_PTABLE_ITER *iter=NULL;
+  TRP_PEER *peer=NULL;
+  if (trps->ptable==NULL)
+    return;
+
+  iter=trp_ptable_iter_new(NULL);
+  for (peer=trp_ptable_iter_first(iter, trps->ptable); peer!=NULL; peer=trp_ptable_iter_next(iter))
+    trp_peer_set_conn_status_cb(peer, cb, cookie);
+  trp_ptable_iter_free(iter);
+}
+
 TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   TRPC_INSTANCE *cur=NULL;

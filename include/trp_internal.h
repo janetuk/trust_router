@@ -165,6 +165,7 @@ TRP_RC trpc_send_msg(TRPC_INSTANCE *trpc, const char *msg_content);
 TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx);
 void trps_free (TRPS_INSTANCE *trps);
 void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable);
+void trps_set_peer_status_callback(TRPS_INSTANCE *trps, void (*cb)(TRP_PEER *, void *), void *cookie);
 TRP_RC trps_init_rtable(TRPS_INSTANCE *trps);
 void trps_clear_rtable(TRPS_INSTANCE *trps);
 void trps_set_connect_interval(TRPS_INSTANCE *trps, unsigned int interval);
