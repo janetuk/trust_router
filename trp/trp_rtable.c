@@ -8,6 +8,8 @@
 #include <trp_internal.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
+#include <trust_router/trp.h>
+#include <trust_router/tid.h>
 
 /* Note: be careful mixing talloc with glib. */
 
@@ -34,6 +36,8 @@ TRP_ROUTE *trp_route_new(TALLOC_CTX *mem_ctx)
     entry->comm=NULL;
     entry->realm=NULL;
     entry->trust_router=NULL;
+    entry->trp_port=TRP_PORT;
+    entry->tid_port=TID_PORT;
     entry->peer=NULL;
     entry->next_hop=NULL;
     entry->selected=0;
@@ -135,6 +139,7 @@ unsigned int trp_route_get_metric(TRP_ROUTE *entry)
   return entry->metric;
 }
 
+/* TODO: set the hostname and port for the next hop. Currently assume default TID port. --jlr */
 void trp_route_set_next_hop(TRP_ROUTE *entry, TR_NAME *next_hop)
 {
   if (entry->next_hop!=NULL)
@@ -610,6 +615,7 @@ static char *timespec_to_str(struct timespec *ts)
 TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm)
 {
   size_t n=0;
+  int ii=0;
   TRP_ROUTE **entry=trp_rtable_get_realm_entries(rtbl, comm, realm, &n);
   TRP_ROUTE *selected=NULL;
 
@@ -618,11 +624,13 @@ TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAM
 
   tr_debug("trp_rtable_get_selected_entry: looking through route table entries for realm %.*s.",
            realm->len, realm->buf);
-  while(n-- && !trp_route_is_selected(entry[n])) { }
-  tr_debug("trp_rtable_get_selected_entry: n=%d.", n);
-
-  if (n>=0)
-    selected=entry[n];
+  for(ii=0; ii<n; ii++) {
+    if (trp_route_is_selected(entry[ii])) {
+      selected=entry[ii];
+      break;
+    }
+  }
+  tr_debug("trp_rtable_get_selected_entry: ii=%d.", ii);
 
   talloc_free(entry);
   return selected;

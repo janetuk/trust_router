@@ -1851,6 +1851,14 @@ static char *join_paths(TALLOC_CTX *mem_ctx, const char *p1, const char *p2)
   return talloc_asprintf(mem_ctx, "%s/%s", p1, p2); /* returns NULL on a failure */
 }
 
+static void tr_cfg_log_json_error(const char *label, json_error_t *rc)
+{
+  tr_debug("%s: JSON parse error on line %d: %s",
+	   label,
+	   rc->line,
+	   rc->text);
+}
+
 TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
 {
   json_t *jcfg=NULL;
@@ -1859,8 +1867,9 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
 
   if (NULL==(jcfg=json_load_file(file_with_path, 
                                  JSON_DISABLE_EOF_CHECK, &rc))) {
-    tr_debug("tr_parse_one_config_file: Error parsing config file %s.", 
+    tr_debug("tr_cfg_parse_one_config_file: Error parsing config file %s.", 
              file_with_path);
+    tr_cfg_log_json_error("tr_cfg_parse_one_config_file", &rc);
     return TR_CFG_NOPARSE;
   }
 

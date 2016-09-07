@@ -12,7 +12,9 @@ typedef struct trp_route {
   TR_NAME *realm;
   TR_NAME *peer;
   unsigned int metric;
-  TR_NAME *trust_router;
+  TR_NAME *trust_router; /* hostname */
+  unsigned int trp_port;
+  unsigned int tid_port;
   TR_NAME *next_hop;
   int selected;
   unsigned int interval; /* interval from route update */

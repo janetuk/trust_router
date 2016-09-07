@@ -45,6 +45,7 @@ void trp_upd_add_inforec(TRP_UPD *upd, TRP_INFOREC *rec);
 TR_EXPORT TR_NAME *trp_upd_get_peer(TRP_UPD *upd);
 TR_NAME *trp_upd_dup_peer(TRP_UPD *upd);
 void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer);
+void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port);
 TR_EXPORT TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type);
 void trp_inforec_free(TRP_INFOREC *rec);
 TR_EXPORT TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec);

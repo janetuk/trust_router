@@ -18,6 +18,7 @@ typedef struct trp_inforec_route {
   TR_NAME *realm;
   TR_NAME *trust_router;
   TR_NAME *next_hop;
+  unsigned int next_hop_port;
   unsigned int metric;
   unsigned int interval;
 } TRP_INFOREC_ROUTE;

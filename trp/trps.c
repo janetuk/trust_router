@@ -277,7 +277,8 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   int err=0;
   char *buf=NULL;
   size_t buflen = 0;
-  TR_NAME *peer=NULL;
+  TRP_PEER *peer=NULL; /* entry in the peer table */
+  TR_NAME *conn_peer=NULL; /* name from the TRP_CONN, which comes from the gss context */
 
   tr_debug("trps_read_message: started");
   if (err = gsscon_read_encrypted_token(trp_connection_get_fd(conn),
@@ -290,27 +291,39 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
     return TRP_ERROR;
   }
 
-  tr_debug("trps_read_message(): message received, %u bytes.", (unsigned) buflen);
-  tr_debug("trps_read_message(): %.*s", buflen, buf);
+  tr_debug("trps_read_message: message received, %u bytes.", (unsigned) buflen);
+  tr_debug("trps_read_message: %.*s", buflen, buf);
 
   *msg=tr_msg_decode(buf, buflen);
   free(buf);
   if (*msg==NULL)
     return TRP_NOPARSE;
 
-  peer=trp_connection_get_peer(conn);
+  conn_peer=trp_connection_get_peer(conn);
+  if (conn_peer==NULL) {
+    tr_err("trps_read_message: connection has no peer name");
+    return TRP_ERROR;
+  }
+
+  peer=trps_get_peer_by_gssname(trps, conn_peer);
+  if (peer==NULL) {
+    tr_err("trps_read_message: could not find peer with gssname=%s", trp_connection_get_gssname(conn));
+    return TRP_ERROR;
+  }
+
   /* verify we received a message we support, otherwise drop it now */
   switch (tr_msg_get_msg_type(*msg)) {
   case TRP_UPDATE:
-    trp_upd_set_peer(tr_msg_get_trp_upd(*msg), tr_dup_name(peer));
+    trp_upd_set_peer(tr_msg_get_trp_upd(*msg), tr_dup_name(conn_peer));
+    trp_upd_set_next_hop(tr_msg_get_trp_upd(*msg), trp_peer_get_server(peer), 0); /* TODO: 0 should be the configured TID port */
     break;
 
   case TRP_REQUEST:
-    trp_req_set_peer(tr_msg_get_trp_req(*msg), tr_dup_name(peer));
+    trp_req_set_peer(tr_msg_get_trp_req(*msg), tr_dup_name(conn_peer));
     break;
 
   default:
-    tr_debug("trps_read_message: received unsupported message from %.*s", peer->len, peer->buf);
+    tr_debug("trps_read_message: received unsupported message from %.*s", conn_peer->len, conn_peer->buf);
     tr_msg_free_decoded(*msg);
     *msg=NULL;
     return TRP_UNSUPPORTED;
@@ -537,6 +550,7 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
     trp_route_set_peer(entry, trp_upd_dup_peer(upd));
     trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec));
     trp_route_set_next_hop(entry, trp_inforec_dup_next_hop(rec));
+    /* TODO: pass next hop port (now defaults to TID_PORT) --jlr */
     if ((trp_route_get_comm(entry)==NULL)
        ||(trp_route_get_realm(entry)==NULL)
        ||(trp_route_get_peer(entry)==NULL)

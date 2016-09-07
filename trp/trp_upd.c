@@ -94,6 +94,7 @@ static void *trp_inforec_route_new(TALLOC_CTX *mem_ctx)
     new_rec->realm=NULL;
     new_rec->trust_router=NULL;
     new_rec->next_hop=NULL;
+    new_rec->next_hop_port=0;
     new_rec->metric=TRP_METRIC_INFINITY;
     new_rec->interval=0;
     talloc_set_destructor((void *)new_rec, trp_inforec_route_destructor);
@@ -235,6 +236,7 @@ TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router)
   return TRP_ERROR;
 }
 
+/* TODO: need to return hostname/port --jlr */
 TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec)
 {
   switch (rec->type) {
@@ -427,12 +429,16 @@ TR_NAME *trp_upd_dup_peer(TRP_UPD *upd)
 
 void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer)
 {
+  upd->peer=peer;
+}
+
+void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
+{
   TRP_INFOREC *rec=NULL;
   TR_NAME *cpy=NULL;
-
-  upd->peer=peer;
+  
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    if (trp_inforec_set_next_hop(rec, cpy=tr_dup_name(peer)) != TRP_SUCCESS) {
+    if (trp_inforec_set_next_hop(rec, cpy=tr_new_name(hostname)) != TRP_SUCCESS) {
       tr_err("trp_upd_set_peer: error setting peer.");
       tr_free_name(cpy);
     }
