@@ -1026,7 +1026,10 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
     encoded=NULL;
     trp_upd_free(upd);
     upd=NULL;
-  }
+  } else if (n_updates==0)
+    tr_debug("trps_update_one_peer: no updates for %.*s", peer_label->len, peer_label->buf);
+
+  rc=TRP_SUCCESS;
 
 cleanup:
   talloc_free(tmp_ctx);
@@ -1062,7 +1065,8 @@ TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE update_type)
     }
     rc=trps_update_one_peer(trps, peer, update_type, NULL, NULL);
   }
-  
+
+  tr_debug("trps_update: rc=%u after attempting update.", rc);
   trp_ptable_iter_free(iter);
   trp_rtable_clear_triggered(trps->rtable); /* don't re-send triggered updates */
   talloc_free(tmp_ctx);

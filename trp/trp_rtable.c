@@ -201,6 +201,11 @@ int trp_route_is_local(TRP_ROUTE *entry)
 
 void trp_route_set_triggered(TRP_ROUTE *entry, int trig)
 {
+  tr_debug("trp_route_set_triggered: setting route to %.*s/%.*s through %.*s to %s",
+           entry->comm->len, entry->comm->buf,
+           entry->realm->len, entry->realm->buf,
+           entry->peer->len, entry->peer->buf,
+           trig ? "triggered" : "not triggered");
   entry->triggered=trig;
 }
 
