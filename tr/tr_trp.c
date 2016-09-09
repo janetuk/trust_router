@@ -174,7 +174,7 @@ static void tr_trps_cleanup_conn(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
   /* everything belonging to the thread is in the TRP_CONNECTION
    * associated with it */
   tr_debug("tr_trps_cleanup_conn: freeing %p", conn);
-/*  pthread_join(*trp_connection_get_thread(conn), NULL); -- removed while debugging, put back!!! --jlr */
+  pthread_join(*trp_connection_get_thread(conn), NULL);
   trps_remove_connection(trps, conn);
   talloc_report_full(conn, stderr);
   trp_connection_free(conn);

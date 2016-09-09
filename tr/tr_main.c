@@ -52,8 +52,6 @@
 #include <tr_debug.h>
 
 #define TALLOC_DEBUG_ENABLE 1
-#define DEBUG_HARDCODED_PEER_TABLE 0
-#define DEBUG_PING_SELF 0
 
 /***** command-line option handling / setup *****/
 
@@ -127,49 +125,6 @@ static void tr_talloc_log(const char *msg)
 }
 #endif /* TALLOC_DEBUG_ENABLE */
 
-
-#if DEBUG_PING_SELF
-struct thingy {
-  TRPS_INSTANCE *trps;
-  struct event *ev;
-};
-
-static void debug_ping(evutil_socket_t fd, short what, void *arg)
-{
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  struct thingy *thingy=(struct thingy *)arg;
-  TRPS_INSTANCE *trps=thingy->trps;
-  TRP_REQ *req=NULL;
-  TR_MSG msg;
-  char *encoded=NULL;
-  struct timeval interval={1, 0};
-  static int count=10;
-  TR_NAME *name=NULL;
-
-  tr_debug("debug_ping entered");
-  if (trps->trpc==NULL)
-    tr_trpc_initiate(trps, trps->hostname, trps->port);
-
-  /* create a TRP route request msg */
-  req=trp_req_new(tmp_ctx);
-  name=tr_new_name("community");
-  trp_req_set_comm(req, name);
-  name=tr_new_name("realm");
-  trp_req_set_realm(req, name);
-  tr_msg_set_trp_req(&msg, req);
-  encoded=tr_msg_encode(&msg);
-  if (encoded==NULL)
-    tr_err("debug_ping: error encoding TRP message.");
-  else {
-    tr_debug("debug_ping: sending message");
-    trps_send_msg(trps, NULL, encoded);
-    tr_msg_free_encoded(encoded);
-  }
-  if (count-- > 0)
-    evtimer_add(thingy->ev, &interval);
-}
-#endif /* DEBUG_PING_SELF */
-
 static void configure_signals(void)
 {
   sigset_t signals;
@@ -188,12 +143,6 @@ int main(int argc, char *argv[])
   struct event_base *ev_base;
   struct tr_socket_event tids_ev;
   struct event *cfgwatch_ev;
-
-#if DEBUG_PING_SELF
-  struct event *debug_ping_ev;
-  struct timeval notime={0, 0};
-  struct thingy thingy={NULL};
-#endif /* DEBUG_PING_SELF */
 
   configure_signals();
 
@@ -282,65 +231,8 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-#if DEBUG_HARDCODED_PEER_TABLE
-  {
-    TRP_PEER *hc_peer=NULL;
-    char *s=NULL;
-
-    hc_peer=trp_peer_new(main_ctx); /* will later be stolen by ptable context */
-    if (hc_peer==NULL) {
-      tr_crit("Unable to allocate new peer. Aborting.");
-      return 1;
-    }
-    trp_peer_set_server(hc_peer, "epsilon.vmnet");
-    trp_peer_add_gss_name(hc_peer, tr_new_name("tr-epsilon-vmnet@apc.painless-security.com"));
-    trp_peer_set_conn_status_cb(hc_peer, tr_peer_status_change, (void *)(tr->trps));
-    switch (tr->trps->port) {
-    case 10000:
-      trp_peer_set_port(hc_peer, 10001);
-      break;
-    case 10001:
-      trp_peer_set_port(hc_peer, 10000);
-      break;
-    default:
-      tr_crit("Cannot use hardcoded peer table with port other than 10000 or 10001.");
-      return 1;
-    }
-    if (TRP_SUCCESS != trps_add_peer(tr->trps, hc_peer)) {
-      tr_crit("Unable to add peer.");
-      return 1;
-    }
-
-    hc_peer=trp_peer_new(main_ctx); /* will later be stolen by ptable context */
-    if (hc_peer==NULL) {
-      tr_crit("Unable to allocate new peer. Aborting.");
-      return 1;
-    }
-    trp_peer_set_server(hc_peer, "epsilon-trpc.vmnet");
-    trp_peer_add_gss_name(hc_peer, tr_new_name("trpc@apc.painless-security.com"));
-    trp_peer_set_port(hc_peer, 10002); /* not really used */
-    if (TRP_SUCCESS != trps_add_peer(tr->trps, hc_peer)) {
-      tr_crit("Unable to add peer.");
-      return 1;
-    }
-    
-    s=trp_ptable_to_str(main_ctx, tr->trps->ptable, NULL, NULL);
-    tr_debug("Peer Table:\n%s\n", s);
-    talloc_free(s);
-  }
-#endif /* DEBUG_HARDCODED_PEER_TABLE */
-
-#if DEBUG_PING_SELF
-  /* for debugging, send a message to peers on a timer */
-  debug_ping_ev=evtimer_new(ev_base, debug_ping, (void *)&thingy);
-  thingy.trps=tr->trps;
-  thingy.ev=debug_ping_ev;
-  evtimer_add(debug_ping_ev, &notime);
-#endif /* DEBUG_PING_SELF */
-
   tr_event_loop_run(ev_base); /* does not return until we are done */
 
-  /* TODO: ensure talloc is properly used so this actually works */
   tr_destroy(tr); /* thanks to talloc, should destroy everything */
 
   talloc_free(main_ctx);
