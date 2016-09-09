@@ -31,22 +31,22 @@ static unsigned int metric3(size_t a, size_t b, size_t c)
 
 static void populate_rtable(TRP_RTABLE *table, unsigned int (*metric)(size_t, size_t, size_t))
 {
-  TRP_RENTRY *entry=NULL;
+  TRP_ROUTE *entry=NULL;
   size_t ii=0, jj=0, kk=0;
   struct timespec ts={0,0};
 
   for (ii=0; ii<n_apc; ii++) {
     for (jj=0; jj<n_realm; jj++) {
       for (kk=0; kk<n_peer; kk++) {
-        entry=trp_rentry_new(NULL);
-        trp_rentry_set_apc(entry, tr_new_name(apc[ii]));
-        trp_rentry_set_realm(entry, tr_new_name(realm[jj]));
-        trp_rentry_set_trust_router(entry, tr_new_name(realm[jj]));
-        trp_rentry_set_peer(entry, tr_new_name(peer[kk]));
-        trp_rentry_set_metric(entry, metric(ii,jj,kk));
-        trp_rentry_set_next_hop(entry, tr_new_name(peer[kk]));
+        entry=trp_route_new(NULL);
+        trp_route_set_comm(entry, tr_new_name(apc[ii]));
+        trp_route_set_realm(entry, tr_new_name(realm[jj]));
+        trp_route_set_trust_router(entry, tr_new_name(realm[jj]));
+        trp_route_set_peer(entry, tr_new_name(peer[kk]));
+        trp_route_set_metric(entry, metric(ii,jj,kk));
+        trp_route_set_next_hop(entry, tr_new_name(peer[kk]));
         ts=(struct timespec){jj+1,ii+kk+1};
-        trp_rentry_set_expiry(entry, &ts);
+        trp_route_set_expiry(entry, &ts);
         trp_rtable_add(table, entry);
         entry=NULL; /* entry belongs to the table now */
       }
@@ -56,7 +56,7 @@ static void populate_rtable(TRP_RTABLE *table, unsigned int (*metric)(size_t, si
 
 static void verify_rtable(TRP_RTABLE *table, unsigned int (*metric)(size_t, size_t, size_t))
 {
-  TRP_RENTRY *entry=NULL;
+  TRP_ROUTE *entry=NULL;
   size_t ii=0, jj=0, kk=0;
   size_t len=0;
   TR_NAME *apc_n, *realm_n, *peer_n;
@@ -74,31 +74,31 @@ static void verify_rtable(TRP_RTABLE *table, unsigned int (*metric)(size_t, size
 
         assert(entry!=NULL);
 
-        len=trp_rentry_get_apc(entry)->len;
+        len=trp_route_get_comm(entry)->len;
         assert(len==strlen(apc[ii]));
-        assert(0==strncmp(trp_rentry_get_apc(entry)->buf, apc[ii], len));
+        assert(0==strncmp(trp_route_get_comm(entry)->buf, apc[ii], len));
 
-        len=trp_rentry_get_realm(entry)->len;
+        len=trp_route_get_realm(entry)->len;
         assert(len==strlen(realm[jj]));
-        assert(0==strncmp(trp_rentry_get_realm(entry)->buf, realm[jj], len));
+        assert(0==strncmp(trp_route_get_realm(entry)->buf, realm[jj], len));
         
-        len=trp_rentry_get_peer(entry)->len;
+        len=trp_route_get_peer(entry)->len;
         assert(len==strlen(peer[kk]));
-        assert(0==strncmp(trp_rentry_get_peer(entry)->buf, peer[kk], len));
+        assert(0==strncmp(trp_route_get_peer(entry)->buf, peer[kk], len));
         
-        len=trp_rentry_get_trust_router(entry)->len;
+        len=trp_route_get_trust_router(entry)->len;
         assert(len==strlen(realm[jj]));
-        assert(0==strncmp(trp_rentry_get_trust_router(entry)->buf, realm[jj], len));
+        assert(0==strncmp(trp_route_get_trust_router(entry)->buf, realm[jj], len));
 
-        assert(trp_rentry_get_metric(entry)==metric(ii,jj,kk));
+        assert(trp_route_get_metric(entry)==metric(ii,jj,kk));
 
-        len=trp_rentry_get_next_hop(entry)->len;
+        len=trp_route_get_next_hop(entry)->len;
         assert(len==strlen(peer[kk]));
-        assert(0==strncmp(trp_rentry_get_next_hop(entry)->buf, peer[kk], len));
+        assert(0==strncmp(trp_route_get_next_hop(entry)->buf, peer[kk], len));
 
-        assert(trp_rentry_get_selected(entry)==0);
-        assert(trp_rentry_get_expiry(entry)->tv_sec==jj+1);
-        assert(trp_rentry_get_expiry(entry)->tv_nsec==ii+kk+1);
+        assert(trp_route_is_selected(entry)==0);
+        assert(trp_route_get_expiry(entry)->tv_sec==jj+1);
+        assert(trp_route_get_expiry(entry)->tv_nsec==ii+kk+1);
 
         printf("{%s %s %s} entry OK!\n", apc[ii], realm[jj], peer[kk]);
       }
@@ -119,7 +119,7 @@ static int is_in(char *a, char *b[], size_t n_b)
 static void verify_apc_list(TRP_RTABLE *table)
 {
   size_t n=0;
-  TR_NAME **apcs_found=trp_rtable_get_apcs(table, &n);
+  TR_NAME **apcs_found=trp_rtable_get_comms(table, &n);
   assert(n==n_apc);
   while(n--)
     assert(1==is_in(apcs_found[n]->buf, apc, n_apc));
@@ -132,7 +132,7 @@ static void verify_apc_realm_lists(TRP_RTABLE *table)
 
   for (ii=0; ii<n_apc; ii++) {
     apc_n=tr_new_name(apc[ii]);
-    realms_found=trp_rtable_get_apc_realms(table, apc_n, &n);
+    realms_found=trp_rtable_get_comm_realms(table, apc_n, &n);
     tr_free_name(apc_n);
     assert(n==n_realm);
     while (n--)
@@ -145,20 +145,20 @@ static void verify_apc_realm_lists(TRP_RTABLE *table)
 static void verify_get_apc_entries(TRP_RTABLE *table)
 {
   size_t n=0, ii=0;
-  TRP_RENTRY **apc_entries=NULL;
+  TRP_ROUTE **apc_entries=NULL;
   TR_NAME *apc_n=NULL;
 
   for (ii=0; ii<n_apc; ii++) {
     apc_n=tr_new_name(apc[ii]);
-    apc_entries=trp_rtable_get_apc_entries(table, apc_n, &n);
+    apc_entries=trp_rtable_get_comm_entries(table, apc_n, &n);
     tr_free_name(apc_n);
     assert(n==n_realm*n_peer);
     while (n--) {
-      assert(0==strncmp(trp_rentry_get_apc(apc_entries[n])->buf,
+      assert(0==strncmp(trp_route_get_comm(apc_entries[n])->buf,
                         apc[ii],
-                        trp_rentry_get_apc(apc_entries[n])->len));
-      assert(1==is_in(trp_rentry_get_realm(apc_entries[n])->buf, realm, n_realm));
-      assert(1==is_in(trp_rentry_get_peer(apc_entries[n])->buf, peer, n_peer));
+                        trp_route_get_comm(apc_entries[n])->len));
+      assert(1==is_in(trp_route_get_realm(apc_entries[n])->buf, realm, n_realm));
+      assert(1==is_in(trp_route_get_peer(apc_entries[n])->buf, peer, n_peer));
     }
     printf("APC %s ok!\n", apc[ii]);
     talloc_free(apc_entries);
@@ -168,7 +168,7 @@ static void verify_get_apc_entries(TRP_RTABLE *table)
 static void verify_get_realm_entries(TRP_RTABLE *table)
 {
   size_t n=0, ii=0, jj=0;
-  TRP_RENTRY **realm_entries=NULL;
+  TRP_ROUTE **realm_entries=NULL;
   TR_NAME *apc_n=NULL, *realm_n=NULL;
 
   for (ii=0; ii<n_apc; ii++) {
@@ -180,13 +180,13 @@ static void verify_get_realm_entries(TRP_RTABLE *table)
       tr_free_name(realm_n);
       assert(n==n_peer);
       while (n--) {
-        assert(0==strncmp(trp_rentry_get_apc(realm_entries[n])->buf,
+        assert(0==strncmp(trp_route_get_comm(realm_entries[n])->buf,
                           apc[ii],
-                          trp_rentry_get_apc(realm_entries[n])->len));
-        assert(0==strncmp(trp_rentry_get_realm(realm_entries[n])->buf,
+                          trp_route_get_comm(realm_entries[n])->len));
+        assert(0==strncmp(trp_route_get_realm(realm_entries[n])->buf,
                           realm[jj],
-                          trp_rentry_get_realm(realm_entries[n])->len));
-        assert(1==is_in(trp_rentry_get_peer(realm_entries[n])->buf, peer, n_peer));
+                          trp_route_get_realm(realm_entries[n])->len));
+        assert(1==is_in(trp_route_get_peer(realm_entries[n])->buf, peer, n_peer));
       }
       printf("APC %s realm %s ok!\n", apc[ii], realm[jj]);
       talloc_free(realm_entries);
@@ -206,15 +206,15 @@ static size_t get_index(char *c, char **a, size_t n_a)
 
 static void update_metric(TRP_RTABLE *table, unsigned int (*new_metric)(size_t, size_t, size_t))
 {
-  TRP_RENTRY **entries=NULL;
+  TRP_ROUTE **entries=NULL;
   size_t n=0, ii=0,jj=0,kk=0;
 
   entries=trp_rtable_get_entries(table, &n);
   while (n--) {
-    ii=get_index(trp_rentry_get_apc(entries[n])->buf, apc, n_apc);
-    jj=get_index(trp_rentry_get_realm(entries[n])->buf, realm, n_realm);
-    kk=get_index(trp_rentry_get_peer(entries[n])->buf, peer, n_peer);
-    trp_rentry_set_metric(entries[n],
+    ii=get_index(trp_route_get_comm(entries[n])->buf, apc, n_apc);
+    jj=get_index(trp_route_get_realm(entries[n])->buf, realm, n_realm);
+    kk=get_index(trp_route_get_peer(entries[n])->buf, peer, n_peer);
+    trp_route_set_metric(entries[n],
                           new_metric(ii,jj,kk));
   }
   talloc_free(entries);
@@ -225,7 +225,7 @@ static void remove_entries(TRP_RTABLE *table)
   size_t n=trp_rtable_size(table);
   size_t ii,jj,kk;
   TR_NAME *apc_n, *realm_n, *peer_n;
-  TRP_RENTRY *entry=NULL;
+  TRP_ROUTE *entry=NULL;
 
   for (ii=0; ii<n_apc; ii++) {
     for (jj=0; jj<n_realm; jj++) {

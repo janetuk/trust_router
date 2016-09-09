@@ -18,7 +18,7 @@ struct thread_data {
 TR_MQ_MSG *make_msg(label, n)
 {
   TR_MQ_MSG *msg=NULL;
-  msg=tr_mq_msg_new(NULL);
+  msg=tr_mq_msg_new(NULL, "Message", TR_MQ_PRIO_NORMAL);
   asprintf((char **)&(msg->p), "%s: %d messages to go...", label, n);
   msg->p_free=free;
   return msg;
@@ -33,10 +33,10 @@ void *thread_start(void *arg)
   
   while (n_msgs>=0) {
     usleep(msg_dly);
-    tr_mq_append(mq, make_msg(label, n_msgs));
+    tr_mq_add(mq, make_msg(label, n_msgs));
     n_msgs--;
   }
-  tr_mq_append(mq, make_msg(label, -9999));
+  tr_mq_add(mq, make_msg(label, -9999));
   return NULL;
 }
 

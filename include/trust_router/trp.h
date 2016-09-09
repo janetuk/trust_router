@@ -3,6 +3,9 @@
 
 #include <talloc.h>
 
+#include <trust_router/tr_name.h>
+#include <trust_router/tr_versioning.h>
+
 #define TRP_PORT 12308
 #define TRP_METRIC_INFINITY 0xFFFF
 #define TRP_METRIC_INVALID 0xFFFFFFFF
