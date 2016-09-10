@@ -85,58 +85,38 @@ void tr_fspec_free(TR_FSPEC *fspec)
 static int tr_fspec_destructor(void *obj)
 {
   TR_FSPEC *fspec=talloc_get_type_abort(obj, TR_FSPEC);
-  int ii=0;
 
   if (fspec->field!=NULL)
     tr_free_name(fspec->field);
-  for (ii=0; ii<TR_MAX_FILTER_MATCHES; ii++) {
-    if (fspec->match[ii]!=NULL)
-      tr_free_name(fspec->match[ii]);
-  }
+  if (fspec->match!=NULL)
+    tr_free_name(fspec->match);
   return 0;
 }
 
 TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx)
 {
   TR_FSPEC *fspec=talloc(mem_ctx, TR_FSPEC);
-  int ii=0;
 
   if (fspec!=NULL) {
     fspec->field=NULL;
-    for (ii=0; ii<TR_MAX_FILTER_MATCHES; ii++)
-      fspec->match[ii]=NULL;
+    fspec->match=NULL;
     talloc_set_destructor((void *)fspec, tr_fspec_destructor);
   }
   return fspec;
 }
 
-/* returns 0 on success */
-int tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match)
+void tr_fspec_set_match(TR_FSPEC *fspec, TR_NAME *match)
 {
-  int ii=0;
-
-  for (ii=0; ii<TR_MAX_FILTER_MATCHES; ii++) {
-    if (fspec->match[ii]==NULL)
-      break;
-  }
-  if (ii<TR_MAX_FILTER_MATCHES) {
-    fspec->match[ii]=match;
-    return 0;
-  } else
-    return -1; /* no space left */
+  if (fspec->match!=NULL)
+    tr_free_name(fspec->match);
+  fspec->match=match;
 }
 
 /* returns 1 if the spec matches */
 int tr_fspec_matches(TR_FSPEC *fspec, TR_NAME *name)
 {
-  int ii=0;
-
-  for (ii=0; ii<TR_MAX_FILTER_MATCHES; ii++) {
-    if ((fspec->match[ii]!=NULL) &&
-        (0!=tr_prefix_wildcard_match(name->buf, fspec->match[ii]->buf)))
-      return 1;
-  }
-  return 0;
+  return ((fspec->match!=NULL) &&
+          (0!=tr_prefix_wildcard_match(name->buf, fspec->match->buf)));
 }
 
 void tr_fline_free(TR_FLINE *fline)

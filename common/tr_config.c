@@ -333,12 +333,11 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
   json_t *jfaction=NULL;
   json_t *jfspecs=NULL;
   json_t *jffield=NULL;
-  json_t *jfmatches=NULL;
   json_t *jfmatch=NULL;
   json_t *jrc=NULL;
   json_t *jdc=NULL;
   TR_NAME *name=NULL;
-  int i=0, j=0, k=0;
+  int i=0, j=0;
 
   *rc=TR_CFG_ERROR;
 
@@ -452,15 +451,15 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       }
 
       /* check that we have a match attribute */
-      if (NULL==(jfmatches=json_object_get(json_array_get(jfspecs, j), "match"))) {
+      if (NULL==(jfmatch=json_object_get(json_array_get(jfspecs, j), "match"))) {
         tr_debug("tr_cfg_parse_one_filter: Error parsing filter: missing match for filer spec %d, filter line %d.", i, j);
         *rc=TR_CFG_NOPARSE;
         goto cleanup;
       }
 
-      /* check that match is an array */
-      if (!json_is_array(jfmatches)) {
-        tr_debug("tr_cfg_parse_one_filter: Error parsing filter: match not an array for filter spec %d, filter line %d.", i, j);
+      /* check that match is a string */
+      if (!json_is_string(jfmatch)) {
+        tr_debug("tr_cfg_parse_one_filter: Error parsing filter: match not a string for filter spec %d, filter line %d.", i, j);
         *rc=TR_CFG_NOPARSE;
         goto cleanup;
       }
@@ -480,25 +479,12 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       }
 
       /* fill in the matches */
-      for (k=0; k<json_array_size(jfmatches); k++) {
-        if (NULL==(jfmatch=json_array_get(jfmatches, k))) {
-          tr_debug("tr_cfg_parse_one_filter: Error parsing filter: unable to load match %d for filter spec %d, filter line %d.", k, i, j); 
-          *rc=TR_CFG_NOPARSE;
-          goto cleanup;
-        }
-        if (NULL==(name=tr_new_name(json_string_value(jfmatch)))) {
-          tr_debug("tr_cfg_parse_one_filter: Out of memory.");
-          *rc=TR_CFG_NOMEM;
-          goto cleanup;
-        }
-        if (0!=tr_fspec_add_match(filt->lines[i]->specs[j], name)) {
-          tr_debug("tr_cfg_parse_one_filter: Could not add match %d to filter spec %d, filter line %d.", k, i, j);
-          tr_free_name(name);
-          *rc=TR_CFG_ERROR;
-          goto cleanup;
-        }
+      if (NULL==(name=tr_new_name(json_string_value(jfmatch)))) {
+        tr_debug("tr_cfg_parse_one_filter: Out of memory.");
+        *rc=TR_CFG_NOMEM;
+        goto cleanup;
       }
-
+      tr_fspec_set_match(filt->lines[i]->specs[j], name);
     }
   }
   *rc=TR_CFG_SUCCESS;
@@ -1066,7 +1052,8 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
   TR_CONSTRAINT *cons=NULL;
   TR_NAME *name=NULL;
   TR_NAME *n_prefix=tr_new_name("*.");
-  TR_NAME *n_rp_realm=tr_new_name("rp_realm");
+  TR_NAME *n_rp_realm_1=tr_new_name("rp_realm");
+  TR_NAME *n_rp_realm_2=tr_new_name("rp_realm");
   TR_NAME *n_domain=tr_new_name("domain");
   TR_NAME *n_realm=tr_new_name("realm");
   
@@ -1078,7 +1065,11 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
     goto cleanup;
   }
 
-  if ((n_prefix==NULL) || (n_rp_realm==NULL) || (n_domain==NULL) || (n_realm==NULL)) {
+  if ((n_prefix==NULL) ||
+      (n_rp_realm_1==NULL) ||
+      (n_rp_realm_2==NULL) ||
+      (n_domain==NULL) ||
+      (n_realm==NULL)) {
     tr_debug("tr_cfg_default_filter: unable to allocate names.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
@@ -1100,8 +1091,8 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
 
   filt->lines[0]->action=TR_FILTER_ACTION_ACCEPT;
   filt->lines[0]->specs[0]=tr_fspec_new(filt->lines[0]);
-  filt->lines[0]->specs[0]->field=n_rp_realm;
-  n_rp_realm=NULL; /* we don't own this name any more */
+  filt->lines[0]->specs[0]->field=n_rp_realm_1;
+  n_rp_realm_1=NULL; /* we don't own this name any more */
 
   name=tr_dup_name(realm);
   if (name==NULL) {
@@ -1109,12 +1100,13 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  if (0!=tr_fspec_add_match(filt->lines[0]->specs[0], name)) {
-    tr_debug("tr_cfg_default_filter: could not add realm name to filter spec.");
-    *rc=TR_CFG_NOMEM;
-    goto cleanup;
-  }
+  tr_fspec_set_match(filt->lines[0]->specs[0], name);
   name=NULL; /* we no longer own the name */
+
+  /* now do the wildcard name */
+  filt->lines[0]->specs[1]=tr_fspec_new(filt->lines[0]);
+  filt->lines[0]->specs[1]->field=n_rp_realm_2;
+  n_rp_realm_2=NULL; /* we don't own this name any more */
 
   if (NULL==(name=tr_name_cat(n_prefix, realm))) {
     tr_debug("tr_cfg_default_filter: could not allocate wildcard realm name.");
@@ -1122,11 +1114,7 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
     goto cleanup;
   }
 
-  if (0!=tr_fspec_add_match(filt->lines[0]->specs[0], name)) {
-    tr_debug("tr_cfg_default_filter: could not add wildcard realm name to filter spec.");
-    *rc=TR_CFG_NOMEM;
-    goto cleanup;
-  }
+  tr_fspec_set_match(filt->lines[0]->specs[1], name);
   name=NULL; /* we no longer own the name */
 
   /* domain constraint */
@@ -1191,8 +1179,10 @@ cleanup:
 
   if (n_prefix!=NULL)
     tr_free_name(n_prefix);
-  if (n_rp_realm!=NULL)
-    tr_free_name(n_rp_realm);
+  if (n_rp_realm_1!=NULL)
+    tr_free_name(n_rp_realm_1);
+  if (n_rp_realm_2!=NULL)
+    tr_free_name(n_rp_realm_2);
   if (n_realm!=NULL)
     tr_free_name(n_realm);
   if (n_domain!=NULL)

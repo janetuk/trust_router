@@ -44,7 +44,6 @@
 #define TR_MAX_FILTERS	5
 #define TR_MAX_FILTER_LINES 8
 #define TR_MAX_FILTER_SPECS 8
-#define TR_MAX_FILTER_MATCHES 8
 
 /* Filter actions */
 typedef enum {
@@ -68,7 +67,7 @@ typedef enum {
 
 typedef struct tr_fspec {
   TR_NAME *field;
-  TR_NAME *match[TR_MAX_FILTER_MATCHES];
+  TR_NAME *match;
 } TR_FSPEC;
 
 typedef struct tr_fline {
@@ -92,7 +91,7 @@ TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx);
 void tr_fline_free(TR_FLINE *fline);
 TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx);
 void tr_fspec_free(TR_FSPEC *fspec);
-int tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
+void tr_fspec_set_match(TR_FSPEC *fspec, TR_NAME *match);
 int tr_fspec_matches(TR_FSPEC *fspec, TR_NAME *name);
 
 
