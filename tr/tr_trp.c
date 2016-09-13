@@ -148,7 +148,9 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
     tr_debug("tr_trps_event_cb: unexpected event on TRPS socket (event=0x%X)", event);
   } else {
     /* create a thread to handle this connection */
-    asprintf(&name, "trustrouter@%s", trps->hostname);
+    if (asprintf(&name, "trustrouter@%s", trps->hostname)==-1) {
+      goto cleanup;
+    }
     gssname=tr_new_name(name);
     free(name); name=NULL;
     conn=trp_connection_accept(tmp_ctx, listener, gssname);
@@ -166,6 +168,8 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
       pthread_create(trp_connection_get_thread(conn), NULL, tr_trps_thread, thread_data);
     }
   }
+
+ cleanup:
   talloc_free(tmp_ctx);
 }
 
