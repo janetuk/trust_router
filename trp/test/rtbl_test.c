@@ -250,7 +250,7 @@ static void remove_entries(TRP_RTABLE *table)
 static void print_rtable(TRP_RTABLE *table)
 {
   char *s=trp_rtable_to_str(NULL, table, NULL, NULL);
-  printf(s);
+  printf("%s",s);
   talloc_free(s);
 }
 

@@ -60,7 +60,7 @@ int main(void)
   mq->notify_cb_arg=mq_name;
 
   msg1=tr_mq_msg_new(NULL,"Message 1", TR_MQ_PRIO_NORMAL);
-  asprintf((char **)&(msg2->p), "First message.\n");
+  assert(asprintf((char **)&(msg2->p), "First message.\n")!=-1);
   msg1->p_free=free;
   tr_mq_add(mq, msg1);
   assert(mq->head==msg1);
@@ -68,7 +68,7 @@ int main(void)
   assert(msg1->next==NULL);
 
   msg2=tr_mq_msg_new(NULL, "Message 2", TR_MQ_PRIO_NORMAL);
-  asprintf((char **)&(msg2->p), "Second message.\n");
+  assert(asprintf((char **)&(msg2->p), "Second message.\n")!=-1);
   msg2->p_free=free;
   tr_mq_add(mq, msg2);
   assert(mq->head==msg1);
@@ -82,13 +82,13 @@ int main(void)
   assert(mq->tail==msg2);
   assert(msg2->next==NULL);
   if ((msg!=NULL) && (msg->p!=NULL)) {
-    printf((char *)msg->p);
+    printf("%s", (char *)msg->p);
     tr_mq_msg_free(msg);
   } else
     printf("no message to pop\n");
   
   msg3=tr_mq_msg_new(NULL, "Message 3", TR_MQ_PRIO_NORMAL);
-  asprintf((char **)&(msg3->p), "Third message.\n");
+  assert(asprintf("%s",(char **)&(msg3->p), "Third message.\n")!=-1);
   msg3->p_free=free;
   tr_mq_add(mq, msg3);
   assert(mq->head==msg2);
@@ -102,7 +102,7 @@ int main(void)
   assert(mq->tail==msg3);
   assert(msg3->next==NULL);
   if ((msg!=NULL) && (msg->p!=NULL)) {
-    printf((char *)msg->p);
+    printf("%s",(char *)msg->p);
     tr_mq_msg_free(msg);
   } else
     printf("no message to pop\n");
@@ -112,7 +112,7 @@ int main(void)
   assert(mq->head==NULL);
   assert(mq->tail==NULL);
   if ((msg!=NULL) && (msg->p!=NULL)) {
-    printf((char *)msg->p);
+    printf("%s",(char *)msg->p);
     tr_mq_msg_free(msg);
   } else
     printf("no message to pop\n");
@@ -122,13 +122,13 @@ int main(void)
   assert(mq->head==NULL);
   assert(mq->tail==NULL);
   if ((msg!=NULL) && (msg->p!=NULL)) {
-    printf((char *)msg->p);
+    printf("%s",(char *)msg->p);
     tr_mq_msg_free(msg);
   } else
     printf("no message to pop\n");
 
   msg4=tr_mq_msg_new(NULL, "Message 4", TR_MQ_PRIO_NORMAL);
-  asprintf((char **)&(msg4->p), "Fourth message.\n");
+  assert(asprintf("%s",(char **)&(msg4->p), "Fourth message.\n")!=-1);
   msg4->p_free=free;
   tr_mq_add(mq, msg4);
   assert(mq->head==msg4);
@@ -140,7 +140,7 @@ int main(void)
   assert(mq->head==NULL);
   assert(mq->tail==NULL);
   if ((msg!=NULL) && (msg->p!=NULL)) {
-    printf((char *)msg->p);
+    printf("%s",(char *)msg->p);
     tr_mq_msg_free(msg);
   } else
     printf("no message to pop\n");
@@ -150,7 +150,7 @@ int main(void)
   assert(mq->head==NULL);
   assert(mq->tail==NULL);
   if ((msg!=NULL) && (msg->p!=NULL)) {
-    printf((char *)msg->p);
+    printf("%s",(char *)msg->p);
     tr_mq_msg_free(msg);
   } else
     printf("no message to pop\n");
