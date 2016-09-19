@@ -35,19 +35,20 @@
 #ifndef TR_H
 #define TR_H
 
+#include <talloc.h>
+
 #include <tid_internal.h>
 #include <trust_router/tr_name.h>
 #include <tr_msg.h>
 #include <tr_rp.h>
+#include <tr_trp.h>
+#include <tr_cfgwatch.h>
+#include <tr_config.h>
 
-typedef struct tr_instance {
-  struct tr_cfg *new_cfg;	/* unapplied configuration */
-  struct tr_cfg *active_cfg;
-  TIDS_INSTANCE *tids;
-  struct tr_rp_client *rp_gss;		/* Client matching GSS name, TBD -- FIX ME */
-} TR_INSTANCE;
+/* struct defined in tr_trp.h */
+typedef struct tr_instance TR_INSTANCE;
 
-TR_INSTANCE *tr_create(void);
+TR_INSTANCE *tr_create(TALLOC_CTX *mem_ctx);
 void tr_destroy(TR_INSTANCE *tr);
 
 #endif

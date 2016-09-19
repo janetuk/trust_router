@@ -35,6 +35,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -50,7 +51,8 @@
 
 static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req) 
 {
-  TID_RESP *resp;
+  TID_RESP *resp=NULL;
+  int success=0;
 
   if ((NULL == (resp = talloc_zero(req, TID_RESP)))) {
     tr_crit("tids_create_response: Error allocating response structure.");
@@ -62,13 +64,29 @@ static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req)
       (NULL == (resp->realm = tr_dup_name(req->realm))) ||
       (NULL == (resp->comm = tr_dup_name(req->comm)))) {
     tr_crit("tids_create_response: Error allocating fields in response.");
-    return NULL;
+    goto cleanup;
   }
   if (req->orig_coi) {
     if (NULL == (resp->orig_coi = tr_dup_name(req->orig_coi))) {
       tr_crit("tids_create_response: Error allocating fields in response.");
-      return NULL;
+      goto cleanup;
     }
+  }
+
+  success=1;
+
+cleanup:
+  if ((!success) && (resp!=NULL)) {
+    if (resp->rp_realm!=NULL)
+      tr_free_name(resp->rp_realm);
+    if (resp->realm!=NULL)
+      tr_free_name(resp->realm);
+    if (resp->comm!=NULL)
+      tr_free_name(resp->comm);
+    if (resp->orig_coi!=NULL)
+      tr_free_name(resp->orig_coi);
+    talloc_free(resp);
+    resp=NULL;
   }
   return resp;
 }
@@ -122,17 +140,27 @@ static int tids_listen (TIDS_INSTANCE *tids, int port)
     return conn;
 }
 
+/* returns EACCES if authorization is denied */
 static int tids_auth_cb(gss_name_t clientName, gss_buffer_t displayName,
 			void *data)
 {
   struct tids_instance *inst = (struct tids_instance *) data;
   TR_NAME name ={(char *) displayName->value,
 		 displayName->length};
-  return inst->auth_handler(clientName, &name, inst->cookie);
+  int result=0;
+
+  if (0!=inst->auth_handler(clientName, &name, inst->cookie)) {
+    tr_debug("tids_auth_cb: client '%.*s' denied authorization.", name.len, name.buf);
+    result=EACCES; /* denied */
+  }
+
+  return result;
 }
 
-static int tids_auth_connection (struct tids_instance *inst,
-				 int conn, gss_ctx_id_t *gssctx)
+/* returns 0 on authorization success, 1 on failure, or -1 in case of error */
+static int tids_auth_connection (TIDS_INSTANCE *inst,
+				 int conn,
+                                 gss_ctx_id_t *gssctx)
 {
   int rc = 0;
   int auth, autherr = 0;
@@ -143,7 +171,7 @@ static int tids_auth_connection (struct tids_instance *inst,
   nameLen = asprintf(&name, "trustidentity@%s", inst->hostname);
   nameBuffer.length = nameLen;
   nameBuffer.value = name;
-  
+
   if (rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tids_auth_cb, inst)) {
     tr_debug("tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.", rc);
     return -1;
@@ -196,7 +224,7 @@ static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssct
 
 static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *resp) 
 {
-  int rc;
+  int rc=-1;
 
   /* Check that this is a valid TID Request.  If not, send an error return. */
   if ((!tr_msg_get_req(mreq)) ||
@@ -209,18 +237,21 @@ static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *res
     return -1;
   }
 
+  tr_debug("tids_handle_request: adding self to req path.");
   tid_req_add_path(tr_msg_get_req(mreq), tids->hostname, tids->tids_port);
   
   /* Call the caller's request handler */
   /* TBD -- Handle different error returns/msgs */
   if (0 > (rc = (*tids->req_handler)(tids, tr_msg_get_req(mreq), resp, tids->cookie))) {
     /* set-up an error response */
+    tr_debug("tids_handle_request: req_handler returned error.");
     resp->result = TID_ERROR;
     if (!resp->err_msg)	/* Use msg set by handler, if any */
       resp->err_msg = tr_new_name("Internal processing error");
   }
   else {
     /* set-up a success response */
+    tr_debug("tids_handle_request: req_handler returned success.");
     resp->result = TID_SUCCESS;
     resp->err_msg = NULL;	/* No error msg on successful return */
   }
@@ -334,6 +365,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
       tr_crit("tids_handle_connection: Error creating response structure.");
       /* try to send an error */
       tids_send_err_response(tids, tr_msg_get_req(mreq), "Error creating response.");
+      tr_msg_free_decoded(mreq);
       return;
     }
 
@@ -351,21 +383,95 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
     }
     
     tids_destroy_response(tids, resp);
+    tr_msg_free_decoded(mreq);
     return;
   } 
 }
 
-TIDS_INSTANCE *tids_create (void)
+TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx)
 {
-  TIDS_INSTANCE *tids = NULL;
-  if (tids = malloc(sizeof(TIDS_INSTANCE)))
-    memset(tids, 0, sizeof(TIDS_INSTANCE));
-  return tids;
+  return talloc_zero(mem_ctx, TIDS_INSTANCE);
 }
 
+/* Get a listener for tids requests, returns its socket fd. Accept
+ * connections with tids_accept() */
+int tids_get_listener(TIDS_INSTANCE *tids, 
+                      TIDS_REQ_FUNC *req_handler,
+                      TIDS_AUTH_FUNC *auth_handler,
+                      const char *hostname,
+                      unsigned int port,
+                      void *cookie)
+{
+  int listen = -1;
+
+  tids->tids_port = port;
+  if (0 > (listen = tids_listen(tids, port))) {
+    char errbuf[256];
+    if (0 == strerror_r(errno, errbuf, 256)) {
+      tr_debug("tids_get_listener: Error opening port %d: %s.", port, errbuf);
+    } else {
+      tr_debug("tids_get_listener: Unknown error openining port %d.", port);
+    }
+  } 
+
+  if (listen > 0) {
+    /* opening port succeeded */
+    tr_debug("tids_get_listener: Opened port %d.", port);
+    
+    /* make this socket non-blocking */
+    if (0 != fcntl(listen, F_SETFL, O_NONBLOCK)) {
+      tr_debug("tids_get_listener: Error setting O_NONBLOCK.");
+      close(listen);
+      listen=-1;
+    }
+  }
+
+  if (listen > 0) {
+    /* store the caller's request handler & cookie */
+    tids->req_handler = req_handler;
+    tids->auth_handler = auth_handler;
+    tids->hostname = hostname;
+    tids->cookie = cookie;
+  }
+
+  return listen;
+}
+
+/* Accept and process a connection on a port opened with tids_get_listener() */
+int tids_accept(TIDS_INSTANCE *tids, int listen)
+{
+  int conn=-1;
+  int pid=-1;
+
+  if (0 > (conn = accept(listen, NULL, NULL))) {
+    perror("Error from TIDS Server accept()");
+    return 1;
+  }
+
+  if (0 > (pid = fork())) {
+    perror("Error on fork()");
+    return 1;
+  }
+
+  if (pid == 0) {
+    close(listen);
+    tids_handle_connection(tids, conn);
+    close(conn);
+    exit(0); /* exit to kill forked child process */
+  } else {
+    close(conn);
+  }
+
+  /* clean up any processes that have completed  (TBD: move to main loop?) */
+  while (waitpid(-1, 0, WNOHANG) > 0);
+
+  return 0;
+}
+
+/* Process tids requests forever. Should not return except on error. */
 int tids_start (TIDS_INSTANCE *tids, 
 		TIDS_REQ_FUNC *req_handler,
-		tids_auth_func *auth_handler,
+		TIDS_AUTH_FUNC *auth_handler,
 	        const char *hostname,
 		unsigned int port,
 		void *cookie)
@@ -402,7 +508,7 @@ int tids_start (TIDS_INSTANCE *tids,
       close(listen);
       tids_handle_connection(tids, conn);
       close(conn);
-      return 0;
+      exit(0); /* exit to kill forked child process */
     } else {
       close(conn);
     }

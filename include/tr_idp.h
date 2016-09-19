@@ -35,14 +35,23 @@
 #ifndef TR_IDP_H
 #define TR_IDP_H
 
+#include <talloc.h>
+
 #include <trust_router/tr_name.h>
-#include <tr.h>
 #include <tr_apc.h>
 
 typedef struct tr_aaa_server {
   struct tr_aaa_server *next;
   TR_NAME *hostname;
 } TR_AAA_SERVER;
+
+/* may also want to use in tr_rp.h */
+typedef enum tr_realm_origin {
+  TR_REALM_LOCAL=0, /* realm we were configured to contact */
+  TR_REALM_REMOTE_INCOMPLETE, /* realm we were configured to know about, without contact info yet */
+  TR_REALM_REMOTE, /* realm we were configured to know about, with discovered contact info */
+  TR_REALM_DISCOVERED /* realm we learned about from a peer */
+} TR_REALM_ORIGIN;
 
 typedef struct tr_idp_realm {
   struct tr_idp_realm *next;
@@ -51,8 +60,17 @@ typedef struct tr_idp_realm {
   int shared_config;
   TR_AAA_SERVER *aaa_servers;
   TR_APC *apcs;
+  TR_REALM_ORIGIN origin; /* how did we learn about this realm? */
 } TR_IDP_REALM;
   
-TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_INSTANCE *tr, TR_NAME *idp_realm, TR_NAME *comm);
-TR_AAA_SERVER *tr_default_server_lookup(TR_INSTANCE *tr, TR_NAME *comm);
+TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx);
+TR_IDP_REALM *tr_idp_realm_add(TR_IDP_REALM *head, TR_IDP_REALM *new);
+char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp);
+
+TR_AAA_SERVER *tr_aaa_server_new(TALLOC_CTX *mem_ctx, TR_NAME *hostname);
+void tr_aaa_server_free(TR_AAA_SERVER *aaa);
+
+TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm);
+TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME *comm);
+
 #endif

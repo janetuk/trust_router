@@ -32,12 +32,94 @@
  *
  */
 
-#include <trust_router/tr_name.h>
-#include <tr_config.h>
-#include <tr.h>
-#include <tr_comm.h>
+#include <talloc.h>
+
 #include <tr_rp.h>
+#include <trust_router/tr_name.h>
+#include <tr_comm.h>
 #include <tr_debug.h>
+
+static int tr_comm_destructor(void *obj)
+{
+  TR_COMM *comm=talloc_get_type_abort(obj, TR_COMM);
+  if (comm->id!=NULL)
+    tr_free_name(comm->id);
+  return 0;
+}
+
+TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx)
+{
+  TR_COMM *comm=talloc(mem_ctx, TR_COMM);
+  if (comm!=NULL) {
+    comm->next=NULL;
+    comm->id=NULL;
+    comm->type=TR_COMM_UNKNOWN;
+    comm->apcs=NULL;
+    comm->idp_realms=NULL;
+    comm->rp_realms=NULL;
+    talloc_set_destructor((void *)comm, tr_comm_destructor);
+  }
+  return comm;
+}
+
+void tr_comm_free(TR_COMM *comm)
+{
+  talloc_free(comm);
+}
+
+/* does not take responsibility for freeing IDP realm */
+void tr_comm_add_idp_realm(TR_COMM *comm, TR_IDP_REALM *realm)
+{
+  TR_IDP_REALM *cur=NULL;
+
+  if (comm->idp_realms==NULL)
+    comm->idp_realms=realm;
+  else {
+    for (cur=comm->idp_realms; cur->comm_next!=NULL; cur=cur->comm_next) { }
+    cur->comm_next=realm;
+  }
+}
+
+/* does not take responsibility for freeing RP realm */
+void tr_comm_add_rp_realm(TR_COMM *comm, TR_RP_REALM *realm)
+{
+  TR_RP_REALM *cur=NULL;
+
+  if (comm->rp_realms==NULL)
+    comm->rp_realms=realm;
+  else {
+    for (cur=comm->rp_realms; cur->next!=NULL; cur=cur->next) { }
+    cur->next=realm;
+  }
+}
+
+static TR_COMM *tr_comm_tail(TR_COMM *comm)
+{
+  if (comm==NULL)
+    return comm;
+
+  while (comm->next!=NULL)
+    comm=comm->next;
+  return comm;
+}
+
+/* All list members are in the talloc context of the head.
+ * This will require careful thought if entries are ever removed
+ * or shuffled between lists. 
+ * Call like comms=tr_comm_add(comms, new_comm); */
+TR_COMM *tr_comm_add(TR_COMM *comms, TR_COMM *new)
+{
+  if (comms==NULL)
+    comms=new;
+  else {
+    tr_comm_tail(comms)->next=new;
+    while(new!=NULL) {
+      talloc_steal(comms, new);
+      new=new->next;
+    }
+  }
+  return comms;
+}
 
 TR_IDP_REALM *tr_find_comm_idp (TR_COMM *comm, TR_NAME *idp_realm)
 {
@@ -47,9 +129,9 @@ TR_IDP_REALM *tr_find_comm_idp (TR_COMM *comm, TR_NAME *idp_realm)
     return NULL;
   }
 
-  for (idp = comm->idp_realms; NULL != idp; idp = idp->next) {
+  for (idp = comm->idp_realms; NULL != idp; idp = idp->comm_next) {
     if (!tr_name_cmp (idp_realm, idp->realm_id)) {
-      tr_debug("tr_find_comm_idp: Found %s.", idp_realm->buf);
+      tr_debug("tr_find_comm_idp: Found IdP %s in community %s.", idp_realm->buf, comm->id->buf);
       return idp;
     }
   }
@@ -67,7 +149,7 @@ TR_RP_REALM *tr_find_comm_rp (TR_COMM *comm, TR_NAME *rp_realm)
 
   for (rp = comm->rp_realms; NULL != rp; rp = rp->next) {
     if (!tr_name_cmp (rp_realm, rp->realm_name)) {
-      tr_debug("tr_find_comm_idp: Found %s.", rp_realm->buf);
+      tr_debug("tr_find_comm_rp: Found RP %s in community %s.", rp_realm->buf, comm->id->buf);
       return rp;
     }
   }
@@ -75,13 +157,13 @@ TR_RP_REALM *tr_find_comm_rp (TR_COMM *comm, TR_NAME *rp_realm)
   return NULL;
 }
 
-TR_COMM *tr_comm_lookup(TR_INSTANCE *tr, TR_NAME *comm) 
+TR_COMM *tr_comm_lookup(TR_COMM *comms, TR_NAME *comm_name) 
 {
   TR_COMM *cfg_comm = NULL;
 
-  for (cfg_comm = tr->active_cfg->comms; NULL != cfg_comm; cfg_comm = cfg_comm->next) {
-    if ((cfg_comm->id->len == comm->len) &&
-	(!strncmp(cfg_comm->id->buf, comm->buf, comm->len)))
+  for (cfg_comm = comms; NULL != cfg_comm; cfg_comm = cfg_comm->next) {
+    if ((cfg_comm->id->len == comm_name->len) &&
+	(!strncmp(cfg_comm->id->buf, comm_name->buf, comm_name->len)))
       return cfg_comm;
   }
   return NULL;

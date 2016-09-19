@@ -35,6 +35,8 @@
 #ifndef TID_H
 #define TID_H
 
+#include <talloc.h>
+
 #include <arpa/inet.h>
 #include <openssl/dh.h>
 
@@ -69,7 +71,7 @@ typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
 
 typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP *, void *);
-typedef int (tids_auth_func)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
+typedef int (TIDS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 
 
 
@@ -98,9 +100,12 @@ void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
 TR_EXPORT void *tid_req_get_cookie(TID_REQ *req);
 void tid_req_set_cookie(TID_REQ *req, void *cookie);
 TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
-void TR_EXPORT tid_req_free( TID_REQ *req);
+TR_EXPORT void tid_req_free( TID_REQ *req);
 
 /* Utility functions for TID_RESP structure, in tid/tid_resp.c */
+
+TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx);
+void tid_resp_free(TID_RESP *resp);
 TR_EXPORT int tid_resp_get_result(TID_RESP *resp);
 void tid_resp_set_result(TID_RESP *resp, int result);
 TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp);
@@ -136,18 +141,22 @@ TR_EXPORT const TID_PATH *tid_srvr_get_path(const TID_SRVR_BLK *);
 
 /* TID Client functions, in tid/tidc.c */
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);
-TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, char *server, unsigned int port, gss_ctx_id_t *gssctx);
-TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, char *rp_realm, char *realm, char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
+TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, const char *server, unsigned int port, gss_ctx_id_t *gssctx);
+TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, const char *rp_realm, const char *realm, const char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT int tidc_fwd_request (TIDC_INSTANCE *tidc, TID_REQ *req, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT DH *tidc_get_dh(TIDC_INSTANCE *);
 TR_EXPORT DH *tidc_set_dh(TIDC_INSTANCE *, DH *);
 TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
 /* TID Server functions, in tid/tids.c */
-TR_EXPORT TIDS_INSTANCE *tids_create (void);
+TR_EXPORT TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx);
 TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-			  tids_auth_func *auth_handler, const char *hostname, 
+			  TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
 			  unsigned int port, void *cookie);
+TR_EXPORT int tids_get_listener (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
+			  TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
+			  unsigned int port, void *cookie);
+TR_EXPORT int tids_accept(TIDS_INSTANCE *tids, int listen);
 TR_EXPORT int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp);
 TR_EXPORT int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_msg);
 TR_EXPORT void tids_destroy (TIDS_INSTANCE *tids);

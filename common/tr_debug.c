@@ -162,6 +162,20 @@ static char *join_audit_msg(const int count, char *array[]) {
   return buf;
 }
 
+const char *sev2str(int sev)
+{
+  switch (sev) {
+  case LOG_DEBUG:   return "debug";
+  case LOG_INFO:    return "info";
+  case LOG_NOTICE:  return "notice";
+  case LOG_WARNING: return "warning";
+  case LOG_ERR:     return "err";
+  case LOG_CRIT:    return "crit";
+  case LOG_ALERT:   return "alert";
+  default:          return "invalid";
+  }
+}
+
 int str2sev(const char* sev) {
 
   if (strcmp(sev, "debug") ==0 ) {

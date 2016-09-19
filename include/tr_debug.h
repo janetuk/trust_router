@@ -50,6 +50,7 @@
 #define tr_info(...)    tr_log(LOG_INFO, __VA_ARGS__)
 #define tr_debug(...)   tr_log(LOG_DEBUG, __VA_ARGS__)
 
+TR_EXPORT const char *sev2str(int sev);
 TR_EXPORT int str2sev(const char *sev);
 TR_EXPORT void tr_log_threshold(const int sev);
 TR_EXPORT void tr_console_threshold(const int sev);

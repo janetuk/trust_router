@@ -1,7 +1,7 @@
 %global optflags %{optflags} -Wno-parentheses
 Name:           trust_router
-Version:        1.5.1
-Release:        2%{?dist}
+Version:        1.5.2
+Release:        1%{?dist}
 Summary:        Moonshot Trust Router
 
 Group:          System Environment/Libraries
@@ -10,9 +10,10 @@ URL:            http://www.project-moonshot.org/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires:  krb5-devel , glib-devel
+BuildRequires:  krb5-devel, glib2-devel
 BuildRequires: jansson-devel >= 2.4
 BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
+%{?el7:BuildRequires: systemd}
 Requires:       moonshot-gss-eap >= 0.9.3, sqlite
 
 %description
@@ -93,7 +94,7 @@ exit 0
 %post
 # Data directory
 tr_home=/var/lib/trust_router
-tr_schema=${tr_home}/.schema_1.5.1
+tr_schema=${tr_home}/.schema_1.5.2
 test -d ${tr_home} ||mkdir ${tr_home}
 chown trustrouter:trustrouter ${tr_home}
 test -e $tr_schema || rm -f $tr_home/keys
@@ -114,10 +115,11 @@ chmod 770 /var/log/trust_router
 %doc README
 %{_bindir}/*
 %{_datadir}/trust_router/schema.sql
-#/lib/systemd/system/tids.service
 
 %{_initrddir}/tids
 %{_initrddir}/trust_router
+
+%{?el7:%{_unitdir}/tids.service}
 
 %config(noreplace) %{_sysconfdir}/sysconfig/tids
 %config(noreplace) %{_sysconfdir}/sysconfig/trust_router

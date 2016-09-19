@@ -34,15 +34,24 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <talloc.h>
+#include <tr_config.h>
 #include <tr.h>
 
-TR_INSTANCE *tr_create() {
-  TR_INSTANCE *tr = NULL;
-  if (tr = malloc(sizeof(TR_INSTANCE)))
-    memset(tr, 0, sizeof(TR_INSTANCE));
+TR_INSTANCE *tr_create(TALLOC_CTX *mem_ctx) {
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_INSTANCE *tr=talloc_zero(tmp_ctx, TR_INSTANCE);
+  if (tr != NULL) {
+    tr->cfg_mgr=tr_cfg_mgr_new(tr);
+    if (tr->cfg_mgr != NULL) {
+      /* success, hand over ownership */
+      talloc_steal(mem_ctx, tr);
+    }
+  }
+  talloc_free(tmp_ctx);
   return tr;
 }
 
 void tr_destroy(TR_INSTANCE *tr) {
-  free (tr);
+  talloc_free (tr);
 }

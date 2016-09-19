@@ -37,8 +37,9 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include <tid_internal.h>
+#include <trust_router/tid.h>
 #include <trust_router/tr_constraint.h>
+#include <tid_internal.h>
 #include <tr_debug.h>
 
 static TID_REQ *request = NULL;

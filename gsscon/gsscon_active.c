@@ -54,6 +54,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <netdb.h>
 
 #include <gsscon.h>
 
@@ -85,7 +86,7 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
     
     if (!err) {
         hp = gethostbyname (inHost);
-        if (hp == NULL) { err = errno; }
+        if (hp == NULL) { err = h_errno; }
     }
     
     if (!err) {
@@ -199,7 +200,6 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
         OM_uint32 requestedFlags = (GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG | GSS_C_SEQUENCE_FLAG | 
                                     GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG);
         
-	// printf ("Calling gss_init_sec_context...\n");
         majorStatus = gss_init_sec_context (&minorStatus, 
                                             clientCredentials, 
                                             &gssContext, 

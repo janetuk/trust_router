@@ -35,6 +35,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <talloc.h>
+
 #include <tr_filter.h>
 
 
@@ -57,7 +59,7 @@ int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR
 
       if ((rpp_filter->lines[i]) && 
 	  (rpp_filter->lines[i]->specs[j]) && 
-	  (tr_prefix_wildcard_match(rp_realm->buf, rpp_filter->lines[i]->specs[j]->match->buf))) {
+	  (tr_fspec_matches(rpp_filter->lines[i]->specs[j], rp_realm))) {
 	*out_action = rpp_filter->lines[i]->action;
 	*out_constraints = in_constraints;
 	if (rpp_filter->lines[i]->realm_cons)
@@ -75,27 +77,92 @@ int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR
   return TR_FILTER_NO_MATCH;
 }
 
-void tr_filter_free (TR_FILTER *filt) {
-  int i = 0, j = 0;
-
-  if (!filt)
-    return;
-
-  for (i = 0; i < TR_MAX_FILTER_LINES; i++) {
-    if (filt->lines[i]) {
-      for (j = 0; j < TR_MAX_FILTER_SPECS; j++) {
-	if (filt->lines[i]->specs[j])
-	  free(filt->lines[i]->specs[j]);
-      }
-      if (filt->lines[i]->realm_cons)
-	free(filt->lines[i]->realm_cons);
-      if (filt->lines[i]->domain_cons)
-	free(filt->lines[i]->domain_cons);
-
-      free(filt->lines[i]);
-    }
-  }
-
-  free (filt);
+void tr_fspec_free(TR_FSPEC *fspec)
+{
+  talloc_free(fspec);
 }
 
+static int tr_fspec_destructor(void *obj)
+{
+  TR_FSPEC *fspec=talloc_get_type_abort(obj, TR_FSPEC);
+
+  if (fspec->field!=NULL)
+    tr_free_name(fspec->field);
+  if (fspec->match!=NULL)
+    tr_free_name(fspec->match);
+  return 0;
+}
+
+TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx)
+{
+  TR_FSPEC *fspec=talloc(mem_ctx, TR_FSPEC);
+
+  if (fspec!=NULL) {
+    fspec->field=NULL;
+    fspec->match=NULL;
+    talloc_set_destructor((void *)fspec, tr_fspec_destructor);
+  }
+  return fspec;
+}
+
+void tr_fspec_set_match(TR_FSPEC *fspec, TR_NAME *match)
+{
+  if (fspec->match!=NULL)
+    tr_free_name(fspec->match);
+  fspec->match=match;
+}
+
+/* returns 1 if the spec matches */
+int tr_fspec_matches(TR_FSPEC *fspec, TR_NAME *name)
+{
+  return ((fspec->match!=NULL) &&
+          (0!=tr_prefix_wildcard_match(name->buf, fspec->match->buf)));
+}
+
+void tr_fline_free(TR_FLINE *fline)
+{
+  talloc_free(fline);
+}
+
+TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
+{
+  TR_FLINE *fl=talloc(mem_ctx, TR_FLINE);
+  int ii=0;
+
+  if (fl!=NULL) {
+    fl->action=TR_FILTER_ACTION_UNKNOWN;
+    fl->realm_cons=NULL;
+    fl->domain_cons=NULL;
+    for (ii=0; ii<TR_MAX_FILTER_SPECS; ii++)
+      fl->specs[ii]=NULL;
+  }
+  return fl;
+}
+
+TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx)
+{
+  TR_FILTER *f=talloc(mem_ctx, TR_FILTER);
+  int ii=0;
+
+  if (f!=NULL) {
+    f->type=TR_FILTER_TYPE_UNKNOWN;
+    for (ii=0; ii<TR_MAX_FILTER_LINES; ii++)
+      f->lines[ii]=NULL;
+  }
+  return f;
+}
+
+void tr_filter_free(TR_FILTER *filt)
+{
+  talloc_free(filt);
+}
+
+void tr_filter_set_type(TR_FILTER *filt, TR_FILTER_TYPE type)
+{
+  filt->type=type;
+}
+
+TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt)
+{
+  return filt->type;
+}

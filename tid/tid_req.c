@@ -55,6 +55,14 @@ static int destroy_tid_req(TID_REQ *req)
       gss_delete_sec_context( &minor, &req->gssctx, NULL);
     }
   }
+  if (req->rp_realm!=NULL)
+    tr_free_name(req->rp_realm);
+  if (req->realm!=NULL)
+    tr_free_name(req->realm);
+  if (req->comm!=NULL)
+    tr_free_name(req->comm);
+  if (req->orig_coi!=NULL)
+    tr_free_name(req->orig_coi);
   return 0;
 }
 

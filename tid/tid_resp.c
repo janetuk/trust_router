@@ -35,8 +35,50 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <talloc.h>
 
 #include <tid_internal.h>
+
+static int tid_resp_destructor(void *obj)
+{
+  TID_RESP *resp=talloc_get_type_abort(obj, TID_RESP);
+  if (resp->err_msg!=NULL)
+    tr_free_name(resp->err_msg);
+  if (resp->rp_realm!=NULL)
+    tr_free_name(resp->rp_realm);
+  if (resp->realm!=NULL)
+    tr_free_name(resp->realm);
+  if (resp->comm!=NULL)
+    tr_free_name(resp->comm);
+  if (resp->orig_coi!=NULL)
+    tr_free_name(resp->orig_coi);
+  return 0;
+}
+
+TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx)
+{
+  TID_RESP *resp=talloc(mem_ctx, TID_RESP);
+  if (resp!=NULL) {
+    resp->result=TID_ERROR;
+    resp->err_msg=NULL;
+    resp->rp_realm=NULL;
+    resp->realm=NULL;
+    resp->comm=NULL;
+    resp->cons=NULL;
+    resp->orig_coi=NULL;
+    resp->servers=NULL;
+    resp->num_servers=0;
+    resp->error_path=NULL;
+    talloc_set_destructor((void *)resp, tid_resp_destructor);
+  }
+  return resp;
+}
+
+void tid_resp_free(TID_RESP *resp)
+{
+  if (resp)
+    talloc_free(resp);
+}
 
 TR_EXPORT int tid_resp_get_result(TID_RESP *resp)
 {

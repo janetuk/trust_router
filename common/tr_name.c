@@ -43,24 +43,27 @@ void tr_free_name (TR_NAME *name)
     free (name->buf);
     name->buf = NULL;
   }
-  
+
   free(name);
 }
 
-TR_NAME *tr_new_name (char *name) 
+TR_NAME *tr_new_name (const char *name) 
 {
   TR_NAME *new;
 
-  if (new = malloc(sizeof(TR_NAME))) { 
+  if (new = malloc(sizeof(TR_NAME))) {
     new->len = strlen(name);
     if (new->buf = malloc((new->len)+1)) {
       strcpy(new->buf, name);
+    } else {
+      free(new);
+      new=NULL;
     }
   }
   return new;
 }
 
-TR_NAME *tr_dup_name (TR_NAME *from) 
+TR_NAME *tr_dup_name (TR_NAME *from)
 {
   TR_NAME *to;
 
@@ -80,11 +83,22 @@ TR_NAME *tr_dup_name (TR_NAME *from)
 
 int tr_name_cmp(TR_NAME *one, TR_NAME *two)
 {
-  if (one->len != two->len)
-    return 1;
-  else 
-    /* TBD -- should really do a length-based comparison */
-    return strcmp(one->buf, two->buf);
+  int len=one->len;
+  int cmp=0;
+
+  if (two->len<one->len)
+    len=two->len; /* len now min(one->len,two->len) */
+
+  cmp=strncmp(one->buf, two->buf, len);
+  if (cmp==0) {
+    if (one->len<two->len)
+      return -1;
+    else if (one->len==two->len)
+      return 0;
+    else
+      return 1;
+  }
+  return cmp;
 }
 
 void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
@@ -109,4 +123,17 @@ char * tr_name_strdup(TR_NAME *src)
   return s;
 }
 
-  
+TR_NAME *tr_name_cat(TR_NAME *n1, TR_NAME *n2)
+{
+  char *s=malloc(n1->len+n2->len+1);
+  TR_NAME *name=NULL;
+
+  if (s==NULL)
+    return NULL;
+  *s=0;
+  strncat(s, n1->buf, n1->len);
+  strncat(s, n2->buf, n2->len);
+  name=tr_new_name(s);
+  free(s);
+  return name;
+}

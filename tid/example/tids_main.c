@@ -37,6 +37,8 @@
 #include <stdlib.h>
 #include <talloc.h>
 #include <sqlite3.h>
+#include <argp.h>
+#include <poll.h>
 
 #include <tr_debug.h>
 #include <tid_internal.h>
@@ -255,29 +257,104 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
 
   return s_keylen;
 }
+
 static int auth_handler(gss_name_t gss_name, TR_NAME *client,
 			void *expected_client)
 {
   TR_NAME *expected_client_trname = (TR_NAME*) expected_client;
-  return tr_name_cmp(client, expected_client_trname);
+  int result=tr_name_cmp(client, expected_client_trname);
+  if (result != 0) {
+    tr_notice("Auth denied for incorrect gss-name ('%.*s' requested, expected '%.*s').",
+              client->len, client->buf,
+              expected_client_trname->len, expected_client_trname->buf);
+  }
+  return result;
 }
 
+/* command-line option setup */
+
+/* argp global parameters */
+const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
+
+/* doc strings */
+static const char doc[]=PACKAGE_NAME " - TID Server";
+static const char arg_doc[]="<ip-address> <gss-name> <hostname> <database-name>"; /* string describing arguments, if any */
+
+/* define the options here. Fields are:
+ * { long-name, short-name, variable name, options, help description } */
+static const struct argp_option cmdline_options[] = {
+  { NULL }
+};
+
+/* structure for communicating with option parser */
+struct cmdline_args {
+  char *ip_address;
+  char *gss_name;
+  char *hostname;
+  char *database_name;
+};
+
+/* parser for individual options - fills in a struct cmdline_args */
+static error_t parse_option(int key, char *arg, struct argp_state *state)
+{
+  /* get a shorthand to the command line argument structure, part of state */
+  struct cmdline_args *arguments=state->input;
+
+  switch (key) {
+  case ARGP_KEY_ARG: /* handle argument (not option) */
+    switch (state->arg_num) {
+    case 0:
+      arguments->ip_address=arg;
+      break;
+
+    case 1:
+      arguments->gss_name=arg;
+      break;
+
+    case 2:
+      arguments->hostname=arg;
+      break;
+
+    case 3:
+      arguments->database_name=arg;
+      break;
+
+    default:
+      /* too many arguments */
+      argp_usage(state);
+    }
+    break;
+
+  case ARGP_KEY_END: /* no more arguments */
+    if (state->arg_num < 4) {
+      /* not enough arguments encountered */
+      argp_usage(state);
+    }
+    break;
+
+  default:
+    return ARGP_ERR_UNKNOWN;
+  }
+
+  return 0; /* success */
+}
+
+/* assemble the argp parser */
+static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
 int main (int argc, 
-	  const char *argv[]) 
+          char *argv[]) 
 {
   TIDS_INSTANCE *tids;
-  int rc = 0;
-  char *ipaddr = NULL;
-  const char *hostname = NULL;
   TR_NAME *gssname = NULL;
+  struct cmdline_args opts={NULL};
+  int tids_socket=-1;
+  struct pollfd *poll_fds=NULL;
+
+  /* parse the command line*/
+  argp_parse(&argp, argc, argv, 0, 0, &opts);
 
   talloc_set_log_stderr();
-  /* Parse command-line arguments */ 
-  if (argc != 5) {
-    fprintf(stdout, "Usage: %s <ip-address> <gss-name> <hostname> <database-name>\n", argv[0]);
-    exit(1);
-  }
 
   /* Use standalone logging */
   tr_log_open();
@@ -286,11 +363,9 @@ int main (int argc,
   tr_log_threshold(LOG_CRIT);
   tr_console_threshold(LOG_DEBUG);
 
-  ipaddr = (char *)argv[1];
-  gssname = tr_new_name((char *) argv[2]);
-  hostname = argv[3];
-  if (SQLITE_OK != sqlite3_open(argv[4], &db)) {
-    tr_crit("Error opening database %s", argv[4]);
+  gssname = tr_new_name(opts.gss_name);
+  if (SQLITE_OK != sqlite3_open(opts.database_name, &db)) {
+    tr_crit("Error opening database %s", opts.database_name);
     exit(1);
   }
   sqlite3_busy_timeout( db, 1000);
@@ -300,17 +375,38 @@ int main (int argc,
 		     -1, &authorization_insert, NULL);
 
   /* Create a TID server instance */
-  if (NULL == (tids = tids_create())) {
+  if (NULL == (tids = tids_create(NULL))) {
     tr_crit("Unable to create TIDS instance, exiting.");
     return 1;
   }
 
-  tids->ipaddr = ipaddr;
+  tids->ipaddr = opts.ip_address;
 
-  /* Start-up the server, won't return unless there is an error. */
-  rc = tids_start(tids, &tids_req_handler , auth_handler, hostname, TID_PORT, gssname);
-  
-  tr_crit("Error in tids_start(), rc = %d. Exiting.", rc);
+  /* get listener for tids port */
+  tids_socket = tids_get_listener(tids, &tids_req_handler , auth_handler, opts.hostname, TID_PORT, gssname);
+
+  poll_fds=malloc(sizeof(*poll_fds));
+  if (poll_fds == NULL) {
+    tr_crit("Could not allocate event polling list, exiting.");
+    return 1;
+  }
+
+  poll_fds[0].fd=tids_socket;
+  poll_fds[0].events=POLLIN; /* poll on ready for reading */
+  poll_fds[0].revents=0; 
+
+  /* main event loop */
+  while (1) {
+    /* wait up to 100 ms for an event, then handle any idle work */
+    if(poll(poll_fds, 1, 100) > 0) {
+      if (poll_fds[0].revents & POLLIN) {
+        if (0 != tids_accept(tids, tids_socket)) {
+          tr_err("Error handling tids request.");
+        }
+      }
+    }
+    /* idle loop stuff here */
+  }
 
   /* Clean-up the TID server instance */
   tids_destroy(tids);

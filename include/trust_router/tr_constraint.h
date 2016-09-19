@@ -34,6 +34,9 @@
 
 #ifndef TR_CONSTRAINT_H
 #define TR_CONSTRAINT_H
+
+#include <talloc.h>
+
 #include <trust_router/tr_name.h>
 #include <trust_router/tid.h>
 
@@ -45,6 +48,9 @@ typedef struct tr_constraint {
   TR_NAME *type;
   TR_NAME *matches[TR_MAX_CONST_MATCHES];
 } TR_CONSTRAINT;
+
+TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
+void tr_constraint_free(TR_CONSTRAINT *cons);
 
 void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
 

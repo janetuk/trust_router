@@ -131,7 +131,10 @@ static int WriteBuffer (int         inSocket,
     if (!err) {
         const char *ptr = inBuffer;
         do {
-            ssize_t count = write (inSocket, ptr, inBufferLength - bytesWritten);
+            ssize_t count;
+
+            count = write (inSocket, ptr, inBufferLength - bytesWritten);
+
             if (count < 0) {
                 /* Try again on EINTR */
                 if (errno != EINTR) { err = errno; }
@@ -142,7 +145,7 @@ static int WriteBuffer (int         inSocket,
         } while (!err && (bytesWritten < inBufferLength));
     } 
     
-    if (err) { gsscon_print_error (err, "WritBuffer failed"); }
+    if (err) { gsscon_print_error (err, "WriteBuffer failed"); }
 
     return err;
 }
@@ -168,15 +171,16 @@ int gsscon_read_token (int      inSocket,
     if (!err) {
 	tokenLength = ntohl (tokenLength);
 	token = malloc (tokenLength);
-	memset (token, 0, tokenLength); 
+        if (token==NULL) {
+          err=EIO;
+        } else {
+          memset (token, 0, tokenLength); 
         
-	err = ReadBuffer (inSocket, tokenLength, token);
+          err = ReadBuffer (inSocket, tokenLength, token);
+        }
     }
     
     if (!err) {
-    //    printf ("Read token:\n");
-    //    PrintBuffer (token, tokenLength);
-        
 	*outTokenLength = tokenLength;
         *outTokenValue = token;        
         token = NULL; /* only free on error */

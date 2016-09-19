@@ -1,5 +1,5 @@
 AC_PREREQ(2.63)
-AC_INIT([trust_router],[1.5.1],
+AC_INIT([trust_router],[1.5.2],
 [bugs@project-moonshot.org])
 AC_CONFIG_MACRO_DIR(m4)
 AC_CONFIG_AUX_DIR(build-aux)
@@ -28,6 +28,7 @@ AC_CHECK_LIB([sqlite3], [sqlite3_open],,
     [AC_MSG_ERROR([Please install sqlite3 development])])
 AC_CHECK_LIB([jansson], [json_object])
 AC_CHECK_LIB([crypto], [DH_new])
-AC_CHECK_HEADERS(gssapi.h gssapi_ext.h jansson.h talloc.h openssl/dh.h openssl/bn.h syslog.h)
+AC_CHECK_LIB([event], [event_base_new])
+AC_CHECK_HEADERS(gssapi.h gssapi_ext.h jansson.h talloc.h openssl/dh.h openssl/bn.h syslog.h event2/event.h)
 AC_CONFIG_FILES([Makefile gsscon/Makefile])
 AC_OUTPUT

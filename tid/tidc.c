@@ -49,7 +49,7 @@ TIDC_INSTANCE *tidc_create ()
 {
   TIDC_INSTANCE *tidc = NULL;
 
-  if (NULL == (tidc = talloc_zero(NULL, TIDC_INSTANCE))) 
+  if (NULL == (tidc = talloc_zero(NULL, TIDC_INSTANCE)))
     return NULL;
 
   return tidc;
@@ -61,7 +61,7 @@ void tidc_destroy (TIDC_INSTANCE *tidc)
 }
 
 int tidc_open_connection (TIDC_INSTANCE *tidc, 
-			  char *server,
+			  const char *server,
 			  unsigned int port,
 			  gss_ctx_id_t *gssctx)
 {
@@ -71,9 +71,10 @@ int tidc_open_connection (TIDC_INSTANCE *tidc,
 
   if (0 == port)
     use_port = TID_PORT;
-  else 
+  else
     use_port = port;
 
+  tr_debug("tidc_open_connection: opening tidc connection to %s:%d", server, port);
   err = gsscon_connect(server, use_port, "trustidentity", &conn, gssctx);
 
   if (!err)
@@ -82,12 +83,12 @@ int tidc_open_connection (TIDC_INSTANCE *tidc,
     return -1;
 }
 
-int tidc_send_request (TIDC_INSTANCE *tidc, 
-		       int conn, 
+int tidc_send_request (TIDC_INSTANCE *tidc,
+		       int conn,
 		       gss_ctx_id_t gssctx,
-		       char *rp_realm,
-		       char *realm, 
-		       char *comm,
+		       const char *rp_realm,
+		       const char *realm, 
+		       const char *comm,
 		       TIDC_RESP_FUNC *resp_handler,
 		       void *cookie)
 {
@@ -119,8 +120,8 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   return rc;
 }
 
-int tidc_fwd_request (TIDC_INSTANCE *tidc, 
-		      TID_REQ *tid_req, 
+int tidc_fwd_request (TIDC_INSTANCE *tidc,
+		      TID_REQ *tid_req,
 		      TIDC_RESP_FUNC *resp_handler,
 		      void *cookie)
 {
@@ -142,7 +143,7 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   /* store the response function and cookie */
   // tid_req->resp_func = resp_handler;
   // tid_req->cookie = cookie;
-  
+
 
   /* Encode the request into a json string */
   if (!(req_buf = tr_msg_encode(msg))) {
@@ -154,7 +155,7 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   tr_debug( "%s\n", req_buf);
 
   /* Send the request over the connection */
-  if (err = gsscon_write_encrypted_token (tid_req->conn, tid_req->gssctx, req_buf, 
+  if (err = gsscon_write_encrypted_token (tid_req->conn, tid_req->gssctx, req_buf,
 					  strlen(req_buf))) {
     tr_err( "tidc_fwd_request: Error sending request over connection.\n");
     goto error;
@@ -183,10 +184,12 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
     tr_err( "tidc_fwd_request: Error, no response in the response!\n");
     goto error;
   }
-  
-  if (resp_handler)
+
+  if (resp_handler) {
     /* Call the caller's response function */
+    tr_debug("tidc_fwd_request: calling response callback function.");
     (*resp_handler)(tidc, tid_req, tr_msg_get_resp(resp_msg), cookie);
+  }
   goto cleanup;
 
  error:
