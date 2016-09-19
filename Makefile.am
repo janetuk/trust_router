@@ -52,7 +52,13 @@ libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
 libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
 libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 2 -no-undefined
 
-common_t_constraint_SOURCES = common/t_constraint.c
+common_t_constraint_SOURCES = common/t_constraint.c \
+common/tr_debug.c \
+common/tr_name.c \
+common/tr_constraint.c \
+tid/tid_req.c \
+tid/tid_resp.c
+
 common_t_constraint_CPPFLAGS = $(AM_CPPFLAGS) -DTESTS=\"$(srcdir)/common/tests.json\"
 common_t_constraint_LDADD = gsscon/libgsscon.la 
 
