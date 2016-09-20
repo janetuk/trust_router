@@ -1,3 +1,12 @@
+moonshot-trust-router (2.0-1) UNRELEASED; urgency=low
+
+  * New upstream release
+  * Support dynamic trust route peering, flooding, and discovery
+  * Support TID request routing
+  * New configuration file format
+
+ -- Jennifer Richards <jennifer@painless-security.com>  Tue, 20 Sep 2016 14:57:24 -0400
+
 moonshot-trust-router (1.5.1~2) unstable; urgency=medium
 
   * Fix insert statement
