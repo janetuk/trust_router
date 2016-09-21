@@ -70,7 +70,7 @@ tr/tr_tid.c \
 tr/tr_trp.c \
 $(trp_srcs)
 
-tr_trust_router_CFLAGS = $(AM_CFLAGS) -pthread -v -da -Q
+tr_trust_router_CFLAGS = $(AM_CFLAGS) -pthread
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads
 tr_trust_router_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 
@@ -78,6 +78,7 @@ tr_trpc_SOURCES =tr/trpc_main.c \
 tr/tr_trp.c \
 $(trp_srcs)
 tr_trpc_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+tr_trpc_CFLAGS = -pthread
 
 trp_msgtst_SOURCES = trp/msgtst.c \
 common/tr_msg.c \
