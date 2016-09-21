@@ -79,7 +79,7 @@ tr/tr_trp.c \
 $(trp_srcs)
 tr_trpc_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 tr_trpc_LDFLAGS = $(AM_LDFLAGS) -pthread
-tr_trpc_CFLAGS = -pthread
+tr_trpc_CFLAGS = $(AM_CFLAGS) -pthread
 
 trp_msgtst_SOURCES = trp/msgtst.c \
 common/tr_msg.c \
