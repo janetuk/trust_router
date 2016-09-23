@@ -1,6 +1,6 @@
 %global optflags %{optflags} -Wno-parentheses
 Name:           trust_router
-Version:        1.5.2
+Version:        2.0.0
 Release:        1%{?dist}
 Summary:        Moonshot Trust Router
 
@@ -12,7 +12,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:  krb5-devel, glib2-devel
 BuildRequires: jansson-devel >= 2.4
-BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
+BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel, libevent-devel
 %{?el7:BuildRequires: systemd}
 Requires:       moonshot-gss-eap >= 0.9.3, sqlite
 
@@ -43,7 +43,7 @@ packages that wish trust_router functionality.
 
 %prep
 %setup -q
-
+autoreconf -f -i
 
 %build
 %configure --disable-static
@@ -113,6 +113,12 @@ chmod 770 /var/log/trust_router
 %files
 %defattr(-,root,root,-)
 %doc README
+#%{_bindir}/tidc
+#%{_bindir}/tidc-wrapper
+#%{_bindir}/tids
+#%{_bindir}/tids-wrapper
+#%{_bindir}/trust_router
+#%{_bindir}/trust_router-wrapper
 %{_bindir}/*
 %{_datadir}/trust_router/schema.sql
 
