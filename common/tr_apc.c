@@ -71,7 +71,8 @@ static TR_APC *tr_apc_tail(TR_APC *apc)
   return apc;
 }
 
-TR_APC *tr_apc_add(TR_APC *head, TR_APC *new)
+/* do not call this directly, use the tr_apc_add() macro */
+TR_APC *tr_apc_add_func(TR_APC *head, TR_APC *new)
 {
   if (head==NULL)
     head=new;

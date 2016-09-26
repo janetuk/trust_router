@@ -123,8 +123,8 @@ static TR_IDP_REALM *tr_idp_realm_tail(TR_IDP_REALM *idp)
   return idp;
 }
 
-/* for correct behavior, call like: idp_realms=tr_idp_realm_add(idp_realms, new_realm); */
-TR_IDP_REALM *tr_idp_realm_add(TR_IDP_REALM *head, TR_IDP_REALM *new)
+/* do not call directly, use the tr_idp_realm_add() macro */
+TR_IDP_REALM *tr_idp_realm_add_func(TR_IDP_REALM *head, TR_IDP_REALM *new)
 {
   if (head==NULL)
     head=new;

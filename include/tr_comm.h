@@ -57,7 +57,8 @@ typedef struct tr_comm {
 
 TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx);
 void tr_comm_free(TR_COMM *comm);
-TR_COMM *tr_comm_add(TR_COMM *comms, TR_COMM *new);
+TR_COMM *tr_comm_add_func(TR_COMM *comms, TR_COMM *new); /* use the macro instead */
+#define tr_comm_add(comms, new) ((comms)=tr_comm_add_func((comms), (new)))
 void tr_comm_add_idp_realm(TR_COMM *comm, TR_IDP_REALM *realm);
 void tr_comm_add_rp_realm(TR_COMM *comm, TR_RP_REALM *realm);
 TR_COMM *tr_comm_lookup(TR_COMM *comms, TR_NAME *comm_name);

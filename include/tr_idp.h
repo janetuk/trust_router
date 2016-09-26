@@ -64,7 +64,8 @@ typedef struct tr_idp_realm {
 } TR_IDP_REALM;
   
 TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx);
-TR_IDP_REALM *tr_idp_realm_add(TR_IDP_REALM *head, TR_IDP_REALM *new);
+TR_IDP_REALM *tr_idp_realm_add_func(TR_IDP_REALM *head, TR_IDP_REALM *new);
+#define tr_idp_realm_add(head,new) ((head)=tr_idp_realm_add_func((head),(new)))
 char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp);
 
 TR_AAA_SERVER *tr_aaa_server_new(TALLOC_CTX *mem_ctx, TR_NAME *hostname);

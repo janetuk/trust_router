@@ -651,7 +651,7 @@ static TR_APC *tr_cfg_parse_apcs(TALLOC_CTX *mem_ctx, json_t *japcs, TR_CFG_RC *
       *rc=TR_CFG_NOPARSE;
       goto cleanup;
     }
-    apcs=tr_apc_add(apcs, new_apc);
+    tr_apc_add(apcs, new_apc);
   }
 
   talloc_steal(mem_ctx, apcs);
@@ -932,7 +932,7 @@ static TR_IDP_REALM *tr_cfg_parse_idp_realms(TALLOC_CTX *mem_ctx, json_t *jrealm
         *rc=TR_CFG_NOPARSE;
         goto cleanup;
       }
-      realms=tr_idp_realm_add(realms, new_realm);
+      tr_idp_realm_add(realms, new_realm);
     } else if (tr_cfg_is_remote_realm(this_jrealm)) {
       new_realm=tr_cfg_parse_one_remote_realm(tmp_ctx, this_jrealm, rc);
       if ((*rc)!=TR_CFG_SUCCESS) {
@@ -940,7 +940,7 @@ static TR_IDP_REALM *tr_cfg_parse_idp_realms(TALLOC_CTX *mem_ctx, json_t *jrealm
         *rc=TR_CFG_NOPARSE;
         goto cleanup;
       }
-      realms=tr_idp_realm_add(realms, new_realm);
+      tr_idp_realm_add(realms, new_realm);
     }
   }
   
@@ -1313,7 +1313,7 @@ static TR_RP_CLIENT *tr_cfg_parse_rp_clients(TALLOC_CTX *mem_ctx, json_t *jrealm
         *rc=TR_CFG_NOPARSE;
         goto cleanup;
       }
-      clients=tr_rp_client_add(clients, new_client);
+      tr_rp_client_add(clients, new_client);
     }
   }
   
@@ -1378,7 +1378,7 @@ static TR_COMM *tr_cfg_comm_idp_update(TALLOC_CTX *mem_ctx, TR_COMM *comms, TR_I
         comm->expiration_interval=TR_DEFAULT_APC_EXPIRATION_INTERVAL;
         comm->id=tr_dup_name(apc->id);
         tr_comm_add_idp_realm(comm, realm);
-        new_comms=tr_comm_add(new_comms, comm);
+        tr_comm_add(new_comms, comm);
       } else {
         /* add this realm to the comm */
         tr_comm_add_idp_realm(comm, realm);
@@ -1387,7 +1387,7 @@ static TR_COMM *tr_cfg_comm_idp_update(TALLOC_CTX *mem_ctx, TR_COMM *comms, TR_I
   }
 
   /* we successfully built a list, add it to the other list */
-  comms=tr_comm_add(comms, new_comms);
+  tr_comm_add(comms, new_comms);
   talloc_steal(mem_ctx, comms);
  cleanup:
   talloc_free(tmp_ctx);
@@ -1443,12 +1443,12 @@ cleanup:
   /* if we succeeded, link things to the configuration and move out of tmp context */
   if (retval==TR_CFG_SUCCESS) {
     if (new_idp_realms!=NULL) {
-      trc->idp_realms=tr_idp_realm_add(trc->idp_realms, new_idp_realms); /* fixes talloc contexts except for head*/
+      tr_idp_realm_add(trc->idp_realms, new_idp_realms); /* fixes talloc contexts except for head*/
       talloc_steal(trc, trc->idp_realms); /* make sure the head is in the right context */
     }
 
     if (new_rp_clients!=NULL) {
-      trc->rp_clients=tr_rp_client_add(trc->rp_clients, new_rp_clients); /* fixes talloc contexts */
+      tr_rp_client_add(trc->rp_clients, new_rp_clients); /* fixes talloc contexts */
       talloc_steal(trc, trc->rp_clients); /* make sure head is in the right context */
     }
   }

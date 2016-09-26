@@ -56,10 +56,12 @@ typedef struct tr_rp_realm {
 /* prototypes */
 TR_RP_CLIENT *tr_rp_client_new(TALLOC_CTX *mem_ctx);
 void tr_rp_client_free(TR_RP_CLIENT *client);
-TR_RP_CLIENT *tr_rp_client_add(TR_RP_CLIENT *clients, TR_RP_CLIENT *new);
+TR_RP_CLIENT *tr_rp_client_add_func(TR_RP_CLIENT *clients, TR_RP_CLIENT *new);
+#define tr_rp_client_add(clients,new) ((clients)=tr_rp_client_add_func((clients),(new)))
 int tr_rp_client_add_gss_name(TR_RP_CLIENT *client, TR_NAME *name);
 int tr_rp_client_set_filter(TR_RP_CLIENT *client, TR_FILTER *filt);
 
 TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name);
-TR_RP_REALM *tr_rp_realm_add(TR_RP_REALM *head, TR_RP_REALM *new);
+TR_RP_REALM *tr_rp_realm_add_func(TR_RP_REALM *head, TR_RP_REALM *new);
+#define tr_rp_realm_add(head,new) ((head)=tr_rp_realm_add_func((head),(new)))
 #endif

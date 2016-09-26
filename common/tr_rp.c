@@ -75,7 +75,8 @@ static TR_RP_CLIENT *tr_rp_client_tail(TR_RP_CLIENT *client)
   return client;
 }
 
-TR_RP_CLIENT *tr_rp_client_add(TR_RP_CLIENT *clients, TR_RP_CLIENT *new)
+/* do not call directly, use the tr_rp_client_add() macro */
+TR_RP_CLIENT *tr_rp_client_add_func(TR_RP_CLIENT *clients, TR_RP_CLIENT *new)
 {
   if (clients==NULL)
     clients=new;
@@ -133,7 +134,7 @@ static TR_RP_REALM *tr_rp_realm_tail(TR_RP_REALM *realm)
 }
 
 /* for correct behavior, call like: rp_realms=tr_rp_realm_add(rp_realms, new_realm); */
-TR_RP_REALM *tr_rp_realm_add(TR_RP_REALM *head, TR_RP_REALM *new)
+TR_RP_REALM *tr_rp_realm_add_func(TR_RP_REALM *head, TR_RP_REALM *new)
 {
   if (head==NULL)
     head=new;

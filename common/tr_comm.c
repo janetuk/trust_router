@@ -105,9 +105,9 @@ static TR_COMM *tr_comm_tail(TR_COMM *comm)
 
 /* All list members are in the talloc context of the head.
  * This will require careful thought if entries are ever removed
- * or shuffled between lists. 
- * Call like comms=tr_comm_add(comms, new_comm); */
-TR_COMM *tr_comm_add(TR_COMM *comms, TR_COMM *new)
+ * Call like comms=tr_comm_add_func(comms, new_comm);
+ * or just use the tr_comm_add(comms, new) macro. */
+TR_COMM *tr_comm_add_func(TR_COMM *comms, TR_COMM *new)
 {
   if (comms==NULL)
     comms=new;
