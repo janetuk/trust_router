@@ -52,11 +52,24 @@ typedef struct tr_comm {
   TR_APC *apcs;
   TR_IDP_REALM *idp_realms;
   TR_RP_REALM *rp_realms;
+  TR_NAME *owner_realm; /* what realm owns this community? */
+  TR_NAME *owner_contact; /* contact email */
   time_t expiration_interval; /*Minutes to key expiration; only valid for an APC*/
 } TR_COMM;
 
 TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx);
 void tr_comm_free(TR_COMM *comm);
+void tr_comm_set_id(TR_COMM *comm, TR_NAME *id);
+TR_NAME *tr_comm_get_id(TR_COMM *comm);
+TR_NAME *tr_comm_dup_id(TR_COMM *comm);
+void tr_comm_set_type(TR_COMM *comm, TR_COMM_TYPE type);
+TR_COMM_TYPE tr_comm_get_type(TR_COMM *comm);
+void tr_comm_set_owner_realm(TR_COMM *comm, TR_NAME *realm);
+TR_NAME *tr_comm_get_owner_realm(TR_COMM *comm);
+TR_NAME *tr_comm_dup_owner_realm(TR_COMM *comm);
+void tr_comm_set_owner_contact(TR_COMM *comm, TR_NAME *contact);
+TR_NAME *tr_comm_get_owner_contact(TR_COMM *comm);
+TR_NAME *tr_comm_dup_owner_contact(TR_COMM *comm);
 TR_COMM *tr_comm_add_func(TR_COMM *comms, TR_COMM *new); /* use the macro instead */
 #define tr_comm_add(comms, new) ((comms)=tr_comm_add_func((comms), (new)))
 void tr_comm_add_idp_realm(TR_COMM *comm, TR_IDP_REALM *realm);

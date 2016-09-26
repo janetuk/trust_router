@@ -1376,7 +1376,7 @@ static TR_COMM *tr_cfg_comm_idp_update(TALLOC_CTX *mem_ctx, TR_COMM *comms, TR_I
         /* fill in the community with info */
         comm->type=TR_COMM_APC; /* realms added this way are in APCs */
         comm->expiration_interval=TR_DEFAULT_APC_EXPIRATION_INTERVAL;
-        comm->id=tr_dup_name(apc->id);
+        tr_comm_set_id(comm, tr_dup_name(apc->id));
         tr_comm_add_idp_realm(comm, realm);
         tr_comm_add(new_comms, comm);
       } else {
@@ -1679,7 +1679,9 @@ static TR_RP_REALM *tr_cfg_parse_comm_rps (TR_CFG *trc, json_t *jrps, TR_CFG_RC 
   return rp;
 }
 
-static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc) {
+static TR_COMM *tr_cfg_parse_one_comm (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_COMM *comm = NULL;
   json_t *jid = NULL;
   json_t *jtype = NULL;
@@ -1691,13 +1693,14 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
     tr_debug("tr_cfg_parse_one_comm: Bad parameters.");
     if (rc)
       *rc = TR_CFG_BAD_PARAMS;
-    return NULL;
+    goto cleanup;
   }
 
-  if (NULL == (comm = talloc_zero(trc, TR_COMM))) {
+  comm=tr_comm_new(tmp_ctx);
+  if (comm==NULL) {
     tr_crit("tr_cfg_parse_one_comm: Out of memory.");
     *rc = TR_CFG_NOMEM;
-    return NULL;
+    goto cleanup;
   }
 
 
@@ -1713,13 +1716,16 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
       (!json_is_array(jrps))) {
     tr_debug("tr_cfg_parse_one_comm: Error parsing Communities configuration.");
     *rc = TR_CFG_NOPARSE;
-    return NULL;
+    comm=NULL;
+    goto cleanup;
   }
 
-  if (NULL == (comm->id = tr_new_name((char *)json_string_value(jid)))) {
+  tr_comm_set_id(tr_new_name(json_string_value(jid)));
+  if (NULL == tr_comm_get_id(comm)) {
     tr_debug("tr_cfg_parse_one_comm: No memory for community id.");
     *rc = TR_CFG_NOMEM;
-    return NULL;
+    comm=NULL;
+    goto cleanup;
   }
 
   if (0 == strcmp(json_string_value(jtype), "apc")) {
@@ -1727,29 +1733,33 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
   } else if (0 == strcmp(json_string_value(jtype), "coi")) {
     comm->type = TR_COMM_COI;
     if (NULL == (comm->apcs = tr_cfg_parse_apcs(trc, japcs, rc))) {
-      tr_debug("tr_cfg_parse_one_comm: Can't parse APCs for COI %s.", comm->id->buf);
-      tr_free_name(comm->id);
-      return NULL;
+      tr_debug("tr_cfg_parse_one_comm: Can't parse APCs for COI %s.",
+               tr_comm_get_id(comm)->buf);
+      comm=NULL;
+      goto cleanup;
     }
   } else {
-    tr_debug("tr_cfg_parse_one_comm: Invalid community type, comm = %s, type = %s", comm->id->buf, json_string_value(jtype));
-    tr_free_name(comm->id);
+    tr_debug("tr_cfg_parse_one_comm: Invalid community type, comm = %s, type = %s",
+             tr_comm_get_id(comm)->buf, json_string_value(jtype));
     *rc = TR_CFG_NOPARSE;
-    return NULL;
+    comm=NULL;
+    goto cleanup;
   }
 
   comm->idp_realms = tr_cfg_parse_comm_idps(trc, jidps, rc);
   if (TR_CFG_SUCCESS != *rc) {
-    tr_debug("tr_cfg_parse_one_comm: Can't parse IDP realms for comm %s.", comm->id->buf);
-    tr_free_name(comm->id);
-    return NULL;
+    tr_debug("tr_cfg_parse_one_comm: Can't parse IDP realms for comm %s.",
+             tr_comm_get_id(comm)->buf);
+    comm=NULL;
+    goto cleanup;
   }
 
   comm->rp_realms = tr_cfg_parse_comm_rps(trc, jrps, rc);
   if (TR_CFG_SUCCESS != *rc) {
-    tr_debug("tr_cfg_parse_comm: Can't parse RP realms for comm %s .", comm->id->buf);
-    tr_free_name(comm->id);
-    return NULL;
+    tr_debug("tr_cfg_parse_comm: Can't parse RP realms for comm %s .",
+             tr_comm_get_id(comm)->buf);
+    comm=NULL;
+    goto cleanup;
   }
 
   if (TR_COMM_APC == comm->type) {
@@ -1758,7 +1768,8 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
     if (jexpire) {
 	if (!json_is_integer(jexpire)) {
 	  fprintf(stderr, "tr_parse_comm: expirae_interval is not an integer\n");
-	  return NULL;
+    comm=NULL;
+    goto cleanup;
 	}
 	comm->expiration_interval = json_integer_value(jexpire);
 	if (comm->expiration_interval <= 10)
@@ -1767,7 +1778,11 @@ static TR_COMM *tr_cfg_parse_one_comm (TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc
 	comm->expiration_interval = 129600;
     }
   }
-  
+
+cleanup:
+  if (comm!=NULL)
+    talloc_steal(mem_ctx, comm);
+  talloc_free(tmp_ctx);
   return comm;
 }
 
@@ -1789,12 +1804,14 @@ static TR_CFG_RC tr_cfg_parse_comms (TR_CFG *trc, json_t *jcfg)
     }
 
     for (i = 0; i < json_array_size(jcomms); i++) {
-      if (NULL == (comm = tr_cfg_parse_one_comm(trc, 
-						json_array_get(jcomms, i), 
-						&rc))) {
+      if (NULL == (comm = tr_cfg_parse_one_comm(NULL, /* TODO: use a talloc context */
+                                                trc, 
+                                                json_array_get(jcomms, i), 
+                                               &rc))) {
 	return rc;
       }
-      tr_debug("tr_cfg_parse_comms: Community configured: %s.", comm->id->buf);
+      tr_debug("tr_cfg_parse_comms: Community configured: %s.",
+               tr_comm_get_id(comm)->buf);
       comm->next = trc->comms;
       trc->comms = comm;
     }

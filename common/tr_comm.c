@@ -44,6 +44,10 @@ static int tr_comm_destructor(void *obj)
   TR_COMM *comm=talloc_get_type_abort(obj, TR_COMM);
   if (comm->id!=NULL)
     tr_free_name(comm->id);
+  if (comm->owner_realm!=NULL)
+    tr_free_name(comm->owner_realm);
+  if (comm->owner_email!=NULL)
+    tr_free_name(comm->owner_email);
   return 0;
 }
 
@@ -57,6 +61,8 @@ TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx)
     comm->apcs=NULL;
     comm->idp_realms=NULL;
     comm->rp_realms=NULL;
+    comm->owner_realm=NULL;
+    comm->owner_contact=NULL;
     talloc_set_destructor((void *)comm, tr_comm_destructor);
   }
   return comm;
@@ -65,6 +71,67 @@ TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx)
 void tr_comm_free(TR_COMM *comm)
 {
   talloc_free(comm);
+}
+
+void tr_comm_set_id(TR_COMM *comm, TR_NAME *id)
+{
+  if (comm->id != NULL)
+    tr_free_name(comm->id);
+  comm->id=id;
+}
+
+TR_NAME *tr_comm_get_id(TR_COMM *comm)
+{
+  return comm->id;
+}
+
+TR_NAME *tr_comm_dup_id(TR_COMM *comm)
+{
+  return tr_dup_name(comm->id);
+}
+
+void tr_comm_set_type(TR_COMM *comm, TR_COMM_TYPE type)
+{
+  comm->type=type;
+}
+
+TR_COMM_TYPE tr_comm_get_type(TR_COMM *comm)
+{
+  return comm->type;
+}
+
+void tr_comm_set_owner_realm(TR_COMM *comm, TR_NAME *realm)
+{
+  if (comm->owner_realm!=NULL)
+    tr_free_name(comm->owner_realm);
+  comm->owner_realm=realm;
+}
+
+TR_NAME *tr_comm_get_owner_realm(TR_COMM *comm)
+{
+  return comm->owner_realm;
+}
+
+TR_NAME *tr_comm_dup_owner_realm(TR_COMM *comm)
+{
+  return tr_dup_name(tr->owner_realm);
+}
+
+void tr_comm_set_owner_contact(TR_COMM *comm, TR_NAME *contact)
+{
+  if (comm->owner_contact != NULL)
+    tr_free_name(comm->owner_contact);
+  comm->owner_contact=contact;
+}
+
+TR_NAME *tr_comm_get_owner_contact(TR_COMM *comm)
+{
+  return comm->owner_contact;
+}
+
+TR_NAME *tr_comm_dup_owner_contact(TR_COMM *comm)
+{
+  return tr_dup_name(tr->owner_contact);
 }
 
 /* does not take responsibility for freeing IDP realm */
