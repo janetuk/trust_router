@@ -77,5 +77,6 @@ void tr_comm_add_rp_realm(TR_COMM *comm, TR_RP_REALM *realm);
 TR_COMM *tr_comm_lookup(TR_COMM *comms, TR_NAME *comm_name);
 TR_RP_REALM *tr_find_comm_rp (TR_COMM *comm, TR_NAME *rp_realm);
 TR_IDP_REALM *tr_find_comm_idp (TR_COMM *comm, TR_NAME *idp_realm);
+const char *tr_comm_type_to_str(TR_COMM_TYPE type);
 
 #endif

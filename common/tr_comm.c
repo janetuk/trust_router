@@ -46,8 +46,8 @@ static int tr_comm_destructor(void *obj)
     tr_free_name(comm->id);
   if (comm->owner_realm!=NULL)
     tr_free_name(comm->owner_realm);
-  if (comm->owner_email!=NULL)
-    tr_free_name(comm->owner_email);
+  if (comm->owner_contact!=NULL)
+    tr_free_name(comm->owner_contact);
   return 0;
 }
 
@@ -114,7 +114,7 @@ TR_NAME *tr_comm_get_owner_realm(TR_COMM *comm)
 
 TR_NAME *tr_comm_dup_owner_realm(TR_COMM *comm)
 {
-  return tr_dup_name(tr->owner_realm);
+  return tr_dup_name(comm->owner_realm);
 }
 
 void tr_comm_set_owner_contact(TR_COMM *comm, TR_NAME *contact)
@@ -131,7 +131,7 @@ TR_NAME *tr_comm_get_owner_contact(TR_COMM *comm)
 
 TR_NAME *tr_comm_dup_owner_contact(TR_COMM *comm)
 {
-  return tr_dup_name(tr->owner_contact);
+  return tr_dup_name(comm->owner_contact);
 }
 
 /* does not take responsibility for freeing IDP realm */
@@ -234,4 +234,23 @@ TR_COMM *tr_comm_lookup(TR_COMM *comms, TR_NAME *comm_name)
       return cfg_comm;
   }
   return NULL;
+}
+
+const char *tr_comm_type_to_str(TR_COMM_TYPE type)
+{
+  const char *s=NULL;
+  switch(type) {
+  case TR_COMM_UNKNOWN:
+    s="unknown";
+    break;
+  case TR_COMM_APC:
+    s="APC";
+    break;
+  case TR_COMM_COI:
+    s="COI";
+    break;
+  default:
+    s="invalid";
+  }
+  return s;
 }

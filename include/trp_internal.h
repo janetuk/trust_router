@@ -43,13 +43,13 @@
 #include <tr_msg.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
+#include <tr_apc.h>
+#include <tr_comm.h>
 #include <trust_router/trp.h>
 
 /* info records */
 /* TRP update record types */
 typedef struct trp_inforec_route {
-  TR_NAME *comm;
-  TR_NAME *realm;
   TR_NAME *trust_router;
   TR_NAME *next_hop;
   unsigned int next_hop_port;
@@ -57,20 +57,29 @@ typedef struct trp_inforec_route {
   unsigned int interval;
 } TRP_INFOREC_ROUTE;
 
-/* TODO: define struct trp_msg_info_community */
+typedef struct trp_inforec_comm {
+  TR_COMM_TYPE type;
+  int is_service_realm;
+  int is_idp_realm;
+  TR_APC *apcs;
+  TR_NAME *owner_realm;
+  TR_NAME *owner_contact;
+} TRP_INFOREC_COMM;
 
 typedef union trp_inforec_data {
   TRP_INFOREC_ROUTE *route;
-  /* TRP_INFOREC_COMM *comm; */
+  TRP_INFOREC_COMM *comm;
 } TRP_INFOREC_DATA;
 
 struct trp_inforec {
   TRP_INFOREC *next;
   TRP_INFOREC_TYPE type;
-  TRP_INFOREC_DATA data; /* contains pointer to one of the record types */
+  TRP_INFOREC_DATA *data; /* contains pointer to one of the record types */
 };
 
 struct trp_update {
+  TR_NAME *realm;
+  TR_NAME *comm;
   TRP_INFOREC *records;
   TR_NAME *peer; /* who did this update come from? */
 };

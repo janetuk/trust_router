@@ -458,11 +458,22 @@ void trps_handle_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
   tr_debug("trps_handle_connection: connection closed.");
 }
 
+/* TODO: check realm/comm, now part of the update instead of inforec */
 static TRP_RC trps_validate_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
 {
   if (upd==NULL) {
     tr_notice("trps_validate_update: null TRP update.");
     return TRP_BADARG;
+  }
+
+  if (trp_upd_get_realm(upd)==NULL) {
+    tr_notice("trps_validate_update: received TRP update without realm.");
+    return TRP_ERROR;
+  }
+
+  if (trp_upd_get_comm(upd)==NULL) {
+    tr_notice("trps_validate_update: received TRP update without community.");
+    return TRP_ERROR;
   }
 
   if (trp_upd_get_inforec(upd)==NULL) {
@@ -474,6 +485,7 @@ static TRP_RC trps_validate_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
     tr_notice("trps_validate_update: received TRP update without origin peer information.");
     return TRP_ERROR;
   }
+
   
   return TRP_SUCCESS;
 }
@@ -483,9 +495,7 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
 {
   switch(trp_inforec_get_type(rec)) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if ((trp_inforec_get_comm(rec)==NULL)
-       || (trp_inforec_get_realm(rec)==NULL)
-       || (trp_inforec_get_trust_router(rec)==NULL)
+    if ((trp_inforec_get_trust_router(rec)==NULL)
        || (trp_inforec_get_next_hop(rec)==NULL)) {
       tr_debug("trps_validate_inforec: missing record info.");
       return TRP_ERROR;
@@ -526,7 +536,7 @@ static unsigned int trps_advertised_metric(TRPS_INSTANCE *trps, TR_NAME *comm, T
   return trp_route_get_metric(entry) + trps_cost(trps, peer);
 }
 
-static int trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
+static int trps_check_feasibility(TRPS_INSTANCE *trps, TR_NAME *realm, TR_NAME *comm, TRP_INFOREC *rec)
 {
   unsigned int rec_metric=trp_inforec_get_metric(rec);
   unsigned int new_metric=0;
@@ -542,9 +552,7 @@ static int trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
     return 1;
 
   /* updates from our current next hop are always feasible*/
-  next_hop=trps_get_next_hop(trps,
-                             trp_inforec_get_comm(rec),
-                             trp_inforec_get_realm(rec));;
+  next_hop=trps_get_next_hop(trps, comm, realm);
   if ((next_hop!=NULL)
      && (0==tr_name_cmp(next_hop,trp_inforec_get_next_hop(rec)))) {
     return 1;
@@ -553,10 +561,7 @@ static int trps_check_feasibility(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
 
   /* compare the existing metric we advertise to what we would advertise
    * if we accept this update */
-  current_metric=trps_advertised_metric(trps,
-                                        trp_inforec_get_comm(rec),
-                                        trp_inforec_get_realm(rec),
-                                        trp_inforec_get_next_hop(rec));
+  current_metric=trps_advertised_metric(trps, comm, realm, trp_inforec_get_next_hop(rec));
   new_metric=rec_metric + trps_cost(trps, trp_inforec_get_next_hop(rec));
   if (new_metric <= current_metric)
     return 1;
@@ -582,8 +587,8 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
   TRP_ROUTE *entry=NULL;
 
   entry=trp_rtable_get_entry(trps->rtable,
-                             trp_inforec_get_comm(rec),
-                             trp_inforec_get_realm(rec),
+                             trp_upd_get_comm(upd),
+                             trp_upd_get_realm(upd),
                              trp_inforec_get_next_hop(rec));
   if (entry==NULL) {
     entry=trp_route_new(NULL);
@@ -592,8 +597,8 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
       return TRP_NOMEM;
     }
 
-    trp_route_set_comm(entry, trp_inforec_dup_comm(rec));
-    trp_route_set_realm(entry, trp_inforec_dup_realm(rec));
+    trp_route_set_comm(entry, trp_upd_dup_comm(upd));
+    trp_route_set_realm(entry, trp_upd_dup_realm(upd));
     trp_route_set_peer(entry, trp_upd_dup_peer(upd));
     trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec));
     trp_route_set_next_hop(entry, trp_inforec_dup_next_hop(rec));
@@ -657,13 +662,13 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
 
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
     /* determine feasibility */
-    feas=trps_check_feasibility(trps, rec);
+    feas=trps_check_feasibility(trps, trp_upd_get_realm(upd), trp_upd_get_comm(upd), rec);
     tr_debug("trps_handle_update: record feasibility=%d", feas);
 
     /* do we have an existing route? */
     route=trps_get_route(trps,
-                         trp_inforec_get_comm(rec),
-                         trp_inforec_get_realm(rec),
+                         trp_upd_get_comm(upd),
+                         trp_upd_get_realm(upd),
                          trp_upd_get_peer(upd));
     if (route!=NULL) {
       /* there was a route table entry already */
@@ -945,9 +950,7 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
 
     /* Note that we leave the next hop empty since the recipient fills that in.
      * This is where we add the link cost (currently always 1) to the next peer. */
-    if ((trp_inforec_set_comm(rec, trp_route_dup_comm(route)) != TRP_SUCCESS)
-       ||(trp_inforec_set_realm(rec, trp_route_dup_realm(route)) != TRP_SUCCESS)
-       ||(trp_inforec_set_trust_router(rec, trp_route_dup_trust_router(route)) != TRP_SUCCESS)
+    if ((trp_inforec_set_trust_router(rec, trp_route_dup_trust_router(route)) != TRP_SUCCESS)
        ||(trp_inforec_set_metric(rec,
                                  trps_metric_add(trp_route_get_metric(route),
                                                  linkcost)) != TRP_SUCCESS)
@@ -1029,6 +1032,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
     tr_debug("trps_update_one_peer: sending %u update records.", (unsigned int)n_updates);
     upd=trp_upd_new(tmp_ctx);
 
+    /* TODO: set realm/comm in update; used to be in the inforec */
     for (ii=0; ii<n_updates; ii++) {
       rec=trps_route_to_inforec(tmp_ctx, trps, update_list[ii]);
       if (rec==NULL) {

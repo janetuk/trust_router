@@ -1720,7 +1720,7 @@ static TR_COMM *tr_cfg_parse_one_comm (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t 
     goto cleanup;
   }
 
-  tr_comm_set_id(tr_new_name(json_string_value(jid)));
+  tr_comm_set_id(comm, tr_new_name(json_string_value(jid)));
   if (NULL == tr_comm_get_id(comm)) {
     tr_debug("tr_cfg_parse_one_comm: No memory for community id.");
     *rc = TR_CFG_NOMEM;
