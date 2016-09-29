@@ -214,7 +214,6 @@ static void tr_trps_cleanup_conn(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
   tr_debug("tr_trps_cleanup_conn: freeing %p", conn);
   pthread_join(*trp_connection_get_thread(conn), NULL);
   trps_remove_connection(trps, conn);
-  talloc_report_full(conn, stderr);
   trp_connection_free(conn);
   tr_debug("tr_trps_cleanup_conn: deleted connection");
 }
@@ -244,7 +243,6 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   TR_MQ_MSG *msg=NULL;
   const char *s=NULL;
 
-  talloc_report_full(trps->mq, stderr);
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
     s=tr_mq_msg_get_message(msg);
