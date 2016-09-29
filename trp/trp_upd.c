@@ -324,14 +324,6 @@ TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval)
   return TRP_ERROR;
 }
 
-static void trp_inforec_set_data(TRP_INFOREC *rec, TRP_INFOREC_DATA *data)
-{
-  if (rec->data!=NULL)
-    talloc_free(rec->data);
-  rec->data=data;
-  talloc_steal(rec, data); /* make sure it's in our context */
-}
-
 /* generic record type */
 TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type)
 {
@@ -345,7 +337,7 @@ TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type)
     if (dtype->allocate!=NULL) {
       data=dtype->allocate(new_rec);
       if (data!=NULL)
-        trp_inforec_set_data(new_rec, data);
+        new_rec->data=data;
       else {
         talloc_free(new_rec);
         return NULL;
@@ -364,6 +356,10 @@ void trp_inforec_free(TRP_INFOREC *rec)
 static int trp_upd_destructor(void *object)
 {
   TRP_UPD *upd=talloc_get_type_abort(object, TRP_UPD);
+  if (upd->realm!=NULL)
+    tr_free_name(upd->realm);
+  if (upd->comm!=NULL)
+    tr_free_name(upd->comm);
   if (upd->peer!=NULL)
     tr_free_name(upd->peer);
   return 0;
@@ -374,6 +370,8 @@ TRP_UPD *trp_upd_new(TALLOC_CTX *mem_ctx)
   TRP_UPD *new_body=talloc(mem_ctx, TRP_UPD);
 
   if (new_body!=NULL) {
+    new_body->realm=NULL;
+    new_body->comm=NULL;
     new_body->records=NULL;
     new_body->peer=NULL;
     talloc_set_destructor((void *)new_body, trp_upd_destructor);

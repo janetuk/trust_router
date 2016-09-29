@@ -133,6 +133,7 @@ TRP_UPD *tr_msg_get_trp_upd(TR_MSG *msg)
 void tr_msg_set_trp_upd(TR_MSG *msg, TRP_UPD *update)
 {
   msg->msg_rep=update;
+  talloc_steal(NULL, update); /* should attach to msg, but TR_MSG not usually talloc'ed */
   msg->msg_type=TRP_UPDATE;
 }
 
@@ -701,7 +702,7 @@ static json_t *tr_msg_encode_trp_upd(TRP_UPD *update)
     json_decref(jupdate);
     return NULL;
   }
-  json_object_set_new(jrec, "realm", jstr);
+  json_object_set_new(jupdate, "realm", jstr);
 
   jrecords=json_array();
   if (jrecords==NULL) {
@@ -726,7 +727,7 @@ static json_t *tr_msg_encode_trp_upd(TRP_UPD *update)
   return jupdate;
 }
 
-/*Creates a linked list of records in the msg->body talloc context.
+/* Creates a linked list of records in the msg->body talloc context.
  * An error will be returned if any unparseable records are encountered. 
  */
 static TRP_UPD *tr_msg_decode_trp_upd(TALLOC_CTX *mem_ctx, json_t *jupdate)
@@ -748,20 +749,32 @@ static TRP_UPD *tr_msg_decode_trp_upd(TALLOC_CTX *mem_ctx, json_t *jupdate)
   }
 
   rc=tr_msg_get_json_string(jupdate, "community", &s, tmp_ctx);
-  if (rc != TRP_SUCCESS)
+  if (rc != TRP_SUCCESS) {
+    tr_debug("tr_msg_decode_trp_upd: no community in TRP update message.");
+    rc=TRP_NOPARSE;
     goto cleanup;
+  }
   name=tr_new_name(s);
-  if (name==NULL)
+  if (name==NULL) {
+    tr_debug("tr_msg_decode_trp_upd: could not allocate community name.");
+    rc=TRP_NOMEM;
     goto cleanup;
+  }
   talloc_free(s); s=NULL;
   trp_upd_set_comm(update, name);
 
   rc=tr_msg_get_json_string(jupdate, "realm", &s, tmp_ctx);
-  if (rc != TRP_SUCCESS)
+  if (rc != TRP_SUCCESS) {
+    tr_debug("tr_msg_decode_trp_upd: no realm in TRP update message.");
+    rc=TRP_NOPARSE;
     goto cleanup;
+  }
   name=tr_new_name(s);
-  if (name==NULL)
+  if (name==NULL) {
+    tr_debug("tr_msg_decode_trp_upd: could not allocate realm name.");
+    rc=TRP_NOMEM;
     goto cleanup;
+  }
   talloc_free(s); s=NULL;
   trp_upd_set_realm(update, name);
 

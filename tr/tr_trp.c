@@ -545,6 +545,8 @@ static void *tr_trpc_thread(void *arg)
   const char *msg_type=NULL;
   char *encoded_msg=NULL;
   TR_NAME *peer_gssname=NULL;
+  int n_sent=0;
+  int exit_loop=0;
 
   struct trpc_notify_cb_data cb_data={0,
                                       PTHREAD_COND_INITIALIZER,
@@ -583,41 +585,40 @@ static void *tr_trpc_thread(void *arg)
     trps_mq_add(trps, msg); /* steals msg context */
     msg=NULL;
 
-    while(1) {
+    while(!exit_loop) {
       cb_data.msg_ready=0;
       pthread_cond_wait(&(cb_data.cond), &(cb_data.mutex));
       /* verify the condition */
       if (cb_data.msg_ready) {
-        msg=trpc_mq_pop(trpc);
-        if (msg==NULL) {
-          /* no message in the queue */
-          tr_err("tr_trpc_thread: notified of msg, but queue empty");
-          break;
-        }
+        for (msg=trpc_mq_pop(trpc),n_sent=0; msg!=NULL; msg=trpc_mq_pop(trpc),n_sent++) {
+          msg_type=tr_mq_msg_get_message(msg);
 
-        msg_type=tr_mq_msg_get_message(msg);
-
-        if (0==strcmp(msg_type, TR_MQMSG_ABORT)) {
-          tr_mq_msg_free(msg);
-          break; /* exit loop */
-        }
-        else if (0==strcmp(msg_type, TR_MQMSG_TRPC_SEND)) {
-          encoded_msg=tr_mq_msg_get_payload(msg);
-          if (encoded_msg==NULL)
-            tr_notice("tr_trpc_thread: null outgoing TRP message.");
-          else {
-            rc = trpc_send_msg(trpc, encoded_msg);
-            if (rc!=TRP_SUCCESS) {
-              tr_notice("tr_trpc_thread: trpc_send_msg failed.");
-              tr_mq_msg_free(msg);
-              break;
+          if (0==strcmp(msg_type, TR_MQMSG_ABORT)) {
+            exit_loop=1;
+            break;
+          }
+          else if (0==strcmp(msg_type, TR_MQMSG_TRPC_SEND)) {
+            encoded_msg=tr_mq_msg_get_payload(msg);
+            if (encoded_msg==NULL)
+              tr_notice("tr_trpc_thread: null outgoing TRP message.");
+            else {
+              rc = trpc_send_msg(trpc, encoded_msg);
+              if (rc!=TRP_SUCCESS) {
+                tr_notice("tr_trpc_thread: trpc_send_msg failed.");
+                exit_loop=1;
+                break;
+              }
             }
           }
-        }
-        else
-          tr_notice("tr_trpc_thread: unknown message '%s' received.", msg_type);
+          else
+            tr_notice("tr_trpc_thread: unknown message '%s' received.", msg_type);
 
-        tr_mq_msg_free(msg);
+          tr_mq_msg_free(msg);
+        }
+        if (n_sent==0)
+          tr_err("tr_trpc_thread: notified of msg, but queue empty");
+        else 
+          tr_debug("tr_trpc_thread: sent %d messages.", n_sent);
       }
     }
   }

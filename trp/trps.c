@@ -1024,46 +1024,62 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
     }
     n_updates=1;
   } else {
-    tr_err("trps_update_one_peer: error: only comm or realm was specified.");
+    tr_err("trps_update_one_peer: error: only comm or realm was specified. Need both or neither.");
     rc=TRP_ERROR;
     goto cleanup;
   }
   if ((n_updates>0) && (update_list!=NULL)) {
     tr_debug("trps_update_one_peer: sending %u update records.", (unsigned int)n_updates);
-    upd=trp_upd_new(tmp_ctx);
-
-    /* TODO: set realm/comm in update; used to be in the inforec */
     for (ii=0; ii<n_updates; ii++) {
+      upd=trp_upd_new(tmp_ctx);
+      if (upd==NULL) {
+        tr_err("trps_update_one_peer: could not create update message.");
+        rc=TRP_NOMEM;
+        goto cleanup;
+      }
+      trp_upd_set_realm(upd, trp_route_dup_realm(update_list[ii]));
+      if (trp_upd_get_realm(upd)==NULL) {
+        tr_err("trps_update_one_peer: could not copy realm.");
+        rc=TRP_NOMEM;
+        goto cleanup;
+      }
+      trp_upd_set_comm(upd, trp_route_dup_comm(update_list[ii]));
+      if (trp_upd_get_comm(upd)==NULL) {
+        tr_err("trps_update_one_peer: could not copy comm.");
+        rc=TRP_NOMEM;
+        goto cleanup;
+      }
       rec=trps_route_to_inforec(tmp_ctx, trps, update_list[ii]);
       if (rec==NULL) {
         tr_err("trps_update_one_peer: could not create all update records.");
-        rc=TRP_ERROR;
+        rc=TRP_NOMEM;
         goto cleanup;
       }
       trp_upd_add_inforec(upd, rec);
+
+      /* now encode the update message */
+      tr_msg_set_trp_upd(&msg, upd);
+      encoded=tr_msg_encode(&msg);
+      if (encoded==NULL) {
+        tr_err("trps_update_one_peer: error encoding update.");
+        rc=TRP_ERROR;
+        goto cleanup;
+      }
+
+      tr_debug("trps_update_one_peer: adding message to queue.");
+      if (trps_send_msg(trps, peer, encoded) != TRP_SUCCESS)
+        tr_err("trps_update_one_peer: error queueing update.");
+      else
+        tr_debug("trps_update_one_peer: update queued successfully.");
+
+      tr_msg_free_encoded(encoded);
+      encoded=NULL;
+      trp_upd_free(upd);
+      upd=NULL;
     }
     talloc_free(update_list);
     update_list=NULL;
 
-    /* now encode the update message */
-    tr_msg_set_trp_upd(&msg, upd);
-    encoded=tr_msg_encode(&msg);
-    if (encoded==NULL) {
-      tr_err("trps_update_one_peer: error encoding update.");
-      rc=TRP_ERROR;
-      goto cleanup;
-    }
-
-    tr_debug("trps_update_one_peer: adding message to queue.");
-    if (trps_send_msg(trps, peer, encoded) != TRP_SUCCESS)
-      tr_err("trps_update_one_peer: error queueing update.");
-    else
-      tr_debug("trps_update_one_peer: update queued successfully.");
-
-    tr_msg_free_encoded(encoded);
-    encoded=NULL;
-    trp_upd_free(upd);
-    upd=NULL;
   } else if (n_updates==0)
     tr_debug("trps_update_one_peer: no updates for %.*s", peer_label->len, peer_label->buf);
 
