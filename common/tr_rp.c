@@ -130,8 +130,8 @@ TR_RP_REALM *tr_rp_realm_lookup(TR_RP_REALM *rp_realms, TR_NAME *rp_name)
     return NULL;
   }
 
-  for (rp = rp_realms; NULL != rp; rp = rp->next) {
-    if (tr_name_cmp(tr_rp_realm_get_id(rp), rp_name))
+  for (rp=rp_realms; NULL!=rp; rp=rp->next) {
+    if (0==tr_name_cmp(tr_rp_realm_get_id(rp), rp_name))
       return rp;
   } 
   return NULL;

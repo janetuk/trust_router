@@ -804,7 +804,8 @@ TR_COMM_MEMB *tr_comm_table_find_rp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR
 
     if ((0==tr_name_cmp(realm, tr_rp_realm_get_id(rp_realm))) &&
         (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur)))) &&
-        (0==tr_name_cmp(origin, tr_comm_memb_get_origin(cur)))) {
+        (((NULL==origin)&&(NULL==tr_comm_memb_get_origin(cur))) ||
+         (0==tr_name_cmp(origin, tr_comm_memb_get_origin(cur))))) {
       return cur;
     }
   }

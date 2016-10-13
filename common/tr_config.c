@@ -1687,14 +1687,16 @@ static void tr_cfg_parse_comm_rps(TR_CFG *trc, json_t *jrps, TR_COMM *comm, TR_C
 
     /* Add the RP to the community, first see if we have the RP in any community */
     found_rp=tr_rp_realm_lookup(trc->rp_realms, rp_name);
-    if (found_rp!=NULL)
+    if (found_rp!=NULL) {
+      tr_debug("tr_cfg_parse_comm_rps: RP realm %s already exists.", s);
       new_rp=found_rp; /* use it rather than creating a new realm record */
-    else {
+    } else {
       new_rp=tr_rp_realm_new(NULL);
       if (new_rp==NULL) {
         tr_err("tr_cfg_parse_comm_rps: unable to allocate RP record for %s in community %.*s.",
                s, tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
       }
+      tr_debug("tr_cfg_parse_comm_rps: setting name to %s", rp_name->buf);
       tr_rp_realm_set_id(new_rp, rp_name);
       rp_name=NULL; /* rp_name no longer belongs to us */
       tr_rp_realm_add(trc->rp_realms, new_rp);
