@@ -125,11 +125,7 @@ TR_RP_REALM *tr_rp_realm_lookup(TR_RP_REALM *rp_realms, TR_NAME *rp_name)
 {
   TR_RP_REALM *rp = NULL;
 
-<<<<<<< HEAD
   if (!rp_name) {
-=======
-  if ((!rp_realms) || (!rp_name)) {
->>>>>>> 09d2f44c757b9ffc2f38a28bdf212c61f67dabd8
     tr_debug("tr_rp_realm_lookup: Bad parameters.");
     return NULL;
   }
