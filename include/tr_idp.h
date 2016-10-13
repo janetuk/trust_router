@@ -36,6 +36,7 @@
 #define TR_IDP_H
 
 #include <talloc.h>
+#include <time.h>
 
 #include <trust_router/tr_name.h>
 #include <tr_apc.h>
@@ -61,12 +62,20 @@ typedef struct tr_idp_realm {
   TR_AAA_SERVER *aaa_servers;
   TR_APC *apcs;
   TR_REALM_ORIGIN origin; /* how did we learn about this realm? */
+  TR_NAME *peer; /* for remote/discovered, who told us about this realm? */
+  struct timespec *expiry; /* when does this realm entry expire? */
+  unsigned int refcount; /* how many TR_COMM_MEMBs refer to this realm */
 } TR_IDP_REALM;
   
 TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx);
+void tr_idp_realm_free(TR_IDP_REALM *idp);
+TR_NAME *tr_idp_realm_get_id(TR_IDP_REALM *idp);
+void tr_idp_realm_set_id(TR_IDP_REALM *idp, TR_NAME *id);
 TR_IDP_REALM *tr_idp_realm_add_func(TR_IDP_REALM *head, TR_IDP_REALM *new);
 #define tr_idp_realm_add(head,new) ((head)=tr_idp_realm_add_func((head),(new)))
 char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp);
+void tr_idp_realm_incref(TR_IDP_REALM *realm);
+void tr_idp_realm_decref(TR_IDP_REALM *realm);
 
 TR_AAA_SERVER *tr_aaa_server_new(TALLOC_CTX *mem_ctx, TR_NAME *hostname);
 void tr_aaa_server_free(TR_AAA_SERVER *aaa);

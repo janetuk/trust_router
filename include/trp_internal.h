@@ -35,6 +35,7 @@
 #ifndef TRP_INTERNAL_H
 #define TRP_INTERNAL_H
 
+#include <jansson.h>
 #include <pthread.h>
 #include <talloc.h>
 
@@ -58,12 +59,13 @@ typedef struct trp_inforec_route {
 } TRP_INFOREC_ROUTE;
 
 typedef struct trp_inforec_comm {
-  TR_COMM_TYPE type;
-  int is_service_realm;
-  int is_idp_realm;
+  TR_COMM_TYPE comm_type;
+  TR_REALM_ROLE role;
   TR_APC *apcs;
   TR_NAME *owner_realm;
   TR_NAME *owner_contact;
+  json_t *provenance;
+  unsigned int interval;
 } TRP_INFOREC_COMM;
 
 typedef union trp_inforec_data {
@@ -147,6 +149,7 @@ struct trps_instance {
   TR_MQ *mq; /* incoming message queue */
   TRP_PTABLE *ptable; /* peer table */
   TRP_RTABLE *rtable; /* route table */
+  TR_COMM_TABLE *ctable; /* community table */
   struct timeval connect_interval; /* interval between connection refreshes */
   struct timeval update_interval; /* interval between scheduled updates */
   struct timeval sweep_interval; /* interval between route table sweeps */
@@ -207,6 +210,7 @@ TRP_RC trpc_send_msg(TRPC_INSTANCE *trpc, const char *msg_content);
 
 TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx);
 void trps_free (TRPS_INSTANCE *trps);
+void trps_set_ctable(TRPS_INSTANCE *trps, TR_COMM_TABLE *comm);
 void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable);
 void trps_set_peer_status_callback(TRPS_INSTANCE *trps, void (*cb)(TRP_PEER *, void *), void *cookie);
 TRP_RC trps_init_rtable(TRPS_INSTANCE *trps);
@@ -246,4 +250,41 @@ TRP_PEER *trps_get_peer_by_servicename(TRPS_INSTANCE *trps, TR_NAME *servicename
 TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE type);
 int trps_peer_connected(TRPS_INSTANCE *trps, TRP_PEER *peer);
 TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_gssname);
+
+TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type);
+void trp_inforec_free(TRP_INFOREC *rec);
+TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec);
+void trp_inforec_set_next(TRP_INFOREC *rec, TRP_INFOREC *next_rec);
+TRP_INFOREC_TYPE trp_inforec_get_type(TRP_INFOREC *rec);
+void trp_inforec_set_type(TRP_INFOREC *rec, TRP_INFOREC_TYPE type);
+TR_NAME *trp_inforec_get_comm(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_dup_comm(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_comm(TRP_INFOREC *rec, TR_NAME *comm);
+TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_dup_realm(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_realm(TRP_INFOREC *rec, TR_NAME *realm);
+TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_dup_trust_router(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router);
+TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_dup_next_hop(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop);
+unsigned int trp_inforec_get_metric(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_metric(TRP_INFOREC *rec, unsigned int metric);
+unsigned int trp_inforec_get_interval(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval);
+TR_NAME *trp_inforec_get_owner_realm(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_owner_realm(TRP_INFOREC *rec, TR_NAME *name);
+TR_NAME *trp_inforec_get_owner_contact(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_owner_contact(TRP_INFOREC *rec, TR_NAME *name);
+json_t *trp_inforec_get_provenance(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_provenance(TRP_INFOREC *rec, json_t *prov);
+TRP_INFOREC_TYPE trp_inforec_type_from_string(const char *s);
+const char *trp_inforec_type_to_string(TRP_INFOREC_TYPE msgtype);
+TR_COMM_TYPE trp_inforec_get_comm_type(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_comm_type(TRP_INFOREC *rec, TR_COMM_TYPE type);
+TR_REALM_ROLE trp_inforec_get_role(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_role(TRP_INFOREC *rec, TR_REALM_ROLE role);
+TR_APC *trp_inforec_get_apcs(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_apcs(TRP_INFOREC *rec, TR_APC *apcs);
 #endif /* TRP_INTERNAL_H */

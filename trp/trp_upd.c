@@ -37,6 +37,8 @@
 
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
+#include <tr_comm.h>
+#include <tr_apc.h>
 #include <tr_debug.h>
 
 
@@ -137,6 +139,8 @@ static int trp_inforec_comm_destructor(void *obj)
     tr_free_name(rec->owner_realm);
   if (rec->owner_contact!=NULL)
     tr_free_name(rec->owner_contact);
+  if (rec->provenance!=NULL)
+    json_decref(rec->provenance);
   return 0;
 }
 
@@ -153,12 +157,12 @@ static TRP_INFOREC_DATA *trp_inforec_comm_new(TALLOC_CTX *mem_ctx)
     talloc_free(new_data);
     new_data=NULL;
   } else {
-    new_rec->type=TR_COMM_UNKNOWN;
-    new_rec->is_service_realm=0;
-    new_rec->is_idp_realm=0;
+    new_rec->comm_type=TR_COMM_UNKNOWN;
+    new_rec->role=TR_ROLE_UNKNOWN;
     new_rec->apcs=NULL;
     new_rec->owner_realm=NULL;
     new_rec->owner_contact=NULL;
+    new_rec->provenance=NULL;
     talloc_set_destructor((void *)new_rec, trp_inforec_comm_destructor);
     new_data->comm=new_rec;
   }
@@ -303,6 +307,10 @@ unsigned int trp_inforec_get_interval(TRP_INFOREC *rec)
     if (rec->data->route!=NULL)
       return rec->data->route->interval;
     break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->interval;
+    break;
   default:
     break;
   }
@@ -316,9 +324,188 @@ TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval)
     if (rec->data->route!=NULL) {
       rec->data->route->interval=interval;
       return TRP_SUCCESS;
+    }
+    break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->interval=interval;
+      return TRP_SUCCESS;
+    }
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_COMM_TYPE trp_inforec_get_comm_type(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->comm_type;
+    break;
+  default:
+    break;
+  }
+  return TR_COMM_UNKNOWN;
+}
+
+TRP_RC trp_inforec_set_comm_type(TRP_INFOREC *rec, TR_COMM_TYPE type)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->comm_type=type;
+      return TRP_SUCCESS;
+    }
+    break;
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_REALM_ROLE trp_inforec_get_role(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->role;
+    break;
+  default:
+    break;
+  }
+  return TR_ROLE_UNKNOWN;
+}
+
+TRP_RC trp_inforec_set_role(TRP_INFOREC *rec, TR_REALM_ROLE role)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->role=role;
+      return TRP_SUCCESS;
+      break;
+    }
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_APC *trp_inforec_get_apcs(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->apcs;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+TRP_RC trp_inforec_set_apcs(TRP_INFOREC *rec, TR_APC *apcs)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->apcs=apcs;
+      talloc_steal(rec, apcs);
+      return TRP_SUCCESS;
   default:
     break;
     }
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_NAME *trp_inforec_get_owner_realm(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->owner_realm;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+TRP_RC trp_inforec_set_owner_realm(TRP_INFOREC *rec, TR_NAME *name)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->owner_realm=name;
+      return TRP_SUCCESS;
+  default:
+    break;
+    }
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_NAME *trp_inforec_get_owner_contact(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->owner_contact;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+TRP_RC trp_inforec_set_owner_contact(TRP_INFOREC *rec, TR_NAME *name)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->owner_contact=name;
+      return TRP_SUCCESS;
+    }
+    break;
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+/* caller needs to incref the output if they're going to hang on to it */
+json_t *trp_inforec_get_provenance(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->provenance;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+/* increments the reference count */
+TRP_RC trp_inforec_set_provenance(TRP_INFOREC *rec, json_t *prov)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      if (rec->data->comm->provenance!=NULL)
+        json_decref(rec->data->comm->provenance);
+      rec->data->comm->provenance=prov;
+      json_incref(prov);
+      return TRP_SUCCESS;
+    }
+    break;
+  default:
     break;
   }
   return TRP_ERROR;
@@ -484,10 +671,9 @@ static void trp_inforec_route_print(TRP_INFOREC_DATA *data)
 static void trp_inforec_comm_print(TRP_INFOREC_DATA *data)
 {
   if (data->comm!=NULL) {
-    printf("     type=%s\n     service=%s\n     IdP=%s\n     owner=%.*s\n     contact=%.*s]\n",
-           tr_comm_type_to_str(data->comm->type),
-           (data->comm->is_service_realm)?"yes":"no",
-           (data->comm->is_idp_realm)?"yes":"no",
+    printf("     type=%s\n     role=%s\n     owner=%.*s\n     contact=%.*s]\n",
+           tr_comm_type_to_str(data->comm->comm_type),
+           tr_realm_role_to_str(data->comm->role),
            data->comm->owner_realm->len, data->comm->owner_realm->buf,
            data->comm->owner_contact->len, data->comm->owner_contact->buf);
     /* TODO: print apcs */

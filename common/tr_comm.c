@@ -32,12 +32,19 @@
  *
  */
 
+#include <jansson.h>
 #include <talloc.h>
 
 #include <tr_rp.h>
+#include <tr_idp.h>
 #include <trust_router/tr_name.h>
 #include <tr_comm.h>
 #include <tr_debug.h>
+
+
+/* static prototypes */
+static TR_NAME *tr_comm_memb_get_realm_id(TR_COMM_MEMB *memb);
+
 
 static int tr_comm_destructor(void *obj)
 {
@@ -59,10 +66,10 @@ TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx)
     comm->id=NULL;
     comm->type=TR_COMM_UNKNOWN;
     comm->apcs=NULL;
-    comm->idp_realms=NULL;
-    comm->rp_realms=NULL;
     comm->owner_realm=NULL;
     comm->owner_contact=NULL;
+    comm->expiration_interval=0;
+    comm->refcount=0;
     talloc_set_destructor((void *)comm, tr_comm_destructor);
   }
   return comm;
@@ -78,6 +85,22 @@ void tr_comm_set_id(TR_COMM *comm, TR_NAME *id)
   if (comm->id != NULL)
     tr_free_name(comm->id);
   comm->id=id;
+}
+
+void tr_comm_incref(TR_COMM *comm)
+{
+  comm->refcount++;
+}
+
+void tr_comm_decref(TR_COMM *comm)
+{
+  if (comm->refcount>0)
+    comm->refcount--;
+}
+
+TR_APC *tr_comm_get_apcs(TR_COMM *comm)
+{
+  return comm->apcs;
 }
 
 TR_NAME *tr_comm_get_id(TR_COMM *comm)
@@ -134,30 +157,86 @@ TR_NAME *tr_comm_dup_owner_contact(TR_COMM *comm)
   return tr_dup_name(comm->owner_contact);
 }
 
-/* does not take responsibility for freeing IDP realm */
-void tr_comm_add_idp_realm(TR_COMM *comm, TR_IDP_REALM *realm)
+unsigned int tr_comm_get_refcount(TR_COMM *comm)
 {
-  TR_IDP_REALM *cur=NULL;
+  return comm->refcount;
+}
 
-  if (comm->idp_realms==NULL)
-    comm->idp_realms=realm;
-  else {
-    for (cur=comm->idp_realms; cur->comm_next!=NULL; cur=cur->comm_next) { }
-    cur->comm_next=realm;
+/* add to the table if it's a new membership or has a shorter
+ * provenance list than our existing membership */
+static void tr_comm_add_if_shorter(TR_COMM_TABLE *ctab, TR_COMM_MEMB *existing, TR_COMM_MEMB *newmemb)
+{
+  if (existing==NULL) {
+    /* not in the table */
+    tr_comm_table_add_memb(ctab, newmemb);
+  } else {
+    /* Had an entry. Replace if we have shorter provenance. */
+    if (tr_comm_memb_provenance_len(newmemb) < tr_comm_memb_provenance_len(existing)) {
+      tr_comm_table_remove_memb(ctab, existing);
+      tr_comm_memb_free(existing);
+      tr_comm_table_add_memb(ctab, newmemb);
+    } 
   }
 }
 
-/* does not take responsibility for freeing RP realm */
-void tr_comm_add_rp_realm(TR_COMM *comm, TR_RP_REALM *realm)
+/* does not take responsibility for freeing IDP realm */
+void tr_comm_add_idp_realm(TR_COMM_TABLE *ctab,
+                           TR_COMM *comm,
+                           TR_IDP_REALM *realm,
+                           json_t *provenance,
+                           struct timespec *expiry)
 {
-  TR_RP_REALM *cur=NULL;
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_COMM_MEMB *newmemb=tr_comm_memb_new(tmp_ctx);
+  TR_COMM_MEMB *existing=NULL;
 
-  if (comm->rp_realms==NULL)
-    comm->rp_realms=realm;
-  else {
-    for (cur=comm->rp_realms; cur->next!=NULL; cur=cur->next) { }
-    cur->next=realm;
+  if (newmemb==NULL) {
+    tr_err("tr_comm_add_idp_realm: unable to allocate new membership record.");
+    talloc_free(tmp_ctx);
+    return;
   }
+
+  tr_comm_memb_set_idp_realm(newmemb, realm);
+  tr_comm_memb_set_comm(newmemb, comm);
+  tr_comm_memb_set_provenance(newmemb, provenance);
+  tr_comm_memb_set_expiry(newmemb, expiry);
+
+  existing=tr_comm_table_find_idp_memb(ctab,
+                                       tr_idp_realm_get_id(realm),
+                                       tr_comm_get_id(comm),
+                                       tr_comm_memb_get_origin(newmemb));
+  tr_comm_add_if_shorter(ctab, existing, newmemb); /* takes newmemb out of tmp_ctx if needed */
+  talloc_free(tmp_ctx);
+}
+
+/* does not take responsibility for freeing RP realm */
+void tr_comm_add_rp_realm(TR_COMM_TABLE *ctab,
+                          TR_COMM *comm,
+                          TR_RP_REALM *realm,
+                          json_t *provenance,
+                          struct timespec *expiry)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_COMM_MEMB *newmemb=tr_comm_memb_new(tmp_ctx);
+  TR_COMM_MEMB *existing=NULL;
+
+  if (newmemb==NULL) {
+    tr_err("tr_comm_add_idp_realm: unable to allocate new membership record.");
+    talloc_free(tmp_ctx);
+    return;
+  }
+
+  tr_comm_memb_set_rp_realm(newmemb, realm);
+  tr_comm_memb_set_comm(newmemb, comm);
+  tr_comm_memb_set_provenance(newmemb, provenance);
+  tr_comm_memb_set_expiry(newmemb, expiry);
+
+  existing=tr_comm_table_find_rp_memb(ctab,
+                                      tr_rp_realm_get_id(realm),
+                                      tr_comm_get_id(comm),
+                                      tr_comm_memb_get_origin(newmemb));
+  tr_comm_add_if_shorter(ctab, existing, newmemb); /* takes newmemb out of tmp_ctx if needed */
+  talloc_free(tmp_ctx);
 }
 
 static TR_COMM *tr_comm_tail(TR_COMM *comm)
@@ -174,7 +253,8 @@ static TR_COMM *tr_comm_tail(TR_COMM *comm)
  * This will require careful thought if entries are ever removed
  * Call like comms=tr_comm_add_func(comms, new_comm);
  * or just use the tr_comm_add(comms, new) macro. */
-TR_COMM *tr_comm_add_func(TR_COMM *comms, TR_COMM *new)
+#define tr_comm_add(comms, new) ((comms)=tr_comm_add_func((comms), (new)))
+static TR_COMM *tr_comm_add_func(TR_COMM *comms, TR_COMM *new)
 {
   if (comms==NULL)
     comms=new;
@@ -188,50 +268,232 @@ TR_COMM *tr_comm_add_func(TR_COMM *comms, TR_COMM *new)
   return comms;
 }
 
-TR_IDP_REALM *tr_find_comm_idp (TR_COMM *comm, TR_NAME *idp_realm)
+/* guarantees comm is not in the list, not an error if it was't there */
+#define tr_comm_remove(comms, c) ((comms)=tr_comm_remove_func((comms), (c)))
+static TR_COMM *tr_comm_remove_func(TR_COMM *comms, TR_COMM *remove)
 {
-  TR_IDP_REALM *idp;
+  TR_COMM *this=comms;
 
-  if ((!comm) || (!idp_realm)) {
+  if ((this==NULL) || (this==remove))
+    return NULL;
+  
+  for (; this->next!=NULL; this=this->next) {
+    if (this->next==remove)
+      this->next=remove->next;
+  }
+  return comms;
+}
+
+TR_IDP_REALM *tr_comm_find_idp(TR_COMM_TABLE *ctab, TR_COMM *comm, TR_NAME *idp_realm)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_COMM_ITER *iter=NULL;
+  TR_IDP_REALM *this_idp=NULL;
+
+  if ((NULL==ctab) || (NULL==comm) || (NULL==idp_realm)) {
+    talloc_free(tmp_ctx);
     return NULL;
   }
 
-  for (idp = comm->idp_realms; NULL != idp; idp = idp->comm_next) {
-    if (!tr_name_cmp (idp_realm, idp->realm_id)) {
-      tr_debug("tr_find_comm_idp: Found IdP %s in community %s.", idp_realm->buf, comm->id->buf);
-      return idp;
+  iter=tr_comm_iter_new(tmp_ctx);
+  for (this_idp=tr_idp_realm_iter_first(iter, ctab, tr_comm_get_id(comm));
+       this_idp!=NULL;
+       this_idp=tr_idp_realm_iter_next(iter)) {
+    if (0==tr_name_cmp(idp_realm, tr_idp_realm_get_id(this_idp))) {
+      tr_debug("tr_comm_find_idp: Found IdP %s in community %s.", idp_realm->buf, tr_comm_get_id(comm)->buf);
+      talloc_free(tmp_ctx);
+      return this_idp;
     }
   }
-  /* if we didn't find one, return NULL */ 
+  tr_debug("tr_comm_find_idp: Unable to find IdP %s in community %s.", idp_realm->buf, tr_comm_get_id(comm)->buf);
+  talloc_free(tmp_ctx);
   return NULL;
 }
 
-TR_RP_REALM *tr_find_comm_rp (TR_COMM *comm, TR_NAME *rp_realm)
+TR_RP_REALM *tr_comm_find_rp (TR_COMM_TABLE *ctab, TR_COMM *comm, TR_NAME *rp_realm)
 {
-  TR_RP_REALM *rp;
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_COMM_ITER *iter=NULL;
+  TR_RP_REALM *this_rp=NULL;
 
-  if ((!comm) || (!rp_realm)) {
+  if ((NULL==ctab) || (NULL==comm) || (NULL==rp_realm)) {
+    talloc_free(tmp_ctx);
     return NULL;
   }
 
-  for (rp = comm->rp_realms; NULL != rp; rp = rp->next) {
-    if (!tr_name_cmp (rp_realm, rp->realm_name)) {
-      tr_debug("tr_find_comm_rp: Found RP %s in community %s.", rp_realm->buf, comm->id->buf);
-      return rp;
+  iter=tr_comm_iter_new(tmp_ctx);
+  for (this_rp=tr_rp_realm_iter_first(iter, ctab, tr_comm_get_id(comm));
+       this_rp!=NULL;
+       this_rp=tr_rp_realm_iter_next(iter)) {
+    if (0==tr_name_cmp(rp_realm, tr_rp_realm_get_id(this_rp))) {
+      tr_debug("tr_comm_find_rp: Found RP %s in community %s.", rp_realm->buf, tr_comm_get_id(comm)->buf);
+      talloc_free(tmp_ctx);
+      return this_rp;
     }
   }
-  /* if we didn't find one, return NULL */ 
+  tr_debug("tr_comm_find_rp: Unable to find RP %s in community %s.", rp_realm->buf, tr_comm_get_id(comm)->buf);
+  talloc_free(tmp_ctx);
   return NULL;
 }
 
-TR_COMM *tr_comm_lookup(TR_COMM *comms, TR_NAME *comm_name) 
+static TR_COMM *tr_comm_lookup(TR_COMM *comms, TR_NAME *comm_name) 
 {
   TR_COMM *cfg_comm = NULL;
 
   for (cfg_comm = comms; NULL != cfg_comm; cfg_comm = cfg_comm->next) {
-    if ((cfg_comm->id->len == comm_name->len) &&
-	(!strncmp(cfg_comm->id->buf, comm_name->buf, comm_name->len)))
+    if (0==tr_name_cmp(cfg_comm->id, comm_name))
       return cfg_comm;
+  }
+  return NULL;
+}
+
+TR_COMM_ITER *tr_comm_iter_new(TALLOC_CTX *mem_ctx)
+{
+  TR_COMM_ITER *iter=talloc(mem_ctx, TR_COMM_ITER);
+  if (iter!=NULL) {
+    iter->cur_memb=NULL;
+    iter->match=NULL;
+  }
+  return iter;
+}
+
+void tr_comm_iter_free(TR_COMM_ITER *iter)
+{
+  talloc_free(iter);
+}
+
+
+TR_COMM *tr_comm_iter_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab, TR_NAME *realm)
+{
+  iter->match=realm;
+
+  /* find memberships for this realm */
+  for (iter->cur_memb=ctab->memberships;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if (0==tr_name_cmp(iter->match, tr_comm_memb_get_realm_id(iter->cur_memb)))
+      return tr_comm_memb_get_comm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+TR_COMM *tr_comm_iter_next(TR_COMM_ITER *iter)
+{
+  for (iter->cur_memb=iter->cur_memb->next;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if (0==tr_name_cmp(iter->match, tr_comm_memb_get_realm_id(iter->cur_memb)))
+      return tr_comm_memb_get_comm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+/* iterate only over RPs */
+TR_COMM *tr_comm_iter_first_rp(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab, TR_NAME *realm)
+{
+  iter->match=realm;
+
+  /* find memberships for this realm */
+  for (iter->cur_memb=ctab->memberships;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if ((tr_comm_memb_get_rp_realm(iter->cur_memb)!=NULL) &&
+        (0==tr_name_cmp(iter->match, tr_comm_memb_get_realm_id(iter->cur_memb))))
+      return tr_comm_memb_get_comm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+TR_COMM *tr_comm_iter_next_rp(TR_COMM_ITER *iter)
+{
+  for (iter->cur_memb=iter->cur_memb->next;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if ((tr_comm_memb_get_rp_realm(iter->cur_memb)!=NULL) &&
+        (0==tr_name_cmp(iter->match, tr_comm_memb_get_realm_id(iter->cur_memb))))
+      return tr_comm_memb_get_comm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+/* iterate only over IDPs */
+TR_COMM *tr_comm_iter_first_idp(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab, TR_NAME *realm)
+{
+  iter->match=realm;
+
+  /* find memberships for this realm */
+  for (iter->cur_memb=ctab->memberships;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if ((tr_comm_memb_get_idp_realm(iter->cur_memb)!=NULL) &&
+        (0==tr_name_cmp(iter->match, tr_comm_memb_get_realm_id(iter->cur_memb))))
+      return tr_comm_memb_get_comm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+TR_COMM *tr_comm_iter_next_idp(TR_COMM_ITER *iter)
+{
+  for (iter->cur_memb=iter->cur_memb->next;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if ((tr_comm_memb_get_idp_realm(iter->cur_memb)!=NULL) &&
+        (0==tr_name_cmp(iter->match, tr_comm_memb_get_realm_id(iter->cur_memb))))
+      return tr_comm_memb_get_comm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+TR_RP_REALM *tr_rp_realm_iter_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab, TR_NAME *comm)
+{
+  iter->match=comm;
+
+  /* find memberships for this comm */
+  for (iter->cur_memb=ctab->memberships;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if ((tr_comm_memb_get_rp_realm(iter->cur_memb)!=NULL) &&
+        (0==tr_name_cmp(iter->match, tr_comm_get_id(tr_comm_memb_get_comm(iter->cur_memb)))))
+      return tr_comm_memb_get_rp_realm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+TR_RP_REALM *tr_rp_realm_iter_next(TR_COMM_ITER *iter)
+{
+  for (iter->cur_memb=iter->cur_memb->next;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if ((tr_comm_memb_get_rp_realm(iter->cur_memb)!=NULL) &&
+        (0==tr_name_cmp(iter->match, tr_comm_get_id(tr_comm_memb_get_comm(iter->cur_memb)))))
+      return tr_comm_memb_get_rp_realm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+TR_IDP_REALM *tr_idp_realm_iter_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab, TR_NAME *comm)
+{
+  iter->match=comm;
+
+  /* find memberships for this comm */
+  for (iter->cur_memb=ctab->memberships;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if ((tr_comm_memb_get_idp_realm(iter->cur_memb)!=NULL) &&
+        (0==tr_name_cmp(iter->match, tr_comm_get_id(tr_comm_memb_get_comm(iter->cur_memb)))))
+      return tr_comm_memb_get_idp_realm(iter->cur_memb);
+  }
+  return NULL;
+}
+
+TR_IDP_REALM *tr_idp_realm_iter_next(TR_COMM_ITER *iter)
+{
+  for (iter->cur_memb=iter->cur_memb->next;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if ((tr_comm_memb_get_idp_realm(iter->cur_memb)!=NULL) &&
+        (0==tr_name_cmp(iter->match, tr_comm_get_id(tr_comm_memb_get_comm(iter->cur_memb)))))
+      return tr_comm_memb_get_idp_realm(iter->cur_memb);
   }
   return NULL;
 }
@@ -244,13 +506,357 @@ const char *tr_comm_type_to_str(TR_COMM_TYPE type)
     s="unknown";
     break;
   case TR_COMM_APC:
-    s="APC";
+    s="apc";
     break;
   case TR_COMM_COI:
-    s="COI";
+    s="coi";
     break;
   default:
     s="invalid";
   }
   return s;
 }
+
+TR_COMM_TYPE tr_comm_type_from_str(const char *s)
+{
+  if (strcmp(s, "apc")==0)
+    return TR_COMM_APC;
+  if (strcmp(s,"coi")==0)
+    return TR_COMM_COI;
+  return TR_COMM_UNKNOWN;
+}
+
+
+static int tr_comm_memb_destructor(void *obj)
+{
+  TR_COMM_MEMB *memb=talloc_get_type_abort(obj, TR_COMM_MEMB);
+  if (memb->origin!=NULL)
+    tr_free_name(memb->origin);
+
+  if (memb->rp!=NULL)
+    tr_rp_realm_decref(memb->rp);
+  if (memb->idp!=NULL)
+    tr_idp_realm_decref(memb->idp);
+  if (memb->comm!=NULL)
+    tr_comm_decref(memb->comm);
+  if (memb->provenance!=NULL)
+    json_decref(memb->provenance);
+  return 0;
+}
+
+TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
+{
+  TR_COMM_MEMB *memb=talloc(mem_ctx, TR_COMM_MEMB);
+  if (memb!=NULL) {
+    memb->next=NULL;
+    memb->idp=NULL;
+    memb->rp=NULL;
+    memb->comm=NULL;
+    memb->origin=NULL;
+    memb->provenance=NULL;
+    memb->expiry=NULL;
+    talloc_set_destructor(memb, tr_comm_memb_destructor);
+  }
+  return memb;
+}
+
+void tr_comm_memb_free(TR_COMM_MEMB *memb)
+{
+  talloc_free(memb);
+}
+
+void tr_comm_memb_set_rp_realm(TR_COMM_MEMB *memb, TR_RP_REALM *realm)
+{
+  if (memb->idp!=NULL) {
+    tr_idp_realm_decref(memb->idp);
+    memb->idp=NULL;
+  }
+  if (memb->rp!=NULL)
+    tr_rp_realm_decref(memb->rp);
+
+
+  memb->rp=realm;
+  tr_rp_realm_incref(realm);
+}
+
+TR_RP_REALM *tr_comm_memb_get_rp_realm(TR_COMM_MEMB *memb)
+{
+  return memb->rp;
+}
+
+void tr_comm_memb_set_idp_realm(TR_COMM_MEMB *memb, TR_IDP_REALM *realm)
+{
+  if (memb->rp!=NULL) {
+    tr_rp_realm_decref(memb->rp);
+    memb->rp=NULL;
+  }
+  if (memb->idp!=NULL)
+    tr_idp_realm_decref(memb->idp);
+
+  memb->idp=realm;
+  tr_idp_realm_incref(realm);
+}
+
+TR_IDP_REALM *tr_comm_memb_get_idp_realm(TR_COMM_MEMB *memb)
+{
+  return memb->idp;
+}
+
+void tr_comm_memb_set_comm(TR_COMM_MEMB *memb, TR_COMM *comm)
+{
+  if (memb->comm!=NULL)
+    tr_comm_decref(memb->comm);
+  memb->comm=comm;
+  tr_comm_incref(comm);
+}
+
+TR_COMM *tr_comm_memb_get_comm(TR_COMM_MEMB *memb)
+{
+  return memb->comm;
+}
+
+static void tr_comm_memb_set_origin(TR_COMM_MEMB *memb, TR_NAME *origin)
+{
+  if (memb->origin!=NULL)
+    tr_free_name(memb->origin);
+  memb->origin=origin;
+}
+
+TR_NAME *tr_comm_memb_get_origin(TR_COMM_MEMB *memb)
+{
+  return memb->origin;
+}
+
+TR_NAME *tr_comm_memb_dup_origin(TR_COMM_MEMB *memb)
+{
+  if (memb->origin!=NULL)
+    return tr_dup_name(memb->origin);
+  return NULL;
+}
+
+void tr_comm_memb_set_provenance(TR_COMM_MEMB *memb, json_t *prov)
+{
+  if (memb->provenance)
+    json_decref(memb->provenance);
+
+  memb->provenance=prov;
+  if (prov!=NULL) {
+    json_incref(prov);
+
+    /* next line sets origin to NULL if provenance is empty because jansson
+     * routines return NULL on error */
+    memb->origin=tr_new_name(json_string_value(json_array_get(prov, 0)));
+  } else {
+    tr_comm_memb_set_origin(memb, NULL);
+  }
+}
+
+void tr_comm_memb_add_to_provenance(TR_COMM_MEMB *memb, TR_NAME *hop)
+{
+  if (memb->provenance==NULL) {
+    memb->provenance=json_array();
+    if (memb->provenance==NULL) {
+      tr_err("tr_comm_memb_add_to_provenance: unable to allocate provenance list.");
+      return;
+    }
+    /* this is the first entry in the provenance, so it is the origin */
+    tr_comm_memb_set_origin(memb,tr_dup_name(hop));
+    if (memb->origin==NULL) {
+      tr_err("tr_comm_memb_add_to_provenance: unable to allocate origin.");
+      json_decref(memb->provenance);
+      memb->provenance=NULL;
+      return;
+    }
+  }
+  if (0!=json_array_append_new(memb->provenance, tr_name_to_json_string(hop)))
+    tr_err("tr_comm_memb_add_to_provenance: unable to extend provenance list.");
+}
+
+size_t tr_comm_memb_provenance_len(TR_COMM_MEMB *memb)
+{
+  if (memb->provenance==NULL)
+    return 0;
+  return json_array_size(memb->provenance);
+}
+
+void tr_comm_memb_set_expiry(TR_COMM_MEMB *memb, struct timespec *time)
+{
+  memb->expiry=time;
+}
+
+struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb)
+{
+  return memb->expiry;
+}
+
+int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime)
+{
+  return ((curtime->tv_sec > memb->expiry->tv_sec)
+         || ((curtime->tv_sec == memb->expiry->tv_sec)
+            &&(curtime->tv_nsec >= memb->expiry->tv_nsec)));
+}
+
+TR_COMM_TABLE *tr_comm_table_new(TALLOC_CTX *mem_ctx)
+{
+  TR_COMM_TABLE *ctab=talloc(mem_ctx, TR_COMM_TABLE);
+  if (ctab!=NULL) {
+    ctab->comms=NULL;
+    ctab->memberships=NULL;
+  }
+  return ctab;
+}
+
+void tr_comm_table_free(TR_COMM_TABLE *ctab)
+{
+  talloc_free(ctab);
+}
+
+void tr_comm_table_add_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *new)
+{
+  TR_COMM_MEMB *cur=NULL;
+
+  if (ctab->memberships==NULL) {
+    ctab->memberships=new;
+    talloc_steal(ctab, new);
+  } else {
+    for (cur=ctab->memberships; cur->next!=NULL; cur=cur->next) { }
+    cur->next=new;
+  }
+  talloc_steal(ctab, new);
+}
+
+/* Remove memb from ctab. Do not free anything. Do nothing if memb not in ctab. */
+void tr_comm_table_remove_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *memb)
+{
+  TR_COMM_MEMB *cur=NULL;
+
+  if ((memb==NULL) || (ctab->memberships==NULL)) {
+    return;
+  } else if (ctab->memberships==memb) {
+    ctab->memberships=memb->next;
+    return;
+  } else {
+    for (cur=ctab->memberships; cur->next!=NULL; cur=cur->next) {
+      if (cur->next==memb) {
+        cur->next=memb->next;
+        return;
+      }
+    }
+  }
+}
+
+static TR_NAME *tr_comm_memb_get_realm_id(TR_COMM_MEMB *memb)
+{
+  if (memb->rp!=NULL)
+    return tr_rp_realm_get_id(memb->rp);
+  else
+    return tr_idp_realm_get_id(memb->idp);
+}
+
+TR_COMM_MEMB *tr_comm_table_find_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+{
+  TR_COMM_MEMB *cur=NULL;
+  TR_NAME *cur_realm_name=NULL;
+
+  for (cur=ctab->memberships; cur!=NULL; cur=cur->next) {
+    cur_realm_name=tr_comm_memb_get_realm_id(cur);
+    if (cur_realm_name==NULL) {
+      tr_warning("tr_comm_table_find: encountered realm with no name.");
+      continue;
+    }
+    if ((0==tr_name_cmp(realm, cur_realm_name)) &&
+        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur)))) &&
+        (0==tr_name_cmp(origin, tr_comm_memb_get_origin(cur)))) {
+      return cur;
+    }
+  }
+  return NULL;
+}
+
+TR_COMM_MEMB *tr_comm_table_find_idp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+{
+  TR_COMM_MEMB *cur=NULL;
+  TR_IDP_REALM *idp_realm=NULL;
+
+  for (cur=ctab->memberships; cur!=NULL; cur=cur->next) {
+    idp_realm=tr_comm_memb_get_idp_realm(cur);
+    if (idp_realm==NULL)
+      continue; /* was not an idp */
+
+    if ((0==tr_name_cmp(realm, idp_realm->realm_id)) &&
+        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur)))) &&
+        (0==tr_name_cmp(origin, tr_comm_memb_get_origin(cur)))) {
+      return cur;
+    }
+  }
+  return NULL;
+}
+
+TR_COMM_MEMB *tr_comm_table_find_rp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+{
+  TR_COMM_MEMB *cur=NULL;
+  TR_RP_REALM *rp_realm=NULL;
+
+  for (cur=ctab->memberships; cur!=NULL; cur=cur->next) {
+    rp_realm=tr_comm_memb_get_rp_realm(cur);
+    if (rp_realm==NULL)
+      continue; /* was not an rp */
+
+    if ((0==tr_name_cmp(realm, tr_rp_realm_get_id(rp_realm))) &&
+        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur)))) &&
+        (0==tr_name_cmp(origin, tr_comm_memb_get_origin(cur)))) {
+      return cur;
+    }
+  }
+  return NULL;
+}
+
+TR_COMM *tr_comm_table_find_comm(TR_COMM_TABLE *ctab, TR_NAME *comm_id)
+{
+  return tr_comm_lookup(ctab->comms, comm_id);
+}
+
+void tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new)
+{
+  tr_comm_add(ctab->comms, new);
+}
+
+void tr_comm_table_remove_comm(TR_COMM_TABLE *ctab, TR_COMM *comm)
+{
+  tr_comm_remove(ctab->comms, comm);
+}
+
+/* how many communities in the table? */
+size_t tr_comm_table_size(TR_COMM_TABLE *ctab)
+{
+  size_t count=0;
+  TR_COMM *this=ctab->comms;
+  while(this!=NULL) {
+    this=this->next;
+    count++;
+  }
+  return count;
+}
+
+
+const char *tr_realm_role_to_str(TR_REALM_ROLE role)
+{
+  switch(role) {
+  case TR_ROLE_IDP:
+    return "idp";
+  case TR_ROLE_RP:
+    return "rp";
+  default:
+    return NULL;
+  }
+}
+
+TR_REALM_ROLE tr_realm_role_from_str(const char *s)
+{
+  if (strcmp(s, "idp")==0)
+    return TR_ROLE_IDP;
+  if (strcmp(s, "rp")==0)
+    return TR_ROLE_RP;
+  return TR_ROLE_UNKNOWN;
+}
+

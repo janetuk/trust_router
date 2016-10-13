@@ -54,47 +54,94 @@ void tr_print_config (TR_CFG *cfg) {
   tr_print_comms(cfg->comms);
 }
 
-void tr_print_comms (TR_COMM *comm_list) {
+void tr_print_comms (TR_COMM_TABLE *ctab)
+{
   TR_COMM *comm = NULL;
 
-  for (comm = comm_list; NULL != comm; comm = comm->next) {
+  for (comm = ctab->comms; NULL != comm; comm = comm->next) {
     tr_notice("tr_print_config: Community %s:", comm->id->buf);
 
     tr_notice("tr_print_config:  - Member IdPs:");
-    tr_print_comm_idps(comm->idp_realms);
+    tr_print_comm_idps(ctab, comm);
 
     tr_notice("tr_print_config:  - Member RPs:");
-    tr_print_comm_rps(comm->rp_realms);
+    tr_print_comm_rps(ctab, comm);
   }
 }
 
-void tr_print_comm_idps (TR_IDP_REALM *idp_list) {
+void tr_print_comm_idps(TR_COMM_TABLE *ctab, TR_COMM *comm)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_COMM_ITER *iter=NULL;
   TR_IDP_REALM *idp = NULL;
   char *s=NULL;
 
-  for (idp = idp_list; NULL != idp; idp = idp->comm_next) {
-    s=tr_idp_realm_to_str(NULL, idp);
+  iter=tr_comm_iter_new(tmp_ctx);
+  if (iter==NULL) {
+    tr_notice("tr_print_config: unable to allocate IdP iterator.");
+    talloc_free(tmp_ctx);
+    return;
+  }
+  
+  for (idp=tr_idp_realm_iter_first(iter, ctab, tr_comm_get_id(comm));
+       NULL!=idp;
+       idp=tr_idp_realm_iter_next(iter)) {
+    s=tr_idp_realm_to_str(tmp_ctx, idp);
     if (s!=NULL)
       tr_notice("tr_print_config:    - @%s", s);
     else
-      tr_notice("tr_print_config: unable to allocate idp output string.");
+      tr_notice("tr_print_config: unable to allocate IdP output string.");
   }
+  talloc_free(tmp_ctx);
 }
 
-void tr_print_comm_rps(TR_RP_REALM *rp_list) {
+void tr_print_comm_rps(TR_COMM_TABLE *ctab, TR_COMM *comm)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_COMM_ITER *iter=NULL;
   TR_RP_REALM *rp = NULL;
+  char *s=NULL;
 
-  for (rp = rp_list; NULL != rp; rp = rp->next) {
-    tr_notice("tr_print_config:    - %s", rp->realm_name->buf);
+  iter=tr_comm_iter_new(tmp_ctx);
+  if (iter==NULL) {
+    tr_notice("tr_print_config: unable to allocate RP iterator.");
+    talloc_free(tmp_ctx);
+    return;
   }
+  
+  for (rp=tr_rp_realm_iter_first(iter, ctab, tr_comm_get_id(comm));
+       NULL!=rp;
+       rp=tr_rp_realm_iter_next(iter)) {
+    s=tr_rp_realm_to_str(tmp_ctx, rp);
+    if (s!=NULL)
+      tr_notice("tr_print_config:    - @%s", s);
+    else
+      tr_notice("tr_print_config: unable to allocate RP output string.");
+  }
+  talloc_free(tmp_ctx);
 }
 
 TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx)
 {
-  return talloc_zero(mem_ctx, TR_CFG);
+  TR_CFG *cfg=talloc(mem_ctx, TR_CFG);
+  if (cfg!=NULL) {
+    cfg->internal=NULL;
+    cfg->idp_realms=NULL;
+    cfg->rp_realms=NULL;
+    cfg->rp_clients=NULL;
+    cfg->peers=NULL;
+    cfg->default_servers=NULL;
+    cfg->comms=tr_comm_table_new(cfg);
+    if (cfg->comms==NULL) {
+      talloc_free(cfg);
+      cfg=NULL;
+    }
+  }
+  return cfg;
 }
 
-void tr_cfg_free (TR_CFG *cfg) {
+void tr_cfg_free (TR_CFG *cfg)
+{
   talloc_free(cfg);
 }
 
@@ -952,44 +999,6 @@ cleanup:
   return realms;
 }
 
-#if 0
-static TR_IDP_REALM *tr_cfg_parse_remote_realms(TALLOC_CTX *mem_ctx, json_t *jrealms, TR_CFG_RC *rc)
-{
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TR_IDP_REALM *realms=NULL;
-  TR_IDP_REALM *new_realm=NULL;
-  json_t *this_jrealm=NULL;
-  int ii=0;
-
-  *rc=TR_CFG_ERROR;
-  if ((jrealms==NULL) || (!json_is_array(jrealms))) {
-    tr_err("tr_cfg_parse_remote_realms: realms not an array");
-    *rc=TR_CFG_BAD_PARAMS;
-    goto cleanup;
-  }
-
-  for (ii=0; ii<json_array_size(jrealms); ii++) {
-    this_jrealm=json_array_get(jrealms, ii);
-    if (tr_cfg_is_remote_realm(this_jrealm)) {
-      new_realm=tr_cfg_parse_one_remote_realm(tmp_ctx, this_jrealm, rc);
-      if ((*rc)!=TR_CFG_SUCCESS) {
-        tr_err("tr_cfg_parse_remote_realms: error decoding remote realm entry %d", ii+1);
-        *rc=TR_CFG_NOPARSE;
-        goto cleanup;
-      }
-      realms=tr_idp_realm_add(realms, new_realm);
-    }
-  }
-  
-  *rc=TR_CFG_SUCCESS;
-  talloc_steal(mem_ctx, realms);
-
-cleanup:
-  talloc_free(tmp_ctx);
-  return realms;
-}
-#endif /* 0 */
-
 static TR_GSS_NAMES *tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR_CFG_RC *rc)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
@@ -1346,10 +1355,14 @@ static TR_NAME *tr_cfg_parse_org_name(TALLOC_CTX *mem_ctx, json_t *j_org, TR_CFG
 }
 
 #if 0
+/* TODO: are we using this? JLR */
 /* Update the community information with data from a new batch of IDP realms.
  * May partially add realms if there is a failure, no guarantees.
  * Call like comms=tr_comm_idp_update(comms, new_realms, &rc) */
-static TR_COMM *tr_cfg_comm_idp_update(TALLOC_CTX *mem_ctx, TR_COMM *comms, TR_IDP_REALM *new_realms, TR_CFG_RC *rc)
+static TR_COMM *tr_cfg_comm_idp_update(TALLOC_CTX *mem_ctx,
+                                       TR_COMM_TABLE *ctab,
+                                       TR_IDP_REALM *new_realms,
+                                       TR_CFG_RC *rc)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_COMM *comm=NULL; /* community looked up in comms table */
@@ -1601,11 +1614,9 @@ static TR_CFG_RC tr_cfg_parse_default_servers (TR_CFG *trc, json_t *jcfg)
   return rc;
 }
 
-static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_CFG *trc, json_t *jidps, TR_CFG_RC *rc)
+static void tr_cfg_parse_comm_idps(TR_CFG *trc, json_t *jidps, TR_COMM *comm, TR_CFG_RC *rc)
 {
-  TR_IDP_REALM *idp = NULL;
-  TR_IDP_REALM *found_idp = NULL;
-  TR_IDP_REALM *temp_idp = NULL;
+  TR_IDP_REALM *found_idp=NULL;
   int i = 0;
 
   if ((!trc) ||
@@ -1613,70 +1624,83 @@ static TR_IDP_REALM *tr_cfg_parse_comm_idps (TR_CFG *trc, json_t *jidps, TR_CFG_
       (!json_is_array(jidps))) {
     if (rc)
       *rc = TR_CFG_BAD_PARAMS;
-    return NULL;
+    return;
   }
 
-  for (i = 0; i < json_array_size(jidps); i++) {
-    if (NULL == (temp_idp = talloc(trc, TR_IDP_REALM))) {
-      tr_debug("tr_cfg_parse_comm_idps: Can't allocate memory for IdP Realm.");
-      if (rc)
-        *rc = TR_CFG_NOMEM;
-      return NULL;
-    }
-    memset (temp_idp, 0, sizeof(TR_IDP_REALM));
-    
-    if (NULL == (found_idp = (tr_cfg_find_idp(trc, 
-                                              tr_new_name((char *)json_string_value(json_array_get(jidps, i))), 
-                                              rc)))) {
+  for (i=0; i < json_array_size(jidps); i++) {
+    found_idp=tr_cfg_find_idp(trc, 
+                              tr_new_name((char *)json_string_value(json_array_get(jidps, i))), 
+                              rc);
+    if ((found_idp==NULL) || (*rc!=TR_CFG_SUCCESS)) {
       tr_debug("tr_cfg_parse_comm_idps: Unknown IDP %s.", 
                (char *)json_string_value(json_array_get(jidps, i)));
-      return NULL;
+      *rc=TR_CFG_ERROR;
+      return;
     }
-
-    // We *MUST* do a dereferenced copy here or the second community will corrupt the linked list we create here.
-    *temp_idp = *found_idp;
-
-    temp_idp->comm_next = idp;
-    idp = temp_idp;
+    tr_comm_add_idp_realm(trc->comms, comm, found_idp, NULL, NULL); /* no provenance, never expires */
   }
 
-  return idp;
+  *rc=TR_CFG_SUCCESS;
+  return;
 }
 
-static TR_RP_REALM *tr_cfg_parse_comm_rps (TR_CFG *trc, json_t *jrps, TR_CFG_RC *rc)
+static void tr_cfg_parse_comm_rps(TR_CFG *trc, json_t *jrps, TR_COMM *comm, TR_CFG_RC *rc)
 {
-  TR_RP_REALM *rp = NULL;
-  TR_RP_REALM *temp_rp = NULL;
-  int i = 0;
+  TR_RP_REALM *found_rp=NULL;
+  TR_RP_REALM *new_rp=NULL;
+  TR_NAME *rp_name=NULL;
+  const char *s=NULL;
+  int ii=0;
 
   if ((!trc) ||
       (!jrps) ||
       (!json_is_array(jrps))) {
     if (rc)
       *rc = TR_CFG_BAD_PARAMS;
-    return NULL;
+    return;
   }
 
-  for (i = (json_array_size(jrps)-1); i >= 0; i--) {
-    if (NULL == (temp_rp = talloc_zero(trc, TR_RP_REALM))) {
-      tr_debug("tr_cfg_parse_comm_rps: Can't allocate memory for RP Realm.");
-      if (rc)
-	*rc = TR_CFG_NOMEM;
-      return NULL;
+  for (ii=0; ii<json_array_size(jrps); ii++) {
+    /* get the RP name as a string */
+    s=json_string_value(json_array_get(jrps, ii));
+    if (s==NULL) {
+      tr_notice("tr_cfg_parse_comm_rps: null RP found in community %.*s, ignoring.",
+                tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
+      continue;
     }
 
-    if (NULL == (temp_rp->realm_name = tr_new_name((char *)json_string_value(json_array_get(jrps, i))))) {
-      tr_debug("tr_cfg_parse_comm_rps: No memory for RP Realm Name.");
-      if (rc)
-	*rc = TR_CFG_NOMEM;
-      return NULL;
+    /* convert string to TR_NAME */
+    rp_name=tr_new_name(s);
+    if (rp_name==NULL) {
+      tr_err("tr_cfg_parse_comm_rps: unable to allocate RP name for %s in community %.*s.",
+             s, tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
     }
 
-    temp_rp->next = rp;
-    rp = temp_rp;
+    /* see if we already have this RP in this community */
+    found_rp=tr_comm_find_rp(trc->comms, comm, rp_name);
+    if (found_rp!=NULL) {
+      tr_notice("tr_cfg_parse_comm_rps: RP %s repeated in community %.*s.",
+                s, tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
+      tr_free_name(rp_name);
+      continue;
+    }
+
+    /* Add the RP to the community, first see if we have the RP in any community */
+    found_rp=tr_rp_realm_lookup(trc->rp_realms, rp_name);
+    if (found_rp!=NULL)
+      new_rp=found_rp; /* use it rather than creating a new realm record */
+    else {
+      new_rp=tr_rp_realm_new(NULL);
+      if (new_rp==NULL) {
+        tr_err("tr_cfg_parse_comm_rps: unable to allocate RP record for %s in community %.*s.",
+               s, tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
+      }
+      tr_rp_realm_set_id(new_rp, rp_name);
+      rp_name=NULL; /* rp_name no longer belongs to us */
+      tr_rp_realm_add(trc->rp_realms, new_rp);
+    }
+    tr_comm_add_rp_realm(trc->comms, comm, new_rp, NULL, NULL);
   }
-
-  return rp;
 }
 
 static TR_COMM *tr_cfg_parse_one_comm (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t *jcomm, TR_CFG_RC *rc)
@@ -1746,7 +1770,7 @@ static TR_COMM *tr_cfg_parse_one_comm (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t 
     goto cleanup;
   }
 
-  comm->idp_realms = tr_cfg_parse_comm_idps(trc, jidps, rc);
+  tr_cfg_parse_comm_idps(trc, jidps, comm, rc);
   if (TR_CFG_SUCCESS != *rc) {
     tr_debug("tr_cfg_parse_one_comm: Can't parse IDP realms for comm %s.",
              tr_comm_get_id(comm)->buf);
@@ -1754,9 +1778,9 @@ static TR_COMM *tr_cfg_parse_one_comm (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t 
     goto cleanup;
   }
 
-  comm->rp_realms = tr_cfg_parse_comm_rps(trc, jrps, rc);
+  tr_cfg_parse_comm_rps(trc, jrps, comm, rc);
   if (TR_CFG_SUCCESS != *rc) {
-    tr_debug("tr_cfg_parse_comm: Can't parse RP realms for comm %s .",
+    tr_debug("tr_cfg_parse_one_comm: Can't parse RP realms for comm %s .",
              tr_comm_get_id(comm)->buf);
     comm=NULL;
     goto cleanup;
@@ -1767,7 +1791,7 @@ static TR_COMM *tr_cfg_parse_one_comm (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t 
     comm->expiration_interval = 43200; /*30 days*/
     if (jexpire) {
 	if (!json_is_integer(jexpire)) {
-	  fprintf(stderr, "tr_parse_comm: expirae_interval is not an integer\n");
+	  fprintf(stderr, "tr_parse_one_comm: expiration_interval is not an integer\n");
     comm=NULL;
     goto cleanup;
 	}
@@ -1812,8 +1836,8 @@ static TR_CFG_RC tr_cfg_parse_comms (TR_CFG *trc, json_t *jcfg)
       }
       tr_debug("tr_cfg_parse_comms: Community configured: %s.",
                tr_comm_get_id(comm)->buf);
-      comm->next = trc->comms;
-      trc->comms = comm;
+
+      tr_comm_table_add_comm(trc->comms, comm);
     }
   }
   tr_debug("tr_cfg_parse_comms: Finished (rc=%d)", rc);
@@ -1838,7 +1862,7 @@ TR_CFG_RC tr_cfg_validate(TR_CFG *trc)
     rc = TR_CFG_ERROR;
   }
 
-  if (NULL == trc->comms) {
+  if (0==tr_comm_table_size(trc->comms)) {
     tr_debug("tr_cfg_validate: Error: No Communities configured");
     rc = TR_CFG_ERROR;
   }

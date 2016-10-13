@@ -33,6 +33,7 @@
  */
 
 #include <talloc.h>
+#include <time.h>
 
 #include <trust_router/tr_name.h>
 #include <tr_idp.h>
@@ -108,9 +109,32 @@ TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
     idp->aaa_servers=NULL;
     idp->apcs=NULL;
     idp->origin=TR_REALM_LOCAL;
+    idp->peer=NULL;
+    idp->expiry=talloc(idp, struct timespec);
+    if (idp->expiry==NULL) {
+      talloc_free(idp);
+      return NULL;
+    }
     talloc_set_destructor((void *)idp, tr_idp_realm_destructor);
   }
   return idp;
+}
+
+void tr_idp_realm_free(TR_IDP_REALM *idp)
+{
+  talloc_free(idp);
+}
+
+TR_NAME *tr_idp_realm_get_id(TR_IDP_REALM *idp)
+{
+  return idp->realm_id;
+}
+
+void tr_idp_realm_set_id(TR_IDP_REALM *idp, TR_NAME *id)
+{
+  if (idp->realm_id!=NULL)
+    tr_free_name(idp->realm_id);
+  idp->realm_id=id;
 }
 
 static TR_IDP_REALM *tr_idp_realm_tail(TR_IDP_REALM *idp)
@@ -236,4 +260,15 @@ char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp)
                          apcs);
   talloc_free(tmp_ctx);
   return result;
+}
+
+void tr_idp_realm_incref(TR_IDP_REALM *realm)
+{
+  realm->refcount++;
+}
+
+void tr_idp_realm_decref(TR_IDP_REALM *realm)
+{
+  if (realm->refcount>0)
+    realm->refcount--;
 }

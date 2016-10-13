@@ -84,9 +84,10 @@ typedef struct tr_cfg_internal {
 typedef struct tr_cfg {
   TR_CFG_INTERNAL *internal;		/* internal trust router config */
   TR_IDP_REALM *idp_realms;		/* locally associated IDP Realms */
+  TR_RP_REALM *rp_realms;
   TR_RP_CLIENT *rp_clients;		/* locally associated RP Clients */
   TRP_PTABLE *peers; /* TRP peer table */
-  TR_COMM *comms;			/* locally-known communities */
+  TR_COMM_TABLE *comms; /* communities */
   TR_AAA_SERVER *default_servers;	/* default server list */
   /* TBD -- Global Filters */
 } TR_CFG;
@@ -108,9 +109,9 @@ void tr_cfg_free(TR_CFG *cfg);
 void tr_cfg_mgr_free(TR_CFG_MGR *cfg);
 
 void tr_print_config(TR_CFG *cfg);
-void tr_print_comms(TR_COMM *comm_list);
-void tr_print_comm_idps(TR_IDP_REALM *idp_list);
-void tr_print_comm_rps(TR_RP_REALM *rp_list);
+void tr_print_comms(TR_COMM_TABLE *ctab);
+void tr_print_comm_idps(TR_COMM_TABLE *ctab, TR_COMM *comm);
+void tr_print_comm_rps(TR_COMM_TABLE *ctab, TR_COMM *comm);
 
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
 TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);

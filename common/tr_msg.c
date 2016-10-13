@@ -41,6 +41,8 @@
 #include <talloc.h>
 
 
+#include <tr_apc.h>
+#include <tr_comm.h>
 #include <tr_msg.h>
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
@@ -569,6 +571,139 @@ static TRP_RC tr_msg_encode_inforec_route(json_t *jrec, TRP_INFOREC *rec)
   return TRP_SUCCESS;
 }
 
+/* returns a json array */
+static json_t *tr_msg_encode_apcs(TR_APC *apcs)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_APC_ITER *iter=tr_apc_iter_new(tmp_ctx);
+  TR_APC *apc=NULL;
+  json_t *jarray=NULL;
+  json_t *jid=NULL;
+
+  if (iter==NULL)
+    goto cleanup;
+
+  jarray=json_array();
+  if (jarray==NULL)
+    goto cleanup;
+
+  for (apc=tr_apc_iter_first(iter, apcs); apc!=NULL; apc=tr_apc_iter_next(iter)) {
+    jid=tr_name_to_json_string(tr_apc_get_id(apc));
+    if ((jid==NULL) || (json_array_append_new(jarray, jid)!=0)) {
+      json_decref(jarray);
+      jarray=NULL;
+      goto cleanup;
+    }
+  }
+  
+cleanup:
+  talloc_free(tmp_ctx);
+  return jarray;
+}
+
+static TR_APC *tr_msg_decode_apcs(TALLOC_CTX *mem_ctx, json_t *jarray, TRP_RC *rc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  size_t ii=0;
+  TR_APC *apc_list=NULL;
+  TR_APC *new=NULL;
+  json_t *jstr=NULL;
+
+  *rc=TRP_ERROR;
+
+  for (ii=0; ii<json_array_size(jarray); ii++) {
+    jstr=json_array_get(jarray, ii);
+    new=tr_apc_new(tmp_ctx);
+    if ((jstr==NULL) || (new==NULL) || (!json_is_string(jstr))) {
+      apc_list=NULL; /* these are all in tmp_ctx, so they'll still get cleaned up */
+      goto cleanup;
+    }
+
+    tr_apc_set_id(new, tr_new_name(json_string_value(jstr)));
+    if (tr_apc_get_id(new)==NULL) {
+      apc_list=NULL; /* these are all in tmp_ctx, so they'll still get cleaned up */
+      goto cleanup;
+    }
+
+    tr_apc_add(apc_list, new);
+  }
+
+  *rc=TRP_SUCCESS;
+
+  if (apc_list!=NULL)
+    talloc_steal(apc_list, mem_ctx);
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return apc_list;
+}
+
+static TRP_RC tr_msg_encode_inforec_comm(json_t *jrec, TRP_INFOREC *rec)
+{
+  json_t *jstr=NULL;
+  json_t *jint=NULL;
+  json_t *japcs=NULL;
+  const char *sconst=NULL;
+  TR_COMM_TYPE commtype=TR_COMM_UNKNOWN;
+
+  if (rec==NULL)
+    return TRP_BADTYPE;
+
+  commtype=trp_inforec_get_comm_type(rec);
+  if (commtype==TR_COMM_UNKNOWN) {
+    tr_notice("tr_msg_encode_inforec_comm: unknown community type.");
+    return TRP_ERROR;
+  }
+  sconst=tr_comm_type_to_str(commtype);
+  if (sconst==NULL)
+    return TRP_ERROR;
+  jstr=json_string(sconst);
+  if(jstr==NULL)
+    return TRP_ERROR;
+  json_object_set_new(jrec, "type", jstr);
+
+  sconst=tr_realm_role_to_str(trp_inforec_get_role(rec));
+  if (sconst==NULL) {
+    tr_notice("tr_msg_encode_inforec_comm: unknown realm role.");
+    return TRP_ERROR;
+  }
+  jstr=json_string(sconst);
+  if(jstr==NULL)
+    return TRP_ERROR;
+  json_object_set_new(jrec, "role", jstr);
+
+  japcs=tr_msg_encode_apcs(trp_inforec_get_apcs(rec));
+  if (japcs==NULL) {
+    tr_notice("tr_msg_encode_inforec_comm: error encoding APCs.");
+    return TRP_ERROR;
+  }
+  json_object_set_new(jrec, "apcs", japcs);
+  
+
+  if (trp_inforec_get_owner_realm(rec)!=NULL) {
+    jstr=tr_name_to_json_string(trp_inforec_get_owner_realm(rec));
+    if(jstr==NULL)
+      return TRP_ERROR;
+    json_object_set_new(jrec, "owner_realm", jstr);
+  }  
+
+  if (trp_inforec_get_owner_contact(rec)!=NULL) {
+    jstr=tr_name_to_json_string(trp_inforec_get_owner_contact(rec));
+    if(jstr==NULL)
+      return TRP_ERROR;
+    json_object_set_new(jrec, "owner_contact", jstr);
+  }  
+
+  json_object_set(jrec, "provenance", trp_inforec_get_provenance(rec));
+
+  jint=json_integer(trp_inforec_get_interval(rec));
+  if(jint==NULL)
+    return TRP_ERROR;
+  json_object_set_new(jrec, "interval", jint);
+
+  return TRP_SUCCESS;
+}
+
 static json_t *tr_msg_encode_inforec(TRP_INFOREC *rec)
 {
   json_t *jrec=NULL;
@@ -595,11 +730,110 @@ static json_t *tr_msg_encode_inforec(TRP_INFOREC *rec)
       return NULL;
     }
     break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (TRP_SUCCESS!=tr_msg_encode_inforec_comm(jrec, rec)) {
+      json_decref(jrec);
+      return NULL;
+    }
+    break;
   default:
     json_decref(jrec);
     return NULL;
   }
   return jrec;
+}
+
+static TRP_RC tr_msg_decode_trp_inforec_route(json_t *jrecord, TRP_INFOREC *rec)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRP_RC rc=TRP_ERROR;
+  char *s=NULL;
+  int num=0;
+
+  rc=tr_msg_get_json_string(jrecord, "trust_router", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  if (TRP_SUCCESS!=trp_inforec_set_trust_router(rec, tr_new_name(s))) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+  talloc_free(s); s=NULL;
+
+  trp_inforec_set_next_hop(rec, NULL); /* make sure this is null (filled in later) */
+
+  rc=tr_msg_get_json_integer(jrecord, "metric", &num);
+  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_metric(rec,num)))
+    goto cleanup;
+
+  rc=tr_msg_get_json_integer(jrecord, "interval", &num);
+  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_interval(rec,num)))
+    goto cleanup;
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return rc;
+}
+
+static TRP_RC tr_msg_decode_trp_inforec_comm(json_t *jrecord, TRP_INFOREC *rec)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TRP_RC rc=TRP_ERROR;
+  char *s=NULL;
+  int num=0;
+  TR_APC *apcs=NULL;
+
+  rc=tr_msg_get_json_string(jrecord, "type", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  if (TRP_SUCCESS!=trp_inforec_set_comm_type(rec, tr_comm_type_from_str(s))) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+  talloc_free(s); s=NULL;
+
+  rc=tr_msg_get_json_string(jrecord, "role", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  if (TRP_SUCCESS!=trp_inforec_set_role(rec, tr_realm_role_from_str(s))) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+  talloc_free(s); s=NULL;
+
+  apcs=tr_msg_decode_apcs(rec, json_object_get(jrecord, "apcs"), &rc);
+  if (rc!=TRP_SUCCESS) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+  trp_inforec_set_apcs(rec, apcs);
+
+  rc=tr_msg_get_json_string(jrecord, "owner_realm", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  if (TRP_SUCCESS!=trp_inforec_set_owner_realm(rec, tr_new_name(s))) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+  talloc_free(s); s=NULL;
+
+  rc=tr_msg_get_json_string(jrecord, "owner_contact", &s, tmp_ctx);
+  if (rc != TRP_SUCCESS)
+    goto cleanup;
+  if (TRP_SUCCESS!=trp_inforec_set_owner_contact(rec, tr_new_name(s))) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+  talloc_free(s); s=NULL;
+
+  trp_inforec_set_provenance(rec, json_object_get(jrecord, "provenance"));
+
+  rc=tr_msg_get_json_integer(jrecord, "interval", &num);
+  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_interval(rec,num)))
+    goto cleanup;
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return rc;
 }
 
 /* decode a single record */
@@ -610,7 +844,6 @@ static TRP_INFOREC *tr_msg_decode_trp_inforec(TALLOC_CTX *mem_ctx, json_t *jreco
   TRP_INFOREC *rec=NULL;
   TRP_RC rc=TRP_ERROR;
   char *s=NULL;
-  int num=0;
   
   if (0!=tr_msg_get_json_string(jrecord, "record_type", &s, tmp_ctx))
     goto cleanup;
@@ -624,30 +857,19 @@ static TRP_INFOREC *tr_msg_decode_trp_inforec(TALLOC_CTX *mem_ctx, json_t *jreco
     goto cleanup;
   }
 
-  /* We only support route_info records for now*/
-  if (trp_inforec_get_type(rec)!=TRP_INFOREC_TYPE_ROUTE) {
+  tr_debug("tr_msg_decode_trp_inforec: '%s' record found.", trp_inforec_type_to_string(rec->type));
+
+  switch(trp_inforec_get_type(rec)) {
+  case TRP_INFOREC_TYPE_ROUTE:
+    rc=tr_msg_decode_trp_inforec_route(jrecord, rec);
+    break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    rc=tr_msg_decode_trp_inforec_comm(jrecord, rec);
+    break;
+  default:
     rc=TRP_UNSUPPORTED;
     goto cleanup;
   }
-
-  tr_debug("tr_msg_decode_trp_inforec: '%s' record found.", trp_inforec_type_to_string(rec->type));
-
-  rc=tr_msg_get_json_string(jrecord, "trust_router", &s, tmp_ctx);
-  if (rc != TRP_SUCCESS)
-    goto cleanup;
-  if (TRP_SUCCESS!=trp_inforec_set_trust_router(rec, tr_new_name(s)))
-    goto cleanup;
-  talloc_free(s); s=NULL;
-
-  trp_inforec_set_next_hop(rec, NULL); /* make sure this is null (filled in later) */
-
-  rc=tr_msg_get_json_integer(jrecord, "metric", &num);
-  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_metric(rec,num)))
-    goto cleanup;
-
-  rc=tr_msg_get_json_integer(jrecord, "interval", &num);
-  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_interval(rec,num)))
-    goto cleanup;
 
   talloc_steal(mem_ctx, rec);
   rc=TRP_SUCCESS;

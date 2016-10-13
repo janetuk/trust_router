@@ -833,6 +833,7 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
   trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);
+  trps_set_ctable(trps, new_cfg->comms);
   trps_set_ptable(trps, new_cfg->peers);
   trps_set_peer_status_callback(trps, tr_peer_status_change, (void *)trps);
   trps_clear_rtable(trps); /* should we do this every time??? */

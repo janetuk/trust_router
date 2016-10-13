@@ -115,7 +115,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     goto cleanup;
   }
 
-  if (NULL == (cfg_comm = tr_comm_lookup(cfg_mgr->active->comms, orig_req->comm))) {
+  if (NULL == (cfg_comm = tr_comm_table_find_comm(cfg_mgr->active->comms, orig_req->comm))) {
     tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "Unknown community");
     retval=-1;
@@ -145,7 +145,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     goto cleanup;
   }
   /* Check that the rp_realm is a member of the community in the request */
-  if (NULL == (tr_find_comm_rp(cfg_comm, orig_req->rp_realm))) {
+  if (NULL == (tr_comm_find_rp(cfg_mgr->active->comms, cfg_comm, orig_req->rp_realm))) {
     tr_notice("tr_tids_req_handler: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "RP COI membership error");
     retval=-1;
@@ -165,7 +165,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     apc = tr_dup_name(cfg_comm->apcs->id);
 
     /* Check that the APC is configured */
-    if (NULL == (cfg_apc = tr_comm_lookup(cfg_mgr->active->comms, apc))) {
+    if (NULL == (cfg_apc = tr_comm_table_find_comm(cfg_mgr->active->comms, apc))) {
       tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", apc->buf);
       tids_send_err_response(tids, orig_req, "Unknown APC");
       retval=-1;
@@ -176,7 +176,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     fwd_req->orig_coi = orig_req->comm;
 
     /* Check that rp_realm is a  member of this APC */
-    if (NULL == (tr_find_comm_rp(cfg_apc, orig_req->rp_realm))) {
+    if (NULL == (tr_comm_find_rp(cfg_mgr->active->comms, cfg_apc, orig_req->rp_realm))) {
       tr_notice("tr_tids_req_hander: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "RP APC membership error");
       retval=-1;
@@ -217,13 +217,13 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
     }
   } else {
     /* if we aren't defaulting, check idp coi and apc membership */
-    if (NULL == (tr_find_comm_idp(cfg_comm, fwd_req->realm))) {
+    if (NULL == (tr_comm_find_idp(cfg_mgr->active->comms, cfg_comm, fwd_req->realm))) {
       tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of community (%s).", orig_req->realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "IDP community membership error");
       retval=-1;
       goto cleanup;
     }
-    if ( cfg_apc && (NULL == (tr_find_comm_idp(cfg_apc, fwd_req->realm)))) {
+    if ( cfg_apc && (NULL == (tr_comm_find_idp(cfg_mgr->active->comms, cfg_apc, fwd_req->realm)))) {
       tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of APC (%s).", orig_req->realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "IDP APC membership error");
       retval=-1;

@@ -45,6 +45,9 @@ typedef struct tr_apc {
   TR_NAME *id;
 } TR_APC;
 
+/* iterator is just a pointer to a TR_APC */
+typedef TR_APC *TR_APC_ITER;
+
 TR_APC *tr_apc_new(TALLOC_CTX *mem_ctx);
 void tr_apc_free(TR_APC *apc);
 TR_APC *tr_apc_add_func(TR_APC *apcs, TR_APC *new);
@@ -56,6 +59,13 @@ TR_NAME *tr_apc_get_id(TR_APC *apc);
 TR_NAME *tr_apc_dup_id(TR_APC *apc);
 
 char *tr_apc_to_str(TALLOC_CTX *mem_ctx, TR_APC *apc);
+
+TR_APC_ITER *tr_apc_iter_new(TALLOC_CTX *mem_ctx);
+TR_APC *tr_apc_iter_first(TR_APC_ITER *iter, TR_APC *apc);
+TR_APC *tr_apc_iter_next(TR_APC_ITER *iter);
+void tr_apc_iter_free(TR_APC_ITER *iter);
+
+int tr_apc_in_common(TR_APC *one, TR_APC *two);
 
 #endif
 

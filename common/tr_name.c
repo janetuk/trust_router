@@ -34,6 +34,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <jansson.h>
 
 #include <trust_router/tr_name.h>
 
@@ -121,6 +122,15 @@ char * tr_name_strdup(TR_NAME *src)
     s[src->len] = '\0';
   }
   return s;
+}
+
+json_t *tr_name_to_json_string(TR_NAME *src)
+{
+  char *s=tr_name_strdup(src);
+  json_t *js=json_string(s);
+  if (s!=NULL)
+    free(s);
+  return js;
 }
 
 TR_NAME *tr_name_cat(TR_NAME *n1, TR_NAME *n2)

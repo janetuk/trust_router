@@ -35,6 +35,7 @@
 #ifndef TR_NAME_H
 #define TR_NAME_H
 #include <string.h>
+#include <jansson.h>
 #include <trust_router/tr_versioning.h>
 
 typedef const char *tr_const_string;
@@ -50,6 +51,7 @@ TR_EXPORT void tr_free_name (TR_NAME *name);
 TR_EXPORT int tr_name_cmp (TR_NAME *one, TR_NAME *two);
 TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
 TR_EXPORT char *tr_name_strdup(TR_NAME *);
-TR_NAME *tr_name_cat(TR_NAME *n1, TR_NAME *n2);
+TR_EXPORT json_t *tr_name_to_json_string(TR_NAME *src);
+TR_EXPORT TR_NAME *tr_name_cat(TR_NAME *n1, TR_NAME *n2);
 
 #endif

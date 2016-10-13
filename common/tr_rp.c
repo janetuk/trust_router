@@ -121,6 +121,47 @@ TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name)
   return NULL;
 }
 
+TR_RP_REALM *tr_rp_realm_lookup(TR_RP_REALM *rp_realms, TR_NAME *rp_name)
+{
+  TR_RP_REALM *rp = NULL;
+
+  if ((!rp_realms) || (!rp_name)) {
+    tr_debug("tr_rp_realm_lookup: Bad parameters.");
+    return NULL;
+  }
+
+  for (rp = rp_realms; NULL != rp; rp = rp->next) {
+    if (tr_name_cmp(tr_rp_realm_get_id(rp), rp_name))
+      return rp;
+  } 
+  return NULL;
+}
+
+static int tr_rp_realm_destructor(void *obj)
+{
+  TR_RP_REALM *rp=talloc_get_type_abort(obj, TR_RP_REALM);
+  if (rp->realm_id!=NULL)
+    tr_free_name(rp->realm_id);
+  return 0;
+}
+
+TR_RP_REALM *tr_rp_realm_new(TALLOC_CTX *mem_ctx)
+{
+  TR_RP_REALM *rp=talloc(mem_ctx, TR_RP_REALM);
+  if (rp!=NULL) {
+    rp->next=NULL;
+    rp->realm_id=NULL;
+    rp->refcount=0;
+    talloc_set_destructor((void *)rp, tr_rp_realm_destructor);
+  }
+  return rp;
+}
+
+void tr_rp_realm_free(TR_RP_REALM *rp)
+{
+  talloc_free(rp);
+}
+
 /* talloc note: lists of idp realms should be assembled using
  * tr_idp_realm_add(). This will put all of the elements in the
  * list, other than the head, as children of the head context.
@@ -133,7 +174,8 @@ static TR_RP_REALM *tr_rp_realm_tail(TR_RP_REALM *realm)
   return realm;
 }
 
-/* for correct behavior, call like: rp_realms=tr_rp_realm_add(rp_realms, new_realm); */
+/* for correct behavior, call like: rp_realms=tr_rp_realm_add_func(rp_realms, new_realm);
+ * or better yet, use the macro */
 TR_RP_REALM *tr_rp_realm_add_func(TR_RP_REALM *head, TR_RP_REALM *new)
 {
   if (head==NULL)
@@ -146,4 +188,34 @@ TR_RP_REALM *tr_rp_realm_add_func(TR_RP_REALM *head, TR_RP_REALM *new)
     }
   }
   return head;
+}
+
+void tr_rp_realm_incref(TR_RP_REALM *realm)
+{
+  realm->refcount++;
+}
+
+void tr_rp_realm_decref(TR_RP_REALM *realm)
+{
+  if (realm->refcount>0)
+    realm->refcount--;
+}
+
+TR_NAME *tr_rp_realm_get_id(TR_RP_REALM *rp)
+{
+  return rp->realm_id;
+}
+
+void tr_rp_realm_set_id(TR_RP_REALM *rp, TR_NAME *id)
+{
+  if (rp->realm_id!=NULL)
+    tr_free_name(rp->realm_id);
+  rp->realm_id=id;
+}
+
+char *tr_rp_realm_to_str(TALLOC_CTX *mem_ctx, TR_RP_REALM *rp)
+{
+  return talloc_asprintf(mem_ctx,
+                         "RP realm: \"%.*s\"\n",
+                         rp->realm_id->len, rp->realm_id->buf);
 }

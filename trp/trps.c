@@ -39,6 +39,7 @@
 #include <sys/time.h>
 
 #include <gsscon.h>
+#include <tr_apc.h>
 #include <tr_rp.h>
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
@@ -155,6 +156,13 @@ void trps_set_sweep_interval(TRPS_INSTANCE *trps, unsigned int interval)
 {
   trps->sweep_interval.tv_sec=interval;
   trps->sweep_interval.tv_usec=0;
+}
+
+void trps_set_ctable(TRPS_INSTANCE *trps, TR_COMM_TABLE *comm)
+{
+  if (trps->ctable!=NULL)
+    tr_comm_table_free(trps->ctable);
+  trps->ctable=comm;
 }
 
 void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable)
@@ -798,7 +806,7 @@ static int trps_expired(struct timespec *expiry, struct timespec *curtime)
 {
   return ((curtime->tv_sec > expiry->tv_sec)
          || ((curtime->tv_sec == expiry->tv_sec)
-            &&(curtime->tv_nsec > expiry->tv_nsec)));
+            &&(curtime->tv_nsec >= expiry->tv_nsec)));
 }
 
 /* Sweep for expired routes. For each expired route, if its metric is infinite, the route is flushed.
@@ -963,6 +971,26 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
   return rec;
 }
 
+/* Every realm has a community, so always returns at least one record except on error. */
+static TRP_INFOREC *trps_comm_inforecs_for_realm(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NAME *comm_name, TR_NAME *realm)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+/*  TRP_INFOREC *results=NULL;*/
+/*  TRP_INFOREC *rec=NULL;*/
+  TR_COMM *this_comm=NULL;
+  TR_COMM_ITER *comm_iter=NULL;
+
+  comm_iter=tr_comm_iter_new(tmp_ctx);
+  for (this_comm=tr_comm_iter_first(comm_iter, trps->ctable, comm_name);
+       this_comm!=NULL;
+       this_comm=tr_comm_iter_next(comm_iter)) {
+    printf("dink");
+  }
+
+  talloc_free(tmp_ctx);
+  return NULL;
+}
+
 /* all routes to a single peer, unless comm/realm are specified (both or neither must be NULL) */
 static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
                                    TRP_PEER *peer,
@@ -1029,7 +1057,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
     goto cleanup;
   }
   if ((n_updates>0) && (update_list!=NULL)) {
-    tr_debug("trps_update_one_peer: sending %u update records.", (unsigned int)n_updates);
+    tr_debug("trps_update_one_peer: sending %u update messages.", (unsigned int)n_updates);
     for (ii=0; ii<n_updates; ii++) {
       upd=trp_upd_new(tmp_ctx);
       if (upd==NULL) {
@@ -1050,6 +1078,20 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
         goto cleanup;
       }
       rec=trps_route_to_inforec(tmp_ctx, trps, update_list[ii]);
+      if (rec==NULL) {
+        tr_err("trps_update_one_peer: could not create route info record for realm %.*s in comm %.*s.",
+               realm->len, realm->buf,
+               comm->len, comm->buf);
+        rc=TRP_NOMEM;
+        goto cleanup;
+      }
+      trp_upd_add_inforec(upd, rec);
+
+      /* now add community info records */
+      rec=trps_comm_inforecs_for_realm(tmp_ctx,
+                                       trps,
+                                       trp_route_get_comm(update_list[ii]),
+                                       trp_route_get_realm(update_list[ii]));
       if (rec==NULL) {
         tr_err("trps_update_one_peer: could not create all update records.");
         rc=TRP_NOMEM;

@@ -83,6 +83,12 @@ tr_trpc_CFLAGS = $(AM_CFLAGS) -pthread
 
 trp_msgtst_SOURCES = trp/msgtst.c \
 common/tr_msg.c \
+common/tr_comm.c \
+common/tr_apc.c \
+common/tr_rp.c \
+common/tr_idp.c \
+common/tr_gss.c \
+common/tr_filter.c \
 trp/trp_req.c \
 trp/trp_upd.c \
 tid/tid_resp.c \
