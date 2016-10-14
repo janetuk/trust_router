@@ -314,7 +314,7 @@ static void tr_trps_update(int listener, short event, void *arg)
   TRPS_INSTANCE *trps=cookie->trps;
   struct event *ev=cookie->ev;
 
-  tr_debug("tr_trps_update: sending scheduled route updates.");
+  tr_debug("tr_trps_update: sending scheduled route/community updates.");
   trps_update(trps, TRP_UPDATE_SCHEDULED);
   event_add(ev, &(trps->update_interval));
 }

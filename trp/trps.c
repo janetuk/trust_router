@@ -37,6 +37,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <glib.h>
 
 #include <gsscon.h>
 #include <tr_apc.h>
@@ -877,14 +878,13 @@ static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, T
   return route;
 }
 
-/* returns an array of pointers to updates (*not* an array of updates). Returns number of entries
- * via n_update parameter. (The allocated space will generally be larger than required, see note in
- * the code.) If triggered is set, sends only triggered updates. */
-static TRP_ROUTE **trps_select_updates_for_peer(TALLOC_CTX *memctx,
+/* Adds inforecs for route updates to the updates Garray. If it fails, it may leave
+ * some inforecs in the list. Caller needs to arrange for these to be freed. */
+static TRP_RC trps_select_route_updates_for_peer(TALLOC_CTX *mem_ctx,
+                                                 GArray *updates,
                                                  TRPS_INSTANCE *trps,
                                                  TR_NAME *peer_gssname,
-                                                 int triggered,
-                                                 size_t *n_update)
+                                                 int triggered)
 {
   size_t n_comm=0;
   TR_NAME **comm=trp_rtable_get_comms(trps->rtable, &n_comm);
@@ -892,20 +892,10 @@ static TRP_ROUTE **trps_select_updates_for_peer(TALLOC_CTX *memctx,
   size_t n_realm=0;
   size_t ii=0, jj=0;
   TRP_ROUTE *best=NULL;
-  TRP_ROUTE **result=NULL;
-  size_t n_used=0;
 
-  /* Need to allocate space for the results. For simplicity, we just allocate a block
-   * with space for every route table entry to be returned. This is guaranteed to be large
-   * enough. If the routing table gets very large, this may be wasteful, but that seems
-   * unlikely to be significant in the near future. */
-  result=talloc_array(memctx, TRP_ROUTE *, trp_rtable_size(trps->rtable));
-  if (result==NULL) {
-    talloc_free(comm);
-    *n_update=0;
-    return NULL;
-  }
-  
+  if (updates==NULL)
+    return TRP_BADARG;
+
   for (ii=0; ii<n_comm; ii++) {
     realm=trp_rtable_get_comm_realms(trps->rtable, comm[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
@@ -913,18 +903,18 @@ static TRP_ROUTE **trps_select_updates_for_peer(TALLOC_CTX *memctx,
       /* If we found a route, add it to the list. If triggered!=0, then only
        * add triggered routes. */
       if ((best!=NULL) && ((!triggered) || trp_route_is_triggered(best)))
-        result[n_used++]=best;
+        g_array_append_val(updates, best);
     }
     if (realm!=NULL)
       talloc_free(realm);
     realm=NULL;
     n_realm=0;
   }
+
   if (comm!=NULL)
     talloc_free(comm);
-
-  *n_update=n_used;
-  return result;
+  
+  return TRP_SUCCESS;
 }
 
 /* add metrics */
@@ -940,6 +930,26 @@ static unsigned int trps_metric_add(unsigned int m1, unsigned int m2)
     return m1+m2;
   else
     return TRP_METRIC_INFINITY;
+}
+
+/* Every realm has a community, so always returns at least one record except on error. */
+static TRP_INFOREC *trps_comm_inforecs_for_realm(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NAME *comm_name, TR_NAME *realm)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+/*  TRP_INFOREC *results=NULL;*/
+/*  TRP_INFOREC *rec=NULL;*/
+  TR_COMM *this_comm=NULL;
+  TR_COMM_ITER *comm_iter=NULL;
+
+  comm_iter=tr_comm_iter_new(tmp_ctx);
+  for (this_comm=tr_comm_iter_first(comm_iter, trps->ctable, comm_name);
+       this_comm!=NULL;
+       this_comm=tr_comm_iter_next(comm_iter)) {
+    printf("dink");
+  }
+
+  talloc_free(tmp_ctx);
+  return NULL;
 }
 
 /* convert an rentry into a new trp update info record */
@@ -971,26 +981,6 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
   return rec;
 }
 
-/* Every realm has a community, so always returns at least one record except on error. */
-static TRP_INFOREC *trps_comm_inforecs_for_realm(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NAME *comm_name, TR_NAME *realm)
-{
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-/*  TRP_INFOREC *results=NULL;*/
-/*  TRP_INFOREC *rec=NULL;*/
-  TR_COMM *this_comm=NULL;
-  TR_COMM_ITER *comm_iter=NULL;
-
-  comm_iter=tr_comm_iter_new(tmp_ctx);
-  for (this_comm=tr_comm_iter_first(comm_iter, trps->ctable, comm_name);
-       this_comm!=NULL;
-       this_comm=tr_comm_iter_next(comm_iter)) {
-    printf("dink");
-  }
-
-  talloc_free(tmp_ctx);
-  return NULL;
-}
-
 /* all routes to a single peer, unless comm/realm are specified (both or neither must be NULL) */
 static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
                                    TRP_PEER *peer,
@@ -1001,83 +991,89 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_MSG msg; /* not a pointer! */
   TRP_UPD *upd=NULL;
-  TRP_ROUTE **update_list=NULL;
   TRP_INFOREC *rec=NULL;
-  size_t n_updates=0, ii=0;
+  TRP_ROUTE *route=NULL;
+  size_t ii=0;
   char *encoded=NULL;
   TRP_RC rc=TRP_ERROR;
   TR_NAME *peer_label=trp_peer_get_label(peer);
+  GArray *updates=NULL;
 
   switch (update_type) {
   case TRP_UPDATE_TRIGGERED:
-    tr_debug("trps_update_one_peer: preparing triggered route update for %.*s",
+    tr_debug("trps_update_one_peer: preparing triggered update for %.*s",
              peer_label->len, peer_label->buf);
     break;
   case TRP_UPDATE_SCHEDULED:
-    tr_debug("trps_update_one_peer: preparing scheduled route update for %.*s",
+    tr_debug("trps_update_one_peer: preparing scheduled update for %.*s",
              peer_label->len, peer_label->buf);
     break;
   case TRP_UPDATE_REQUESTED:
-    tr_debug("trps_update_one_peer: preparing requested route update for %.*s",
+    tr_debug("trps_update_one_peer: preparing requested update for %.*s",
              peer_label->len, peer_label->buf);
   }
 
+  /* allocate updates array */
+  updates=g_array_new(TRUE, FALSE, sizeof(TRP_ROUTE *));
+  /* not setting the array to free entries when we free it, we will
+   * have to do that ourselves */
+  
   /* do not fill in peer, recipient does that */
   if ((comm==NULL) && (realm==NULL)) {
     /* do all realms */
-    update_list=trps_select_updates_for_peer(tmp_ctx,
-                                             trps,
-                                             peer_label,
-                                             update_type==TRP_UPDATE_TRIGGERED,
-                                            &n_updates);
+    rc=trps_select_route_updates_for_peer(tmp_ctx,
+                                          updates,
+                                          trps,
+                                          peer_label,
+                                          update_type==TRP_UPDATE_TRIGGERED);
   } else if ((comm!=NULL) && (realm!=NULL)) {
     /* a single community/realm was requested */
-    update_list=talloc(tmp_ctx, TRP_ROUTE *);
-    if (update_list==NULL) {
-      tr_err("trps_update_one_peer: could not allocate update_list.");
-      rc=TRP_NOMEM;
-      goto cleanup;
-    }
-    *update_list=trps_select_realm_update(trps, comm, realm, peer_label);
-    if (*update_list==NULL) {
+    route=trps_select_realm_update(trps, comm, realm, peer_label);
+    if (route!=NULL)
+      g_array_append_val(updates, route);
+    else {
       /* we have no actual update to send back, MUST send a retraction */
       tr_debug("trps_update_one_peer: community/realm without route requested, sending mandatory retraction.");
-      *update_list=trp_route_new(update_list);
-      trp_route_set_comm(*update_list, tr_dup_name(comm));
-      trp_route_set_realm(*update_list, tr_dup_name(realm));
-      trp_route_set_peer(*update_list, tr_new_name(""));
-      trp_route_set_metric(*update_list, TRP_METRIC_INFINITY);
-      trp_route_set_trust_router(*update_list, tr_new_name(""));
-      trp_route_set_next_hop(*update_list, tr_new_name(""));
+      route=trp_route_new(tmp_ctx);
+      trp_route_set_comm(route, tr_dup_name(comm));
+      trp_route_set_realm(route, tr_dup_name(realm));
+      trp_route_set_peer(route, tr_new_name(""));
+      trp_route_set_metric(route, TRP_METRIC_INFINITY);
+      trp_route_set_trust_router(route, tr_new_name(""));
+      trp_route_set_next_hop(route, tr_new_name(""));
+      g_array_append_val(updates, route);
     }
-    n_updates=1;
   } else {
     tr_err("trps_update_one_peer: error: only comm or realm was specified. Need both or neither.");
     rc=TRP_ERROR;
     goto cleanup;
   }
-  if ((n_updates>0) && (update_list!=NULL)) {
-    tr_debug("trps_update_one_peer: sending %u update messages.", (unsigned int)n_updates);
-    for (ii=0; ii<n_updates; ii++) {
+
+  /* see if we have anything to send */
+  if (updates->len<=0)
+    tr_debug("trps_update_one_peer: no updates for %.*s", peer_label->len, peer_label->buf);
+  else {
+    tr_debug("trps_update_one_peer: sending %d update messages.", updates->len);
+    for (ii=0; NULL!=(route=g_array_index(updates, TRP_ROUTE *, ii)); ii++) {
       upd=trp_upd_new(tmp_ctx);
       if (upd==NULL) {
         tr_err("trps_update_one_peer: could not create update message.");
         rc=TRP_NOMEM;
         goto cleanup;
       }
-      trp_upd_set_realm(upd, trp_route_dup_realm(update_list[ii]));
+      trp_upd_set_realm(upd, trp_route_dup_realm(route));
       if (trp_upd_get_realm(upd)==NULL) {
         tr_err("trps_update_one_peer: could not copy realm.");
         rc=TRP_NOMEM;
         goto cleanup;
       }
-      trp_upd_set_comm(upd, trp_route_dup_comm(update_list[ii]));
+      trp_upd_set_comm(upd, trp_route_dup_comm(route));
       if (trp_upd_get_comm(upd)==NULL) {
         tr_err("trps_update_one_peer: could not copy comm.");
         rc=TRP_NOMEM;
         goto cleanup;
       }
-      rec=trps_route_to_inforec(tmp_ctx, trps, update_list[ii]);
+      rec=trps_route_to_inforec(tmp_ctx, trps, route);
       if (rec==NULL) {
         tr_err("trps_update_one_peer: could not create route info record for realm %.*s in comm %.*s.",
                realm->len, realm->buf,
@@ -1090,8 +1086,8 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
       /* now add community info records */
       rec=trps_comm_inforecs_for_realm(tmp_ctx,
                                        trps,
-                                       trp_route_get_comm(update_list[ii]),
-                                       trp_route_get_realm(update_list[ii]));
+                                       trp_route_get_comm(route),
+                                       trp_route_get_realm(route));
       if (rec==NULL) {
         tr_err("trps_update_one_peer: could not create all update records.");
         rc=TRP_NOMEM;
@@ -1119,11 +1115,8 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
       trp_upd_free(upd);
       upd=NULL;
     }
-    talloc_free(update_list);
-    update_list=NULL;
-
-  } else if (n_updates==0)
-    tr_debug("trps_update_one_peer: no updates for %.*s", peer_label->len, peer_label->buf);
+    g_array_free(updates, TRUE);
+  }
 
   rc=TRP_SUCCESS;
 
@@ -1132,7 +1125,7 @@ cleanup:
   return rc;
 }
 
-/* all routes to all peers */
+/* all routes/communities to all peers */
 TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE update_type)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
