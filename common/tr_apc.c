@@ -109,7 +109,7 @@ TR_NAME *tr_apc_get_id(TR_APC *apc)
 
 TR_NAME *tr_apc_dup_id(TR_APC *apc)
 {
-  return tr_dup_name(apc->id);;
+  return tr_dup_name(apc->id);
 }
 
 
