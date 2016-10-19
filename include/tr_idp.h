@@ -70,6 +70,7 @@ typedef struct tr_idp_realm {
 TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx);
 void tr_idp_realm_free(TR_IDP_REALM *idp);
 TR_NAME *tr_idp_realm_get_id(TR_IDP_REALM *idp);
+TR_NAME *tr_idp_realm_dup_id(TR_IDP_REALM *idp);
 void tr_idp_realm_set_id(TR_IDP_REALM *idp, TR_NAME *id);
 TR_IDP_REALM *tr_idp_realm_add_func(TR_IDP_REALM *head, TR_IDP_REALM *new);
 #define tr_idp_realm_add(head,new) ((head)=tr_idp_realm_add_func((head),(new)))

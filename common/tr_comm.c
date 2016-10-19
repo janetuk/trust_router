@@ -201,10 +201,10 @@ void tr_comm_add_idp_realm(TR_COMM_TABLE *ctab,
   tr_comm_memb_set_provenance(newmemb, provenance);
   tr_comm_memb_set_expiry(newmemb, expiry);
 
-  existing=tr_comm_table_find_idp_memb(ctab,
-                                       tr_idp_realm_get_id(realm),
-                                       tr_comm_get_id(comm),
-                                       tr_comm_memb_get_origin(newmemb));
+  existing=tr_comm_table_find_idp_memb_origin(ctab,
+                                              tr_idp_realm_get_id(realm),
+                                              tr_comm_get_id(comm),
+                                              tr_comm_memb_get_origin(newmemb));
   tr_comm_add_if_shorter(ctab, existing, newmemb); /* takes newmemb out of tmp_ctx if needed */
   talloc_free(tmp_ctx);
 }
@@ -231,10 +231,10 @@ void tr_comm_add_rp_realm(TR_COMM_TABLE *ctab,
   tr_comm_memb_set_provenance(newmemb, provenance);
   tr_comm_memb_set_expiry(newmemb, expiry);
 
-  existing=tr_comm_table_find_rp_memb(ctab,
-                                      tr_rp_realm_get_id(realm),
-                                      tr_comm_get_id(comm),
-                                      tr_comm_memb_get_origin(newmemb));
+  existing=tr_comm_table_find_rp_memb_origin(ctab,
+                                             tr_rp_realm_get_id(realm),
+                                             tr_comm_get_id(comm),
+                                             tr_comm_memb_get_origin(newmemb));
   tr_comm_add_if_shorter(ctab, existing, newmemb); /* takes newmemb out of tmp_ctx if needed */
   talloc_free(tmp_ctx);
 }
@@ -351,8 +351,10 @@ TR_COMM_ITER *tr_comm_iter_new(TALLOC_CTX *mem_ctx)
 {
   TR_COMM_ITER *iter=talloc(mem_ctx, TR_COMM_ITER);
   if (iter!=NULL) {
+    iter->cur_comm=NULL;
     iter->cur_memb=NULL;
     iter->match=NULL;
+    iter->realm=NULL;
   }
   return iter;
 }
@@ -444,6 +446,129 @@ TR_COMM *tr_comm_iter_next_idp(TR_COMM_ITER *iter)
   return NULL;
 }
 
+static TR_REALM *tr_realm_new(TALLOC_CTX *mem_ctx)
+{
+  TR_REALM *realm=talloc(mem_ctx, TR_REALM);
+  if (realm!=NULL) {
+    realm->role=TR_ROLE_UNKNOWN;
+    realm->rp=NULL;
+    realm->idp=NULL;
+  }
+  return realm;
+}
+
+static void tr_realm_free(TR_REALM *realm)
+{
+  talloc_free(realm);
+}
+
+static void tr_realm_set_rp(TR_REALM *realm, TR_RP_REALM *rp)
+{
+  if (realm->rp!=NULL)
+    talloc_free(realm->rp);
+  if (realm->idp!=NULL) {
+    talloc_free(realm->idp);
+    realm->idp=NULL;
+  }
+  realm->role=TR_ROLE_RP;
+  realm->rp=rp;
+}
+
+static void tr_realm_set_idp(TR_REALM *realm, TR_IDP_REALM *idp)
+{
+  if (realm->idp!=NULL)
+    talloc_free(realm->idp);
+  if (realm->rp!=NULL) {
+    talloc_free(realm->rp);
+    realm->rp=NULL;
+  }
+  realm->role=TR_ROLE_IDP;
+  realm->idp=idp;
+}
+
+TR_NAME *tr_realm_get_id(TR_REALM *realm)
+{
+  switch (realm->role) {
+  case TR_ROLE_RP:
+    return tr_rp_realm_get_id(realm->rp);
+  case TR_ROLE_IDP:
+    return tr_idp_realm_get_id(realm->idp);
+  default:
+    break;
+  }
+  return NULL;
+}
+
+TR_NAME *tr_realm_dup_id(TR_REALM *realm)
+{
+  return tr_dup_name(tr_realm_get_id(realm));
+}
+
+/* Iterate over either sort of realm. Do not free the TR_REALM returned. It becomes
+ * undefined/invalid after the next operation affecting the iterator. */
+TR_REALM *tr_realm_iter_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab, TR_NAME *comm)
+{
+  iter->match=comm;
+  if (iter->realm==NULL)
+    iter->realm=tr_realm_new(iter);
+  if (iter->realm==NULL)
+    return NULL;
+
+  /* find memberships for this comm */
+  for (iter->cur_memb=ctab->memberships;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if (0==tr_name_cmp(iter->match,
+                       tr_comm_get_id(tr_comm_memb_get_comm(iter->cur_memb)))) {
+      /* found a match, determine whether it's an rp realm or an idp realm */
+      if (tr_comm_memb_get_rp_realm(iter->cur_memb)!=NULL)
+        tr_realm_set_rp(iter->realm, tr_comm_memb_get_rp_realm(iter->cur_memb));
+      else if (tr_comm_memb_get_idp_realm(iter->cur_memb)!=NULL)
+        tr_realm_set_idp(iter->realm, tr_comm_memb_get_idp_realm(iter->cur_memb));
+      else {
+        if (iter->realm!=NULL)
+          tr_realm_free(iter->realm);
+        iter->realm=NULL;
+      }
+      return iter->realm;
+    }
+  }
+  if (iter->realm!=NULL)
+    tr_realm_free(iter->realm);
+  iter->realm=NULL;
+  return NULL;
+}
+
+TR_REALM *tr_realm_iter_next(TR_COMM_ITER *iter)
+{
+  if (iter->realm==NULL)
+    return NULL;
+
+  /* find memberships for this comm */
+  for (iter->cur_memb=iter->cur_memb->next;
+       iter->cur_memb!=NULL;
+       iter->cur_memb=iter->cur_memb->next) {
+    if (0==tr_name_cmp(iter->match,
+                       tr_comm_get_id(tr_comm_memb_get_comm(iter->cur_memb)))) {
+      /* found a match, determine whether it's an rp realm or an idp realm */
+      if (tr_comm_memb_get_rp_realm(iter->cur_memb)!=NULL)
+        tr_realm_set_rp(iter->realm, tr_comm_memb_get_rp_realm(iter->cur_memb));
+      else if (tr_comm_memb_get_idp_realm(iter->cur_memb)!=NULL)
+        tr_realm_set_idp(iter->realm, tr_comm_memb_get_idp_realm(iter->cur_memb));
+      else {
+        if (iter->realm!=NULL)
+          tr_realm_free(iter->realm);
+        iter->realm=NULL;
+      }
+      return iter->realm;
+    }
+  }
+  if (iter->realm!=NULL)
+    tr_realm_free(iter->realm);
+  iter->realm=NULL;
+  return NULL;
+}
+
 TR_RP_REALM *tr_rp_realm_iter_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab, TR_NAME *comm)
 {
   iter->match=comm;
@@ -498,6 +623,18 @@ TR_IDP_REALM *tr_idp_realm_iter_next(TR_COMM_ITER *iter)
   return NULL;
 }
 
+/* iterators for all communities in a table */
+TR_COMM *tr_comm_table_iter_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab)
+{
+  iter->cur_comm=ctab->comms;
+  return iter->cur_comm;
+}
+
+TR_COMM *tr_comm_table_iter_next(TR_COMM_ITER *iter)
+{
+  return iter->cur_comm=iter->cur_comm->next;
+}
+
 const char *tr_comm_type_to_str(TR_COMM_TYPE type)
 {
   const char *s=NULL;
@@ -515,6 +652,19 @@ const char *tr_comm_type_to_str(TR_COMM_TYPE type)
     s="invalid";
   }
   return s;
+}
+
+TR_COMM_MEMB *tr_comm_memb_iter_first(TR_COMM_ITER *iter, TR_COMM_MEMB *memb)
+{
+  iter->cur_memb=memb;
+  return iter->cur_memb;
+}
+
+TR_COMM_MEMB *tr_comm_memb_iter_next(TR_COMM_ITER *iter)
+{
+  if (iter->cur_memb!=NULL)
+    iter->cur_memb=iter->cur_memb->origin_next;
+  return iter->cur_memb;
 }
 
 TR_COMM_TYPE tr_comm_type_from_str(const char *s)
@@ -554,6 +704,7 @@ TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
     memb->comm=NULL;
     memb->origin=NULL;
     memb->provenance=NULL;
+    memb->interval=0;
     memb->expiry=NULL;
     talloc_set_destructor(memb, tr_comm_memb_destructor);
   }
@@ -563,6 +714,15 @@ TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
 void tr_comm_memb_free(TR_COMM_MEMB *memb)
 {
   talloc_free(memb);
+}
+
+TR_REALM_ROLE tr_comm_memb_get_role(TR_COMM_MEMB *memb)
+{
+  if (memb->rp!=NULL)
+    return TR_ROLE_RP;
+  if (memb->idp!=NULL)
+    return TR_ROLE_IDP;
+  return TR_ROLE_UNKNOWN;
 }
 
 void tr_comm_memb_set_rp_realm(TR_COMM_MEMB *memb, TR_RP_REALM *realm)
@@ -634,6 +794,13 @@ TR_NAME *tr_comm_memb_dup_origin(TR_COMM_MEMB *memb)
   return NULL;
 }
 
+json_t *tr_comm_memb_get_provenance(TR_COMM_MEMB *memb)
+{
+  if (memb!=NULL)
+    return memb->provenance;
+  return NULL;
+}
+
 void tr_comm_memb_set_provenance(TR_COMM_MEMB *memb, json_t *prov)
 {
   if (memb->provenance)
@@ -679,6 +846,16 @@ size_t tr_comm_memb_provenance_len(TR_COMM_MEMB *memb)
   return json_array_size(memb->provenance);
 }
 
+void tr_comm_memb_set_interval(TR_COMM_MEMB *memb, unsigned int interval)
+{
+  memb->interval=interval;
+}
+
+unsigned int tr_comm_memb_get_interval(TR_COMM_MEMB *memb)
+{
+  return memb->interval;
+}
+
 void tr_comm_memb_set_expiry(TR_COMM_MEMB *memb, struct timespec *time)
 {
   memb->expiry=time;
@@ -711,35 +888,108 @@ void tr_comm_table_free(TR_COMM_TABLE *ctab)
   talloc_free(ctab);
 }
 
+static TR_REALM_ROLE tr_comm_memb_role(TR_COMM_MEMB *memb)
+{
+  if (memb->rp!=NULL)
+    return TR_ROLE_RP;
+  if (memb->idp!=NULL)
+    return TR_ROLE_IDP;
+
+  return TR_ROLE_UNKNOWN;
+}
+
 void tr_comm_table_add_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *new)
 {
   TR_COMM_MEMB *cur=NULL;
 
+  /* handle the empty list case */
   if (ctab->memberships==NULL) {
     ctab->memberships=new;
     talloc_steal(ctab, new);
-  } else {
+    return;
+  }
+
+  /* The list was not empty. See if we already have a membership for this realm/comm/role */
+  switch (tr_comm_memb_role(new)) {
+  case TR_ROLE_RP:
+    cur=tr_comm_table_find_rp_memb(ctab,
+                                   tr_rp_realm_get_id(tr_comm_memb_get_rp_realm(new)),
+                                   tr_comm_get_id(tr_comm_memb_get_comm(new)));
+    break;
+  case TR_ROLE_IDP:
+    cur=tr_comm_table_find_idp_memb(ctab,
+                                    tr_idp_realm_get_id(tr_comm_memb_get_idp_realm(new)),
+                                    tr_comm_get_id(tr_comm_memb_get_comm(new)));
+    break;
+  case TR_ROLE_UNKNOWN:
+  default:
+    tr_err("tr_comm_table_add_memb: realm with unknown role added.");
+    cur=NULL;
+  }
+
+  if (cur==NULL) {
+    /* no entry for this realm/comm/role, tack it on the end */
     for (cur=ctab->memberships; cur->next!=NULL; cur=cur->next) { }
     cur->next=new;
+  } else {
+    /* Found an entry. Add to the end of its same-origin list. */
+    while (cur->origin_next!=NULL) {
+      cur=cur->origin_next;
+    }
+    cur->origin_next=new;
   }
+
   talloc_steal(ctab, new);
 }
 
 /* Remove memb from ctab. Do not free anything. Do nothing if memb not in ctab. */
 void tr_comm_table_remove_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *memb)
 {
-  TR_COMM_MEMB *cur=NULL;
+  TR_COMM_MEMB *cur=NULL; /* for walking the main list */
+  TR_COMM_MEMB *orig_cur=NULL; /* for walking the origin list */
 
-  if ((memb==NULL) || (ctab->memberships==NULL)) {
+  if ((memb==NULL) || (ctab->memberships==NULL))
     return;
-  } else if (ctab->memberships==memb) {
-    ctab->memberships=memb->next;
+
+  /* see if it's the first member */
+  if (ctab->memberships==memb) {
+    if (memb->origin_next!=NULL) {
+      memb->origin_next->next=ctab->memberships->next;
+      ctab->memberships=memb->origin_next;
+    } else
+      ctab->memberships=memb->next;
+
     return;
-  } else {
-    for (cur=ctab->memberships; cur->next!=NULL; cur=cur->next) {
-      if (cur->next==memb) {
-        cur->next=memb->next;
-        return;
+  }
+
+  /* see if it's in first member's origin list */
+  for (orig_cur=ctab->memberships->origin_next;
+       orig_cur!=NULL;
+       orig_cur=ctab->memberships->origin_next) {
+    if (orig_cur==memb) {
+      orig_cur->origin_next=memb->origin_next;
+      return;
+    }
+  }
+
+  /* now we have to walk the rest of the tree */
+  for (cur=ctab->memberships; cur->next!=NULL; cur=cur->next) {
+    if (cur->next==memb) {
+      /* it matched an entry on the main list */
+      if (memb->origin_next!=NULL) {
+        /* replace the entry in the main list with the next element on the origin list */
+        memb->origin_next->next=memb->next;
+        cur->next=memb->origin_next;
+      } else
+        cur->next=memb->next; /* no origin list, just drop memb */
+      return;
+    } else {
+      /* it was not on the main list, walk the origin list */
+      for (orig_cur=cur; orig_cur->next!=NULL; orig_cur=orig_cur->next) {
+        if (orig_cur->next==memb) {
+          orig_cur->next=memb->next;
+          return; /* just drop the element from the origin list */
+        }
       }
     }
   }
@@ -753,7 +1003,8 @@ static TR_NAME *tr_comm_memb_get_realm_id(TR_COMM_MEMB *memb)
     return tr_idp_realm_get_id(memb->idp);
 }
 
-TR_COMM_MEMB *tr_comm_table_find_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+/* find a membership from any origin */
+TR_COMM_MEMB *tr_comm_table_find_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm)
 {
   TR_COMM_MEMB *cur=NULL;
   TR_NAME *cur_realm_name=NULL;
@@ -765,15 +1016,34 @@ TR_COMM_MEMB *tr_comm_table_find_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NA
       continue;
     }
     if ((0==tr_name_cmp(realm, cur_realm_name)) &&
-        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur)))) &&
-        (0==tr_name_cmp(origin, tr_comm_memb_get_origin(cur)))) {
+        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur))))) {
       return cur;
     }
   }
   return NULL;
 }
 
-TR_COMM_MEMB *tr_comm_table_find_idp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+/* find a membership from a particular origin */
+TR_COMM_MEMB *tr_comm_table_find_memb_origin(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+{
+  TR_NAME *cur_orig=NULL;
+  TR_COMM_MEMB *cur=tr_comm_table_find_memb(ctab, realm, comm);
+  if (cur==NULL)
+    return NULL; /* no match */
+
+  /* had a match for comm/realm; find origin match */
+  while (cur!=NULL) {
+    if (((origin==NULL) && (cur_orig==NULL)) ||
+        ((origin!=NULL) && (cur_orig!=NULL) && (0==tr_name_cmp(origin, cur_orig))))
+      return cur; /* found a match */
+    cur=cur->origin_next;
+  }
+  return NULL; /* no match */
+}
+
+
+/* find an idp membership regardless of its origin */
+TR_COMM_MEMB *tr_comm_table_find_idp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm)
 {
   TR_COMM_MEMB *cur=NULL;
   TR_IDP_REALM *idp_realm=NULL;
@@ -784,15 +1054,34 @@ TR_COMM_MEMB *tr_comm_table_find_idp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, T
       continue; /* was not an idp */
 
     if ((0==tr_name_cmp(realm, idp_realm->realm_id)) &&
-        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur)))) &&
-        (0==tr_name_cmp(origin, tr_comm_memb_get_origin(cur)))) {
+        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur))))) {
       return cur;
     }
   }
   return NULL;
 }
 
-TR_COMM_MEMB *tr_comm_table_find_rp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+/* find an idp membership from a particular origin */
+TR_COMM_MEMB *tr_comm_table_find_idp_memb_origin(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+{
+  TR_NAME *cur_orig=NULL;
+  TR_COMM_MEMB *cur=tr_comm_table_find_idp_memb(ctab, realm, comm);
+  if (cur==NULL)
+    return NULL; /* no match */
+
+  /* had a match for comm/realm; find origin match */
+  while (cur!=NULL) {
+    cur_orig=tr_comm_memb_get_origin(cur);
+    if (((origin==NULL) && (cur_orig==NULL)) ||
+        ((origin!=NULL) && (cur_orig!=NULL) && (0==tr_name_cmp(origin, cur_orig))))
+      return cur; /* found a match */
+    cur=cur->origin_next;
+  }
+  return NULL; /* no match */
+}
+
+/* find an rp membership from any origin */
+TR_COMM_MEMB *tr_comm_table_find_rp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm)
 {
   TR_COMM_MEMB *cur=NULL;
   TR_RP_REALM *rp_realm=NULL;
@@ -803,13 +1092,30 @@ TR_COMM_MEMB *tr_comm_table_find_rp_memb(TR_COMM_TABLE *ctab, TR_NAME *realm, TR
       continue; /* was not an rp */
 
     if ((0==tr_name_cmp(realm, tr_rp_realm_get_id(rp_realm))) &&
-        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur)))) &&
-        (((NULL==origin)&&(NULL==tr_comm_memb_get_origin(cur))) ||
-         (0==tr_name_cmp(origin, tr_comm_memb_get_origin(cur))))) {
+        (0==tr_name_cmp(comm, tr_comm_get_id(tr_comm_memb_get_comm(cur))))) {
       return cur;
     }
   }
   return NULL;
+}
+
+/* find an rp membership from a particular origin */
+TR_COMM_MEMB *tr_comm_table_find_rp_memb_origin(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin)
+{
+  TR_NAME *cur_orig=NULL;
+  TR_COMM_MEMB *cur=tr_comm_table_find_rp_memb(ctab, realm, comm);
+  if (cur==NULL)
+    return NULL; /* no match */
+
+  /* had a match for comm/realm; find origin match */
+  while (cur!=NULL) {
+    cur_orig=tr_comm_memb_get_origin(cur);
+    if (((origin==NULL) && (cur_orig==NULL)) ||
+        ((origin!=NULL) && (cur_orig!=NULL) && (0==tr_name_cmp(origin, cur_orig))))
+      return cur; /* found a match */
+    cur=cur->origin_next;
+  }
+  return NULL; /* no match */
 }
 
 TR_COMM *tr_comm_table_find_comm(TR_COMM_TABLE *ctab, TR_NAME *comm_id)

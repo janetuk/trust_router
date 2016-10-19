@@ -127,7 +127,18 @@ void tr_idp_realm_free(TR_IDP_REALM *idp)
 
 TR_NAME *tr_idp_realm_get_id(TR_IDP_REALM *idp)
 {
+  if (idp==NULL)
+    return NULL;
+  
   return idp->realm_id;
+}
+
+TR_NAME *tr_idp_realm_dup_id(TR_IDP_REALM *idp)
+{
+  if (idp==NULL)
+    return NULL;
+  
+  return tr_dup_name(tr_idp_realm_get_id(idp));
 }
 
 void tr_idp_realm_set_id(TR_IDP_REALM *idp, TR_NAME *id)

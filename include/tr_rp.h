@@ -66,6 +66,7 @@ TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name);
 TR_RP_REALM *tr_rp_realm_new(TALLOC_CTX *mem_ctx);
 void tr_rp_realm_free(TR_RP_REALM *rp);
 TR_NAME *tr_rp_realm_get_id(TR_RP_REALM *rp);
+TR_NAME *tr_rp_realm_dup_id(TR_RP_REALM *rp);
 void tr_rp_realm_set_id(TR_RP_REALM *rp, TR_NAME *id);
 TR_RP_REALM *tr_rp_realm_lookup(TR_RP_REALM *rp_realms, TR_NAME *rp_name);
 TR_RP_REALM *tr_rp_realm_add_func(TR_RP_REALM *head, TR_RP_REALM *new);

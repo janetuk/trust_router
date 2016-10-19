@@ -206,7 +206,18 @@ void tr_rp_realm_decref(TR_RP_REALM *realm)
 
 TR_NAME *tr_rp_realm_get_id(TR_RP_REALM *rp)
 {
+  if (rp==NULL)
+    return NULL;
+
   return rp->realm_id;
+}
+
+TR_NAME *tr_rp_realm_dup_id(TR_RP_REALM *rp)
+{
+  if (rp==NULL)
+    return NULL;
+
+  return tr_dup_name(tr_rp_realm_get_id(rp));
 }
 
 void tr_rp_realm_set_id(TR_RP_REALM *rp, TR_NAME *id)

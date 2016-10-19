@@ -52,6 +52,7 @@ TR_APC *tr_apc_new(TALLOC_CTX *mem_ctx);
 void tr_apc_free(TR_APC *apc);
 TR_APC *tr_apc_add_func(TR_APC *apcs, TR_APC *new);
 #define tr_apc_add(apcs,new) ((apcs)=tr_apc_add_func((apcs),(new)))
+TR_APC *tr_apc_dup_one(TALLOC_CTX *mem_ctx, TR_APC *apc);
 TR_APC *tr_apc_dup(TALLOC_CTX *mem_ctx, TR_APC *apc);
 
 void tr_apc_set_id(TR_APC *apc, TR_NAME *id);

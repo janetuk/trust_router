@@ -88,10 +88,36 @@ TR_APC *tr_apc_add_func(TR_APC *head, TR_APC *new)
 }
 
 /* does not copy next pointer */
-TR_APC *tr_apc_dup(TALLOC_CTX *mem_ctx, TR_APC *apc)
+TR_APC *tr_apc_dup_one(TALLOC_CTX *mem_ctx, TR_APC *apc)
 {
   TR_APC *new=tr_apc_new(mem_ctx);
-  tr_apc_set_id(new, tr_apc_dup_id(apc));
+  if (new!=NULL) 
+    tr_apc_set_id(new, tr_apc_dup_id(apc));
+  return new;
+}
+
+/* copies next pointer */
+TR_APC *tr_apc_dup(TALLOC_CTX *mem_ctx, TR_APC *apc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_APC *cur=NULL;
+  TR_APC *new=tr_apc_dup(tmp_ctx, apc);
+
+  if (new==NULL)
+    return NULL;
+  
+  for (cur=new,apc=apc->next; apc!=NULL; cur=cur->next,apc=apc->next) {
+    cur->next=tr_apc_dup_one(new, apc);
+    if (cur->next==NULL) {
+      new=NULL;
+      goto cleanup;
+    }
+  }
+
+  talloc_steal(mem_ctx, new);
+
+cleanup:
+  talloc_free(tmp_ctx);
   return new;
 }
 
