@@ -101,9 +101,12 @@ TR_APC *tr_apc_dup(TALLOC_CTX *mem_ctx, TR_APC *apc)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_APC *cur=NULL;
-  TR_APC *new=tr_apc_dup(tmp_ctx, apc);
+  TR_APC *new=NULL;
 
-  if (new==NULL)
+  if (apc==NULL)
+    return NULL;
+
+  if (NULL==(new=tr_apc_dup_one(tmp_ctx, apc)))
     return NULL;
   
   for (cur=new,apc=apc->next; apc!=NULL; cur=cur->next,apc=apc->next) {

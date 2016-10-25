@@ -523,6 +523,9 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
     }
     break;
 
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    /* TODO: handle community updates -jlr*/
+    
   default:
     tr_notice("trps_validate_inforec: unsupported record type.");
     return TRP_UNSUPPORTED;
@@ -1032,9 +1035,10 @@ static TRP_INFOREC *trps_memb_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trp
     goto cleanup;
   }
 
-  if ((TRP_SUCCESS!=trp_inforec_set_apcs(rec,
-                                         tr_apc_dup(rec, tr_comm_get_apcs(comm)))) ||
-      (NULL==trp_inforec_get_apcs(rec))) {
+  if ((NULL!=tr_comm_get_apcs(comm)) &&
+      ( (TRP_SUCCESS!=trp_inforec_set_apcs(rec,
+                                           tr_apc_dup(rec, tr_comm_get_apcs(comm)))) ||
+        (NULL==trp_inforec_get_apcs(rec)))) {
     rec=NULL;
     goto cleanup;
   }
@@ -1090,7 +1094,7 @@ static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NA
 
   iter=tr_comm_iter_new(tmp_ctx);
   if (iter==NULL) {
-    tr_err("tr_comm_update: unable to allocate iterator.");
+    tr_err("trps_comm_update: unable to allocate iterator.");
     upd=NULL;
     goto cleanup;
   }
@@ -1116,7 +1120,7 @@ static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NA
          memb=tr_comm_memb_iter_next(iter)) {
       rec=trps_memb_to_inforec(tmp_ctx, trps, memb);
       if (rec==NULL) {
-        tr_err("tr_comm_update: unable to allocate inforec.");
+        tr_err("trps_comm_update: unable to allocate inforec.");
         upd=NULL;
         goto cleanup;
       }
@@ -1159,19 +1163,21 @@ static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx, GPtrArray *
        comm!=NULL;
        comm=tr_comm_table_iter_next(comm_iter)) {
     /* do every realm in this community */
+    tr_debug("trps_select_comm_updates_for_peer: looking through community %.*s",
+             tr_comm_get_id(comm)->len,
+             tr_comm_get_id(comm)->buf);
     for (realm=tr_realm_iter_first(realm_iter, trps->ctable, tr_comm_get_id(comm));
          realm!=NULL;
          realm=tr_realm_iter_next(realm_iter)) {
       /* get the update for this comm/realm */
-      upd=trps_comm_update(tmp_ctx, trps, peer_gssname, comm, realm);
-      if (upd!=NULL) {
+      tr_debug("trps_select_comm_updates_for_peer: adding realm %.*s",
+               tr_realm_get_id(realm)->len,
+               tr_realm_get_id(realm)->buf);
+      upd=trps_comm_update(mem_ctx, trps, peer_gssname, comm, realm);
+      if (upd!=NULL)
         g_ptr_array_add(updates, upd);
-      }
     }
   }
-
-  /* move anything needed into mem_ctx */
-  
 
 cleanup:
   talloc_free(tmp_ctx);
@@ -1228,6 +1234,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
   }
 
   /* First, gather route updates. */
+  tr_debug("trps_update_one_peer: selecting route updates for %.*s.", peer_label->len, peer_label->buf);
   if ((comm==NULL) && (realm==NULL)) {
     /* do all realms */
     rc=trps_select_route_updates_for_peer(tmp_ctx,
@@ -1263,6 +1270,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
   }
 
   /* Second, gather community updates */
+  tr_debug("trps_update_one_peer: selecting community updates for %.*s.", peer_label->len, peer_label->buf);
   rc=trps_select_comm_updates_for_peer(tmp_ctx, updates, trps, peer_label);
 
   /* see if we have anything to send */
@@ -1270,7 +1278,8 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
     tr_debug("trps_update_one_peer: no updates for %.*s", peer_label->len, peer_label->buf);
   else {
     tr_debug("trps_update_one_peer: sending %d update messages.", updates->len);
-    for (ii=0; NULL!=(upd=(TRP_UPD *)g_ptr_array_index(updates, ii)); ii++) {
+    for (ii=0; ii<updates->len; ii++) {
+      upd=(TRP_UPD *)g_ptr_array_index(updates, ii);
       /* now encode the update message */
       tr_msg_set_trp_upd(&msg, upd);
       encoded=tr_msg_encode(&msg);

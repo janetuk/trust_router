@@ -70,23 +70,23 @@ static int tr_msg_get_json_integer(json_t *jmsg, const char *attr, int *dest)
 
 /* Read attribute attr from msg as a string. Copies string into mem_ctx context so jmsg can
  * be destroyed safely. Returns nonzero on error. */
-static int tr_msg_get_json_string(json_t *jmsg, const char *attr, char **dest, TALLOC_CTX *mem_ctx)
+static TRP_RC tr_msg_get_json_string(json_t *jmsg, const char *attr, char **dest, TALLOC_CTX *mem_ctx)
 {
   json_t *obj;
 
   obj=json_object_get(jmsg, attr);
   if (obj == NULL)
-    return -1;
+    return TRP_ERROR;
 
   /* check type */
   if (!json_is_string(obj))
-    return -1;
+    return TRP_ERROR;
 
   *dest=talloc_strdup(mem_ctx, json_string_value(obj));
   if (*dest==NULL)
-    return -1;
+    return TRP_ERROR;
 
-  return 0;
+  return TRP_SUCCESS;
 }
 
 enum msg_type tr_msg_get_msg_type(TR_MSG *msg) 
@@ -631,7 +631,7 @@ static TR_APC *tr_msg_decode_apcs(TALLOC_CTX *mem_ctx, json_t *jarray, TRP_RC *r
   *rc=TRP_SUCCESS;
 
   if (apc_list!=NULL)
-    talloc_steal(apc_list, mem_ctx);
+    talloc_steal(mem_ctx, apc_list);
 
 cleanup:
   talloc_free(tmp_ctx);
@@ -845,7 +845,7 @@ static TRP_INFOREC *tr_msg_decode_trp_inforec(TALLOC_CTX *mem_ctx, json_t *jreco
   TRP_RC rc=TRP_ERROR;
   char *s=NULL;
   
-  if (0!=tr_msg_get_json_string(jrecord, "record_type", &s, tmp_ctx))
+  if (TRP_SUCCESS!=tr_msg_get_json_string(jrecord, "record_type", &s, tmp_ctx))
     goto cleanup;
 
   rectype=trp_inforec_type_from_string(s);
@@ -1167,6 +1167,7 @@ char *tr_msg_encode(TR_MSG *msg)
     }
 
   encoded=json_dumps(jmsg, 0);
+  tr_debug("tr_msg_encode: outgoing msg=%s", encoded);
   json_decref(jmsg);
   return encoded;
 }

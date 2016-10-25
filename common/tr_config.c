@@ -1834,7 +1834,7 @@ static TR_CFG_RC tr_cfg_parse_comms (TR_CFG *trc, json_t *jcfg)
                                                 trc, 
                                                 json_array_get(jcomms, i), 
                                                &rc))) {
-	return rc;
+        return rc;
       }
       tr_debug("tr_cfg_parse_comms: Community configured: %s.",
                tr_comm_get_id(comm)->buf);

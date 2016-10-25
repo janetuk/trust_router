@@ -163,6 +163,7 @@ static TRP_INFOREC_DATA *trp_inforec_comm_new(TALLOC_CTX *mem_ctx)
     new_rec->owner_realm=NULL;
     new_rec->owner_contact=NULL;
     new_rec->provenance=NULL;
+    new_rec->interval=0;
     talloc_set_destructor((void *)new_rec, trp_inforec_comm_destructor);
     new_data->comm=new_rec;
   }
@@ -193,7 +194,7 @@ void trp_inforec_set_next(TRP_INFOREC *rec, TRP_INFOREC *next_rec)
 
 TRP_INFOREC_TYPE trp_inforec_get_type(TRP_INFOREC *rec)
 {
-  if (rec)
+  if (rec!=NULL)
     return rec->type;
   else
     return TRP_INFOREC_TYPE_UNKNOWN;
@@ -261,15 +262,17 @@ TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data->route!=NULL) {
-      rec->data->route->next_hop=next_hop;
-      return TRP_SUCCESS;
-    }
+    if (rec->data->route==NULL)
+      return TRP_ERROR;
+    rec->data->route->next_hop=next_hop;
+    break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    /* next hop not used for community records */
     break;
   default:
     break;
   }
-  return TRP_ERROR;
+  return TRP_SUCCESS;
 }
 
 unsigned int trp_inforec_get_metric(TRP_INFOREC *rec)
@@ -414,9 +417,10 @@ TRP_RC trp_inforec_set_apcs(TRP_INFOREC *rec, TR_APC *apcs)
       rec->data->comm->apcs=apcs;
       talloc_steal(rec, apcs);
       return TRP_SUCCESS;
-  default:
-    break;
     }
+    break;
+
+  default:
     break;
   }
   return TRP_ERROR;
@@ -509,6 +513,36 @@ TRP_RC trp_inforec_set_provenance(TRP_INFOREC *rec, json_t *prov)
     break;
   }
   return TRP_ERROR;
+}
+
+static TRP_RC trp_inforec_add_to_provenance(TRP_INFOREC *rec, TR_NAME *peer)
+{
+  json_t *jpeer=NULL;
+
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_ROUTE:
+    /* no provenance list */
+    break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    jpeer=tr_name_to_json_string(peer);
+    if (jpeer==NULL)
+      return TRP_ERROR;
+    if (rec->data->comm->provenance==NULL) {
+      rec->data->comm->provenance=json_array();
+      if (rec->data->comm->provenance==NULL) {
+        json_decref(jpeer);
+        return TRP_ERROR;
+      }
+    }
+    if (0!=json_array_append_new(rec->data->comm->provenance, jpeer)) {
+      json_decref(jpeer);
+      return TRP_ERROR;
+    }
+    break;
+  default:
+    break;
+  }
+  return TRP_SUCCESS;
 }
 
 /* generic record type */
@@ -642,7 +676,18 @@ TR_NAME *trp_upd_dup_peer(TRP_UPD *upd)
 
 void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer)
 {
+  TRP_INFOREC *rec=NULL;
+  TR_NAME *cpy=NULL;
+
   upd->peer=peer;
+
+  /* add to provenance list of any records that need it */
+  for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
+    if (trp_inforec_add_to_provenance(rec, cpy=tr_dup_name(peer)) != TRP_SUCCESS) {
+      tr_err("trp_upd_set_peer: error adding peer to provenance list.");
+      tr_free_name(cpy);
+    }
+  }
 }
 
 void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
@@ -652,7 +697,7 @@ void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
   
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
     if (trp_inforec_set_next_hop(rec, cpy=tr_new_name(hostname)) != TRP_SUCCESS) {
-      tr_err("trp_upd_set_peer: error setting peer.");
+      tr_err("trp_upd_set_next_hop: error setting next hop.");
       tr_free_name(cpy);
     }
   }

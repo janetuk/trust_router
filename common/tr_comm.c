@@ -464,24 +464,16 @@ static void tr_realm_free(TR_REALM *realm)
 
 static void tr_realm_set_rp(TR_REALM *realm, TR_RP_REALM *rp)
 {
-  if (realm->rp!=NULL)
-    talloc_free(realm->rp);
-  if (realm->idp!=NULL) {
-    talloc_free(realm->idp);
+  if (realm->idp!=NULL)
     realm->idp=NULL;
-  }
   realm->role=TR_ROLE_RP;
   realm->rp=rp;
 }
 
 static void tr_realm_set_idp(TR_REALM *realm, TR_IDP_REALM *idp)
 {
-  if (realm->idp!=NULL)
-    talloc_free(realm->idp);
-  if (realm->rp!=NULL) {
-    talloc_free(realm->rp);
+  if (realm->rp!=NULL)
     realm->rp=NULL;
-  }
   realm->role=TR_ROLE_IDP;
   realm->idp=idp;
 }
@@ -699,6 +691,7 @@ TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
   TR_COMM_MEMB *memb=talloc(mem_ctx, TR_COMM_MEMB);
   if (memb!=NULL) {
     memb->next=NULL;
+    memb->origin_next=NULL;
     memb->idp=NULL;
     memb->rp=NULL;
     memb->comm=NULL;
