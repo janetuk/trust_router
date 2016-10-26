@@ -64,6 +64,7 @@ typedef struct trp_inforec_comm {
   TR_APC *apcs;
   TR_NAME *owner_realm;
   TR_NAME *owner_contact;
+  time_t expiration_interval; /* Minutes to key expiration; only valid for an APC */
   json_t *provenance;
   unsigned int interval;
 } TRP_INFOREC_COMM;
@@ -213,6 +214,7 @@ void trps_free (TRPS_INSTANCE *trps);
 void trps_set_ctable(TRPS_INSTANCE *trps, TR_COMM_TABLE *comm);
 void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable);
 void trps_set_peer_status_callback(TRPS_INSTANCE *trps, void (*cb)(TRP_PEER *, void *), void *cookie);
+TR_NAME *trps_dup_label(TRPS_INSTANCE *trps);
 TRP_RC trps_init_rtable(TRPS_INSTANCE *trps);
 void trps_clear_rtable(TRPS_INSTANCE *trps);
 void trps_set_connect_interval(TRPS_INSTANCE *trps, unsigned int interval);
@@ -281,10 +283,14 @@ json_t *trp_inforec_get_provenance(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_provenance(TRP_INFOREC *rec, json_t *prov);
 TRP_INFOREC_TYPE trp_inforec_type_from_string(const char *s);
 const char *trp_inforec_type_to_string(TRP_INFOREC_TYPE msgtype);
+time_t trp_inforec_get_exp_interval(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_exp_interval(TRP_INFOREC *rec, time_t expint);
 TR_COMM_TYPE trp_inforec_get_comm_type(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_comm_type(TRP_INFOREC *rec, TR_COMM_TYPE type);
 TR_REALM_ROLE trp_inforec_get_role(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_role(TRP_INFOREC *rec, TR_REALM_ROLE role);
 TR_APC *trp_inforec_get_apcs(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_apcs(TRP_INFOREC *rec, TR_APC *apcs);
+TR_NAME *trp_inforec_dup_origin(TRP_INFOREC *rec);
+
 #endif /* TRP_INTERNAL_H */

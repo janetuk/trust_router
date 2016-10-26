@@ -162,6 +162,7 @@ static TRP_INFOREC_DATA *trp_inforec_comm_new(TALLOC_CTX *mem_ctx)
     new_rec->apcs=NULL;
     new_rec->owner_realm=NULL;
     new_rec->owner_contact=NULL;
+    new_rec->expiration_interval=0;
     new_rec->provenance=NULL;
     new_rec->interval=0;
     talloc_set_destructor((void *)new_rec, trp_inforec_comm_destructor);
@@ -334,6 +335,34 @@ TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval)
       rec->data->comm->interval=interval;
       return TRP_SUCCESS;
     }
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+time_t trp_inforec_get_exp_interval(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->expiration_interval;
+    break;
+  default:
+    break;
+  }
+  return 0;
+}
+
+TRP_RC trp_inforec_set_exp_interval(TRP_INFOREC *rec, time_t expint)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->expiration_interval=expint;
+      return TRP_SUCCESS;
+    }
+    break;
   default:
     break;
   }
@@ -543,6 +572,24 @@ static TRP_RC trp_inforec_add_to_provenance(TRP_INFOREC *rec, TR_NAME *peer)
     break;
   }
   return TRP_SUCCESS;
+}
+
+TR_NAME *trp_inforec_dup_origin(TRP_INFOREC *rec)
+{
+  TR_NAME *origin=NULL;
+  json_t *prov=trp_inforec_get_provenance(rec);
+  const char *s=NULL;
+
+  if (prov==NULL)
+    return NULL;
+
+  s=json_string_value(json_array_get(prov, 0));
+  if (s==NULL) {
+    tr_debug("trp_inforec_dup_origin: empty origin in provenance list.");
+    return NULL;
+  }
+  origin=tr_new_name(s);
+  return origin;
 }
 
 /* generic record type */

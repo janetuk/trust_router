@@ -83,11 +83,9 @@ typedef struct tr_cfg_internal {
 
 typedef struct tr_cfg {
   TR_CFG_INTERNAL *internal;		/* internal trust router config */
-  TR_IDP_REALM *idp_realms;		/* locally associated IDP Realms */
-  TR_RP_REALM *rp_realms;
   TR_RP_CLIENT *rp_clients;		/* locally associated RP Clients */
   TRP_PTABLE *peers; /* TRP peer table */
-  TR_COMM_TABLE *comms; /* communities */
+  TR_COMM_TABLE *ctable; /* communities/realms */
   TR_AAA_SERVER *default_servers;	/* default server list */
   /* TBD -- Global Filters */
 } TR_CFG;

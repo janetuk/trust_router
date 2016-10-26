@@ -34,6 +34,7 @@
 
 #include <jansson.h>
 #include <talloc.h>
+#include <sys/time.h>
 
 #include <tr_rp.h>
 #include <tr_idp.h>
@@ -96,6 +97,14 @@ void tr_comm_decref(TR_COMM *comm)
 {
   if (comm->refcount>0)
     comm->refcount--;
+}
+
+void tr_comm_set_apcs(TR_COMM *comm, TR_APC *apc)
+{
+  if (comm->apcs!=NULL)
+    tr_apc_free(comm->apcs);
+  comm->apcs=apc;
+  talloc_steal(comm, apc);
 }
 
 TR_APC *tr_comm_get_apcs(TR_COMM *comm)
@@ -268,18 +277,33 @@ static TR_COMM *tr_comm_add_func(TR_COMM *comms, TR_COMM *new)
   return comms;
 }
 
-/* guarantees comm is not in the list, not an error if it was't there */
+/* Guarantees comm is not in the list, not an error if it was't there.
+ * Does not free the removed element, nor change its talloc context. */
 #define tr_comm_remove(comms, c) ((comms)=tr_comm_remove_func((comms), (c)))
 static TR_COMM *tr_comm_remove_func(TR_COMM *comms, TR_COMM *remove)
 {
-  TR_COMM *this=comms;
+  TALLOC_CTX *list_ctx=talloc_parent(comms); /* in case we need to remove the head */
+  TR_COMM *this=NULL;
 
-  if ((this==NULL) || (this==remove))
+  if (comms==NULL)
     return NULL;
-  
-  for (; this->next!=NULL; this=this->next) {
-    if (this->next==remove)
-      this->next=remove->next;
+
+  if (comms==remove) {
+    /* if we're removing the head, put the next element (if present) into the context
+     * the list head was in. */
+    comms=comms->next;
+    if (comms!=NULL) {
+      talloc_steal(list_ctx, comms->next);
+      /* now put all the other elements in the context of the list head */
+      for (this=comms->next; this!=NULL; this=this->next)
+        talloc_steal(comms, this);
+    }
+  } else {
+    /* not removing the head; no need to play with contexts */
+    for (this=comms; this->next!=NULL; this=this->next) {
+      if (this->next==remove)
+        this->next=remove->next;
+    }
   }
   return comms;
 }
@@ -698,7 +722,12 @@ TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
     memb->origin=NULL;
     memb->provenance=NULL;
     memb->interval=0;
-    memb->expiry=NULL;
+    memb->expiry=talloc(memb, struct timespec);
+    if (memb->expiry==NULL) {
+      talloc_free(memb);
+      return NULL;
+    }
+    *(memb->expiry)=(struct timespec){0,0};
     talloc_set_destructor(memb, tr_comm_memb_destructor);
   }
   return memb;
@@ -851,7 +880,8 @@ unsigned int tr_comm_memb_get_interval(TR_COMM_MEMB *memb)
 
 void tr_comm_memb_set_expiry(TR_COMM_MEMB *memb, struct timespec *time)
 {
-  memb->expiry=time;
+  memb->expiry->tv_sec=time->tv_sec;
+  memb->expiry->tv_nsec=time->tv_nsec;
 }
 
 struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb)
@@ -872,6 +902,8 @@ TR_COMM_TABLE *tr_comm_table_new(TALLOC_CTX *mem_ctx)
   if (ctab!=NULL) {
     ctab->comms=NULL;
     ctab->memberships=NULL;
+    ctab->idp_realms=NULL;
+    ctab->rp_realms=NULL;
   }
   return ctab;
 }
@@ -894,6 +926,8 @@ static TR_REALM_ROLE tr_comm_memb_role(TR_COMM_MEMB *memb)
 void tr_comm_table_add_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *new)
 {
   TR_COMM_MEMB *cur=NULL;
+
+  /* TODO: validate the member (must have valid comm and realm) */
 
   /* handle the empty list case */
   if (ctab->memberships==NULL) {

@@ -62,8 +62,6 @@ typedef struct tr_idp_realm {
   TR_AAA_SERVER *aaa_servers;
   TR_APC *apcs;
   TR_REALM_ORIGIN origin; /* how did we learn about this realm? */
-  TR_NAME *peer; /* for remote/discovered, who told us about this realm? */
-  struct timespec *expiry; /* when does this realm entry expire? */
   unsigned int refcount; /* how many TR_COMM_MEMBs refer to this realm */
 } TR_IDP_REALM;
   
@@ -72,6 +70,9 @@ void tr_idp_realm_free(TR_IDP_REALM *idp);
 TR_NAME *tr_idp_realm_get_id(TR_IDP_REALM *idp);
 TR_NAME *tr_idp_realm_dup_id(TR_IDP_REALM *idp);
 void tr_idp_realm_set_id(TR_IDP_REALM *idp, TR_NAME *id);
+void tr_idp_realm_set_apcs(TR_IDP_REALM *idp, TR_APC *apc);
+TR_APC *tr_idp_realm_get_apcs(TR_IDP_REALM *idp);
+TR_IDP_REALM *tr_idp_realm_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_name);
 TR_IDP_REALM *tr_idp_realm_add_func(TR_IDP_REALM *head, TR_IDP_REALM *new);
 #define tr_idp_realm_add(head,new) ((head)=tr_idp_realm_add_func((head),(new)))
 char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp);

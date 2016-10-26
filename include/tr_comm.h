@@ -77,6 +77,8 @@ typedef struct tr_comm_memb {
 /* table of communities/memberships */
 struct tr_comm_table {
   TR_COMM *comms; /* all communities */
+  TR_IDP_REALM *idp_realms; /* all idp realms */
+  TR_RP_REALM *rp_realms; /* all rp realms */
   TR_COMM_MEMB *memberships; /* head of the linked list of membership records */
 }; 
 
@@ -143,9 +145,10 @@ int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime);
 TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx);
 void tr_comm_free(TR_COMM *comm);
 void tr_comm_set_id(TR_COMM *comm, TR_NAME *id);
-TR_APC *tr_comm_get_apcs(TR_COMM *comm);
 TR_NAME *tr_comm_get_id(TR_COMM *comm);
 TR_NAME *tr_comm_dup_id(TR_COMM *comm);
+void tr_comm_set_apcs(TR_COMM *comm, TR_APC *apc);
+TR_APC *tr_comm_get_apcs(TR_COMM *comm);
 void tr_comm_set_type(TR_COMM *comm, TR_COMM_TYPE type);
 TR_COMM_TYPE tr_comm_get_type(TR_COMM *comm);
 void tr_comm_set_owner_realm(TR_COMM *comm, TR_NAME *realm);

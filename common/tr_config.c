@@ -51,7 +51,7 @@
 
 void tr_print_config (TR_CFG *cfg) {
   tr_notice("tr_print_config: Logging running trust router configuration.");
-  tr_print_comms(cfg->comms);
+  tr_print_comms(cfg->ctable);
 }
 
 void tr_print_comms (TR_COMM_TABLE *ctab)
@@ -126,13 +126,11 @@ TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx)
   TR_CFG *cfg=talloc(mem_ctx, TR_CFG);
   if (cfg!=NULL) {
     cfg->internal=NULL;
-    cfg->idp_realms=NULL;
-    cfg->rp_realms=NULL;
     cfg->rp_clients=NULL;
     cfg->peers=NULL;
     cfg->default_servers=NULL;
-    cfg->comms=tr_comm_table_new(cfg);
-    if (cfg->comms==NULL) {
+    cfg->ctable=tr_comm_table_new(cfg);
+    if (cfg->ctable==NULL) {
       talloc_free(cfg);
       cfg=NULL;
     }
@@ -1456,8 +1454,8 @@ cleanup:
   /* if we succeeded, link things to the configuration and move out of tmp context */
   if (retval==TR_CFG_SUCCESS) {
     if (new_idp_realms!=NULL) {
-      tr_idp_realm_add(trc->idp_realms, new_idp_realms); /* fixes talloc contexts except for head*/
-      talloc_steal(trc, trc->idp_realms); /* make sure the head is in the right context */
+      tr_idp_realm_add(trc->ctable->idp_realms, new_idp_realms); /* fixes talloc contexts except for head*/
+      talloc_steal(trc, trc->ctable->idp_realms); /* make sure the head is in the right context */
     }
 
     if (new_rp_clients!=NULL) {
@@ -1637,7 +1635,7 @@ static void tr_cfg_parse_comm_idps(TR_CFG *trc, json_t *jidps, TR_COMM *comm, TR
       *rc=TR_CFG_ERROR;
       return;
     }
-    tr_comm_add_idp_realm(trc->comms, comm, found_idp, NULL, NULL); /* no provenance, never expires */
+    tr_comm_add_idp_realm(trc->ctable, comm, found_idp, NULL, NULL); /* no provenance, never expires */
   }
 
   *rc=TR_CFG_SUCCESS;
@@ -1677,7 +1675,7 @@ static void tr_cfg_parse_comm_rps(TR_CFG *trc, json_t *jrps, TR_COMM *comm, TR_C
     }
 
     /* see if we already have this RP in this community */
-    found_rp=tr_comm_find_rp(trc->comms, comm, rp_name);
+    found_rp=tr_comm_find_rp(trc->ctable, comm, rp_name);
     if (found_rp!=NULL) {
       tr_notice("tr_cfg_parse_comm_rps: RP %s repeated in community %.*s.",
                 s, tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
@@ -1686,7 +1684,7 @@ static void tr_cfg_parse_comm_rps(TR_CFG *trc, json_t *jrps, TR_COMM *comm, TR_C
     }
 
     /* Add the RP to the community, first see if we have the RP in any community */
-    found_rp=tr_rp_realm_lookup(trc->rp_realms, rp_name);
+    found_rp=tr_rp_realm_lookup(trc->ctable->rp_realms, rp_name);
     if (found_rp!=NULL) {
       tr_debug("tr_cfg_parse_comm_rps: RP realm %s already exists.", s);
       new_rp=found_rp; /* use it rather than creating a new realm record */
@@ -1699,9 +1697,9 @@ static void tr_cfg_parse_comm_rps(TR_CFG *trc, json_t *jrps, TR_COMM *comm, TR_C
       tr_debug("tr_cfg_parse_comm_rps: setting name to %s", rp_name->buf);
       tr_rp_realm_set_id(new_rp, rp_name);
       rp_name=NULL; /* rp_name no longer belongs to us */
-      tr_rp_realm_add(trc->rp_realms, new_rp);
+      tr_rp_realm_add(trc->ctable->rp_realms, new_rp);
     }
-    tr_comm_add_rp_realm(trc->comms, comm, new_rp, NULL, NULL);
+    tr_comm_add_rp_realm(trc->ctable, comm, new_rp, NULL, NULL);
   }
 }
 
@@ -1839,7 +1837,7 @@ static TR_CFG_RC tr_cfg_parse_comms (TR_CFG *trc, json_t *jcfg)
       tr_debug("tr_cfg_parse_comms: Community configured: %s.",
                tr_comm_get_id(comm)->buf);
 
-      tr_comm_table_add_comm(trc->comms, comm);
+      tr_comm_table_add_comm(trc->ctable, comm);
     }
   }
   tr_debug("tr_cfg_parse_comms: Finished (rc=%d)", rc);
@@ -1864,12 +1862,12 @@ TR_CFG_RC tr_cfg_validate(TR_CFG *trc)
     rc = TR_CFG_ERROR;
   }
 
-  if (0==tr_comm_table_size(trc->comms)) {
+  if (0==tr_comm_table_size(trc->ctable)) {
     tr_debug("tr_cfg_validate: Error: No Communities configured");
     rc = TR_CFG_ERROR;
   }
 
-  if ((NULL == trc->default_servers) && (NULL == trc->idp_realms)) {
+  if ((NULL == trc->default_servers) && (NULL == trc->ctable->idp_realms)) {
     tr_debug("tr_cfg_validate: Error: No default servers or IDPs configured.");
     rc = TR_CFG_ERROR;
   }
@@ -1992,7 +1990,7 @@ TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc)
     return NULL;
   }
 
-  for (cfg_idp = tr_cfg->idp_realms; NULL != cfg_idp; cfg_idp = cfg_idp->next) {
+  for (cfg_idp = tr_cfg->ctable->idp_realms; NULL != cfg_idp; cfg_idp = cfg_idp->next) {
     if (!tr_name_cmp (idp_id, cfg_idp->realm_id)) {
       tr_debug("tr_cfg_find_idp: Found %s.", idp_id->buf);
       return cfg_idp;

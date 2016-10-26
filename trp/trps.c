@@ -186,6 +186,22 @@ void trps_set_peer_status_callback(TRPS_INSTANCE *trps, void (*cb)(TRP_PEER *, v
   trp_ptable_iter_free(iter);
 }
 
+/* Get the label peers will know us by - needs to match trp_peer_get_label() output.
+ * There is no get, only dup, because we don't store the label except when requested. */
+TR_NAME *trps_dup_label(TRPS_INSTANCE *trps)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_NAME *label=NULL;
+  char *s=talloc_asprintf(tmp_ctx, "%s:%u", trps->hostname, trps->port);
+  if (s==NULL)
+    goto cleanup;
+  label=tr_new_name(s);
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return label;
+}
+
 TRPC_INSTANCE *trps_find_trpc(TRPS_INSTANCE *trps, TRP_PEER *peer)
 {
   TRPC_INSTANCE *cur=NULL;
@@ -524,7 +540,8 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
     break;
 
   case TRP_INFOREC_TYPE_COMMUNITY:
-    /* TODO: handle community updates -jlr*/
+    /* TODO: validate community updates */
+    break;
     
   default:
     tr_notice("trps_validate_inforec: unsupported record type.");
@@ -653,11 +670,292 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
   return TRP_SUCCESS;
 }
 
+
+static TRP_RC trps_handle_inforec_route(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC *rec)
+{
+  TRP_ROUTE *route=NULL;
+  unsigned int feas=0;
+
+  /* determine feasibility */
+  feas=trps_check_feasibility(trps, trp_upd_get_realm(upd), trp_upd_get_comm(upd), rec);
+  tr_debug("trps_handle_update: record feasibility=%d", feas);
+
+  /* do we have an existing route? */
+  route=trps_get_route(trps,
+                       trp_upd_get_comm(upd),
+                       trp_upd_get_realm(upd),
+                       trp_upd_get_peer(upd));
+  if (route!=NULL) {
+    /* there was a route table entry already */
+    tr_debug("trps_handle_updates: route entry already exists.");
+    if (feas) {
+      /* Update is feasible. Accept it. */
+      trps_accept_update(trps, upd, rec);
+    } else {
+      /* Update is infeasible. Ignore it unless the trust router has changed. */
+      if (0!=tr_name_cmp(trp_route_get_trust_router(route),
+                         trp_inforec_get_trust_router(rec))) {
+        /* the trust router associated with the route has changed, treat update as a retraction */
+        trps_retract_route(trps, route);
+      }
+    }
+  } else {
+    /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
+    tr_debug("trps_handle_update: no route entry exists yet.");
+    if (feas && trp_metric_is_finite(trp_inforec_get_metric(rec)))
+      trps_accept_update(trps, upd, rec);
+  }
+
+  return TRP_SUCCESS;
+}
+
+static int trps_name_in_provenance(TR_NAME *name, json_t *prov)
+{
+  size_t ii=0;
+  TR_NAME *this_name=NULL;
+  const char *s=NULL;
+
+  if (prov==NULL)
+    return 0; /* no provenance list, so it has no names in it */
+
+  /* now check to see if name is in the provenance */
+  for (ii=0; ii<json_array_size(prov); ii++) {
+    s=json_string_value(json_array_get(prov, ii));
+    if (s==NULL) {
+      tr_debug("trps_name_in_provenance: empty entry in provenance list.");
+      continue;
+    }
+
+    this_name=tr_new_name(s);
+    if (this_name==NULL) {
+      tr_debug("trps_name_in_provenance: unable to allocate name.");
+      return -1;
+    }
+    if (0==tr_name_cmp(name, this_name)) {
+      tr_free_name(this_name);
+      return 1;
+    }
+    tr_free_name(this_name);
+  }
+  return 0;
+}
+
+static TR_COMM *trps_create_new_comm(TALLOC_CTX *mem_ctx, TR_NAME *comm_id, TRP_INFOREC *rec)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_COMM *comm=tr_comm_new(tmp_ctx);
+  
+  if (comm==NULL) {
+    tr_debug("trps_create_new_comm: unable to allocate new community.");
+    goto cleanup;
+  }
+  /* fill in the community with info */
+  tr_comm_set_id(comm, tr_dup_name(comm_id));
+  if (tr_comm_get_id(comm)==NULL) {
+    tr_debug("trps_create_new_comm: unable to allocate community name.");
+    comm=NULL;
+    goto cleanup;
+  }
+  tr_comm_set_type(comm, trp_inforec_get_comm_type(rec));
+  if (trp_inforec_get_apcs(rec)!=NULL) {
+    tr_comm_set_apcs(comm, tr_apc_dup(tmp_ctx, trp_inforec_get_apcs(rec)));
+    if (tr_comm_get_apcs(comm)==NULL) {
+      tr_debug("trps_create_new_comm: unable to allocate APC list.");
+      comm=NULL;
+      goto cleanup;
+    }
+  }
+  if (trp_inforec_get_owner_realm(rec)!=NULL) {
+    tr_comm_set_owner_realm(comm, tr_dup_name(trp_inforec_get_owner_realm(rec)));
+    if (tr_comm_get_owner_realm(comm)==NULL) {
+      tr_debug("trps_create_new_comm: unable to allocate owner realm name.");
+      comm=NULL;
+      goto cleanup;
+    }
+  }
+  if (trp_inforec_get_owner_contact(rec)!=NULL) {
+    tr_comm_set_owner_contact(comm, tr_dup_name(trp_inforec_get_owner_contact(rec)));
+    if (tr_comm_get_owner_contact(comm)==NULL) {
+      tr_debug("trps_create_new_comm: unable to allocate owner contact.");
+      comm=NULL;
+      goto cleanup;
+    }
+  }
+  comm->expiration_interval=trp_inforec_get_exp_interval(rec);
+  talloc_steal(mem_ctx, comm);
+  
+cleanup:
+  talloc_free(tmp_ctx);
+  return comm;
+}
+
+static TR_RP_REALM *trps_create_new_rp_realm(TALLOC_CTX *mem_ctx, TR_NAME *realm_id, TRP_INFOREC *rec)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_RP_REALM *rp=tr_rp_realm_new(tmp_ctx);
+  
+  if (rp==NULL) {
+    tr_debug("trps_create_new_rp_realm: unable to allocate new realm.");
+    goto cleanup;
+  }
+  /* fill in the realm */
+  tr_rp_realm_set_id(rp, tr_dup_name(realm_id));
+  if (tr_rp_realm_get_id(rp)==NULL) {
+    tr_debug("trps_create_new_rp_realm: unable to allocate realm name.");
+    rp=NULL;
+    goto cleanup;
+  }
+  talloc_steal(mem_ctx, rp);
+  
+cleanup:
+  talloc_free(tmp_ctx);
+  return rp;
+}
+
+static TR_IDP_REALM *trps_create_new_idp_realm(TALLOC_CTX *mem_ctx, TR_NAME *realm_id, TRP_INFOREC *rec)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_IDP_REALM *idp=tr_idp_realm_new(tmp_ctx);
+  
+  if (idp==NULL) {
+    tr_debug("trps_create_new_idp_realm: unable to allocate new realm.");
+    goto cleanup;
+  }
+  /* fill in the realm */
+  tr_idp_realm_set_id(idp, tr_dup_name(realm_id));
+  if (tr_idp_realm_get_id(idp)==NULL) {
+    tr_debug("trps_create_new_idp_realm: unable to allocate realm name.");
+    idp=NULL;
+    goto cleanup;
+  }
+  if (trp_inforec_get_apcs(rec)!=NULL) {
+    tr_idp_realm_set_apcs(idp, tr_apc_dup(tmp_ctx, trp_inforec_get_apcs(rec)));
+    if (tr_idp_realm_get_apcs(idp)==NULL) {
+      tr_debug("trps_create_new_idp_realm: unable to allocate APC list.");
+      idp=NULL;
+      goto cleanup;
+    }
+  }
+  idp->origin=TR_REALM_DISCOVERED;
+  
+  talloc_steal(mem_ctx, idp);
+  
+cleanup:
+  talloc_free(tmp_ctx);
+  return idp;
+}
+
+static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC *rec)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_NAME *comm_id=trp_upd_get_comm(upd);
+  TR_NAME *realm_id=trp_upd_get_realm(upd);
+  TR_NAME *origin_id=NULL;
+  TR_NAME *our_peer_label=NULL;
+  TR_COMM *comm=NULL;
+  TR_RP_REALM *rp_realm=NULL;
+  TR_IDP_REALM *idp_realm=NULL;
+  struct timespec expiry={0,0};
+  TRP_RC rc=TRP_ERROR;
+
+  if ((comm_id==NULL) || (realm_id==NULL))
+    goto cleanup;
+
+  origin_id=trp_inforec_dup_origin(rec);
+  if (origin_id==NULL)
+    goto cleanup;
+    
+  /* see whether we want to add this */
+  our_peer_label=trps_dup_label(trps);
+  if (our_peer_label==NULL) {
+    tr_debug("trps_handle_inforec_comm: unable to allocate peer label.");
+    goto cleanup;
+  }
+
+  if (trps_name_in_provenance(our_peer_label, trp_inforec_get_provenance(rec)))
+    tr_debug("trps_handle_inforec_comm: rejecting community inforec to avoid loop.");
+  else {
+    /* no loop occurring, accept the update */
+    comm=tr_comm_table_find_comm(trps->ctable, comm_id);
+    if (comm==NULL) {
+      tr_debug("trps_handle_inforec_comm: unknown community %.*s in inforec, creating it.",
+               comm_id->len, comm_id->buf);
+      comm=trps_create_new_comm(tmp_ctx, comm_id, rec);
+      if (comm==NULL) {
+        tr_debug("trps_handle_inforec_comm: unable to create new community.");
+        goto cleanup;
+      }
+      tr_comm_table_add_comm(trps->ctable, comm);
+    }
+    /* TODO: see if other comm data match the new inforec and update or complain */
+
+    trps_compute_expiry(trps, trp_inforec_get_interval(rec), &expiry);
+    if ((expiry.tv_sec==0)&&(expiry.tv_nsec==0))
+      goto cleanup;
+
+    switch (trp_inforec_get_role(rec)) {
+    case TR_ROLE_RP:
+      rp_realm=tr_rp_realm_lookup(trps->ctable->rp_realms, realm_id);
+      if (rp_realm==NULL) {
+        tr_debug("trps_handle_inforec_comm: unknown RP realm %.*s in inforec, creating it.",
+                 realm_id->len, realm_id->buf);
+        rp_realm=trps_create_new_rp_realm(tmp_ctx, realm_id, rec);
+        if (rp_realm==NULL) {
+          tr_debug("trps_handle_inforec_comm: unable to create new RP realm.");
+          /* we may leave an unused community in the table, but it will only last until
+           * the next table sweep if it does not get any realms before that happens */
+          goto cleanup;
+        }
+        tr_rp_realm_add(trps->ctable->rp_realms, rp_realm);
+      }
+      /* TODO: if realm existed, see if data match the new inforec and update or complain */
+      tr_comm_add_rp_realm(trps->ctable, comm, rp_realm, trp_inforec_get_provenance(rec), &expiry);
+      tr_debug("trps_handle_inforec_comm: added RP realm %.*s to comm %.*s (origin %.*s).",
+               realm_id->len, realm_id->buf,
+               comm_id->len, comm_id->buf,
+               origin_id->len, origin_id->buf);
+      break;
+    case TR_ROLE_IDP:
+      idp_realm=tr_idp_realm_lookup(trps->ctable->idp_realms, realm_id);
+      if (idp_realm==NULL) {
+        tr_debug("trps_handle_inforec_comm: unknown IDP realm %.*s in inforec, creating it.",
+                 realm_id->len, realm_id->buf);
+        idp_realm=trps_create_new_idp_realm(tmp_ctx, realm_id, rec);
+        if (idp_realm==NULL) {
+          tr_debug("trps_handle_inforec_comm: unable to create new IDP realm.");
+          /* we may leave an unused community in the table, but it will only last until
+           * the next table sweep if it does not get any realms before that happens */
+          goto cleanup;
+        }
+        tr_idp_realm_add(trps->ctable->idp_realms, idp_realm);
+      }
+      /* TODO: if realm existed, see if data match the new inforec and update or complain */
+      tr_comm_add_idp_realm(trps->ctable, comm, idp_realm, trp_inforec_get_provenance(rec), &expiry);
+      tr_debug("trps_handle_inforec_comm: added IDP realm %.*s to comm %.*s (origin %.*s).",
+               realm_id->len, realm_id->buf,
+               comm_id->len, comm_id->buf,
+               origin_id->len, origin_id->buf);
+      break;
+    default:
+      tr_debug("trps_handle_inforec_comm: unable to add realm.");
+      goto cleanup;
+    }
+  } 
+
+  rc=TRP_SUCCESS;
+
+cleanup:
+  if (our_peer_label!=NULL)
+    tr_free_name(our_peer_label);
+  if (origin_id!=NULL)
+    tr_free_name(origin_id);
+  talloc_free(tmp_ctx);
+  return rc;
+}
+
 static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
 {
-  unsigned int feas=0;
   TRP_INFOREC *rec=NULL;
-  TRP_ROUTE *route=NULL;
 
   if (trps_validate_update(trps, upd) != TRP_SUCCESS) {
     tr_notice("trps_handle_update: received invalid TRP update.");
@@ -667,40 +965,24 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
     /* validate/sanity check the record update */
     if (trps_validate_inforec(trps, rec) != TRP_SUCCESS) {
-      tr_notice("trps_handle_update: invalid record in TRP update, discarding entire update.");
+      tr_notice("trps_handle_update: invalid inforec in TRP update, discarding entire update.");
       return TRP_ERROR;
     }
   }
 
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    /* determine feasibility */
-    feas=trps_check_feasibility(trps, trp_upd_get_realm(upd), trp_upd_get_comm(upd), rec);
-    tr_debug("trps_handle_update: record feasibility=%d", feas);
-
-    /* do we have an existing route? */
-    route=trps_get_route(trps,
-                         trp_upd_get_comm(upd),
-                         trp_upd_get_realm(upd),
-                         trp_upd_get_peer(upd));
-    if (route!=NULL) {
-      /* there was a route table entry already */
-      tr_debug("trps_handle_updates: route entry already exists.");
-      if (feas) {
-        /* Update is feasible. Accept it. */
-        trps_accept_update(trps, upd, rec);
-      } else {
-        /* Update is infeasible. Ignore it unless the trust router has changed. */
-        if (0!=tr_name_cmp(trp_route_get_trust_router(route),
-                           trp_inforec_get_trust_router(rec))) {
-          /* the trust router associated with the route has changed, treat update as a retraction */
-          trps_retract_route(trps, route);
-        }
-      }
-    } else {
-      /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
-      tr_debug("trps_handle_update: no route entry exists yet.");
-      if (feas && trp_metric_is_finite(trp_inforec_get_metric(rec)))
-        trps_accept_update(trps, upd, rec);
+    switch (trp_inforec_get_type(rec)) {
+    case TRP_INFOREC_TYPE_ROUTE:
+      if (TRP_SUCCESS!=trps_handle_inforec_route(trps, upd, rec))
+        tr_notice("trps_handle_update: error handling route inforec.");
+      break;
+    case TRP_INFOREC_TYPE_COMMUNITY:
+      if (TRP_SUCCESS!=trps_handle_inforec_comm(trps, upd, rec))
+        tr_notice("trps_handle_update: error handling community inforec.");
+      break;
+    default:
+      tr_notice("trps_handle_update: unsupported inforec in TRP update.");
+      break;
     }
   }
   return TRP_SUCCESS;

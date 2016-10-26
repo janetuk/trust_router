@@ -38,6 +38,7 @@
 #include <trust_router/tr_name.h>
 #include <tr_idp.h>
 #include <tr_config.h>
+#include <tr_debug.h>
 
 static int tr_aaa_server_destructor(void *obj)
 {
@@ -109,12 +110,6 @@ TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
     idp->aaa_servers=NULL;
     idp->apcs=NULL;
     idp->origin=TR_REALM_LOCAL;
-    idp->peer=NULL;
-    idp->expiry=talloc(idp, struct timespec);
-    if (idp->expiry==NULL) {
-      talloc_free(idp);
-      return NULL;
-    }
     talloc_set_destructor((void *)idp, tr_idp_realm_destructor);
   }
   return idp;
@@ -147,6 +142,36 @@ void tr_idp_realm_set_id(TR_IDP_REALM *idp, TR_NAME *id)
     tr_free_name(idp->realm_id);
   idp->realm_id=id;
 }
+
+void tr_idp_realm_set_apcs(TR_IDP_REALM *idp, TR_APC *apc)
+{
+  if (idp->apcs!=NULL)
+    tr_apc_free(idp->apcs);
+  idp->apcs=apc;
+  talloc_steal(idp, apc);
+}
+
+TR_APC *tr_idp_realm_get_apcs(TR_IDP_REALM *idp)
+{
+  return idp->apcs;
+}
+
+TR_IDP_REALM *tr_idp_realm_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_name)
+{
+  TR_IDP_REALM *idp = NULL;
+
+  if (!idp_name) {
+    tr_debug("tr_idp_realm_lookup: Bad parameters.");
+    return NULL;
+  }
+
+  for (idp=idp_realms; NULL!=idp; idp=idp->next) {
+    if (0==tr_name_cmp(tr_idp_realm_get_id(idp), idp_name))
+      return idp;
+  } 
+  return NULL;
+}
+
 
 static TR_IDP_REALM *tr_idp_realm_tail(TR_IDP_REALM *idp)
 {

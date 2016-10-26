@@ -754,7 +754,7 @@ TRP_RC tr_add_local_routes(TRPS_INSTANCE *trps, TR_CFG *cfg)
   if (trust_router_name==NULL)
     return TRP_NOMEM;
 
-  for (cur=cfg->idp_realms; cur!=NULL; cur=cur->next) {
+  for (cur=cfg->ctable->idp_realms; cur!=NULL; cur=cur->next) {
     local_routes=tr_make_local_routes(tmp_ctx, cur, trust_router_name, &n_routes);
     for (ii=0; ii<n_routes; ii++)
       trps_add_route(trps, local_routes[ii]);
@@ -833,7 +833,7 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
   trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);
-  trps_set_ctable(trps, new_cfg->comms);
+  trps_set_ctable(trps, new_cfg->ctable);
   trps_set_ptable(trps, new_cfg->peers);
   trps_set_peer_status_callback(trps, tr_peer_status_change, (void *)trps);
   trps_clear_rtable(trps); /* should we do this every time??? */
