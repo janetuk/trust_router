@@ -722,6 +722,7 @@ TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
     memb->origin=NULL;
     memb->provenance=NULL;
     memb->interval=0;
+    memb->triggered=0;
     memb->expiry=talloc(memb, struct timespec);
     if (memb->expiry==NULL) {
       talloc_free(memb);
@@ -880,8 +881,12 @@ unsigned int tr_comm_memb_get_interval(TR_COMM_MEMB *memb)
 
 void tr_comm_memb_set_expiry(TR_COMM_MEMB *memb, struct timespec *time)
 {
-  memb->expiry->tv_sec=time->tv_sec;
-  memb->expiry->tv_nsec=time->tv_nsec;
+  if (time==NULL)
+    *(memb->expiry)=(struct timespec){0,0};
+  else {
+    memb->expiry->tv_sec=time->tv_sec;
+    memb->expiry->tv_nsec=time->tv_nsec;
+  }
 }
 
 struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb)
@@ -895,6 +900,17 @@ int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime)
          || ((curtime->tv_sec == memb->expiry->tv_sec)
             &&(curtime->tv_nsec >= memb->expiry->tv_nsec)));
 }
+
+void tr_comm_set_triggered(TR_COMM_MEMB *memb, int trig)
+{
+  memb->triggered=trig;
+}
+
+int tr_comm_is_triggered(TR_COMM_MEMB *memb)
+{
+  return memb->triggered;
+}
+
 
 TR_COMM_TABLE *tr_comm_table_new(TALLOC_CTX *mem_ctx)
 {

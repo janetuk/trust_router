@@ -973,10 +973,12 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
     switch (trp_inforec_get_type(rec)) {
     case TRP_INFOREC_TYPE_ROUTE:
+      tr_debug("trps_handle_update: handling route inforec.");
       if (TRP_SUCCESS!=trps_handle_inforec_route(trps, upd, rec))
         tr_notice("trps_handle_update: error handling route inforec.");
       break;
     case TRP_INFOREC_TYPE_COMMUNITY:
+      tr_debug("trps_handle_update: handling community inforec.");
       if (TRP_SUCCESS!=trps_handle_inforec_comm(trps, upd, rec))
         tr_notice("trps_handle_update: error handling community inforec.");
       break;
@@ -1422,7 +1424,11 @@ cleanup:
 
 /* Find all community updates to send to a peer and add these as TR_UPD records
  * to the updates GPtrArray. */
-static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx, GPtrArray *updates, TRPS_INSTANCE *trps, TR_NAME *peer_gssname)
+static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx,
+                                                GPtrArray *updates,
+                                                TRPS_INSTANCE *trps,
+                                                TR_NAME *peer_gssname,
+                                                int triggered)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_COMM_ITER *comm_iter=NULL;
@@ -1431,7 +1437,13 @@ static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx, GPtrArray *
   TR_REALM *realm=NULL;
   TRP_UPD *upd=NULL;
   TRP_RC rc=TRP_ERROR;
-  
+
+  /* currently do not send any communities on triggered updates */
+  if (triggered) {
+    rc=TRP_SUCCESS;
+    goto cleanup;
+  }
+
   comm_iter=tr_comm_iter_new(tmp_ctx);
   realm_iter=tr_comm_iter_new(tmp_ctx);
   if ((comm_iter==NULL) || (realm_iter==NULL)) {
@@ -1553,7 +1565,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
 
   /* Second, gather community updates */
   tr_debug("trps_update_one_peer: selecting community updates for %.*s.", peer_label->len, peer_label->buf);
-  rc=trps_select_comm_updates_for_peer(tmp_ctx, updates, trps, peer_label);
+  rc=trps_select_comm_updates_for_peer(tmp_ctx, updates, trps, peer_label, update_type==TRP_UPDATE_TRIGGERED);
 
   /* see if we have anything to send */
   if (updates->len<=0)
@@ -1609,7 +1621,7 @@ TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE update_type)
   }
 
   for (peer=trp_ptable_iter_first(iter, trps->ptable);
-       peer!=NULL && rc==TRP_SUCCESS;
+       (peer!=NULL) && (rc==TRP_SUCCESS);
        peer=trp_ptable_iter_next(iter))
   {
     if (!trps_peer_connected(trps, peer)) {

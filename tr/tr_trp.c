@@ -317,6 +317,7 @@ static void tr_trps_update(int listener, short event, void *arg)
   tr_debug("tr_trps_update: sending scheduled route/community updates.");
   trps_update(trps, TRP_UPDATE_SCHEDULED);
   event_add(ev, &(trps->update_interval));
+  tr_debug("tr_trps_update: update interval=%d", trps->update_interval.tv_sec);
 }
 
 static void tr_trps_sweep(int listener, short event, void *arg)

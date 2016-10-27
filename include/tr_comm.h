@@ -72,6 +72,7 @@ typedef struct tr_comm_memb {
   json_t *provenance; /* array of names of systems traversed */
   unsigned int interval;
   struct timespec *expiry;
+  int triggered; /* do we need to send this with triggered updates? */
 } TR_COMM_MEMB;
 
 /* table of communities/memberships */
@@ -141,6 +142,8 @@ unsigned int tr_comm_memb_get_interval(TR_COMM_MEMB *memb);
 void tr_comm_memb_set_expiry(TR_COMM_MEMB *memb, struct timespec *time);
 struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb);
 int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime);
+void tr_comm_set_triggered(TR_COMM_MEMB *memb, int trig);
+int tr_comm_is_triggered(TR_COMM_MEMB *memb);
 
 TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx);
 void tr_comm_free(TR_COMM *comm);
