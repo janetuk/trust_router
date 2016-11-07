@@ -807,29 +807,37 @@ static TRP_RC tr_msg_decode_trp_inforec_comm(json_t *jrecord, TRP_INFOREC *rec)
   }
   trp_inforec_set_apcs(rec, apcs);
 
-  rc=tr_msg_get_json_string(jrecord, "owner_realm", &s, tmp_ctx);
-  if (rc != TRP_SUCCESS)
+  rc=tr_msg_get_json_integer(jrecord, "interval", &num);
+  tr_debug("tr_msg_decode_trp_inforec_comm: interval=%u", num);
+  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_interval(rec,num)))
     goto cleanup;
-  if (TRP_SUCCESS!=trp_inforec_set_owner_realm(rec, tr_new_name(s))) {
-    rc=TRP_ERROR;
-    goto cleanup;
-  }
-  talloc_free(s); s=NULL;
-
-  rc=tr_msg_get_json_string(jrecord, "owner_contact", &s, tmp_ctx);
-  if (rc != TRP_SUCCESS)
-    goto cleanup;
-  if (TRP_SUCCESS!=trp_inforec_set_owner_contact(rec, tr_new_name(s))) {
-    rc=TRP_ERROR;
-    goto cleanup;
-  }
-  talloc_free(s); s=NULL;
 
   trp_inforec_set_provenance(rec, json_object_get(jrecord, "provenance"));
 
-  rc=tr_msg_get_json_integer(jrecord, "interval", &num);
-  if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_interval(rec,num)))
-    goto cleanup;
+  /* optional */
+  rc=tr_msg_get_json_string(jrecord, "owner_realm", &s, tmp_ctx);
+  if (rc == TRP_SUCCESS) {
+    if (TRP_SUCCESS!=trp_inforec_set_owner_realm(rec, tr_new_name(s))) {
+      rc=TRP_ERROR;
+      goto cleanup;
+    }
+    if (s!=NULL) {
+      talloc_free(s);
+      s=NULL;
+    }
+  }
+
+  rc=tr_msg_get_json_string(jrecord, "owner_contact", &s, tmp_ctx);
+  if (rc == TRP_SUCCESS) {
+    if (TRP_SUCCESS!=trp_inforec_set_owner_contact(rec, tr_new_name(s))) {
+      rc=TRP_ERROR;
+      goto cleanup;
+    }
+    if (s!=NULL) {
+      talloc_free(s);
+      s=NULL;
+    }
+  }
 
 cleanup:
   talloc_free(tmp_ctx);

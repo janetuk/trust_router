@@ -1635,7 +1635,7 @@ static void tr_cfg_parse_comm_idps(TR_CFG *trc, json_t *jidps, TR_COMM *comm, TR
       *rc=TR_CFG_ERROR;
       return;
     }
-    tr_comm_add_idp_realm(trc->ctable, comm, found_idp, NULL, NULL); /* no provenance, never expires */
+    tr_comm_add_idp_realm(trc->ctable, comm, found_idp, 0, NULL, NULL); /* no provenance, never expires */
   }
 
   *rc=TR_CFG_SUCCESS;
@@ -1698,8 +1698,9 @@ static void tr_cfg_parse_comm_rps(TR_CFG *trc, json_t *jrps, TR_COMM *comm, TR_C
       tr_rp_realm_set_id(new_rp, rp_name);
       rp_name=NULL; /* rp_name no longer belongs to us */
       tr_rp_realm_add(trc->ctable->rp_realms, new_rp);
+      talloc_steal(trc->ctable, trc->ctable->rp_realms); /* make sure head is in the right context */
     }
-    tr_comm_add_rp_realm(trc->ctable, comm, new_rp, NULL, NULL);
+    tr_comm_add_rp_realm(trc->ctable, comm, new_rp, 0, NULL, NULL);
   }
 }
 

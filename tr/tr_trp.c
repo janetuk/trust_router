@@ -328,6 +328,8 @@ static void tr_trps_sweep(int listener, short event, void *arg)
 
   tr_debug("tr_trps_sweep: sweeping routes.");
   trps_sweep_routes(trps);
+  tr_debug("tr_trps_sweep: sweeping communities.");
+  trps_sweep_ctable(trps);
   tr_trps_print_route_table(trps, stderr);
   /* schedule the event to run again */
   event_add(ev, &(trps->sweep_interval));

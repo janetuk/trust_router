@@ -198,6 +198,37 @@ TR_IDP_REALM *tr_idp_realm_add_func(TR_IDP_REALM *head, TR_IDP_REALM *new)
   return head;
 }
 
+/* use the macro */
+TR_IDP_REALM *tr_idp_realm_remove_func(TR_IDP_REALM *head, TR_IDP_REALM *remove)
+{
+  TALLOC_CTX *list_ctx=talloc_parent(head);
+  TR_IDP_REALM *this=NULL;
+
+  if (head==NULL)
+    return NULL;
+
+  if (head==remove) {
+    /* if we're removing the head, put the next element (if present) into the context
+     * the list head was in. */
+    head=head->next;
+    if (head!=NULL) {
+      talloc_steal(list_ctx, head);
+      /* now put all the other elements in the context of the list head */
+      for (this=head->next; this!=NULL; this=this->next)
+        talloc_steal(head, this);
+    }
+  } else {
+    /* not removing the head; no need to play with contexts */
+    for (this=head; this->next!=NULL; this=this->next) {
+      if (this->next==remove) {
+        this->next=remove->next;
+        break;
+      }
+    }
+  }
+  return head;
+}
+
 static int tr_idp_realm_apc_count(TR_IDP_REALM *idp)
 {
   int ii=0;
@@ -308,3 +339,35 @@ void tr_idp_realm_decref(TR_IDP_REALM *realm)
   if (realm->refcount>0)
     realm->refcount--;
 }
+
+/* remove any with zero refcount 
+ * Call via macro. */
+TR_IDP_REALM *tr_idp_realm_sweep_func(TR_IDP_REALM *head)
+{
+  TR_IDP_REALM *idp=NULL;
+  TR_IDP_REALM *old_next=NULL;
+
+  if (head==NULL)
+    return NULL;
+
+  while ((head!=NULL) && (head->refcount==0)) {
+    idp=head; /* keep a pointer so we can remove it */
+    tr_idp_realm_remove(head, idp); /* use this to get talloc contexts right */
+    tr_idp_realm_free(idp);
+  }
+
+  if (head==NULL)
+    return NULL;
+
+  /* will not remove the head here, that has already been done */
+  for (idp=head; idp->next!=NULL; idp=idp->next) {
+    if (idp->next->refcount==0) {
+      old_next=idp->next;
+      tr_idp_realm_remove(head, idp->next); /* changes idp->next */
+      tr_idp_realm_free(old_next);
+    }
+  }
+
+  return head;
+}
+

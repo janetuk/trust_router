@@ -1,6 +1,6 @@
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
-bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/dh_test/tr_dh_test common/mq_test/mq_test common/mq_test/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/cfg_test/cfg_test
+bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/tests/tr_dh_test common/tests/mq_test common/tests/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/tests/cfg_test common/tests/commtest
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -112,29 +112,35 @@ tid_example_tidc_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 tid_example_tids_SOURCES = tid/example/tids_main.c
 tid_example_tids_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
 
-common_dh_test_tr_dh_test_SOURCES = common/tr_dh.c \
+common_tests_tr_dh_test_SOURCES = common/tr_dh.c \
 common/tr_debug.c \
-common/dh_test/dh_test.c
+common/tests/dh_test.c
 
-common_mq_test_mq_test_SOURCES = common/tr_mq.c \
-common/mq_test/mq_test.c
+common_tests_mq_test_SOURCES = common/tr_mq.c \
+common/tests/mq_test.c
 
-common_mq_test_mq_test_CFLAGS = -pthread
-common_mq_test_mq_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
+common_tests_mq_test_CFLAGS = -pthread
+common_tests_mq_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
 
-common_cfg_test_cfg_test_SOURCES = common/cfg_test/cfg_test.c \
+common_tests_cfg_test_SOURCES = common/tests/cfg_test.c \
 $(trp_srcs)
 
-common_cfg_test_cfg_test_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
-common_cfg_test_cfg_test_CFLAGS = -pthread
-common_cfg_test_cfg_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
+common_tests_cfg_test_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+common_tests_cfg_test_CFLAGS = -pthread
+common_tests_cfg_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
 
-common_mq_test_thread_test_SOURCES = common/tr_mq.c \
+common_tests_thread_test_SOURCES = common/tr_mq.c \
 common/tr_debug.c \
-common/mq_test/thread_test.c
+common/tests/thread_test.c
 
-common_mq_test_thread_test_CFLAGS = -pthread
-common_mq_test_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
+common_tests_thread_test_CFLAGS = -pthread
+common_tests_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
+
+common_tests_commtest_SOURCES = common/tests/commtest.c \
+$(trp_srcs)
+common_tests_commtest_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+common_tests_commtest_CFLAGS = -pthread
+common_test_commtest_LDFLAGS = $(AM_LDFLAGS) -ltalloc
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/tr_debug.h \

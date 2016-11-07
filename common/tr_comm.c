@@ -32,6 +32,7 @@
  *
  */
 
+#include <stdio.h>
 #include <jansson.h>
 #include <talloc.h>
 #include <sys/time.h>
@@ -41,10 +42,6 @@
 #include <trust_router/tr_name.h>
 #include <tr_comm.h>
 #include <tr_debug.h>
-
-
-/* static prototypes */
-static TR_NAME *tr_comm_memb_get_realm_id(TR_COMM_MEMB *memb);
 
 
 static int tr_comm_destructor(void *obj)
@@ -171,20 +168,59 @@ unsigned int tr_comm_get_refcount(TR_COMM *comm)
   return comm->refcount;
 }
 
-/* add to the table if it's a new membership or has a shorter
- * provenance list than our existing membership */
+/* 0 if equivalent, nonzero if different, only considers
+ * nhops last hops (nhops==0 means consider all, nhops==1
+ * only considers last hop) */
+static int tr_comm_memb_provenance_cmp(TR_COMM_MEMB *m1, TR_COMM_MEMB *m2, int nhops)
+{
+  size_t ii;
+
+  if ((m1->provenance==NULL) || (m2->provenance==NULL))
+    return m1->provenance!=m2->provenance; /* return 0 if both null, 1 if only one null */
+
+  if (json_array_size(m1->provenance)!=json_array_size(m2->provenance))
+    return 1;
+
+  if (nhops==0)
+    nhops=json_array_size(m1->provenance); /* same as size(m2->provenance) */
+
+  for (ii=0; ii<json_array_size(m1->provenance); ii++) {
+    if (0==strcmp(json_string_value(json_array_get(m1->provenance, ii)),
+                  json_string_value(json_array_get(m2->provenance, ii)))) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/* Accepts an update that either came from the same peer as the previous
+ * origin, has a shorter provenance list, or can replace an expired
+ * membership. Otherwise keeps the existing one.
+ * On replacement, frees the old member and moves new member to ctab's
+ * context. Caller should not free newmemb except by freeing its original
+ * context. */
 static void tr_comm_add_if_shorter(TR_COMM_TABLE *ctab, TR_COMM_MEMB *existing, TR_COMM_MEMB *newmemb)
 {
+  int accept=0;
+
   if (existing==NULL) {
     /* not in the table */
     tr_comm_table_add_memb(ctab, newmemb);
   } else {
-    /* Had an entry. Replace if we have shorter provenance. */
-    if (tr_comm_memb_provenance_len(newmemb) < tr_comm_memb_provenance_len(existing)) {
+    if (0==tr_comm_memb_provenance_cmp(existing, newmemb, 1))
+      accept=1; /* always accept a replacement from the same peer */
+    else if (tr_comm_memb_provenance_len(newmemb) < tr_comm_memb_provenance_len(existing))
+      accept=1; /* accept a shorter provenance */
+    else if (existing->times_expired>0)
+      accept=1;
+    else
+      accept=0;
+
+    if (accept) {
       tr_comm_table_remove_memb(ctab, existing);
       tr_comm_memb_free(existing);
       tr_comm_table_add_memb(ctab, newmemb);
-    } 
+    }
   }
 }
 
@@ -192,6 +228,7 @@ static void tr_comm_add_if_shorter(TR_COMM_TABLE *ctab, TR_COMM_MEMB *existing, 
 void tr_comm_add_idp_realm(TR_COMM_TABLE *ctab,
                            TR_COMM *comm,
                            TR_IDP_REALM *realm,
+                           unsigned int interval,
                            json_t *provenance,
                            struct timespec *expiry)
 {
@@ -207,14 +244,15 @@ void tr_comm_add_idp_realm(TR_COMM_TABLE *ctab,
 
   tr_comm_memb_set_idp_realm(newmemb, realm);
   tr_comm_memb_set_comm(newmemb, comm);
+  tr_comm_memb_set_interval(newmemb, interval);
   tr_comm_memb_set_provenance(newmemb, provenance);
-  tr_comm_memb_set_expiry(newmemb, expiry);
 
   existing=tr_comm_table_find_idp_memb_origin(ctab,
                                               tr_idp_realm_get_id(realm),
                                               tr_comm_get_id(comm),
                                               tr_comm_memb_get_origin(newmemb));
   tr_comm_add_if_shorter(ctab, existing, newmemb); /* takes newmemb out of tmp_ctx if needed */
+
   talloc_free(tmp_ctx);
 }
 
@@ -222,6 +260,7 @@ void tr_comm_add_idp_realm(TR_COMM_TABLE *ctab,
 void tr_comm_add_rp_realm(TR_COMM_TABLE *ctab,
                           TR_COMM *comm,
                           TR_RP_REALM *realm,
+                          unsigned int interval,
                           json_t *provenance,
                           struct timespec *expiry)
 {
@@ -237,8 +276,8 @@ void tr_comm_add_rp_realm(TR_COMM_TABLE *ctab,
 
   tr_comm_memb_set_rp_realm(newmemb, realm);
   tr_comm_memb_set_comm(newmemb, comm);
+  tr_comm_memb_set_interval(newmemb, interval);
   tr_comm_memb_set_provenance(newmemb, provenance);
-  tr_comm_memb_set_expiry(newmemb, expiry);
 
   existing=tr_comm_table_find_rp_memb_origin(ctab,
                                              tr_rp_realm_get_id(realm),
@@ -293,7 +332,7 @@ static TR_COMM *tr_comm_remove_func(TR_COMM *comms, TR_COMM *remove)
      * the list head was in. */
     comms=comms->next;
     if (comms!=NULL) {
-      talloc_steal(list_ctx, comms->next);
+      talloc_steal(list_ctx, comms);
       /* now put all the other elements in the context of the list head */
       for (this=comms->next; this!=NULL; this=this->next)
         talloc_steal(comms, this);
@@ -301,11 +340,45 @@ static TR_COMM *tr_comm_remove_func(TR_COMM *comms, TR_COMM *remove)
   } else {
     /* not removing the head; no need to play with contexts */
     for (this=comms; this->next!=NULL; this=this->next) {
-      if (this->next==remove)
+      if (this->next==remove) {
         this->next=remove->next;
+        break;
+      }
     }
   }
   return comms;
+}
+
+/* remove any with zero refcount 
+ * Call via macro. */
+#define tr_comm_sweep(head) ((head)=tr_comm_sweep_func((head)))
+static TR_COMM *tr_comm_sweep_func(TR_COMM *head)
+{
+  TR_COMM *comm=NULL;
+  TR_COMM *old_next=NULL;
+
+  if (head==NULL)
+    return NULL;
+
+  while ((head!=NULL) && (head->refcount==0)) {
+    comm=head; /* keep a pointer so we can remove it */
+    tr_comm_remove(head, comm); /* use this to get talloc contexts right */
+    tr_comm_free(comm);
+  }
+
+  if (head==NULL)
+    return NULL;
+
+  /* will not remove the head here, that has already been done */
+  for (comm=head; comm->next!=NULL; comm=comm->next) {
+    if (comm->next->refcount==0) {
+      old_next=comm->next;
+      tr_comm_remove(head, comm->next); /* changes comm->next */
+      tr_comm_free(old_next);
+    }
+  }
+
+  return head;
 }
 
 TR_IDP_REALM *tr_comm_find_idp(TR_COMM_TABLE *ctab, TR_COMM *comm, TR_NAME *idp_realm)
@@ -377,6 +450,7 @@ TR_COMM_ITER *tr_comm_iter_new(TALLOC_CTX *mem_ctx)
   if (iter!=NULL) {
     iter->cur_comm=NULL;
     iter->cur_memb=NULL;
+    iter->cur_orig_head=NULL;
     iter->match=NULL;
     iter->realm=NULL;
   }
@@ -670,6 +744,7 @@ const char *tr_comm_type_to_str(TR_COMM_TYPE type)
   return s;
 }
 
+/* iterate along the origin list for this member */
 TR_COMM_MEMB *tr_comm_memb_iter_first(TR_COMM_ITER *iter, TR_COMM_MEMB *memb)
 {
   iter->cur_memb=memb;
@@ -682,6 +757,32 @@ TR_COMM_MEMB *tr_comm_memb_iter_next(TR_COMM_ITER *iter)
     iter->cur_memb=iter->cur_memb->origin_next;
   return iter->cur_memb;
 }
+
+
+/* iterate over all memberships in the table */
+TR_COMM_MEMB *tr_comm_memb_iter_all_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab)
+{
+  iter->cur_memb=ctab->memberships;
+  iter->cur_orig_head=ctab->memberships;
+  return iter->cur_memb;
+}
+
+TR_COMM_MEMB *tr_comm_memb_iter_all_next(TR_COMM_ITER *iter)
+{
+  if (iter->cur_memb->next==NULL) {
+    if (iter->cur_orig_head->next==NULL) {
+      /* we're done */
+      return NULL;
+    } else {
+      iter->cur_memb=iter->cur_orig_head->next;
+      iter->cur_orig_head=iter->cur_orig_head->next;
+    }
+  } else {
+    iter->cur_memb=iter->cur_memb->origin_next;
+  }
+  return iter->cur_memb;
+}
+
 
 TR_COMM_TYPE tr_comm_type_from_str(const char *s)
 {
@@ -723,6 +824,7 @@ TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
     memb->provenance=NULL;
     memb->interval=0;
     memb->triggered=0;
+    memb->times_expired=0;
     memb->expiry=talloc(memb, struct timespec);
     if (memb->expiry==NULL) {
       talloc_free(memb);
@@ -737,6 +839,19 @@ TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
 void tr_comm_memb_free(TR_COMM_MEMB *memb)
 {
   talloc_free(memb);
+}
+
+/* Returns 0 if they are the same, nonzero if they differ.
+ * Ignores expiry, triggered, and times_expired, next pointers */
+int tr_comm_memb_cmp(TR_COMM_MEMB *m1, TR_COMM_MEMB *m2)
+{
+  if ((m1->idp==m2->idp) &&
+      (m1->rp==m2->rp) &&
+      (m1->comm==m2->comm) &&
+      (tr_comm_memb_provenance_cmp(m1, m2, 0)==0) &&
+      (m1->interval==m2->interval))
+    return 0;
+  return 1;
 }
 
 TR_REALM_ROLE tr_comm_memb_get_role(TR_COMM_MEMB *memb)
@@ -826,6 +941,8 @@ json_t *tr_comm_memb_get_provenance(TR_COMM_MEMB *memb)
 
 void tr_comm_memb_set_provenance(TR_COMM_MEMB *memb, json_t *prov)
 {
+  const char *s=NULL;
+
   if (memb->provenance)
     json_decref(memb->provenance);
 
@@ -835,7 +952,11 @@ void tr_comm_memb_set_provenance(TR_COMM_MEMB *memb, json_t *prov)
 
     /* next line sets origin to NULL if provenance is empty because jansson
      * routines return NULL on error */
-    memb->origin=tr_new_name(json_string_value(json_array_get(prov, 0)));
+    s=json_string_value(json_array_get(prov, 0));
+    if (s==NULL)
+      tr_comm_memb_set_origin(memb, NULL);
+    else
+      memb->origin=tr_new_name(s);
   } else {
     tr_comm_memb_set_origin(memb, NULL);
   }
@@ -901,16 +1022,33 @@ int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime)
             &&(curtime->tv_nsec >= memb->expiry->tv_nsec)));
 }
 
-void tr_comm_set_triggered(TR_COMM_MEMB *memb, int trig)
+void tr_comm_memb_set_triggered(TR_COMM_MEMB *memb, int trig)
 {
   memb->triggered=trig;
 }
 
-int tr_comm_is_triggered(TR_COMM_MEMB *memb)
+int tr_comm_memb_is_triggered(TR_COMM_MEMB *memb)
 {
   return memb->triggered;
 }
 
+void tr_comm_memb_reset_times_expired(TR_COMM_MEMB *memb)
+{
+  memb->times_expired=0;
+}
+
+/* bumps the expiration count */
+void tr_comm_memb_expire(TR_COMM_MEMB *memb)
+{
+  /* avoid overflow */
+  if (memb->times_expired+1>memb->times_expired)
+    memb->times_expired++;
+}
+
+unsigned int tr_comm_memb_get_times_expired(TR_COMM_MEMB *memb)
+{
+  return memb->times_expired;
+}
 
 TR_COMM_TABLE *tr_comm_table_new(TALLOC_CTX *mem_ctx)
 {
@@ -943,7 +1081,10 @@ void tr_comm_table_add_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *new)
 {
   TR_COMM_MEMB *cur=NULL;
 
-  /* TODO: validate the member (must have valid comm and realm) */
+  /* TODO: further validate the member (must have valid comm and realm) */
+  if ((new->next!=NULL) || (new->origin_next!=NULL)) {
+    tr_debug("tr_comm_table_add_memb: attempting to add member already in a list.");
+  }
 
   /* handle the empty list case */
   if (ctab->memberships==NULL) {
@@ -997,7 +1138,7 @@ void tr_comm_table_remove_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *memb)
   /* see if it's the first member */
   if (ctab->memberships==memb) {
     if (memb->origin_next!=NULL) {
-      memb->origin_next->next=ctab->memberships->next;
+      memb->origin_next->next=memb->next;
       ctab->memberships=memb->origin_next;
     } else
       ctab->memberships=memb->next;
@@ -1006,10 +1147,10 @@ void tr_comm_table_remove_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *memb)
   }
 
   /* see if it's in first member's origin list */
-  for (orig_cur=ctab->memberships->origin_next;
-       orig_cur!=NULL;
-       orig_cur=ctab->memberships->origin_next) {
-    if (orig_cur==memb) {
+  for (orig_cur=ctab->memberships;
+       orig_cur->origin_next!=NULL;
+       orig_cur=orig_cur->origin_next) {
+    if (orig_cur->origin_next==memb) {
       orig_cur->origin_next=memb->origin_next;
       return;
     }
@@ -1019,26 +1160,34 @@ void tr_comm_table_remove_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *memb)
   for (cur=ctab->memberships; cur->next!=NULL; cur=cur->next) {
     if (cur->next==memb) {
       /* it matched an entry on the main list */
-      if (memb->origin_next!=NULL) {
+      if (memb->origin_next==NULL)
+        cur->next=memb->next; /* no origin list, just drop memb */
+      else {
         /* replace the entry in the main list with the next element on the origin list */
         memb->origin_next->next=memb->next;
         cur->next=memb->origin_next;
-      } else
-        cur->next=memb->next; /* no origin list, just drop memb */
+      }
       return;
     } else {
       /* it was not on the main list, walk the origin list */
-      for (orig_cur=cur; orig_cur->next!=NULL; orig_cur=orig_cur->next) {
-        if (orig_cur->next==memb) {
-          orig_cur->next=memb->next;
+      for (orig_cur=cur; orig_cur->origin_next!=NULL; orig_cur=orig_cur->origin_next) {
+        if (orig_cur->origin_next==memb) {
+          orig_cur->origin_next=memb->origin_next;
           return; /* just drop the element from the origin list */
         }
       }
     }
   }
+  /* if we got here, cur->next was null. Still have to check the origin_next list */
+  for (orig_cur=cur; orig_cur->origin_next!=NULL; orig_cur=orig_cur->origin_next) {
+    if (orig_cur->origin_next==memb) {
+      orig_cur->origin_next=memb->origin_next;
+      return; /* just drop the element from the origin list */
+    }
+  }
 }
 
-static TR_NAME *tr_comm_memb_get_realm_id(TR_COMM_MEMB *memb)
+TR_NAME *tr_comm_memb_get_realm_id(TR_COMM_MEMB *memb)
 {
   if (memb->rp!=NULL)
     return tr_rp_realm_get_id(memb->rp);
@@ -1169,12 +1318,49 @@ TR_COMM *tr_comm_table_find_comm(TR_COMM_TABLE *ctab, TR_NAME *comm_id)
 void tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new)
 {
   tr_comm_add(ctab->comms, new);
+  if (ctab->comms!=NULL)
+    talloc_steal(ctab, ctab->comms); /* make sure it's in the right context */
 }
 
 void tr_comm_table_remove_comm(TR_COMM_TABLE *ctab, TR_COMM *comm)
 {
   tr_comm_remove(ctab->comms, comm);
 }
+
+TR_RP_REALM *tr_comm_table_find_rp_realm(TR_COMM_TABLE *ctab, TR_NAME *realm_id)
+{
+  return tr_rp_realm_lookup(ctab->rp_realms, realm_id);
+}
+
+void tr_comm_table_add_rp_realm(TR_COMM_TABLE *ctab, TR_RP_REALM *new)
+{
+  tr_rp_realm_add(ctab->rp_realms, new);
+  if (ctab->rp_realms!=NULL)
+    talloc_steal(ctab, ctab->rp_realms); /* make sure it's in the right context */
+}
+
+void tr_comm_table_remove_rp_realm(TR_COMM_TABLE *ctab, TR_RP_REALM *realm)
+{
+  tr_rp_realm_remove(ctab->rp_realms, realm);
+}
+
+TR_IDP_REALM *tr_comm_table_find_idp_realm(TR_COMM_TABLE *ctab, TR_NAME *realm_id)
+{
+  return tr_idp_realm_lookup(ctab->idp_realms, realm_id);
+}
+
+void tr_comm_table_add_idp_realm(TR_COMM_TABLE *ctab, TR_IDP_REALM *new)
+{
+  tr_idp_realm_add(ctab->idp_realms, new);
+  if (ctab->idp_realms!=NULL)
+    talloc_steal(ctab, ctab->idp_realms); /* make sure it's in the right context */
+}
+
+void tr_comm_table_remove_idp_realm(TR_COMM_TABLE *ctab, TR_IDP_REALM *realm)
+{
+  tr_idp_realm_remove(ctab->idp_realms, realm);
+}
+
 
 /* how many communities in the table? */
 size_t tr_comm_table_size(TR_COMM_TABLE *ctab)
@@ -1186,6 +1372,14 @@ size_t tr_comm_table_size(TR_COMM_TABLE *ctab)
     count++;
   }
   return count;
+}
+
+/* clean up unreferenced realms, etc */
+void tr_comm_table_sweep(TR_COMM_TABLE *ctab)
+{
+  tr_rp_realm_sweep(ctab->rp_realms);
+  tr_idp_realm_sweep(ctab->idp_realms);
+  tr_comm_sweep(ctab->comms);
 }
 
 
@@ -1210,3 +1404,24 @@ TR_REALM_ROLE tr_realm_role_from_str(const char *s)
   return TR_ROLE_UNKNOWN;
 }
 
+void tr_comm_table_print(FILE *f, TR_COMM_TABLE *ctab)
+{
+  TR_COMM_MEMB *p1=NULL; /* for walking the main list */
+  TR_COMM_MEMB *p2=NULL; /* for walking the same-origin lists */
+
+  fprintf(f, ">> Membership table start <<\n");
+  for (p1=ctab->memberships; p1!=NULL; p1=p1->next) {
+    fprintf(f, "* %s %s/%s\n  %s (%p)\n",
+            tr_realm_role_to_str(tr_comm_memb_get_role(p1)),
+            tr_comm_memb_get_realm_id(p1)->buf,
+            tr_comm_get_id(tr_comm_memb_get_comm(p1))->buf,
+            (tr_comm_memb_get_origin(p1)==NULL)?"null origin":(tr_comm_memb_get_origin(p1)->buf),
+            p1);
+    for (p2=p1->origin_next; p2!=NULL; p2=p2->origin_next) {
+      fprintf(f, "  %s (%p)\n",
+              (tr_comm_memb_get_origin(p2)==NULL)?"null origin":(tr_comm_memb_get_origin(p2)->buf),
+              p2);
+    }
+    fprintf(f, "\n");
+  }
+}

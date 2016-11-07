@@ -40,6 +40,7 @@
 #include <glib.h>
 
 #include <gsscon.h>
+#include <tr_comm.h>
 #include <tr_apc.h>
 #include <tr_rp.h>
 #include <trust_router/tr_name.h>
@@ -906,10 +907,10 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
            * the next table sweep if it does not get any realms before that happens */
           goto cleanup;
         }
-        tr_rp_realm_add(trps->ctable->rp_realms, rp_realm);
+        tr_comm_table_add_rp_realm(trps->ctable, rp_realm);
       }
       /* TODO: if realm existed, see if data match the new inforec and update or complain */
-      tr_comm_add_rp_realm(trps->ctable, comm, rp_realm, trp_inforec_get_provenance(rec), &expiry);
+      tr_comm_add_rp_realm(trps->ctable, comm, rp_realm, trp_inforec_get_interval(rec), trp_inforec_get_provenance(rec), &expiry);
       tr_debug("trps_handle_inforec_comm: added RP realm %.*s to comm %.*s (origin %.*s).",
                realm_id->len, realm_id->buf,
                comm_id->len, comm_id->buf,
@@ -927,10 +928,10 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
            * the next table sweep if it does not get any realms before that happens */
           goto cleanup;
         }
-        tr_idp_realm_add(trps->ctable->idp_realms, idp_realm);
+        tr_comm_table_add_idp_realm(trps->ctable, idp_realm);
       }
       /* TODO: if realm existed, see if data match the new inforec and update or complain */
-      tr_comm_add_idp_realm(trps->ctable, comm, idp_realm, trp_inforec_get_provenance(rec), &expiry);
+      tr_comm_add_idp_realm(trps->ctable, comm, idp_realm, trp_inforec_get_interval(rec), trp_inforec_get_provenance(rec), &expiry);
       tr_debug("trps_handle_inforec_comm: added IDP realm %.*s to comm %.*s (origin %.*s).",
                realm_id->len, realm_id->buf,
                comm_id->len, comm_id->buf,
@@ -1140,6 +1141,88 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
   return TRP_SUCCESS;
 }
 
+
+static char *timespec_to_str(struct timespec *ts)
+{
+  struct tm tm;
+  char *s=NULL;
+
+  if (localtime_r(&(ts->tv_sec), &tm)==NULL)
+    return NULL;
+
+  s=malloc(40); /* long enough to contain strftime result */
+  if (s==NULL)
+    return NULL;
+
+  if (strftime(s, 40, "%F %T", &tm)==0) {
+    free(s);
+    return NULL;
+  }
+  return s;
+}
+
+
+/* Sweep for expired communities/realms/memberships. */
+TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  struct timespec sweep_time={0,0};
+  TR_COMM_MEMB *memb=NULL;
+  TR_COMM_ITER *iter=NULL;
+  TRP_RC rc=TRP_ERROR;
+
+  /* use a single time for the entire sweep */
+  if (0!=clock_gettime(CLOCK_REALTIME, &sweep_time)) {
+    tr_err("trps_sweep_ctable: could not read realtime clock.");
+    sweep_time.tv_sec=0;
+    sweep_time.tv_nsec=0;
+    goto cleanup;
+  }
+
+  /* iterate all memberships */
+  iter=tr_comm_iter_new(tmp_ctx);
+  if (iter==NULL) {
+    tr_err("trps_sweep_ctable: unable to allocate iterator.");
+    rc=TRP_NOMEM;
+    goto cleanup;
+  }
+  for (memb=tr_comm_memb_iter_all_first(iter, trps->ctable);
+       memb!=NULL;
+       memb=tr_comm_memb_iter_all_next(iter)) {
+    if (tr_comm_memb_get_origin(memb)==NULL)
+      continue; /* do not expire local entries */
+
+    if (tr_comm_memb_is_expired(memb, &sweep_time)) {
+      if (tr_comm_memb_get_times_expired(memb)>0) {
+        /* Already expired once; flush. */
+        tr_debug("trps_sweep_ctable: flushing expired community membership (%.*s in %.*s, origin %.*s, expired %s).",
+                 tr_comm_memb_get_realm_id(memb)->len, tr_comm_memb_get_realm_id(memb)->buf,
+                 tr_comm_get_id(tr_comm_memb_get_comm(memb))->len, tr_comm_get_id(tr_comm_memb_get_comm(memb))->buf,
+                 tr_comm_memb_get_origin(memb)->len, tr_comm_memb_get_origin(memb)->buf,
+                 timespec_to_str(tr_comm_memb_get_expiry(memb)));
+        tr_comm_table_remove_memb(trps->ctable, memb);
+        tr_comm_memb_free(memb);
+      } else {
+        /* This is the first expiration. Note this and reset the expiry time. */
+        tr_comm_memb_expire(memb);
+        trps_compute_expiry(trps, tr_comm_memb_get_interval(memb), tr_comm_memb_get_expiry(memb));
+        tr_debug("trps_sweep_ctable: community membership expired, resetting expiry to %s (%.*s in %.*s, origin %.*s).",
+                 timespec_to_str(tr_comm_memb_get_expiry(memb)),
+                 tr_comm_memb_get_realm_id(memb)->len, tr_comm_memb_get_realm_id(memb)->buf,
+                 tr_comm_get_id(tr_comm_memb_get_comm(memb))->len, tr_comm_get_id(tr_comm_memb_get_comm(memb))->buf,
+                 tr_comm_memb_get_origin(memb)->len, tr_comm_memb_get_origin(memb)->buf);
+      }
+    }
+  }
+
+  /* get rid of any unreferenced realms, etc */
+  tr_comm_table_sweep(trps->ctable);
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return rc;
+}
+
 /* add metrics */
 static unsigned int trps_metric_add(unsigned int m1, unsigned int m2)
 {
@@ -1347,7 +1430,7 @@ static TRP_INFOREC *trps_memb_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trp
     goto cleanup;
   }
 
-  if (TRP_SUCCESS!=trp_inforec_set_interval(rec, tr_comm_memb_get_interval(memb))) {
+  if (TRP_SUCCESS!=trp_inforec_set_interval(rec, trps_get_update_interval(trps))) {
     rec=NULL;
     goto cleanup;
   }

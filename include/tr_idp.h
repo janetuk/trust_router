@@ -75,6 +75,10 @@ TR_APC *tr_idp_realm_get_apcs(TR_IDP_REALM *idp);
 TR_IDP_REALM *tr_idp_realm_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_name);
 TR_IDP_REALM *tr_idp_realm_add_func(TR_IDP_REALM *head, TR_IDP_REALM *new);
 #define tr_idp_realm_add(head,new) ((head)=tr_idp_realm_add_func((head),(new)))
+TR_IDP_REALM *tr_idp_realm_remove_func(TR_IDP_REALM *head, TR_IDP_REALM *remove);
+#define tr_idp_realm_remove(head,remove) ((head)=tr_idp_realm_remove_func((head),(remove)))
+TR_IDP_REALM *tr_idp_realm_sweep_func(TR_IDP_REALM *head);
+#define tr_idp_realm_sweep(head) ((head)=tr_idp_realm_sweep_func((head)))
 char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp);
 void tr_idp_realm_incref(TR_IDP_REALM *realm);
 void tr_idp_realm_decref(TR_IDP_REALM *realm);

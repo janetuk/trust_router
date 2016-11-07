@@ -193,6 +193,37 @@ TR_RP_REALM *tr_rp_realm_add_func(TR_RP_REALM *head, TR_RP_REALM *new)
   return head;
 }
 
+/* use the macro */
+TR_RP_REALM *tr_rp_realm_remove_func(TR_RP_REALM *head, TR_RP_REALM *remove)
+{
+  TALLOC_CTX *list_ctx=talloc_parent(head);
+  TR_RP_REALM *this=NULL;
+
+  if (head==NULL)
+    return NULL;
+
+  if (head==remove) {
+    /* if we're removing the head, put the next element (if present) into the context
+     * the list head was in. */
+    head=head->next;
+    if (head!=NULL) {
+      talloc_steal(list_ctx, head);
+      /* now put all the other elements in the context of the list head */
+      for (this=head->next; this!=NULL; this=this->next)
+        talloc_steal(head, this);
+    }
+  } else {
+    /* not removing the head; no need to play with contexts */
+    for (this=head; this->next!=NULL; this=this->next) {
+      if (this->next==remove) {
+        this->next=remove->next;
+        break;
+      }
+    }
+  }
+  return head;
+}
+
 void tr_rp_realm_incref(TR_RP_REALM *realm)
 {
   realm->refcount++;
@@ -202,6 +233,37 @@ void tr_rp_realm_decref(TR_RP_REALM *realm)
 {
   if (realm->refcount>0)
     realm->refcount--;
+}
+
+/* remove any with zero refcount 
+ * Call via macro. */
+TR_RP_REALM *tr_rp_realm_sweep_func(TR_RP_REALM *head)
+{
+  TR_RP_REALM *rp=NULL;
+  TR_RP_REALM *old_next=NULL;
+
+  if (head==NULL)
+    return NULL;
+
+  while ((head!=NULL) && (head->refcount==0)) {
+    rp=head; /* keep a pointer so we can remove it */
+    tr_rp_realm_remove(head, rp); /* use this to get talloc contexts right */
+    tr_rp_realm_free(rp);
+  }
+
+  if (head==NULL)
+    return NULL;
+
+  /* will not remove the head here, that has already been done */
+  for (rp=head; rp->next!=NULL; rp=rp->next) {
+    if (rp->next->refcount==0) {
+      old_next=rp->next;
+      tr_rp_realm_remove(head, rp->next); /* changes rp->next */
+      tr_rp_realm_free(old_next);
+    }
+  }
+
+  return head;
 }
 
 TR_NAME *tr_rp_realm_get_id(TR_RP_REALM *rp)

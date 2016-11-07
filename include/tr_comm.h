@@ -35,6 +35,7 @@
 #ifndef TR_COMM_H
 #define TR_COMM_H
 
+#include <stdio.h>
 #include <talloc.h>
 #include <time.h>
 
@@ -72,6 +73,7 @@ typedef struct tr_comm_memb {
   json_t *provenance; /* array of names of systems traversed */
   unsigned int interval;
   struct timespec *expiry;
+  unsigned int times_expired; /* how many times has this expired? */
   int triggered; /* do we need to send this with triggered updates? */
 } TR_COMM_MEMB;
 
@@ -99,6 +101,7 @@ typedef struct tr_realm {
 typedef struct tr_comm_iter {
   TR_COMM *cur_comm;
   TR_COMM_MEMB *cur_memb;
+  TR_COMM_MEMB *cur_orig_head; /* for iterating along orig_next list */
   TR_NAME *match; /* realm or comm to match */
   TR_REALM *realm; /* handle so caller does not have to manage memory, private */
 } TR_COMM_ITER;
@@ -109,8 +112,15 @@ void tr_comm_table_free(TR_COMM_TABLE *ctab);
 
 TR_COMM_TABLE *tr_comm_table_new(TALLOC_CTX *mem_ctx);
 void tr_comm_table_free(TR_COMM_TABLE *ctab);
+void tr_comm_table_sweep(TR_COMM_TABLE *ctab);
 void tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new);
 void tr_comm_table_remove_comm(TR_COMM_TABLE *ctab, TR_COMM *comm);
+TR_RP_REALM *tr_comm_table_find_rp_realm(TR_COMM_TABLE *ctab, TR_NAME *realm_id);
+void tr_comm_table_add_rp_realm(TR_COMM_TABLE *ctab, TR_RP_REALM *new);
+void tr_comm_table_remove_rp_realm(TR_COMM_TABLE *ctab, TR_RP_REALM *realm);
+TR_IDP_REALM *tr_comm_table_find_idp_realm(TR_COMM_TABLE *ctab, TR_NAME *realm_id);
+void tr_comm_table_add_idp_realm(TR_COMM_TABLE *ctab, TR_IDP_REALM *new);
+void tr_comm_table_remove_idp_realm(TR_COMM_TABLE *ctab, TR_IDP_REALM *realm);
 void tr_comm_table_add_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *new);
 void tr_comm_table_remove_memb(TR_COMM_TABLE *ctab, TR_COMM_MEMB *memb);
 TR_COMM_MEMB *tr_comm_table_find_memb_origin(TR_COMM_TABLE *ctab, TR_NAME *realm, TR_NAME *comm, TR_NAME *origin);
@@ -121,14 +131,17 @@ TR_COMM_MEMB *tr_comm_table_find_idp_memb_origin(TR_COMM_TABLE *ctab, TR_NAME *i
 TR_COMM_MEMB *tr_comm_table_find_idp_memb(TR_COMM_TABLE *ctab, TR_NAME *idp_realm, TR_NAME *comm);
 TR_COMM *tr_comm_table_find_comm(TR_COMM_TABLE *ctab, TR_NAME *comm_id);
 size_t tr_comm_table_size(TR_COMM_TABLE *ctab);
+void tr_comm_table_print(FILE *f, TR_COMM_TABLE *ctab);
 
 TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx);
 void tr_comm_memb_free(TR_COMM_MEMB *memb);
+int tr_comm_memb_cmp(TR_COMM_MEMB *m1, TR_COMM_MEMB *m2);
 TR_REALM_ROLE tr_comm_memb_get_role(TR_COMM_MEMB *memb);
 void tr_comm_memb_set_rp_realm(TR_COMM_MEMB *memb, TR_RP_REALM *realm);
 TR_RP_REALM *tr_comm_memb_get_rp_realm(TR_COMM_MEMB *memb);
 void tr_comm_memb_set_idp_realm(TR_COMM_MEMB *memb, TR_IDP_REALM *realm);
 TR_IDP_REALM *tr_comm_memb_get_idp_realm(TR_COMM_MEMB *memb);
+TR_NAME *tr_comm_memb_get_realm_id(TR_COMM_MEMB *memb);
 void tr_comm_memb_set_comm(TR_COMM_MEMB *memb, TR_COMM *comm);
 TR_COMM *tr_comm_memb_get_comm(TR_COMM_MEMB *memb);
 TR_NAME *tr_comm_memb_get_origin(TR_COMM_MEMB *memb);
@@ -142,8 +155,11 @@ unsigned int tr_comm_memb_get_interval(TR_COMM_MEMB *memb);
 void tr_comm_memb_set_expiry(TR_COMM_MEMB *memb, struct timespec *time);
 struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb);
 int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime);
-void tr_comm_set_triggered(TR_COMM_MEMB *memb, int trig);
-int tr_comm_is_triggered(TR_COMM_MEMB *memb);
+void tr_comm_memb_set_triggered(TR_COMM_MEMB *memb, int trig);
+int tr_comm_memb_is_triggered(TR_COMM_MEMB *memb);
+void tr_comm_memb_reset_times_expired(TR_COMM_MEMB *memb);
+void tr_comm_memb_expire(TR_COMM_MEMB *memb);
+unsigned int tr_comm_memb_get_times_expired(TR_COMM_MEMB *memb);
 
 TR_COMM *tr_comm_new(TALLOC_CTX *mem_ctx);
 void tr_comm_free(TR_COMM *comm);
@@ -160,8 +176,8 @@ TR_NAME *tr_comm_dup_owner_realm(TR_COMM *comm);
 void tr_comm_set_owner_contact(TR_COMM *comm, TR_NAME *contact);
 TR_NAME *tr_comm_get_owner_contact(TR_COMM *comm);
 TR_NAME *tr_comm_dup_owner_contact(TR_COMM *comm);
-void tr_comm_add_idp_realm(TR_COMM_TABLE *ctab, TR_COMM *comm, TR_IDP_REALM *realm, json_t *provenance, struct timespec *expiry);
-void tr_comm_add_rp_realm(TR_COMM_TABLE *ctab, TR_COMM *comm, TR_RP_REALM *realm, json_t *provenance, struct timespec *expiry);
+void tr_comm_add_idp_realm(TR_COMM_TABLE *ctab, TR_COMM *comm, TR_IDP_REALM *realm, unsigned int interval, json_t *provenance, struct timespec *expiry);
+void tr_comm_add_rp_realm(TR_COMM_TABLE *ctab, TR_COMM *comm, TR_RP_REALM *realm, unsigned int interval, json_t *provenance, struct timespec *expiry);
 TR_RP_REALM *tr_comm_find_rp(TR_COMM_TABLE *ctab, TR_COMM *comm, TR_NAME *rp_realm);
 TR_IDP_REALM *tr_comm_find_idp(TR_COMM_TABLE *ctab, TR_COMM *comm, TR_NAME *idp_realm);
 const char *tr_comm_type_to_str(TR_COMM_TYPE type);
@@ -197,6 +213,10 @@ TR_IDP_REALM *tr_idp_realm_iter_next(TR_COMM_ITER *iter);
 /* iterate over members with different origins */
 TR_COMM_MEMB *tr_comm_memb_iter_first(TR_COMM_ITER *iter, TR_COMM_MEMB *memb);
 TR_COMM_MEMB *tr_comm_memb_iter_next(TR_COMM_ITER *iter);
+
+/* iterate over all members */
+TR_COMM_MEMB *tr_comm_memb_iter_all_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab);
+TR_COMM_MEMB *tr_comm_memb_iter_all_next(TR_COMM_ITER *iter);
 
 /* general realm stuff, should probably move */
 TR_NAME *tr_realm_get_id(TR_REALM *realm);

@@ -71,6 +71,10 @@ void tr_rp_realm_set_id(TR_RP_REALM *rp, TR_NAME *id);
 TR_RP_REALM *tr_rp_realm_lookup(TR_RP_REALM *rp_realms, TR_NAME *rp_name);
 TR_RP_REALM *tr_rp_realm_add_func(TR_RP_REALM *head, TR_RP_REALM *new);
 #define tr_rp_realm_add(head,new) ((head)=tr_rp_realm_add_func((head),(new)))
+TR_RP_REALM *tr_rp_realm_remove_func(TR_RP_REALM *head, TR_RP_REALM *remove);
+#define tr_rp_realm_remove(head,remove) ((head)=tr_rp_realm_remove_func((head),(remove)))
+TR_RP_REALM *tr_rp_realm_sweep_func(TR_RP_REALM *head);
+#define tr_rp_realm_sweep(head) ((head)=tr_rp_realm_sweep_func((head)))
 void tr_rp_realm_incref(TR_RP_REALM *realm);
 void tr_rp_realm_decref(TR_RP_REALM *realm);
 
