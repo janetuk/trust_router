@@ -154,6 +154,13 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
 
   /* Map the comm in the request from a COI to an APC, if needed */
   if (TR_COMM_COI == cfg_comm->type) {
+    if (orig_req->orig_coi!=NULL) {
+      tr_notice("tr_tids_req_handler: community %s is COI but COI to APC mapping already occurred. Dropping request.",
+               orig_req->comm->buf);
+      tids_send_err_response(tids, orig_req, "Second COI to APC mapping would result, permitted only once.");
+      retval=-1;
+      goto cleanup;
+    }
     tr_debug("tr_tids_req_handler: Community was a COI, switching.");
     /* TBD -- In theory there can be more than one?  How would that work? */
     if ((!cfg_comm->apcs) || (!cfg_comm->apcs->id)) {
@@ -196,7 +203,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
   }
   tr_debug("tr_tids_req_handler: found route.");
   if (trp_route_is_local(route)) {
-  tr_debug("tr_tids_req_handler: route is local.");
+    tr_debug("tr_tids_req_handler: route is local.");
     aaa_servers = tr_idp_aaa_server_lookup(cfg_mgr->active->ctable->idp_realms, 
                                            orig_req->realm, 
                                            orig_req->comm);
