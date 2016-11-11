@@ -253,8 +253,8 @@ void tid_srvr_get_address(const TID_SRVR_BLK *blk,
     assert(blk);
     sa = talloc_zero(blk, struct sockaddr_in);
     sa->sin_family = AF_INET;
-    sa->sin_addr = blk->aaa_server_addr;
-    sa->sin_port = htons(2083);
+    inet_aton(blk->aaa_server_addr, &(sa->sin_addr));
+    sa->sin_port = htons(2083); /* radsec port */
     *out_addr = (struct sockaddr *) sa;
     *out_len = sizeof( struct sockaddr_in);
 }

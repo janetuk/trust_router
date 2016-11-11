@@ -318,8 +318,7 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
 
   jsrvr = json_object();
 
-  /* Server IP Address -- TBD handle IPv6 */
-  jstr = json_string(inet_ntoa(srvr->aaa_server_addr));
+  jstr = json_string(srvr->aaa_server_addr);
   json_object_set_new(jsrvr, "server_addr", jstr);
 
   json_object_set_new(jsrvr,
@@ -352,9 +351,8 @@ static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
     tr_notice("tr_msg_decode_one_server(): Error parsing required fields.");
     return -1;
   }
-  
-  /* TBD -- handle IPv6 Addresses */
-  inet_aton(json_string_value(jsrvr_addr), &(srvr->aaa_server_addr));
+
+  srvr->aaa_server_addr=talloc_strdup(srvr, json_string_value(jsrvr_addr));
   srvr->key_name = tr_new_name((char *)json_string_value(jsrvr_kn));
   srvr->aaa_server_dh = tr_msg_decode_dh(jsrvr_dh);
   srvr->path = json_object_get(jsrvr, "path");
@@ -389,7 +387,7 @@ static json_t *tr_msg_encode_servers(TID_RESP *resp)
   return jservers;
 }
 
-static TID_SRVR_BLK *tr_msg_decode_servers(void * ctx, json_t *jservers, size_t *out_len)
+static TID_SRVR_BLK *tr_msg_decode_servers(TALLOC_CTX *ctx, json_t *jservers, size_t *out_len)
 {
   TID_SRVR_BLK *servers = NULL;
   json_t *jsrvr;
