@@ -38,6 +38,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <glib.h>
+#include <string.h>
 
 #include <gsscon.h>
 #include <tr_comm.h>
@@ -277,33 +278,67 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
   return rc;
 }
 
-static int trps_listen (TRPS_INSTANCE *trps, int port) 
+/* Listens on all interfaces */
+static int trps_listen(TRPS_INSTANCE *trps, int port) 
 {
   int rc = 0;
   int conn = -1;
-  int optval = 1;
+  int optval=0;
+  struct addrinfo *ai=NULL;
+  struct addrinfo *ai_head=NULL;
+  struct addrinfo hints={.ai_flags=AI_PASSIVE,
+                         .ai_family=AF_UNSPEC,
+                         .ai_socktype=SOCK_STREAM,
+                         .ai_protocol=IPPROTO_TCP};
+  char *port_str=NULL;
 
-  union {
-    struct sockaddr_storage storage;
-    struct sockaddr_in in4;
-  } addr;
+  port_str=talloc_asprintf(NULL, "%d", port);
+  if (port_str==NULL) {
+    tr_debug("trps_listen: unable to allocate port.");
+    return -1;
+  }
+  rc=getaddrinfo(NULL, port_str, &hints, &ai_head);
+  talloc_free(port_str);
 
-  struct sockaddr_in *saddr = (struct sockaddr_in *) &addr.in4;
+  /* TODO: listen on all ports */
+  for (ai=ai_head; ai!=NULL; ai=ai->ai_next) {
+    if (ai->ai_family==AF_INET6) {
+      ai=talloc_memdup(NULL, ai, sizeof(struct addrinfo)); /* get a permanent copy of this */
+      break;
+    }
+  }
+  freeaddrinfo(ai_head);
 
-  saddr->sin_port = htons (port);
-  saddr->sin_family = AF_INET;
-  saddr->sin_addr.s_addr = INADDR_ANY;
-
-  if (0 > (conn = socket (AF_INET, SOCK_STREAM, 0)))
-    return conn;
-
+  if (ai==NULL) {
+    tr_debug("trps_listen: no addresses available for listening.");
+    return -1;
+  }
+  
+  if (0 > (conn = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol))) {
+    tr_debug("trps_listen: unable to open socket.");
+    talloc_free(ai);
+    return -1;
+  }
+  
+  optval=1;
   setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+/*  setsockopt(conn, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval)); */
 
-  if (0 > (rc = bind (conn, (struct sockaddr *) saddr, sizeof(struct sockaddr_in))))
-    return rc;
+  rc=bind(conn, ai->ai_addr, ai->ai_addrlen);
+  talloc_free(ai);
+  
+  if (rc<0) {
+    char errmsg[255];
+    tr_debug("trps_listen: unable to bind to socket (%s).", strerror_r(errno, errmsg, 255));
+    close(conn);
+    return -1;
+  }
 
-  if (0 > (rc = listen(conn, 512)))
-    return rc;
+  if (0>listen(conn, 512)) {
+    tr_debug("trps_listen: unable to listen on bound socket.");
+    close(conn);
+    return -1;
+  }
 
   tr_debug("trps_listen: TRP Server listening on port %d", port);
   return conn;
