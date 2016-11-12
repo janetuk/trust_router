@@ -161,6 +161,7 @@ static int tr_tids_req_handler (TIDS_INSTANCE *tids,
       retval=-1;
       goto cleanup;
     }
+    
     tr_debug("tr_tids_req_handler: Community was a COI, switching.");
     /* TBD -- In theory there can be more than one?  How would that work? */
     if ((!cfg_comm->apcs) || (!cfg_comm->apcs->id)) {
@@ -341,6 +342,7 @@ int tr_tids_event_init(struct event_base *base,
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_tids_event_cookie *cookie=NULL;
   int retval=0;
+  size_t ii=0;
 
   if (tids_ev == NULL) {
     tr_debug("tr_tids_event_init: Null tids_ev.");
@@ -362,25 +364,29 @@ int tr_tids_event_init(struct event_base *base,
   talloc_steal(tids, cookie);
 
   /* get a tids listener */
-  tids_ev->sock_fd=tids_get_listener(tids,
-                                     tr_tids_req_handler,
-                                     tr_tids_gss_handler,
-                                     cfg_mgr->active->internal->hostname,
-                                     cfg_mgr->active->internal->tids_port,
-                                     (void *)cookie);
-  if (tids_ev->sock_fd < 0) {
+  tids_ev->n_sock_fd=tids_get_listener(tids,
+                                       tr_tids_req_handler,
+                                       tr_tids_gss_handler,
+                                       cfg_mgr->active->internal->hostname,
+                                       cfg_mgr->active->internal->tids_port,
+                                       (void *)cookie,
+                                       tids_ev->sock_fd,
+                                       TR_MAX_SOCKETS);
+  if (tids_ev->n_sock_fd==0) {
     tr_crit("Error opening TID server socket.");
     retval=1;
     goto cleanup;
   }
 
-  /* and its event */
-  tids_ev->ev=event_new(base,
-                        tids_ev->sock_fd,
-                        EV_READ|EV_PERSIST,
-                        tr_tids_event_cb,
-                        (void *)tids);
-  event_add(tids_ev->ev, NULL);
+  /* Set up events */
+  for (ii=0; ii<tids_ev->n_sock_fd; ii++) {
+    tids_ev->ev[ii]=event_new(base,
+                              tids_ev->sock_fd[ii],
+                              EV_READ|EV_PERSIST,
+                              tr_tids_event_cb,
+                              (void *)tids);
+    event_add(tids_ev->ev[ii], NULL);
+  }
 
 cleanup:
   talloc_free(tmp_ctx);

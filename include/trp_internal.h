@@ -234,7 +234,9 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       TRP_AUTH_FUNC auth_handler,
                       const char *hostname,
                       unsigned int port,
-                      void *cookie);
+                      void *cookie,
+                      int *fd_out,
+                      size_t max_fd);
 TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps);
 void trps_mq_add(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
 TRP_RC trps_authorize_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn);

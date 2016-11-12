@@ -396,6 +396,7 @@ TRP_RC tr_trps_event_init(struct event_base *base, TR_INSTANCE *tr)
   struct tr_trps_event_cookie *sweep_cookie=NULL;
   struct timeval zero_time={0,0};
   TRP_RC retval=TRP_ERROR;
+  size_t ii=0;
 
   if (tr->events != NULL) {
     tr_notice("tr_trps_event_init: tr->events was not null. Freeing before reallocating..");
@@ -426,28 +427,31 @@ TRP_RC tr_trps_event_init(struct event_base *base, TR_INSTANCE *tr)
   trps_cookie->cfg_mgr=tr->cfg_mgr;
 
   /* get a trps listener */
-  listen_ev->sock_fd=trps_get_listener(tr->trps,
-                                       tr_trps_msg_handler,
-                                       tr_trps_gss_handler,
-                                       tr->cfg_mgr->active->internal->hostname,
-                                       tr->cfg_mgr->active->internal->trps_port,
-                                       (void *)trps_cookie);
-  if (listen_ev->sock_fd < 0) {
+  listen_ev->n_sock_fd=trps_get_listener(tr->trps,
+                                         tr_trps_msg_handler,
+                                         tr_trps_gss_handler,
+                                         tr->cfg_mgr->active->internal->hostname,
+                                         tr->cfg_mgr->active->internal->trps_port,
+                                         (void *)trps_cookie,
+                                         listen_ev->sock_fd,
+                                         TR_MAX_SOCKETS);
+  if (listen_ev->n_sock_fd==0) {
     tr_crit("Error opening TRP server socket.");
     retval=TRP_ERROR;
     tr_trps_events_free(tr->events);
     tr->events=NULL;
     goto cleanup;
   }
-  trps_cookie->ev=listen_ev->ev; /* in case it needs to frob the event */
-  
-  /* and its event */
-  listen_ev->ev=event_new(base,
-                          listen_ev->sock_fd,
-                          EV_READ|EV_PERSIST,
-                          tr_trps_event_cb,
-                          (void *)(tr->trps));
-  event_add(listen_ev->ev, NULL);
+
+  /* Set up events for the sockets */
+  for (ii=0; ii<listen_ev->n_sock_fd; ii++) {
+    listen_ev->ev[ii]=event_new(base,
+                                listen_ev->sock_fd[ii],
+                                EV_READ|EV_PERSIST,
+                                tr_trps_event_cb,
+                                (void *)(tr->trps));
+    event_add(listen_ev->ev[ii], NULL);
+  }
   
   /* now set up message queue processing event, only triggered by
    * tr_trps_mq_cb() */

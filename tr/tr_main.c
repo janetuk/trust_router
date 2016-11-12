@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
   TR_INSTANCE *tr = NULL;
   struct cmdline_args opts;
   struct event_base *ev_base;
-  struct tr_socket_event tids_ev;
+  struct tr_socket_event tids_ev = {0};
   struct event *cfgwatch_ev;
 
   configure_signals();

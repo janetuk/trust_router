@@ -150,12 +150,9 @@ TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
 
 /* TID Server functions, in tid/tids.c */
 TR_EXPORT TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx);
-TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-			  TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
-			  unsigned int port, void *cookie);
 TR_EXPORT int tids_get_listener (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-			  TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
-			  unsigned int port, void *cookie);
+                                 TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
+                                 unsigned int port, void *cookie, int *fd_out, size_t max_fd);
 TR_EXPORT int tids_accept(TIDS_INSTANCE *tids, int listen);
 TR_EXPORT int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp);
 TR_EXPORT int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_msg);
