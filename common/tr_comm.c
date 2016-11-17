@@ -831,7 +831,7 @@ TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx)
       return NULL;
     }
     *(memb->expiry)=(struct timespec){0,0};
-    talloc_set_destructor(memb, tr_comm_memb_destructor);
+    talloc_set_destructor((void *)memb, tr_comm_memb_destructor);
   }
   return memb;
 }
