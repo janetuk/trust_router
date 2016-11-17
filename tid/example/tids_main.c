@@ -203,10 +203,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if (0 == inet_aton(tids->ipaddr, &(resp->servers->aaa_server_addr))) {
-    tr_debug("tids_req_handler: inet_aton() failed.");
-    return -1;
-  }
+  resp->servers->aaa_server_addr=tids->ipaddr;
 
   /* Set the key name */
   if (-1 == create_key_id(key_id, sizeof(key_id)))
@@ -348,8 +345,11 @@ int main (int argc,
   TIDS_INSTANCE *tids;
   TR_NAME *gssname = NULL;
   struct cmdline_args opts={NULL};
-  int tids_socket=-1;
-  struct pollfd *poll_fds=NULL;
+#define MAX_SOCKETS 10
+  int tids_socket[MAX_SOCKETS];
+  size_t n_sockets;
+  struct pollfd poll_fds[MAX_SOCKETS];
+  size_t ii=0;
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
@@ -383,25 +383,24 @@ int main (int argc,
   tids->ipaddr = opts.ip_address;
 
   /* get listener for tids port */
-  tids_socket = tids_get_listener(tids, &tids_req_handler , auth_handler, opts.hostname, TID_PORT, gssname);
+  n_sockets = tids_get_listener(tids, &tids_req_handler, auth_handler, opts.hostname, TID_PORT, gssname,
+                                tids_socket, MAX_SOCKETS);
 
-  poll_fds=malloc(sizeof(*poll_fds));
-  if (poll_fds == NULL) {
-    tr_crit("Could not allocate event polling list, exiting.");
-    return 1;
+  for (ii=0; ii<n_sockets; ii++) {
+    poll_fds[ii].fd=tids_socket[ii];
+    poll_fds[ii].events=POLLIN; /* poll on ready for reading */
+    poll_fds[ii].revents=0;
   }
-
-  poll_fds[0].fd=tids_socket;
-  poll_fds[0].events=POLLIN; /* poll on ready for reading */
-  poll_fds[0].revents=0; 
 
   /* main event loop */
   while (1) {
     /* wait up to 100 ms for an event, then handle any idle work */
-    if(poll(poll_fds, 1, 100) > 0) {
-      if (poll_fds[0].revents & POLLIN) {
-        if (0 != tids_accept(tids, tids_socket)) {
-          tr_err("Error handling tids request.");
+    if(poll(poll_fds, n_sockets, 100) > 0) {
+      for (ii=0; ii<n_sockets; ii++) {
+        if (poll_fds[ii].revents & POLLIN) {
+          if (0 != tids_accept(tids, tids_socket[ii])) {
+            tr_err("Error handling tids request.");
+          }
         }
       }
     }

@@ -10,7 +10,13 @@ common_srcs = common/tr_name.c \
 	common/tr_msg.c \
 	common/tr_dh.c \
         common/tr_debug.c \
-	common/tr_util.c
+	common/tr_util.c \
+	common/tr_apc.c \
+	common/tr_comm.c \
+	common/tr_rp.c \
+	common/tr_idp.c \
+	common/tr_filter.c \
+	common/tr_gss.c
 
 tid_srcs = tid/tid_resp.c \
 tid/tid_req.c \
