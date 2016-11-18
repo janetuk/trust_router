@@ -120,6 +120,7 @@ static int tids_listen(TIDS_INSTANCE *tids, int port, int *fd_out, size_t max_fd
                          .ai_socktype=SOCK_STREAM,
                          .ai_protocol=IPPROTO_TCP};
   char *port_str=NULL;
+  size_t n_opened=0;
   
   port_str=talloc_asprintf(NULL, "%d", port);
   if (port_str==NULL) {
@@ -131,46 +132,55 @@ static int tids_listen(TIDS_INSTANCE *tids, int port, int *fd_out, size_t max_fd
   talloc_free(port_str);
 
   /* TODO: listen on all ports */
-  for (ai=ai_head; ai!=NULL; ai=ai->ai_next) {
-    if (ai->ai_family==AF_INET6) {
-      ai=talloc_memdup(NULL, ai, sizeof(struct addrinfo)); /* get a permanent copy of this */
-      break;
+  for (ai=ai_head,n_opened=0; (ai!=NULL)&&(n_opened<max_fd); ai=ai->ai_next) {
+    if (0 > (conn = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol))) {
+      tr_debug("tids_listen: unable to open socket.");
+      continue;
     }
+
+    optval=1;
+    if (0!=setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)))
+      tr_debug("tids_listen: unable to set SO_REUSEADDR."); /* not fatal? */
+
+    if (ai->ai_family==AF_INET6) {
+      /* don't allow IPv4-mapped IPv6 addresses (per RFC4942, not sure
+       * if still relevant) */
+      if (0!=setsockopt(conn, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval))) {
+        tr_debug("tids_listen: unable to set IPV6_V6ONLY. Skipping interface.");
+        close(conn);
+        continue;
+      }
+    }
+
+    rc=bind(conn, ai->ai_addr, ai->ai_addrlen);
+    if (rc<0) {
+      tr_debug("tids_listen: unable to bind to socket.");
+      close(conn);
+      continue;
+    }
+
+    if (0>listen(conn, 512)) {
+      tr_debug("tids_listen: unable to listen on bound socket.");
+      close(conn);
+      continue;
+    }
+
+    /* ok, this one worked. Save it */
+    fd_out[n_opened++]=conn;
   }
   freeaddrinfo(ai_head);
 
-  if (ai==NULL) {
+  if (n_opened==0) {
     tr_debug("tids_listen: no addresses available for listening.");
     return -1;
   }
 
-  if (0 > (conn = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol))) {
-    tr_debug("tids_listen: unable to open socket.");
-    talloc_free(ai);
-    return -1;
-  }
-  
-  optval=1;
-  setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
-/*  setsockopt(conn, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval)); */
-  
-  rc=bind(conn, ai->ai_addr, ai->ai_addrlen);
-  talloc_free(ai);
-  if (rc<0) {
-    char errmsg[255];
-    tr_debug("tids_listen: unable to bind to socket (%s).", strerror_r(errno, errmsg, 255));
-    close(conn);
-    return -1;
-  }
-  
-  if (0 > (rc = listen(conn, 512))) {
-    tr_debug("trps_listen: unable to listen on bound socket.");
-    close(conn);
-    return rc;
-  }
-  
-  tr_debug("tids_listen: TID Server listening on port %d", port);
-  return conn;
+  tr_debug("tids_listen: TRP Server listening on port %d on %d socket%s",
+           port,
+           n_opened,
+           (n_opened==1)?"":"s");
+
+  return n_opened;
 }
 
 /* returns EACCES if authorization is denied */
