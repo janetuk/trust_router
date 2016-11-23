@@ -170,6 +170,10 @@ void tr_destroy_dh_params(DH *dh) {
   }
 }
 
+DH *tr_dup_dh_params(DH *dh) {
+  return DHparams_dup(dh);
+}
+
 int tr_compute_dh_key(unsigned char **pbuf, 
 		      BIGNUM *pub_key, 
 		      DH *priv_dh) {
