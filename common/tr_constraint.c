@@ -76,6 +76,29 @@ void tr_constraint_free(TR_CONSTRAINT *cons)
   talloc_free(cons);
 }
 
+TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons)
+{
+  TALLOC_CTX *tmp_ctx=NULL;
+  TR_CONSTRAINT *new=NULL;
+  int ii=0;
+
+  if (cons==NULL)
+    return NULL;
+
+  tmp_ctx=talloc_new(NULL);
+  new=tr_constraint_new(tmp_ctx);
+
+  if (new!=NULL) {
+    new->type=tr_dup_name(cons->type);
+    for (ii=0; ii<TR_MAX_CONST_MATCHES; ii++)
+      new->matches[ii]=tr_dup_name(cons->matches[ii]);
+    talloc_steal(mem_ctx, new);
+  }
+
+  talloc_free(tmp_ctx);
+  return new;
+}
+
 /* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
  */
 int tr_prefix_wildcard_match (const char *str, const char *wc_str) {

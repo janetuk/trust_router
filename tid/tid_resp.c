@@ -37,6 +37,7 @@
 #include <assert.h>
 #include <talloc.h>
 
+#include <trust_router/tr_dh.h>
 #include <tid_internal.h>
 
 static int tid_resp_destructor(void *obj)
@@ -67,7 +68,6 @@ TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx)
     resp->cons=NULL;
     resp->orig_coi=NULL;
     resp->servers=NULL;
-    resp->num_servers=0;
     resp->error_path=NULL;
     talloc_set_destructor((void *)resp, tid_resp_destructor);
   }
@@ -78,6 +78,32 @@ void tid_resp_free(TID_RESP *resp)
 {
   if (resp)
     talloc_free(resp);
+}
+
+TID_RESP *tid_resp_dup(TALLOC_CTX *mem_ctx, TID_RESP *resp)
+{
+  TALLOC_CTX *tmp_ctx=NULL;
+  TID_RESP *newresp=NULL;
+
+  if (resp==NULL)
+    return NULL;
+
+  tmp_ctx=talloc_new(NULL);
+  newresp=talloc(tmp_ctx, TID_RESP);
+
+  if (NULL!=newresp) {
+    newresp->result=resp->result;
+    newresp->err_msg=tr_dup_name(resp->err_msg);
+    newresp->rp_realm=tr_dup_name(resp->err_msg);
+    newresp->realm=tr_dup_name(resp->realm);
+    newresp->comm=tr_dup_name(resp->comm);
+    newresp->orig_coi=tr_dup_name(resp->orig_coi);
+    newresp->servers=tid_srvr_blk_dup(newresp, resp->servers);
+    tid_resp_set_cons(newresp, resp->cons);
+    tid_resp_set_error_path(newresp, resp->error_path);
+  }
+  talloc_free(tmp_ctx);
+  return newresp;
 }
 
 TR_EXPORT int tid_resp_get_result(TID_RESP *resp)
@@ -97,6 +123,9 @@ TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp)
 
 void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg)
 {
+  if (resp->err_msg!=NULL)
+    tr_free_name(resp->err_msg);
+
   resp->err_msg = err_msg;
 }
 
@@ -143,33 +172,138 @@ void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi)
 TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp,
 					    size_t index)
 {
+  TID_SRVR_BLK *this=NULL;
   assert(resp);
-  assert(index < resp->num_servers);
-  return(&(resp->servers[index]));
+
+  for (this=resp->servers; index>0; index--, this=this->next) {}
+
+  return this;
 }
 
 size_t tid_resp_get_num_servers(const TID_RESP *resp)
 {
-  assert(resp);
-  return resp->num_servers;
+  size_t count=0;
+  TID_SRVR_BLK *this=NULL;
+
+  assert(resp!=NULL);
+  for (count=0, this=resp->servers; this!=NULL; count++, this=this->next) {}
+  return count;
 }
 
+static int tid_srvr_blk_destructor(void *obj)
+{
+  TID_SRVR_BLK *srvr=talloc_get_type_abort(obj, TID_SRVR_BLK);
 
-const TID_PATH *tid_srvr_get_path( const TID_SRVR_BLK *block)
+  if (srvr->key_name!=NULL)
+    tr_free_name(srvr->key_name);
+  if (srvr->aaa_server_dh!=NULL)
+    tr_destroy_dh_params(srvr->aaa_server_dh);
+  if (srvr->path!=NULL)
+    json_decref(srvr->path);
+  return 0;
+}
+
+TID_SRVR_BLK *tid_srvr_blk_new(TALLOC_CTX *mem_ctx)
+{
+  TID_SRVR_BLK *srvr=talloc(mem_ctx, TID_SRVR_BLK);
+
+  if (srvr!=NULL) {
+    srvr->next=NULL;
+    srvr->aaa_server_addr=NULL;
+    srvr->key_name=NULL;
+    srvr->aaa_server_dh=NULL;
+    srvr->key_expiration=(GTimeVal){0};
+    srvr->path=NULL;
+    talloc_set_destructor((void *)srvr, tid_srvr_blk_destructor);
+  }
+  return srvr;
+}
+
+void tid_srvr_blk_free(TID_SRVR_BLK *srvr)
+{
+  talloc_free(srvr);
+}
+
+TID_SRVR_BLK *tid_srvr_blk_dup(TALLOC_CTX *mem_ctx, TID_SRVR_BLK *srvr)
+{
+  TID_SRVR_BLK *new=NULL;
+
+  if (srvr==NULL)
+    return NULL;
+
+  new=tid_srvr_blk_new(mem_ctx);
+  if (new!=NULL) {
+    if (srvr->aaa_server_addr!=NULL)
+      new->aaa_server_addr=talloc_strdup(new, srvr->aaa_server_addr);
+    new->key_name=tr_dup_name(srvr->key_name);
+    new->aaa_server_dh=tr_dup_dh_params(srvr->aaa_server_dh);
+    new->key_expiration=srvr->key_expiration;
+    tid_srvr_blk_set_path(new, srvr->path);
+
+    tid_srvr_blk_add(new->next, tid_srvr_blk_dup(mem_ctx, srvr->next));
+  }
+  return new;
+}
+
+/* use the macro */
+TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *new)
+{
+  TID_SRVR_BLK *this=head;
+
+  if (head==NULL)
+    return new;
+
+  while (this->next!=NULL)
+    this=this->next;
+  this->next=new;
+  return head;
+}
+
+void tid_srvr_blk_set_path(TID_SRVR_BLK *block, json_t *path)
+{
+  if (block->path!=NULL)
+    json_decref(block->path);
+  block->path=path;
+  if (block->path!=NULL)
+    json_incref(block->path);
+}
+
+const json_t *tid_srvr_get_path( const TID_SRVR_BLK *block)
 {
   if (!block)
     return NULL;
-  return (const TID_PATH *) block->path;
+  return block->path;
 }
 
-const TID_PATH *tid_resp_get_error_path( const TID_RESP *resp)
+void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons)
+{
+  json_t *jc=(json_t *)cons;
+
+  if (resp->cons!=NULL)
+    json_decref((json_t *) (resp->cons));
+
+  resp->cons=(TR_CONSTRAINT_SET *)jc;
+  if (jc!=NULL)
+    json_incref(jc);
+}
+
+void tid_resp_set_error_path(TID_RESP *resp, json_t *ep)
+{
+  if (resp->error_path!=NULL)
+    json_decref(resp->error_path);
+  resp->error_path=ep;
+  if (resp->error_path!=NULL)
+    json_incref(resp->error_path);
+}
+
+json_t *tid_resp_get_error_path(const TID_RESP *resp)
 {
   if (!resp)
     return NULL;
-  return (const TID_PATH *) resp->error_path;
+  return resp->error_path;
 }
 
-const TID_PATH *tid_resp_get_a_path( const TID_RESP *const_resp)
+json_t *tid_resp_get_a_path(const TID_RESP *const_resp)
 {
   size_t index;
   TID_SRVR_BLK *server;
@@ -179,10 +313,10 @@ const TID_PATH *tid_resp_get_a_path( const TID_RESP *const_resp)
 
 
   if (resp->error_path)
-    return (const TID_PATH *) resp->error_path;
+    return resp->error_path;
   tid_resp_servers_foreach( resp, server, index) {
     if (server->path)
-      return (const TID_PATH *) server->path;
+      return server->path;
   }
   return NULL;
   

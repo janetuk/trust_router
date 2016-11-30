@@ -41,6 +41,7 @@
 #include <poll.h>
 
 #include <tr_debug.h>
+#include <tr_util.h>
 #include <tid_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
@@ -175,12 +176,11 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
 
 
   /* Allocate a new server block */
-  if (NULL == (resp->servers = talloc_zero(resp, TID_SRVR_BLK))){
-    tr_crit("tids_req_handler(): malloc failed.");
+  tid_srvr_blk_add(resp->servers, tid_srvr_blk_new(resp));
+  if (NULL==resp->servers) {
+    tr_crit("tids_req_handler(): unable to allocate server block.");
     return -1;
   }
-
-  resp->num_servers = 1;
 
   /* TBD -- Set up the server IP Address */
 
@@ -203,7 +203,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  resp->servers->aaa_server_addr=tids->ipaddr;
+  resp->servers->aaa_server_addr=talloc_strdup(resp->servers, tids->ipaddr);
 
   /* Set the key name */
   if (-1 == create_key_id(key_id, sizeof(key_id)))
@@ -226,7 +226,8 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   }
   if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
     return -1;
-  resp->servers->path = req->path;
+  tid_srvr_blk_set_path(resp->servers, req->path);
+
   if (req->expiration_interval < 1)
     req->expiration_interval = 1;
   g_get_current_time(&resp->servers->key_expiration);

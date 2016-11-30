@@ -34,6 +34,8 @@
 
 #include <talloc.h>
 #include <pthread.h>
+#include <time.h>
+#include <errno.h>
 
 #include <tr_mq.h>
 #include <tr_debug.h>
@@ -107,9 +109,16 @@ static void tr_mq_msg_set_next(TR_MQ_MSG *msg, TR_MQ_MSG *next)
 TR_MQ *tr_mq_new(TALLOC_CTX *mem_ctx)
 {
   TR_MQ *mq=talloc(mem_ctx, TR_MQ);
+  pthread_condattr_t cattr;
+
   if (mq!=NULL) {
     pthread_mutex_init(&(mq->mutex), 0);
-    pthread_cond_init(&(mq->have_msg_cond), 0);
+    pthread_condattr_init(&cattr);
+
+    pthread_condattr_setclock(&cattr, CLOCK_MONOTONIC); /* use the monotonic clock for timeouts */
+    pthread_cond_init(&(mq->have_msg_cond), &cattr);
+    pthread_condattr_destroy(&cattr);
+
     mq->head=NULL;
     mq->tail=NULL;
     mq->last_hi_prio=NULL;
@@ -266,27 +275,35 @@ void tr_mq_add(TR_MQ *mq, TR_MQ_MSG *msg)
     notify_cb(mq, notify_cb_arg);
 }
 
-/* Caller must free msg via tr_mq_msg_free, waiting up to maxwait seconds (0 for non-blocking).
- * Not guaranteed to wait if an error occurs - immediately returns without a message. */
-TR_MQ_MSG *tr_mq_pop(TR_MQ *mq, time_t maxwait)
+/* Compute an absolute time from a desired timeout interval for use with tr_mq_pop().
+ * Fills in *ts and returns 0 on success. */
+int tr_mq_pop_timeout(time_t seconds, struct timespec *ts)
+{
+  if (0!=clock_gettime(CLOCK_MONOTONIC, ts))
+    return -1;
+
+  ts->tv_sec+=seconds;
+  return 0;
+}
+
+/* Caller must free msg via tr_mq_msg_free, waiting until absolute
+ * time ts_abort before giving up (using CLOCK_MONOTONIC). If ts_abort
+ * has passed, returns an existing message but will not wait if one is
+ * not already available. If ts_abort is null, no blocking.  Not
+ * guaranteed to wait if an error occurs - immediately returns without
+ * a message. */
+TR_MQ_MSG *tr_mq_pop(TR_MQ *mq, struct timespec *ts_abort)
 {
   TR_MQ_MSG *popped=NULL;
   int wait_err=0;
-  struct timespec expiration={0};
-
+  
   tr_mq_lock(mq);
-  if ((tr_mq_get_head(mq)==NULL) && (maxwait>0)) {
+  if ((tr_mq_get_head(mq)==NULL) && (ts_abort!=NULL)) {
     /* No msgs yet, and blocking was requested */
-    if (0!=clock_gettime(CLOCK_REALTIME, &expiration)) {
-      tr_notice("tr_mq_pop: error reading realtime clock.");
-      return NULL;
-    }
-    expiration.tv_sec+=maxwait;
-
     while ((wait_err==0) && (NULL==tr_mq_get_head(mq)))
       wait_err=pthread_cond_timedwait(&(mq->have_msg_cond),
                                      &(mq->mutex),
-                                     &expiration);
+                                     ts_abort);
     
     if ((wait_err!=0) && (wait_err!=ETIMEDOUT)) {
       tr_notice("tr_mq_pop: error waiting for message.");

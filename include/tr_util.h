@@ -32,19 +32,13 @@
  *
  */
 
-#ifndef TR_TID_H
-#define TR_TID_H
+#ifndef TR_UTIL_H
+#define TR_UTIL_H
 
-#include <trp_internal.h>
-#include <tr_event.h>
-#include <tr_config.h>
+#include <trust_router/tr_versioning.h>
 
-#define TR_TID_MAX_AAA_SERVERS 10
+void tr_bin_to_hex(const unsigned char * bin, size_t binlen,
+                   char * hex_out, size_t hex_len);
+TR_EXPORT int tr_cmp_timespec(struct timespec *ts1, struct timespec *ts2);
 
-int tr_tids_event_init(struct event_base *base,
-                       TIDS_INSTANCE *tids,
-                       TR_CFG_MGR *cfg_mgr,
-                       TRPS_INSTANCE *trps,
-                       struct tr_socket_event *tids_ev);
-
-#endif /* TR_TID_H */
+#endif /* TR_UTIL_H */

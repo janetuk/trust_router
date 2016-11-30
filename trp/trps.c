@@ -50,7 +50,7 @@
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
-
+#include <tr_util.h>
 
 static int trps_destructor(void *object)
 {
@@ -120,7 +120,7 @@ void trps_free (TRPS_INSTANCE *trps)
 
 TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps)
 {
-  return tr_mq_pop(trps->mq);
+  return tr_mq_pop(trps->mq, 0);
 }
 
 void trps_mq_add(TRPS_INSTANCE *trps, TR_MQ_MSG *msg)
@@ -303,7 +303,6 @@ static size_t trps_listen(TRPS_INSTANCE *trps, int port, int *fd_out, size_t max
   getaddrinfo(NULL, port_str, &hints, &ai_head);
   talloc_free(port_str);
 
-  /* TODO: listen on all ports */
   for (ai=ai_head,n_opened=0; (ai!=NULL)&&(n_opened<max_fd); ai=ai->ai_next) {
     if (0 > (conn = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol))) {
       tr_debug("trps_listen: unable to open socket.");
@@ -1142,9 +1141,7 @@ TRP_RC trps_update_active_routes(TRPS_INSTANCE *trps)
 /* true if curtime >= expiry */
 static int trps_expired(struct timespec *expiry, struct timespec *curtime)
 {
-  return ((curtime->tv_sec > expiry->tv_sec)
-         || ((curtime->tv_sec == expiry->tv_sec)
-            &&(curtime->tv_nsec >= expiry->tv_nsec)));
+  return (tr_cmp_timespec(curtime, expiry) >= 0);
 }
 
 /* Sweep for expired routes. For each expired route, if its metric is infinite, the route is flushed.

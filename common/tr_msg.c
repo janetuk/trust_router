@@ -387,9 +387,11 @@ static json_t *tr_msg_encode_servers(TID_RESP *resp)
   return jservers;
 }
 
-static TID_SRVR_BLK *tr_msg_decode_servers(TALLOC_CTX *ctx, json_t *jservers, size_t *out_len)
+static TID_SRVR_BLK *tr_msg_decode_servers(TALLOC_CTX *mem_ctx, json_t *jservers)
 {
-  TID_SRVR_BLK *servers = NULL;
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TID_SRVR_BLK *servers=NULL;
+  TID_SRVR_BLK *new_srvr=NULL;
   json_t *jsrvr;
   size_t i, num_servers;
 
@@ -398,20 +400,30 @@ static TID_SRVR_BLK *tr_msg_decode_servers(TALLOC_CTX *ctx, json_t *jservers, si
   
   if (0 == num_servers) {
     tr_debug("tr_msg_decode_servers(): Server array is empty."); 
-    return NULL;
+    goto cleanup;
   }
-  servers = talloc_zero_array(ctx, TID_SRVR_BLK, num_servers);
 
   for (i = 0; i < num_servers; i++) {
     jsrvr = json_array_get(jservers, i);
-    if (0 != tr_msg_decode_one_server(jsrvr, &servers[i])) {
-      talloc_free(servers);
-      return NULL;
+
+    new_srvr=tid_srvr_blk_new(NULL);
+    if (new_srvr==NULL) {
+      servers=NULL; /* it's all in tmp_ctx, so we can just let go */
+      goto cleanup;
+    }
+    
+    if (0 != tr_msg_decode_one_server(jsrvr, new_srvr)) {
+      servers=NULL; /* it's all in tmp_ctx, so we can just let go */
+      goto cleanup;
     }
 
-
+    tid_srvr_blk_add(servers, new_srvr);
   }
-  *out_len = num_servers;
+
+  talloc_steal(mem_ctx, servers);
+
+cleanup:
+  talloc_free(tmp_ctx);
   return servers;
 }
 
@@ -502,7 +514,7 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
     tr_debug("tr_msg_decode_tidresp(): Success! result = %s.", json_string_value(jresult));
     if ((NULL != (jservers = json_object_get(jresp, "servers"))) ||
 	(!json_is_array(jservers))) {
-      tresp->servers = tr_msg_decode_servers(tresp, jservers, &tresp->num_servers); 
+      tresp->servers = tr_msg_decode_servers(tresp, jservers); 
     } 
     else {
       talloc_free(tresp);

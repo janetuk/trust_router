@@ -171,7 +171,9 @@ void tr_destroy_dh_params(DH *dh) {
 }
 
 DH *tr_dup_dh_params(DH *dh) {
-  return DHparams_dup(dh);
+  if (dh!=NULL)
+    return DHparams_dup(dh);
+  return NULL;
 }
 
 int tr_compute_dh_key(unsigned char **pbuf, 

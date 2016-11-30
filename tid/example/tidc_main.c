@@ -212,7 +212,7 @@ int main (int argc,
   }
     
   /* Clean-up the TID client instance, and exit */
-  tidc_destroy(tidc);
+  tidc_free(tidc);
 
   return 0;
 }

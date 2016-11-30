@@ -35,7 +35,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <trust_router/tr_dh.h>
+#include <time.h>
+/*#include <trust_router/tr_dh.h>*/
+#include <tr_util.h>
 
 void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
 		   char * hex_out, size_t hex_len)
@@ -49,3 +51,23 @@ void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
   }
 }
 
+/* Returns 0 if ts1==ts2, <0 if ts1<ts2, >= if ts1>ts2.
+ * Assumes that tv_nsec <= 1e9. */
+int tr_cmp_timespec(struct timespec *ts1, struct timespec *ts2)
+{
+  if (ts1->tv_sec > ts2->tv_sec)
+    return 1;
+
+  if (ts1->tv_sec < ts2->tv_sec)
+    return -1;
+
+  /* ts1->tv_sec==ts2->tv_sec */
+
+  if (ts1->tv_nsec > ts2->tv_nsec)
+    return 1;
+
+  if (ts1->tv_nsec < ts2->tv_nsec)
+    return -1;
+
+  return 0;
+}

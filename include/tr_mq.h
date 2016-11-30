@@ -37,6 +37,7 @@
 
 #include <talloc.h>
 #include <pthread.h>
+#include <time.h>
 
 /* Note on mq priorities: High priority messages are guaranteed to be
  * processed before any normal priority messages. Otherwise, messages
@@ -88,7 +89,8 @@ int tr_mq_lock(TR_MQ *mq);
 int tr_mq_unlock(TR_MQ *mq);
 void tr_mq_set_notify_cb(TR_MQ *mq, TR_MQ_NOTIFY_FN cb, void *arg);
 void tr_mq_add(TR_MQ *mq, TR_MQ_MSG *msg);
-TR_MQ_MSG *tr_mq_pop(TR_MQ *mq, time_t maxwait);
+int tr_mq_pop_timeout(time_t seconds, struct timespec *ts);
+TR_MQ_MSG *tr_mq_pop(TR_MQ *mq, struct timespec *ts_abort);
 void tr_mq_clear(TR_MQ *mq);
  
 #endif /*_TR_MQ_H_ */

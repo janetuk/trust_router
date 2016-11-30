@@ -53,7 +53,4 @@ int TR_EXPORT tr_dh_pub_hash(TID_REQ *request,
 			     size_t *out_llen);
 
 
-TR_EXPORT void tr_bin_to_hex(const unsigned char * bin, size_t binlen,
-			     char * hex_out, size_t hex_len);
-
 #endif

@@ -63,7 +63,33 @@ void tr_aaa_server_free(TR_AAA_SERVER *aaa)
   talloc_free(aaa);
 }
 
-TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm)
+TR_AAA_SERVER_ITER *tr_aaa_server_iter_new(TALLOC_CTX *mem_ctx)
+{
+  return talloc(mem_ctx, TR_AAA_SERVER_ITER);
+}
+
+void tr_aaa_server_iter_free(TR_AAA_SERVER_ITER *iter)
+{
+  talloc_free(iter);
+}
+
+TR_AAA_SERVER *tr_aaa_server_iter_first(TR_AAA_SERVER_ITER *iter, TR_AAA_SERVER *aaa)
+{
+  iter->this=aaa;
+  return iter->this;
+}
+
+TR_AAA_SERVER *tr_aaa_server_iter_next(TR_AAA_SERVER_ITER *iter)
+{
+  if (iter->this!=NULL) {
+    iter->this=iter->this->next;
+  }
+  return iter->this;
+}
+
+
+/* fills in shared if pointer not null */
+TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm, int *shared_out)
 {
   TR_IDP_REALM *idp = NULL;
 
@@ -73,9 +99,11 @@ TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_r
       break;
     }
   }
-  if (idp)
+  if (idp) {
+    if (shared_out!=NULL)
+      *shared_out=idp->shared_config;
     return idp->aaa_servers;
-  else 
+  } else 
     return NULL;
 }
 

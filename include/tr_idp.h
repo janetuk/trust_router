@@ -46,6 +46,10 @@ typedef struct tr_aaa_server {
   TR_NAME *hostname;
 } TR_AAA_SERVER;
 
+typedef struct tr_aaa_server_iter {
+  TR_AAA_SERVER *this;
+} TR_AAA_SERVER_ITER;
+
 /* may also want to use in tr_rp.h */
 typedef enum tr_realm_origin {
   TR_REALM_LOCAL=0, /* realm we were configured to contact */
@@ -86,7 +90,12 @@ void tr_idp_realm_decref(TR_IDP_REALM *realm);
 TR_AAA_SERVER *tr_aaa_server_new(TALLOC_CTX *mem_ctx, TR_NAME *hostname);
 void tr_aaa_server_free(TR_AAA_SERVER *aaa);
 
-TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm);
+TR_AAA_SERVER_ITER *tr_aaa_server_iter_new(TALLOC_CTX *mem_ctx);
+void tr_aaa_server_iter_free(TR_AAA_SERVER_ITER *iter);
+TR_AAA_SERVER *tr_aaa_server_iter_first(TR_AAA_SERVER_ITER *iter, TR_AAA_SERVER *aaa);
+TR_AAA_SERVER *tr_aaa_server_iter_next(TR_AAA_SERVER_ITER *iter);
+
+TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm, int *shared_out);
 TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME *comm);
 
 #endif

@@ -54,7 +54,7 @@ static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req)
   TID_RESP *resp=NULL;
   int success=0;
 
-  if ((NULL == (resp = talloc_zero(req, TID_RESP)))) {
+  if (NULL == (resp = tid_resp_new(req))) {
     tr_crit("tids_create_response: Error allocating response structure.");
     return NULL;
   }
@@ -421,7 +421,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
       tr_debug("tids_handle_connection: Error from tids_send_response(), rc = %d.", rc);
       /* if we didn't already send a response, try to send a generic error. */
       if (!tr_msg_get_req(mreq)->resp_sent)
-	tids_send_err_response(tids, tr_msg_get_req(mreq), "Error sending response.");
+        tids_send_err_response(tids, tr_msg_get_req(mreq), "Error sending response.");
       /* Fall through to free the response, either way. */
     }
     

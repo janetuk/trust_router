@@ -41,6 +41,7 @@
 #include <jansson.h>
 
 struct tid_srvr_blk {
+  TID_SRVR_BLK *next;
   char *aaa_server_addr;
   TR_NAME *key_name;
   DH *aaa_server_dh;		/* AAA server's public dh information */
@@ -57,7 +58,6 @@ struct tid_resp {
   TR_CONSTRAINT_SET *cons;
   TR_NAME *orig_coi;
   TID_SRVR_BLK *servers;       	/* array of servers */
-  size_t num_servers;
   json_t *error_path; /**< Path that a request generating an error traveled*/
 };
 
@@ -82,7 +82,7 @@ struct tid_req {
 };
 
 struct tidc_instance {
-  TID_REQ *req_list;
+  // TID_REQ *req_list;
   // TBD -- Do we still need a separate private key */
   // char *priv_key;
   // int priv_len;
@@ -101,11 +101,21 @@ struct tids_instance {
   struct tr_rp_client *rp_gss;		/* Client matching GSS name */
 };
 
-
 /** Decrement a reference to #json when this tid_req is cleaned up. A
     new reference is not created; in effect the caller is handing a
     reference they already hold to the TID_REQ.*/
 void tid_req_cleanup_json(TID_REQ *, json_t *json);
 
 int tid_req_add_path(TID_REQ *, const char *this_system, unsigned port);
+
+TID_SRVR_BLK *tid_srvr_blk_new(TALLOC_CTX *mem_ctx);
+void tid_srvr_blk_free(TID_SRVR_BLK *srvr);
+TID_SRVR_BLK *tid_srvr_blk_dup(TALLOC_CTX *mem_ctx, TID_SRVR_BLK *srvr);
+TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *new);
+#define tid_srvr_blk_add(head, new) ((head)=tid_srvr_blk_add_func((head),(new)))
+void tid_srvr_blk_set_path(TID_SRVR_BLK *block, json_t *path);
+
+void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons);
+void tid_resp_set_error_path(TID_RESP *resp, json_t *ep);
+
 #endif

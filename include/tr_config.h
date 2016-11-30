@@ -58,6 +58,9 @@
 #define TR_DEFAULT_TRP_CONNECT_INTERVAL 10
 #define TR_DEFAULT_TRP_UPDATE_INTERVAL 120
 #define TR_DEFAULT_TRP_SWEEP_INTERVAL 30
+#define TR_DEFAULT_TID_REQ_TIMEOUT 5
+#define TR_DEFAULT_TID_RESP_NUMER 2
+#define TR_DEFAULT_TID_RESP_DENOM 3
 
 typedef enum tr_cfg_rc {
   TR_CFG_SUCCESS = 0,	/* No error */
@@ -79,6 +82,9 @@ typedef struct tr_cfg_internal {
   unsigned int trp_sweep_interval;
   unsigned int trp_update_interval;
   unsigned int trp_connect_interval;
+  unsigned int tid_req_timeout;
+  unsigned int tid_resp_numer; /* numerator of fraction of AAA servers to wait for in unshared mode */
+  unsigned int tid_resp_denom; /* denominator of fraction of AAA servers to wait for in unshared mode */
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {

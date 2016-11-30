@@ -184,6 +184,9 @@ static TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jcfg)
   json_t *jcfgsettle = NULL;
   json_t *jroutesweep = NULL;
   json_t *jrouteupdate = NULL;
+  json_t *jtidreq_timeout = NULL;
+  json_t *jtidresp_numer = NULL;
+  json_t *jtidresp_denom = NULL;
   json_t *jrouteconnect = NULL;
 
   if ((!trc) || (!jcfg))
@@ -292,6 +295,42 @@ static TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jcfg)
     } else {
       /* if not configured, use the default */
       trc->internal->trp_update_interval=TR_DEFAULT_TRP_UPDATE_INTERVAL;
+    }
+
+    if (NULL != (jtidreq_timeout = json_object_get(jint, "tid_request_timeout"))) {
+      if (json_is_number(jtidreq_timeout)) {
+        trc->internal->tid_req_timeout = json_integer_value(jtidreq_timeout);
+      } else {
+        tr_debug("tr_cfg_parse_internal: Parsing error, tid_request_timeout is not a number.");
+        return TR_CFG_NOPARSE;
+      }
+    } else {
+      /* if not configured, use the default */
+      trc->internal->tid_req_timeout=TR_DEFAULT_TID_REQ_TIMEOUT;
+    }
+
+    if (NULL != (jtidresp_numer = json_object_get(jint, "tid_response_numerator"))) {
+      if (json_is_number(jtidresp_numer)) {
+        trc->internal->tid_resp_numer = json_integer_value(jtidresp_numer);
+      } else {
+        tr_debug("tr_cfg_parse_internal: Parsing error, tid_response_numerator is not a number.");
+        return TR_CFG_NOPARSE;
+      }
+    } else {
+      /* if not configured, use the default */
+      trc->internal->tid_resp_numer=TR_DEFAULT_TID_RESP_NUMER;
+    }
+
+    if (NULL != (jtidresp_denom = json_object_get(jint, "tid_response_denominator"))) {
+      if (json_is_number(jtidresp_denom)) {
+        trc->internal->tid_resp_denom = json_integer_value(jtidresp_denom);
+      } else {
+        tr_debug("tr_cfg_parse_internal: Parsing error, tid_response_denominator is not a number.");
+        return TR_CFG_NOPARSE;
+      }
+    } else {
+      /* if not configured, use the default */
+      trc->internal->tid_resp_denom=TR_DEFAULT_TID_RESP_DENOM;
     }
 
     if (NULL != (jlog = json_object_get(jint, "logging"))) {
