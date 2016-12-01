@@ -36,6 +36,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <openssl/dh.h>
+#include <openssl/crypto.h>
 #include <jansson.h>
 #include <assert.h>
 #include <talloc.h>
@@ -47,6 +48,7 @@
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
 #include <trust_router/tr_constraint.h>
+#include <trust_router/tr_dh.h>
 #include <tr_debug.h>
 
 /* JSON helpers */
@@ -156,19 +158,23 @@ static json_t *tr_msg_encode_dh(DH *dh)
 {
   json_t *jdh = NULL;
   json_t *jbn = NULL;
+  char *s=NULL;
 
   if ((!dh) || (!dh->p) || (!dh->g) || (!dh->pub_key))
     return NULL;
 
   jdh = json_object();
 
-  jbn = json_string(BN_bn2hex(dh->p));
+  jbn = json_string(s=BN_bn2hex(dh->p));
+  OPENSSL_free(s);
   json_object_set_new(jdh, "dh_p", jbn);
 
-  jbn = json_string(BN_bn2hex(dh->g));
+  jbn = json_string(s=BN_bn2hex(dh->g));
+  OPENSSL_free(s);
   json_object_set_new(jdh, "dh_g", jbn);
 
-  jbn = json_string(BN_bn2hex(dh->pub_key));
+  jbn = json_string(s=BN_bn2hex(dh->pub_key));
+  OPENSSL_free(s);
   json_object_set_new(jdh, "dh_pub_key", jbn);
 
   return jdh;
@@ -181,19 +187,17 @@ static DH *tr_msg_decode_dh(json_t *jdh)
   json_t *jg = NULL;
   json_t *jpub_key = NULL;
 
-  if (!(dh = malloc(sizeof(DH)))) {
+  if (!(dh=tr_dh_new())) {
     tr_crit("tr_msg_decode_dh(): Error allocating DH structure.");
     return NULL;
   }
  
-  memset(dh, 0, sizeof(DH));
-
   /* store required fields from dh object */
   if ((NULL == (jp = json_object_get(jdh, "dh_p"))) ||
       (NULL == (jg = json_object_get(jdh, "dh_g"))) ||
       (NULL == (jpub_key = json_object_get(jdh, "dh_pub_key")))) {
     tr_debug("tr_msg_decode_dh(): Error parsing dh_info.");
-    free(dh);
+    tr_dh_free(dh);
     return NULL;
   }
 

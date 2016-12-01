@@ -190,7 +190,7 @@ int main (int argc,
   printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s, port = %i\n", opts.server, opts.rp_realm, opts.target_realm, opts.community, opts.port);
  
   /* Create a TID client instance & the client DH */
-  tidc = tidc_create();
+  tidc = tidc_create(NULL);
   if (NULL == (tidc->client_dh = tr_create_dh_params(NULL, 0))) {
     printf("Error creating client DH params.\n");
     return 1;

@@ -77,6 +77,11 @@ unsigned char tr_2048_dhprime[2048/8] = {
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 };
 
+DH *tr_dh_new(void)
+{
+  return DH_new();
+}
+
 DH *tr_create_dh_params(unsigned char *priv_key, 
 			size_t keylen) {
 
@@ -170,10 +175,64 @@ void tr_destroy_dh_params(DH *dh) {
   }
 }
 
-DH *tr_dup_dh_params(DH *dh) {
-  if (dh!=NULL)
-    return DHparams_dup(dh);
-  return NULL;
+DH *tr_dh_dup(DH *in)
+{
+  DH *out=DH_new();
+
+  if (out==NULL)
+    return NULL;
+
+  if (in->g==NULL)
+    out->g=NULL;
+  else {
+    out->g=BN_dup(in->g);
+    if (out->g==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  if (in->p==NULL)
+    out->p=NULL;
+  else {
+    out->p=BN_dup(in->p);
+    if (out->p==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  if (in->q==NULL)
+    out->q=NULL;
+  else {
+    out->q=BN_dup(in->q);
+    if (out->q==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  if (in->priv_key==NULL)
+    out->priv_key=NULL;
+  else {
+    out->priv_key=BN_dup(in->priv_key);
+    if (out->priv_key==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  if (in->pub_key==NULL)
+    out->pub_key=NULL;
+  else {
+    out->pub_key=BN_dup(in->pub_key);
+    if (out->g==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  return out;
 }
 
 int tr_compute_dh_key(unsigned char **pbuf, 
@@ -225,7 +284,7 @@ int tr_dh_pub_hash(TID_REQ *request,
 				    return 0;
 }
 
-void tr_dh_free(unsigned char *dh_buf)
+void tr_dh_free(DH *dh)
 {
-  free(dh_buf);
+  DH_free(dh);
 }

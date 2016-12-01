@@ -203,7 +203,7 @@ static int tid_srvr_blk_destructor(void *obj)
   return 0;
 }
 
-TID_SRVR_BLK *tid_srvr_blk_new(TALLOC_CTX *mem_ctx)
+TR_EXPORT TID_SRVR_BLK *tid_srvr_blk_new(TALLOC_CTX *mem_ctx)
 {
   TID_SRVR_BLK *srvr=talloc(mem_ctx, TID_SRVR_BLK);
 
@@ -219,12 +219,12 @@ TID_SRVR_BLK *tid_srvr_blk_new(TALLOC_CTX *mem_ctx)
   return srvr;
 }
 
-void tid_srvr_blk_free(TID_SRVR_BLK *srvr)
+TR_EXPORT void tid_srvr_blk_free(TID_SRVR_BLK *srvr)
 {
   talloc_free(srvr);
 }
 
-TID_SRVR_BLK *tid_srvr_blk_dup(TALLOC_CTX *mem_ctx, TID_SRVR_BLK *srvr)
+TR_EXPORT TID_SRVR_BLK *tid_srvr_blk_dup(TALLOC_CTX *mem_ctx, TID_SRVR_BLK *srvr)
 {
   TID_SRVR_BLK *new=NULL;
 
@@ -236,7 +236,7 @@ TID_SRVR_BLK *tid_srvr_blk_dup(TALLOC_CTX *mem_ctx, TID_SRVR_BLK *srvr)
     if (srvr->aaa_server_addr!=NULL)
       new->aaa_server_addr=talloc_strdup(new, srvr->aaa_server_addr);
     new->key_name=tr_dup_name(srvr->key_name);
-    new->aaa_server_dh=tr_dup_dh_params(srvr->aaa_server_dh);
+    new->aaa_server_dh=tr_dh_dup(srvr->aaa_server_dh);
     new->key_expiration=srvr->key_expiration;
     tid_srvr_blk_set_path(new, srvr->path);
 
@@ -246,7 +246,7 @@ TID_SRVR_BLK *tid_srvr_blk_dup(TALLOC_CTX *mem_ctx, TID_SRVR_BLK *srvr)
 }
 
 /* use the macro */
-TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *new)
+TR_EXPORT TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *new)
 {
   TID_SRVR_BLK *this=head;
 
@@ -259,7 +259,7 @@ TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *new)
   return head;
 }
 
-void tid_srvr_blk_set_path(TID_SRVR_BLK *block, json_t *path)
+TR_EXPORT void tid_srvr_blk_set_path(TID_SRVR_BLK *block, json_t *path)
 {
   if (block->path!=NULL)
     json_decref(block->path);
@@ -268,14 +268,14 @@ void tid_srvr_blk_set_path(TID_SRVR_BLK *block, json_t *path)
     json_incref(block->path);
 }
 
-const json_t *tid_srvr_get_path( const TID_SRVR_BLK *block)
+TR_EXPORT const json_t *tid_srvr_get_path( const TID_SRVR_BLK *block)
 {
   if (!block)
     return NULL;
   return block->path;
 }
 
-void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons)
+TR_EXPORT void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons)
 {
   json_t *jc=(json_t *)cons;
 
@@ -287,7 +287,7 @@ void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons)
     json_incref(jc);
 }
 
-void tid_resp_set_error_path(TID_RESP *resp, json_t *ep)
+TR_EXPORT void tid_resp_set_error_path(TID_RESP *resp, json_t *ep)
 {
   if (resp->error_path!=NULL)
     json_decref(resp->error_path);
@@ -296,14 +296,14 @@ void tid_resp_set_error_path(TID_RESP *resp, json_t *ep)
     json_incref(resp->error_path);
 }
 
-json_t *tid_resp_get_error_path(const TID_RESP *resp)
+TR_EXPORT json_t *tid_resp_get_error_path(const TID_RESP *resp)
 {
   if (!resp)
     return NULL;
   return resp->error_path;
 }
 
-json_t *tid_resp_get_a_path(const TID_RESP *const_resp)
+TR_EXPORT json_t *tid_resp_get_a_path(const TID_RESP *const_resp)
 {
   size_t index;
   TID_SRVR_BLK *server;

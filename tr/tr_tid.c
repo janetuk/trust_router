@@ -185,7 +185,7 @@ static void *tr_tids_req_fwd_thread(void *arg)
     goto cleanup;
   }
   cookie->thread_id=args->thread_id;
-  if (0 > (rc = tidc_fwd_request(tidc, args->fwd_req, &tr_tidc_resp_handler, (void *)cookie))) {
+  if (0 > (rc = tidc_fwd_request(tidc, args->fwd_req, tr_tidc_resp_handler, (void *)cookie))) {
     tr_notice("Error from tidc_fwd_request, rc = %d.", rc);
     success=0;
     goto cleanup;
@@ -458,7 +458,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     }
     aaa_cookie[n_aaa]->mq=mq;
     aaa_cookie[n_aaa]->aaa_hostname=tr_dup_name(this_aaa->hostname);
-    aaa_cookie[n_aaa]->dh_params=tr_dup_dh_params(orig_req->tidc_dh);
+    aaa_cookie[n_aaa]->dh_params=tr_dh_dup(orig_req->tidc_dh);
     aaa_cookie[n_aaa]->fwd_req=tid_dup_req(aaa_cookie, fwd_req);
 
     /* Take the cookie out of tmp_ctx before starting thread. If thread starts, it becomes

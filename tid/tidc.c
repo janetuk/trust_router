@@ -119,7 +119,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
     goto error;
   }
 
-  tid_req->tidc_dh = tidc->client_dh;
+  tid_req->tidc_dh = tr_dh_dup(tidc->client_dh);
 
   rc = tidc_fwd_request(tidc, tid_req, resp_handler, cookie);
   goto cleanup;
