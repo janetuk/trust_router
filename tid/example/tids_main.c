@@ -148,6 +148,7 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
       if (SQLITE_DONE != sqlite3_result)
 	tr_crit("sqlite3: failed to write to database");
       sqlite3_reset(authorization_insert);
+      sqlite3_clear_bindings(authorization_insert);
     }
   return 0;
 }
@@ -161,7 +162,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   unsigned char *s_keybuf = NULL;
   int s_keylen = 0;
   char key_id[12];
-  unsigned char *pub_digest;
+  unsigned char *pub_digest=NULL;
   size_t pub_digest_len;
   
 
@@ -236,14 +237,16 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   if (NULL != insert_stmt) {
     int sqlite3_result;
     gchar *expiration_str = g_time_val_to_iso8601(&resp->servers->key_expiration);
-        sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
-        sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
+    g_free(expiration_str); /* bind_text already made its own copy */
     sqlite3_result = sqlite3_step(insert_stmt);
     if (SQLITE_DONE != sqlite3_result)
       tr_crit("sqlite3: failed to write to database");
     sqlite3_reset(insert_stmt);
+    sqlite3_clear_bindings(insert_stmt);
   }
   
   /* Print out the key. */
@@ -253,6 +256,12 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   // }
   // fprintf(stderr, "\n");
 
+  if (s_keybuf!=NULL)
+    free(s_keybuf);
+
+  if (pub_digest!=NULL)
+    talloc_free(pub_digest);
+  
   return s_keylen;
 }
 

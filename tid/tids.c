@@ -77,35 +77,10 @@ static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req)
 
 cleanup:
   if ((!success) && (resp!=NULL)) {
-    if (resp->rp_realm!=NULL)
-      tr_free_name(resp->rp_realm);
-    if (resp->realm!=NULL)
-      tr_free_name(resp->realm);
-    if (resp->comm!=NULL)
-      tr_free_name(resp->comm);
-    if (resp->orig_coi!=NULL)
-      tr_free_name(resp->orig_coi);
     talloc_free(resp);
     resp=NULL;
   }
   return resp;
-}
-
-static void tids_destroy_response(TIDS_INSTANCE *tids, TID_RESP *resp) 
-{
-  if (resp) {
-    if (resp->err_msg)
-      tr_free_name(resp->err_msg);
-    if (resp->rp_realm)
-      tr_free_name(resp->rp_realm);
-    if (resp->realm)
-      tr_free_name(resp->realm);
-    if (resp->comm)
-      tr_free_name(resp->comm);
-    if (resp->orig_coi)
-      tr_free_name(resp->orig_coi);
-    talloc_free(resp);
-  }
 }
 
 static int tids_listen(TIDS_INSTANCE *tids, int port, int *fd_out, size_t max_fd) 
@@ -217,8 +192,11 @@ static int tids_auth_connection (TIDS_INSTANCE *inst,
 
   if (rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tids_auth_cb, inst)) {
     tr_debug("tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.", rc);
+    free(name);
     return -1;
   }
+  free(name);
+  nameBuffer.value=NULL; nameBuffer.length=0;
 
   if (rc = gsscon_authorize(*gssctx, &auth, &autherr)) {
     tr_debug("tids_auth_connection: Error from gsscon_authorize, rc = %d, autherr = %d.", 
@@ -323,7 +301,7 @@ int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_m
 
   rc = tids_send_response(tids, req, resp);
   
-  tids_destroy_response(tids, resp);
+  tid_resp_free(resp);
   return rc;
 }
 
@@ -425,8 +403,7 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
       /* Fall through to free the response, either way. */
     }
     
-    tids_destroy_response(tids, resp);
-    tr_msg_free_decoded(mreq);
+    tr_msg_free_decoded(mreq); /* takes resp with it */
     return;
   } 
 }

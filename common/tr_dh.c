@@ -277,11 +277,13 @@ int tr_dh_pub_hash(TID_REQ *request,
   unsigned char *bn_bytes = talloc_zero_size(request, BN_num_bytes(pub));
   unsigned char *digest = talloc_zero_size(request, SHA_DIGEST_LENGTH+1);
   assert(bn_bytes && digest);
-				    BN_bn2bin(pub, bn_bytes);
-				    SHA1(bn_bytes, BN_num_bytes(pub), digest);
-				    *out_digest = digest;
-				    *out_len = SHA_DIGEST_LENGTH;
-				    return 0;
+  BN_bn2bin(pub, bn_bytes);
+  SHA1(bn_bytes, BN_num_bytes(pub), digest);
+  *out_digest = digest;
+  *out_len = SHA_DIGEST_LENGTH;
+
+  talloc_free(bn_bytes);
+  return 0;
 }
 
 void tr_dh_free(DH *dh)

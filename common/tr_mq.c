@@ -122,6 +122,9 @@ TR_MQ *tr_mq_new(TALLOC_CTX *mem_ctx)
     mq->head=NULL;
     mq->tail=NULL;
     mq->last_hi_prio=NULL;
+
+    mq->notify_cb=NULL;
+    mq->notify_cb_arg=NULL;
   }
   return mq;
 }

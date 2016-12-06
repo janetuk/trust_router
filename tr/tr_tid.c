@@ -156,6 +156,15 @@ static void *tr_tids_req_fwd_thread(void *arg)
 
   talloc_steal(tmp_ctx, args); /* take responsibility for the cookie */
 
+  /* create the cookie we will use for our response */
+  cookie=talloc(tmp_ctx, TR_RESP_COOKIE);
+  if (cookie==NULL) {
+    tr_notice("tr_tids_req_fwd_thread: unable to allocate response cookie.");
+    success=0;
+    goto cleanup;
+  }
+  cookie->thread_id=args->thread_id;
+
   /* Create a TID client instance */
   if (tidc==NULL) {
     tr_crit("tr_tids_req_fwd_thread: Unable to allocate TIDC instance.");
@@ -178,13 +187,6 @@ static void *tr_tids_req_fwd_thread(void *arg)
   };
 
   /* Send a TID request. */
-  cookie=talloc(tmp_ctx, TR_RESP_COOKIE);
-  if (cookie==NULL) {
-    tr_notice("tr_tids_req_fwd_thread: unable to allocate response cookie.");
-    success=0;
-    goto cleanup;
-  }
-  cookie->thread_id=args->thread_id;
   if (0 > (rc = tidc_fwd_request(tidc, args->fwd_req, tr_tidc_resp_handler, (void *)cookie))) {
     tr_notice("Error from tidc_fwd_request, rc = %d.", rc);
     success=0;
@@ -227,6 +229,15 @@ static TID_RC tr_tids_merge_resps(TID_RESP *r1, TID_RESP *r2)
   if ((r1->result!=TID_SUCCESS) || (r2->result!=TID_SUCCESS))
     return TID_ERROR;
 
+  if (r1==NULL) tr_debug("******* r1 null");
+  if (r1->realm==NULL) tr_debug("******* r1->realm null");
+  if (r1->rp_realm==NULL) tr_debug("******* r1->rp_realm null");
+  if (r1->comm==NULL) tr_debug("******* r1->comm null");
+  if (r2==NULL) tr_debug("******* r2 null");
+  if (r2->realm==NULL) tr_debug("******* r2->realm null");
+  if (r2->rp_realm==NULL) tr_debug("******* r2->rp_realm null");
+  if (r2->comm==NULL) tr_debug("******* r2->comm null");
+    
   if ((0!=tr_name_cmp(r1->rp_realm, r2->rp_realm)) ||
       (0!=tr_name_cmp(r1->realm, r2->realm)) ||
       (0!=tr_name_cmp(r1->comm, r2->comm)))
@@ -459,7 +470,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     aaa_cookie[n_aaa]->mq=mq;
     aaa_cookie[n_aaa]->aaa_hostname=tr_dup_name(this_aaa->hostname);
     aaa_cookie[n_aaa]->dh_params=tr_dh_dup(orig_req->tidc_dh);
-    aaa_cookie[n_aaa]->fwd_req=tid_dup_req(aaa_cookie, fwd_req);
+    aaa_cookie[n_aaa]->fwd_req=tid_dup_req(aaa_cookie[n_aaa], fwd_req);
 
     /* Take the cookie out of tmp_ctx before starting thread. If thread starts, it becomes
      * responsible for freeing it until it queues a response. */
@@ -499,8 +510,14 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       }
     } else if (0==strcmp(tr_mq_msg_get_message(msg), TR_TID_MQMSG_FAILURE)) {
       /* failure */
-      payload=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TR_RESP_COOKIE);
       n_failed++;
+      payload=talloc_get_type(tr_mq_msg_get_payload(msg), TR_RESP_COOKIE);
+      if (payload==NULL) {
+        /* this means the thread was unable to allocate a response cookie, and we thus cannot determine which thread it was. This is bad and should never happen in a working system.. Give up. */
+        tr_notice("tr_tids_req_handler: TID request thread sent invalid reply. Aborting!");
+        retval=-1;
+        goto cleanup;
+      }
       tr_notice("tr_tids_req_handler: TID request for AAA server %d failed.",
                 payload->thread_id);
     } else {

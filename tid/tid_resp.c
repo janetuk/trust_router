@@ -82,19 +82,17 @@ void tid_resp_free(TID_RESP *resp)
 
 TID_RESP *tid_resp_dup(TALLOC_CTX *mem_ctx, TID_RESP *resp)
 {
-  TALLOC_CTX *tmp_ctx=NULL;
   TID_RESP *newresp=NULL;
 
   if (resp==NULL)
     return NULL;
 
-  tmp_ctx=talloc_new(NULL);
-  newresp=talloc(tmp_ctx, TID_RESP);
+  newresp=tid_resp_new(mem_ctx);
 
   if (NULL!=newresp) {
     newresp->result=resp->result;
     newresp->err_msg=tr_dup_name(resp->err_msg);
-    newresp->rp_realm=tr_dup_name(resp->err_msg);
+    newresp->rp_realm=tr_dup_name(resp->rp_realm);
     newresp->realm=tr_dup_name(resp->realm);
     newresp->comm=tr_dup_name(resp->comm);
     newresp->orig_coi=tr_dup_name(resp->orig_coi);
@@ -102,7 +100,6 @@ TID_RESP *tid_resp_dup(TALLOC_CTX *mem_ctx, TID_RESP *resp)
     tid_resp_set_cons(newresp, resp->cons);
     tid_resp_set_error_path(newresp, resp->error_path);
   }
-  talloc_free(tmp_ctx);
   return newresp;
 }
 
@@ -238,6 +235,7 @@ TR_EXPORT TID_SRVR_BLK *tid_srvr_blk_dup(TALLOC_CTX *mem_ctx, TID_SRVR_BLK *srvr
     new->key_name=tr_dup_name(srvr->key_name);
     new->aaa_server_dh=tr_dh_dup(srvr->aaa_server_dh);
     new->key_expiration=srvr->key_expiration;
+    
     tid_srvr_blk_set_path(new, srvr->path);
 
     tid_srvr_blk_add(new->next, tid_srvr_blk_dup(mem_ctx, srvr->next));
@@ -255,7 +253,12 @@ TR_EXPORT TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *
 
   while (this->next!=NULL)
     this=this->next;
+  
   this->next=new;
+  while (this!=NULL) {
+    talloc_steal(head, this);
+    this=this->next;
+  }
   return head;
 }
 

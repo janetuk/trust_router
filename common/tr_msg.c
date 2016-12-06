@@ -359,7 +359,7 @@ static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
   srvr->aaa_server_addr=talloc_strdup(srvr, json_string_value(jsrvr_addr));
   srvr->key_name = tr_new_name((char *)json_string_value(jsrvr_kn));
   srvr->aaa_server_dh = tr_msg_decode_dh(jsrvr_dh);
-  srvr->path = json_object_get(jsrvr, "path");
+  tid_srvr_blk_set_path(srvr, json_object_get(jsrvr, "path"));
   jsrvr_expire = json_object_get(jsrvr, "key_expiration");
   if (jsrvr_expire && json_is_string(jsrvr_expire)) {
     if (!g_time_val_from_iso8601(json_string_value(jsrvr_expire),
@@ -410,7 +410,7 @@ static TID_SRVR_BLK *tr_msg_decode_servers(TALLOC_CTX *mem_ctx, json_t *jservers
   for (i = 0; i < num_servers; i++) {
     jsrvr = json_array_get(jservers, i);
 
-    new_srvr=tid_srvr_blk_new(NULL);
+    new_srvr=tid_srvr_blk_new(tmp_ctx);
     if (new_srvr==NULL) {
       servers=NULL; /* it's all in tmp_ctx, so we can just let go */
       goto cleanup;
@@ -531,18 +531,18 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
     tr_debug("tr_msg_decode_tidresp(): Error! result = %s.", json_string_value(jresult));
     if ((NULL != (jerr_msg = json_object_get(jresp, "err_msg"))) ||
 	(!json_is_string(jerr_msg))) {
-      tresp->err_msg = tr_new_name((char *)json_string_value(jerr_msg));
+      tresp->err_msg = tr_new_name(json_string_value(jerr_msg));
     }
   }
 
-  tresp->rp_realm = tr_new_name((char *)json_string_value(jrp_realm));
-  tresp->realm = tr_new_name((char *)json_string_value(jrealm));
-  tresp->comm = tr_new_name((char *)json_string_value(jcomm));
+  tresp->rp_realm = tr_new_name(json_string_value(jrp_realm));
+  tresp->realm = tr_new_name(json_string_value(jrealm));
+  tresp->comm = tr_new_name(json_string_value(jcomm));
 
   /* store optional "orig_coi" field */
   if ((NULL != (jorig_coi = json_object_get(jresp, "orig_coi"))) &&
       (!json_is_object(jorig_coi))) {
-    tresp->orig_coi = tr_new_name((char *)json_string_value(jorig_coi));
+    tresp->orig_coi = tr_new_name(json_string_value(jorig_coi));
   }
      
   return tresp;
@@ -1246,6 +1246,9 @@ TR_MSG *tr_msg_decode(char *jbuf, size_t buflen)
     msg->msg_type = TR_UNKNOWN;
     msg->msg_rep = NULL;
   }
+
+  json_decref(jmsg);
+
   return msg;
 }
 
