@@ -229,6 +229,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   TR_AAA_SERVER_ITER *aaa_iter=NULL;
   pthread_t aaa_thread[TR_TID_MAX_AAA_SERVERS];
   struct tr_tids_fwd_cookie *aaa_cookie[TR_TID_MAX_AAA_SERVERS]={NULL};
+  TID_RESP *aaa_resp[TR_TID_MAX_AAA_SERVERS]={NULL};
   TR_NAME *apc = NULL;
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
@@ -468,6 +469,8 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     /* process message */
     if (0==strcmp(tr_mq_msg_get_message(msg), TR_TID_MQMSG_SUCCESS)) {
       payload=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TR_RESP_COOKIE);
+      aaa_resp[payload->thread_id]=payload->resp; /* save pointers to these */
+
       if (payload->resp->result==TID_SUCCESS) {
         tr_tids_merge_resps(resp, payload->resp);
         n_responses++;
@@ -536,9 +539,13 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   }
 
   if (n_responses==0) {
-    tid_resp_set_result(resp, TID_ERROR);
-    tid_resp_set_err_msg(resp, tr_new_name("No successful response from AAA server(s)."));
-    tid_resp_set_error_path(resp, orig_req->path);
+    /* No requests succeeded. Forward an error if we got any error responses. */
+    for (ii=0; ii<n_aaa; ii++) {
+      if (aaa_resp[ii]!=NULL)
+        tids_send_response(tids, orig_req, aaa_resp[ii]);
+      else
+        tids_send_err_response(tids, orig_req, "Unable to contact AAA server(s).");
+    }
   }
 
   /* success! */
