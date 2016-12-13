@@ -76,27 +76,6 @@ static void tr_tidc_resp_handler(TIDC_INSTANCE *tidc,
   cookie->resp=tid_resp_dup(cookie, resp);
 }
 
-#if 0
-/* Old one, obsolete. */
-
-static void tr_tidc_resp_handler (TIDC_INSTANCE *tidc, 
-                                  TID_REQ *req,
-                                  TID_RESP *resp, 
-                                  void *resp_cookie)
-{
-  tr_debug("tr_tidc_resp_handler: Response received (conn = %d)! Realm = %s, Community = %s.", ((TR_RESP_COOKIE *)resp_cookie)->orig_req->conn, resp->realm->buf, resp->comm->buf);
-  req->resp_rcvd = 1;
-
-  /* TBD -- handle concatentation of multiple responses to single req */
-  tids_send_response(((TR_RESP_COOKIE *)resp_cookie)->tids, 
-		     ((TR_RESP_COOKIE *)resp_cookie)->orig_req, 
-		     resp);
-  
-  return;
-}
-#endif /* 0 */
-
-
 /* data for AAA req forwarding threads */
 struct tr_tids_fwd_cookie {
   int thread_id;
@@ -229,15 +208,6 @@ static TID_RC tr_tids_merge_resps(TID_RESP *r1, TID_RESP *r2)
   if ((r1->result!=TID_SUCCESS) || (r2->result!=TID_SUCCESS))
     return TID_ERROR;
 
-  if (r1==NULL) tr_debug("******* r1 null");
-  if (r1->realm==NULL) tr_debug("******* r1->realm null");
-  if (r1->rp_realm==NULL) tr_debug("******* r1->rp_realm null");
-  if (r1->comm==NULL) tr_debug("******* r1->comm null");
-  if (r2==NULL) tr_debug("******* r2 null");
-  if (r2->realm==NULL) tr_debug("******* r2->realm null");
-  if (r2->rp_realm==NULL) tr_debug("******* r2->rp_realm null");
-  if (r2->comm==NULL) tr_debug("******* r2->comm null");
-    
   if ((0!=tr_name_cmp(r1->rp_realm, r2->rp_realm)) ||
       (0!=tr_name_cmp(r1->realm, r2->realm)) ||
       (0!=tr_name_cmp(r1->comm, r2->comm)))
