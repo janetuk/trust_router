@@ -163,15 +163,11 @@ void trps_set_sweep_interval(TRPS_INSTANCE *trps, unsigned int interval)
 
 void trps_set_ctable(TRPS_INSTANCE *trps, TR_COMM_TABLE *comm)
 {
-  if (trps->ctable!=NULL)
-    tr_comm_table_free(trps->ctable);
   trps->ctable=comm;
 }
 
 void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable)
 {
-  if (trps->ptable!=NULL)
-    trp_ptable_free(trps->ptable);
   trps->ptable=ptable;
 }
 
