@@ -532,7 +532,11 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
     if ((NULL != (jerr_msg = json_object_get(jresp, "err_msg"))) ||
 	(!json_is_string(jerr_msg))) {
       tresp->err_msg = tr_new_name(json_string_value(jerr_msg));
-    }
+    } else
+      tresp->err_msg = tr_new_name("No error message set.");
+
+    if (NULL !=(tresp->error_path = json_object_get(jresp, "error_path")))
+      json_incref(tresp->error_path);
   }
 
   tresp->rp_realm = tr_new_name(json_string_value(jrp_realm));
