@@ -216,6 +216,7 @@ int main(int argc, char *argv[])
   /*tr_status_event_init();*/ /* install status reporting events */
 
   /* install TID server events */
+  tr_debug("Initializing TID server events.");
   if (0 != tr_tids_event_init(ev_base,
                               tr->tids,
                               tr->cfg_mgr,
@@ -226,11 +227,13 @@ int main(int argc, char *argv[])
   }
 
   /* install TRP handler events */
+  tr_debug("Initializing Dynamic Trust Router Protocol events.");
   if (TRP_SUCCESS != tr_trps_event_init(ev_base, tr)) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
 
+  tr_debug("Starting event loop.");
   tr_event_loop_run(ev_base); /* does not return until we are done */
 
   tr_destroy(tr); /* thanks to talloc, should destroy everything */

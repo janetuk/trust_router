@@ -544,27 +544,27 @@ TRP_RC trp_inforec_set_provenance(TRP_INFOREC *rec, json_t *prov)
   return TRP_ERROR;
 }
 
-static TRP_RC trp_inforec_add_to_provenance(TRP_INFOREC *rec, TR_NAME *peer)
+static TRP_RC trp_inforec_add_to_provenance(TRP_INFOREC *rec, TR_NAME *name)
 {
-  json_t *jpeer=NULL;
+  json_t *jname=NULL;
 
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
     /* no provenance list */
     break;
   case TRP_INFOREC_TYPE_COMMUNITY:
-    jpeer=tr_name_to_json_string(peer);
-    if (jpeer==NULL)
+    jname=tr_name_to_json_string(name);
+    if (jname==NULL)
       return TRP_ERROR;
     if (rec->data->comm->provenance==NULL) {
       rec->data->comm->provenance=json_array();
       if (rec->data->comm->provenance==NULL) {
-        json_decref(jpeer);
+        json_decref(jname);
         return TRP_ERROR;
       }
     }
-    if (0!=json_array_append_new(rec->data->comm->provenance, jpeer)) {
-      json_decref(jpeer);
+    if (0!=json_array_append_new(rec->data->comm->provenance, jname)) {
+      json_decref(jname);
       return TRP_ERROR;
     }
     break;
@@ -723,18 +723,7 @@ TR_NAME *trp_upd_dup_peer(TRP_UPD *upd)
 
 void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer)
 {
-  TRP_INFOREC *rec=NULL;
-  TR_NAME *cpy=NULL;
-
   upd->peer=peer;
-
-  /* add to provenance list of any records that need it */
-  for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    if (trp_inforec_add_to_provenance(rec, cpy=tr_dup_name(peer)) != TRP_SUCCESS) {
-      tr_err("trp_upd_set_peer: error adding peer to provenance list.");
-      tr_free_name(cpy);
-    }
-  }
 }
 
 void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
@@ -747,6 +736,17 @@ void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
       tr_err("trp_upd_set_next_hop: error setting next hop.");
       tr_free_name(cpy);
     }
+  }
+}
+
+void trp_upd_add_to_provenance(TRP_UPD *upd, TR_NAME *name)
+{
+  TRP_INFOREC *rec=NULL;
+
+  /* add it to all inforecs */
+  for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
+    if (TRP_SUCCESS!=trp_inforec_add_to_provenance(rec, name))
+      tr_err("trp_upd_set_peer: error adding peer to provenance list.");
   }
 }
 

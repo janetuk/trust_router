@@ -96,15 +96,17 @@ static int tids_listen(TIDS_INSTANCE *tids, int port, int *fd_out, size_t max_fd
                          .ai_protocol=IPPROTO_TCP};
   char *port_str=NULL;
   size_t n_opened=0;
-  
+
+  tr_debug("tids_listen: started!");
   port_str=talloc_asprintf(NULL, "%d", port);
   if (port_str==NULL) {
     tr_debug("tids_listen: unable to allocate port.");
     return -1;
   }
 
-  getaddrinfo(NULL, port_str, &hints, &ai_head);
+  tr_debug("getaddrinfo()=%d", getaddrinfo(NULL, port_str, &hints, &ai_head));
   talloc_free(port_str);
+  tr_debug("tids_listen: got address info");
 
   /* TODO: listen on all ports */
   for (ai=ai_head,n_opened=0; (ai!=NULL)&&(n_opened<max_fd); ai=ai->ai_next) {

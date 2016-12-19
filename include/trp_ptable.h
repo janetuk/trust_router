@@ -50,6 +50,7 @@ typedef enum trp_peer_conn_status {
 typedef struct trp_peer TRP_PEER;
 struct trp_peer {
   TRP_PEER *next; /* for making a linked list */
+  TR_NAME *label; /* often null, set on first call to trp_peer_get_label or dup_label */
   char *server;
   TR_GSS_NAMES *gss_names;
   TR_NAME *servicename;

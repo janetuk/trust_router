@@ -30,33 +30,22 @@ trp/trp_ptable.c \
 trp/trp_rtable.c \
 trp/trp_req.c \
 trp/trp_upd.c \
-tid/tid_resp.c \
-tid/tid_req.c \
-common/tr_gss.c \
 common/tr_config.c \
-common/tr_idp.c \
-common/tr_apc.c \
-common/tr_comm.c \
-common/tr_filter.c \
-common/tr_rp.c \
-common/tr_msg.c \
-common/tr_constraint.c \
-common/tr_name.c \
 common/tr_mq.c
 
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint
 
-lib_LTLIBRARIES = libtr_tid.la
+#lib_LTLIBRARIES = libtr_tid.la
 
-libtr_tid_la_SOURCES = $(tid_srcs) \
-$(common_srcs) \
-trp/trp_req.c \
-trp/trp_upd.c
-
-libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
-libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
-libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 2 -no-undefined
+# libtr_tid_la_SOURCES = $(tid_srcs) \
+# $(common_srcs) \
+# trp/trp_req.c \
+# trp/trp_upd.c
+# 
+# libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
+# libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
+# libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 2 -no-undefined
 
 common_t_constraint_SOURCES = common/t_constraint.c \
 common/tr_debug.c \
@@ -74,11 +63,14 @@ tr/tr_event.c \
 tr/tr_cfgwatch.c \
 tr/tr_tid.c \
 tr/tr_trp.c \
-$(trp_srcs)
+$(tid_srcs) \
+$(trp_srcs) \
+$(common_srcs)
 
 tr_trust_router_CFLAGS = $(AM_CFLAGS) -pthread
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads -pthread
-tr_trust_router_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+#tr_trust_router_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 
 tr_trpc_SOURCES =tr/trpc_main.c \
 tr/tr_trp.c \
@@ -142,11 +134,11 @@ common/tests/thread_test.c
 common_tests_thread_test_CFLAGS = -pthread
 common_tests_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
 
-common_tests_commtest_SOURCES = common/tests/commtest.c \
-$(trp_srcs)
-common_tests_commtest_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
-common_tests_commtest_CFLAGS = -pthread
-common_test_commtest_LDFLAGS = $(AM_LDFLAGS) -ltalloc
+# common_tests_commtest_SOURCES = common/tests/commtest.c \
+# $(trp_srcs)
+# common_tests_commtest_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+# common_tests_commtest_CFLAGS = -pthread
+# common_test_commtest_LDFLAGS = $(AM_LDFLAGS) -ltalloc
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/tr_debug.h \

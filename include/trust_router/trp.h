@@ -89,6 +89,7 @@ TR_EXPORT TR_NAME *trp_upd_get_peer(TRP_UPD *upd);
 TR_NAME *trp_upd_dup_peer(TRP_UPD *upd);
 void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer);
 void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port);
+void trp_upd_add_to_provenance(TRP_UPD *upd, TR_NAME *name);
 
 /* Functions for TRP_REQ structures */
 TR_EXPORT TRP_REQ *trp_req_new(TALLOC_CTX *mem_ctx);

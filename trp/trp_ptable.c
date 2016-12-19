@@ -44,6 +44,8 @@
 static int trp_peer_destructor(void *object)
 {
   TRP_PEER *peer=talloc_get_type_abort(object, TRP_PEER);
+  if (peer->label!=NULL)
+    tr_free_name(peer->label);
   if (peer->servicename!=NULL)
     tr_free_name(peer->servicename);
   return 0;
@@ -53,6 +55,7 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
   TRP_PEER *peer=talloc(memctx, TRP_PEER);
   if (peer!=NULL) {
     peer->next=NULL;
+    peer->label=NULL;
     peer->server=NULL;
     peer->servicename=NULL;
     peer->gss_names=NULL;
@@ -86,15 +89,16 @@ static TRP_PEER *trp_peer_tail(TRP_PEER *peer)
  * Do not modify or free the label. */
 TR_NAME *trp_peer_get_label(TRP_PEER *peer)
 {
-  TR_GSS_NAMES_ITER *iter=tr_gss_names_iter_new(NULL);
-  TR_NAME *name=NULL;
+  char *s=NULL;
 
-  /* for now, use the first gss name */
-  if (iter!=NULL) {
-    name=tr_gss_names_iter_first(iter, peer->gss_names);
-    talloc_free(iter);
+  if (peer->label==NULL) {
+    s=talloc_asprintf(NULL, "%s:%u", peer->server, peer->port);
+    if (s!=NULL) {
+      peer->label=tr_new_name(s);
+      talloc_free(s);
+    }
   }
-  return name;
+  return peer->label;
 }
 
 /* Get a name that identifies this peer for display to the user, etc. 

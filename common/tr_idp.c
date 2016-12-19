@@ -52,6 +52,7 @@ TR_AAA_SERVER *tr_aaa_server_new(TALLOC_CTX *mem_ctx, TR_NAME *hostname)
 {
   TR_AAA_SERVER *aaa=talloc(mem_ctx, TR_AAA_SERVER);
   if (aaa!=NULL) {
+    aaa->next=NULL;
     aaa->hostname=hostname;
     talloc_set_destructor((void *)aaa, tr_aaa_server_destructor);
   }

@@ -168,6 +168,8 @@ void trps_set_ctable(TRPS_INSTANCE *trps, TR_COMM_TABLE *comm)
 
 void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable)
 {
+  if (trps->ptable!=NULL)
+    trp_ptable_free(trps->ptable);
   trps->ptable=ptable;
 }
 
@@ -430,6 +432,8 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   case TRP_UPDATE:
     trp_upd_set_peer(tr_msg_get_trp_upd(*msg), tr_dup_name(conn_peer));
     trp_upd_set_next_hop(tr_msg_get_trp_upd(*msg), trp_peer_get_server(peer), 0); /* TODO: 0 should be the configured TID port */
+    /* update provenance if necessary */
+    trp_upd_add_to_provenance(tr_msg_get_trp_upd(*msg), trp_peer_get_label(peer));
     break;
 
   case TRP_REQUEST:
@@ -1026,6 +1030,9 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
       tr_debug("trps_handle_update: handling community inforec.");
       if (TRP_SUCCESS!=trps_handle_inforec_comm(trps, upd, rec))
         tr_notice("trps_handle_update: error handling community inforec.");
+      else
+        tr_comm_table_print(stdout, trps->ctable); /* for debugging TODO remove */
+
       break;
     default:
       tr_notice("trps_handle_update: unsupported inforec in TRP update.");

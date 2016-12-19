@@ -69,10 +69,13 @@ static void tr_tidc_resp_handler(TIDC_INSTANCE *tidc,
 {
   TR_RESP_COOKIE *cookie=talloc_get_type_abort(resp_cookie, TR_RESP_COOKIE);
 
-  tr_debug("tr_tidc_resp_handler: Response received! Realm = %s, Community = %s.",
+  tr_debug("tr_tidc_resp_handler: Response received! Realm = %s, Community = %s, result = %s.",
            resp->realm->buf,
-           resp->comm->buf);
-  
+           resp->comm->buf,
+           (TID_SUCCESS==resp->result)?"success":"error");
+
+  if (resp->error_path!=NULL)
+    tr_debug("tr_tids_resp_handler: error_path is set.");
   cookie->resp=tid_resp_dup(cookie, resp);
 }
 
@@ -143,6 +146,7 @@ static void *tr_tids_req_fwd_thread(void *arg)
     goto cleanup;
   }
   cookie->thread_id=args->thread_id;
+  tr_debug("tr_tids_req_fwd_thread: thread %d started.", cookie->thread_id);
 
   /* Create a TID client instance */
   if (tidc==NULL) {
@@ -164,6 +168,9 @@ static void *tr_tids_req_fwd_thread(void *arg)
     success=0;
     goto cleanup;
   };
+  tr_debug("tr_tids_req_fwd_thread: thread %d opened TID connection to %s.",
+           cookie->thread_id,
+           args->aaa_hostname->buf);
 
   /* Send a TID request. */
   if (0 > (rc = tidc_fwd_request(tidc, args->fwd_req, tr_tidc_resp_handler, (void *)cookie))) {
@@ -173,26 +180,29 @@ static void *tr_tids_req_fwd_thread(void *arg)
   }
   /* cookie->resp should now contain our copy of the response */
   success=1;
+  tr_debug("tr_tids_req_fwd_thread: thread %d received response.");
 
 cleanup:
   /* Notify parent thread of the response, if it's still listening. */
   if (0!=tr_tids_fwd_get_mutex(args)) {
-    tr_notice("tr_tids_req_fwd_thread: Error acquiring mutex.");
+    tr_notice("tr_tids_req_fwd_thread: thread %d unable to acquire mutex.", cookie->thread_id);
   } else if (NULL!=args->mq) {
     /* mq is still valid, so we can queue our response */
+    tr_debug("tr_tids_req_fwd_thread: thread %d using valid msg queue.", cookie->thread_id);
     if (success)
       msg=tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_SUCCESS, TR_MQ_PRIO_NORMAL);
     else
       msg=tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_FAILURE, TR_MQ_PRIO_NORMAL);
 
     if (msg==NULL)
-      tr_notice("tr_tids_req_fwd_thread: unable to allocate response msg.");
+      tr_notice("tr_tids_req_fwd_thread: thread %d unable to allocate response msg.", cookie->thread_id);
 
     tr_mq_msg_set_payload(msg, (void *)cookie, NULL);
     if (NULL!=cookie)
       talloc_steal(msg, cookie); /* attach this to the msg so we can forget about it */
     tr_mq_add(args->mq, msg);
     talloc_steal(NULL, args); /* take out of our tmp_ctx; master thread now responsible for freeing */
+    tr_debug("tr_tids_req_fwd_thread: thread %d queued response message.", cookie->thread_id);
     if (0!=tr_tids_fwd_release_mutex(args))
       tr_notice("tr_tids_req_fwd_thread: Error releasing mutex.");
   }
@@ -398,6 +408,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   }
 
   /* send a TID request to the AAA server(s), and get the answer(s) */
+  tr_debug("tr_tids_req_handler: sending TID request(s).");
   if (cfg_apc)
     expiration_interval = cfg_apc->expiration_interval;
   else expiration_interval = cfg_comm->expiration_interval;
@@ -412,6 +423,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     retval=-1;
     goto cleanup;
   }
+  tr_debug("tr_tids_req_handler: message queue allocated.");
 
   /* start threads */
   aaa_iter=tr_aaa_server_iter_new(tmp_ctx);
@@ -423,6 +435,8 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   for (n_aaa=0, this_aaa=tr_aaa_server_iter_first(aaa_iter, aaa_servers);
        this_aaa!=NULL;
        n_aaa++, this_aaa=tr_aaa_server_iter_next(aaa_iter)) {
+    tr_debug("tr_tids_req_handler: Preparing to start thread %d.", n_aaa);
+
     aaa_cookie[n_aaa]=talloc(tmp_ctx, struct tr_tids_fwd_cookie);
     if (aaa_cookie[n_aaa]==NULL) {
       tr_notice("tr_tids_req_handler: unable to allocate cookie for AAA thread %d.", n_aaa);
@@ -442,9 +456,12 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     aaa_cookie[n_aaa]->aaa_hostname=tr_dup_name(this_aaa->hostname);
     aaa_cookie[n_aaa]->dh_params=tr_dh_dup(orig_req->tidc_dh);
     aaa_cookie[n_aaa]->fwd_req=tid_dup_req(aaa_cookie[n_aaa], fwd_req);
+    tr_debug("tr_tids_req_handler: cookie %d initialized.", n_aaa);
 
     /* Take the cookie out of tmp_ctx before starting thread. If thread starts, it becomes
-     * responsible for freeing it until it queues a response. */
+     * responsible for freeing it until it queues a response. If we did not do this, the possibility
+     * exists that this function exits, freeing the cookie, before the thread takes the cookie
+     * out of our tmp_ctx. This would cause a segfault or talloc error in the thread. */
     talloc_steal(NULL, aaa_cookie[n_aaa]);
     if (0!=pthread_create(&(aaa_thread[n_aaa]), NULL, tr_tids_req_fwd_thread, aaa_cookie[n_aaa])) {
       talloc_steal(tmp_ctx, aaa_cookie[n_aaa]); /* thread start failed; steal this back */
@@ -452,8 +469,9 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       retval=-1;
       goto cleanup;
     }
+    tr_debug("tr_tids_req_handler: thread %d started.", n_aaa);
   }
- 
+
   /* determine expiration time */
   if (0!=tr_mq_pop_timeout(cfg_mgr->active->internal->tid_req_timeout, &ts_abort)) {
     tr_notice("tr_tids_req_handler: unable to read clock for timeout.");
@@ -462,6 +480,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   }
 
   /* wait for responses */
+  tr_debug("tr_tids_req_handler: waiting for response(s).");
   n_responses=0;
   n_failed=0;
   while (((n_responses+n_failed)<n_aaa) &&
@@ -469,6 +488,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     /* process message */
     if (0==strcmp(tr_mq_msg_get_message(msg), TR_TID_MQMSG_SUCCESS)) {
       payload=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TR_RESP_COOKIE);
+      talloc_steal(tmp_ctx, payload); /* put this back in our context */
       aaa_resp[payload->thread_id]=payload->resp; /* save pointers to these */
 
       if (payload->resp->result==TID_SUCCESS) {
@@ -485,7 +505,9 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       /* failure */
       n_failed++;
       payload=talloc_get_type(tr_mq_msg_get_payload(msg), TR_RESP_COOKIE);
-      if (payload==NULL) {
+      if (payload!=NULL) 
+        talloc_steal(tmp_ctx, payload); /* put this back in our context */
+      else {
         /* this means the thread was unable to allocate a response cookie, and we thus cannot determine which thread it was. This is bad and should never happen in a working system.. Give up. */
         tr_notice("tr_tids_req_handler: TID request thread sent invalid reply. Aborting!");
         retval=-1;
@@ -500,8 +522,9 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       goto cleanup;
     }
     
-    /* Now free the cookie for this thread. Null it so we know we've dealt with it. */
-    talloc_free(aaa_cookie[payload->thread_id]);
+    /* Set the cookie pointer to NULL so we know we've dealt with this one. The
+     * cookie itself is in our tmp_ctx, which we'll free before exiting. Let it hang
+     * around in case we are still using pointers to elements of the cookie. */
     aaa_cookie[payload->thread_id]=NULL;
 
     tr_mq_msg_free(msg);
@@ -512,6 +535,8 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       break;
   }
 
+  tr_debug("tr_tids_req_handler: done waiting for responses. %d responses, %d failures.",
+           n_responses, n_failed);
   /* Inform any remaining threads that we will no longer handle their responses. */
   for (ii=0; ii<n_aaa; ii++) {
     if (aaa_cookie[ii]!=NULL) {
@@ -529,11 +554,13 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
    * reply (by setting their mq pointer to null). However, some may have responded by placing
    * a message on the mq after we last checked but before we set their mq pointer to null. These
    * will not know that we gave up on them, so we must free their cookies for them. We can just
-   * go through any remaining messages on the mq to identify these threads. */
+   * go through any remaining messages on the mq to identify these threads. By putting them in
+   * our context instead of freeing them directly, we ensure we don't accidentally invalidate
+   * any of our own pointers into the structure before this function exits. */
   while (NULL!=(msg=tr_mq_pop(mq, NULL))) {
     payload=(TR_RESP_COOKIE *)tr_mq_msg_get_payload(msg);
     if (aaa_cookie[payload->thread_id]!=NULL)
-      talloc_free(aaa_cookie[payload->thread_id]);
+      talloc_steal(tmp_ctx, aaa_cookie[payload->thread_id]);
 
     tr_mq_msg_free(msg);
   }

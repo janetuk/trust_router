@@ -1404,6 +1404,18 @@ TR_REALM_ROLE tr_realm_role_from_str(const char *s)
   return TR_ROLE_UNKNOWN;
 }
 
+static void tr_comm_table_print_provenance(FILE *f, json_t *prov)
+{
+  const char *s=NULL;
+  size_t ii=0;
+
+  for (ii=0; ii<json_array_size(prov); ii++) {
+    s=json_string_value(json_array_get(prov, ii));
+    if (s!=NULL)
+      fprintf(f, "%s%s", s, ((ii+1)==json_array_size(prov))?"":", ");
+  }
+}
+
 void tr_comm_table_print(FILE *f, TR_COMM_TABLE *ctab)
 {
   TR_COMM_MEMB *p1=NULL; /* for walking the main list */
@@ -1411,16 +1423,20 @@ void tr_comm_table_print(FILE *f, TR_COMM_TABLE *ctab)
 
   fprintf(f, ">> Membership table start <<\n");
   for (p1=ctab->memberships; p1!=NULL; p1=p1->next) {
-    fprintf(f, "* %s %s/%s\n  %s (%p)\n",
+    fprintf(f, "* %s %s/%s\n  %s (%p) - prov: ",
             tr_realm_role_to_str(tr_comm_memb_get_role(p1)),
             tr_comm_memb_get_realm_id(p1)->buf,
             tr_comm_get_id(tr_comm_memb_get_comm(p1))->buf,
             (tr_comm_memb_get_origin(p1)==NULL)?"null origin":(tr_comm_memb_get_origin(p1)->buf),
             p1);
+    tr_comm_table_print_provenance(f, p1->provenance);
+    fprintf(f, "\n");
     for (p2=p1->origin_next; p2!=NULL; p2=p2->origin_next) {
-      fprintf(f, "  %s (%p)\n",
+      fprintf(f, "  %s (%p) - prov: ",
               (tr_comm_memb_get_origin(p2)==NULL)?"null origin":(tr_comm_memb_get_origin(p2)->buf),
               p2);
+      tr_comm_table_print_provenance(f, p2->provenance);
+      fprintf(f, "\n");
     }
     fprintf(f, "\n");
   }
