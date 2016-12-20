@@ -923,7 +923,7 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
   }
 
   if (trps_name_in_provenance(our_peer_label, trp_inforec_get_provenance(rec)))
-    tr_debug("trps_handle_inforec_comm: rejecting community inforec to avoid loop.");
+    tr_debug("trps_handle_inforec_comm: rejecting community inforec to avoid provenance loop.");
   else {
     /* no loop occurring, accept the update */
     comm=tr_comm_table_find_comm(trps->ctable, comm_id);
@@ -1031,8 +1031,6 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
       tr_debug("trps_handle_update: handling community inforec.");
       if (TRP_SUCCESS!=trps_handle_inforec_comm(trps, upd, rec))
         tr_notice("trps_handle_update: error handling community inforec.");
-      else
-        tr_comm_table_print(stdout, trps->ctable); /* for debugging TODO remove */
 
       break;
     default:
