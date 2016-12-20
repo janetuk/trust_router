@@ -651,11 +651,12 @@ static int trps_check_feasibility(TRPS_INSTANCE *trps, TR_NAME *realm, TR_NAME *
 static struct timespec *trps_compute_expiry(TRPS_INSTANCE *trps, unsigned int interval, struct timespec *ts)
 {
   const unsigned int small_factor=3; /* how many intervals we wait before expiring */
-  if (0!=clock_gettime(CLOCK_REALTIME, ts)) {
+  if (0!=clock_gettime(TRP_CLOCK, ts)) {
     tr_err("trps_compute_expiry: could not read realtime clock.");
     ts->tv_sec=0;
     ts->tv_nsec=0;
   }
+  tr_debug("trps_compute_expiry: tv_sec=%u, interval=%u, small_factor*interval=%u", ts->tv_sec, interval, small_factor*interval);
   ts->tv_sec += small_factor*interval;
   return ts;
 }
@@ -1157,7 +1158,7 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
   size_t ii=0;
 
   /* use a single time for the entire sweep */
-  if (0!=clock_gettime(CLOCK_REALTIME, &sweep_time)) {
+  if (0!=clock_gettime(TRP_CLOCK, &sweep_time)) {
     tr_err("trps_sweep_routes: could not read realtime clock.");
     sweep_time.tv_sec=0;
     sweep_time.tv_nsec=0;
@@ -1221,7 +1222,7 @@ TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
   TRP_RC rc=TRP_ERROR;
 
   /* use a single time for the entire sweep */
-  if (0!=clock_gettime(CLOCK_REALTIME, &sweep_time)) {
+  if (0!=clock_gettime(TRP_CLOCK, &sweep_time)) {
     tr_err("trps_sweep_ctable: could not read realtime clock.");
     sweep_time.tv_sec=0;
     sweep_time.tv_nsec=0;
@@ -1255,7 +1256,8 @@ TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
         /* This is the first expiration. Note this and reset the expiry time. */
         tr_comm_memb_expire(memb);
         trps_compute_expiry(trps, tr_comm_memb_get_interval(memb), tr_comm_memb_get_expiry(memb));
-        tr_debug("trps_sweep_ctable: community membership expired, resetting expiry to %s (%.*s in %.*s, origin %.*s).",
+        tr_debug("trps_sweep_ctable: community membership expired at %s, resetting expiry to %s (%.*s in %.*s, origin %.*s).",
+                 timespec_to_str(&sweep_time),
                  timespec_to_str(tr_comm_memb_get_expiry(memb)),
                  tr_comm_memb_get_realm_id(memb)->len, tr_comm_memb_get_realm_id(memb)->buf,
                  tr_comm_get_id(tr_comm_memb_get_comm(memb))->len, tr_comm_get_id(tr_comm_memb_get_comm(memb))->buf,

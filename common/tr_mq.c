@@ -294,7 +294,8 @@ int tr_mq_pop_timeout(time_t seconds, struct timespec *ts)
  * has passed, returns an existing message but will not wait if one is
  * not already available. If ts_abort is null, no blocking.  Not
  * guaranteed to wait if an error occurs - immediately returns without
- * a message. */
+ * a message. Use tr_mq_pop_timeout() to get an absolute time that
+ * is guaranteed compatible with this function. */
 TR_MQ_MSG *tr_mq_pop(TR_MQ *mq, struct timespec *ts_abort)
 {
   TR_MQ_MSG *popped=NULL;

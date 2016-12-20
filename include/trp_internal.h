@@ -38,6 +38,7 @@
 #include <jansson.h>
 #include <pthread.h>
 #include <talloc.h>
+#include <time.h>
 
 #include <gsscon.h>
 #include <tr_mq.h>
@@ -47,6 +48,9 @@
 #include <tr_apc.h>
 #include <tr_comm.h>
 #include <trust_router/trp.h>
+
+/* what clock do we use with clock_gettime() ? */
+#define TRP_CLOCK CLOCK_MONOTONIC
 
 /* info records */
 /* TRP update record types */

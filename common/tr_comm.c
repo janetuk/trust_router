@@ -246,6 +246,7 @@ void tr_comm_add_idp_realm(TR_COMM_TABLE *ctab,
   tr_comm_memb_set_comm(newmemb, comm);
   tr_comm_memb_set_interval(newmemb, interval);
   tr_comm_memb_set_provenance(newmemb, provenance);
+  tr_comm_memb_set_expiry(newmemb, expiry);
 
   existing=tr_comm_table_find_idp_memb_origin(ctab,
                                               tr_idp_realm_get_id(realm),
@@ -278,6 +279,7 @@ void tr_comm_add_rp_realm(TR_COMM_TABLE *ctab,
   tr_comm_memb_set_comm(newmemb, comm);
   tr_comm_memb_set_interval(newmemb, interval);
   tr_comm_memb_set_provenance(newmemb, provenance);
+  tr_comm_memb_set_expiry(newmemb, expiry);
 
   existing=tr_comm_table_find_rp_memb_origin(ctab,
                                              tr_rp_realm_get_id(realm),
@@ -1017,6 +1019,11 @@ struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb)
 
 int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime)
 {
+  tr_debug("tr_comm_memb_is_expired: (cur->tv_sec>memb->expiry->tv_sec)=(%u > %u)=%s",
+           curtime->tv_sec,
+           memb->expiry->tv_sec,
+           (curtime->tv_sec > memb->expiry->tv_sec)?"true":"false");
+
   return ((curtime->tv_sec > memb->expiry->tv_sec)
          || ((curtime->tv_sec == memb->expiry->tv_sec)
             &&(curtime->tv_nsec >= memb->expiry->tv_nsec)));
