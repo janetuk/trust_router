@@ -51,16 +51,15 @@ static int verify_idp_cfg(TR_CFG *cfg)
 {
   TR_COMM *comm=NULL;
   TR_NAME *name=NULL;
-  TR_APC *apc=NULL;
   TR_IDP_REALM *idp_realm=NULL;
   TR_AAA_SERVER *aaa=NULL;
 
   assert(cfg!=NULL);
 
   /* test the comms attribute */
-  assert(cfg->comms!=NULL);
+  assert(cfg->ctable!=NULL);
   name=tr_new_name("apc.example.com");
-  comm=tr_comm_lookup(cfg->comms, name);
+  comm=tr_comm_table_find_comm(cfg->ctable, name);
   tr_free_name(name);
   assert(comm!=NULL);
 
@@ -69,9 +68,8 @@ static int verify_idp_cfg(TR_CFG *cfg)
   assert(comm->apcs==NULL);
 
   name=tr_new_name("A.idp.cfg");
-  for (idp_realm=comm->idp_realms;
-       (idp_realm!=NULL) && (tr_name_cmp(name, idp_realm->realm_id)!=0);
-       idp_realm=idp_realm->comm_next) { }
+  assert(name!=NULL);
+  idp_realm=tr_comm_find_idp(cfg->ctable, comm, name);
   assert(idp_realm!=NULL);
   assert(idp_realm->shared_config==0);
   assert(idp_realm->origin==TR_REALM_LOCAL);
@@ -107,14 +105,13 @@ static int verify_rp_cfg(TR_CFG *cfg)
   assert(cfg->rp_clients!=NULL);
   assert(cfg->rp_clients->next==NULL);
   assert(cfg->rp_clients->comm_next==NULL);
-  /* need to update next test to use TR_GSS_NAMES structure */
-#if 0
+
+  assert(cfg->rp_clients->gss_names!=NULL);
   for (ii=1; ii<TR_MAX_GSS_NAMES; ii++)
-    assert(cfg->rp_clients->gss_names[ii]==NULL);
-  assert(cfg->rp_clients->gss_names[0]!=NULL);
+    assert(cfg->rp_clients->gss_names->names[ii]==NULL);
+  assert(cfg->rp_clients->gss_names->names[0]!=NULL);
   name=tr_new_name("gss@example.com");
-  assert(tr_name_cmp(name, cfg->rp_clients->gss_names[0])==0);
-#endif
+  assert(tr_name_cmp(name, cfg->rp_clients->gss_names->names[0])==0);
   return 0;
 }
 

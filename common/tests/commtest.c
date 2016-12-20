@@ -70,7 +70,7 @@ static int add_comm_set(TR_COMM_TABLE *ctab, struct comm_entry *entries)
   for (this=entries,ii=0; this->id!=NULL; this++, ii++) {
     new=comm_entry_to_comm(tmp_ctx, this);
     if (new==NULL) {
-      printf("Error creating community %d.\n", ii+1);
+      printf("Error creating community %u.\n", (unsigned int)ii+1);
       rc=1;
       goto cleanup;
     }
@@ -273,7 +273,7 @@ static TR_IDP_REALM *idp_realm_entry_to_idp_realm(TALLOC_CTX *mem_ctx, struct id
       realm=NULL; /* still in tmp_ctx so will be freed */
     else {
       tr_idp_realm_set_apcs(realm, apc_entry_to_apc(tmp_ctx, re->apcs));
-      if (tr_idp_realm_get_apcs==NULL)
+      if (tr_idp_realm_get_apcs(realm)==NULL)
         realm=NULL;
     }
   }
@@ -818,6 +818,7 @@ static int membership_test(void)
   assert(0==tr_comm_table_size(ctab));
 
   talloc_free(mem_ctx);
+  return 0;
 }
 
 
