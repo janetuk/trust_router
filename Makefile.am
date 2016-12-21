@@ -158,8 +158,8 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_filter.h include/tr_gss.h \
 	include/tid_internal.h include/trp_internal.h \
 	include/tr_cfgwatch.h include/tr_event.h \
-	include/tr_mq.h include/tr_ptable.h \
-	include/tr_rtable.h include/tr_util.h
+	include/tr_mq.h include/trp_ptable.h \
+	include/trp_rtable.h include/tr_util.h
 
 pkgdata_DATA=schema.sql
 nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/organizations.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-internal.cfg redhat/default-internal.cfg redhat/tids-wrapper redhat/sysconfig.tids
