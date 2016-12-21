@@ -39,6 +39,7 @@
 #include <talloc.h>
 #include <time.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <tr_mq.h>
 
@@ -53,7 +54,7 @@ static TR_MQ_MSG *make_msg(char *label, int n)
 {
   TR_MQ_MSG *msg=NULL;
   msg=tr_mq_msg_new(NULL, "Message", TR_MQ_PRIO_NORMAL);
-  asprintf((char **)&(msg->p), "%s: %d messages to go...", label, n);
+  assert(-1!=asprintf((char **)&(msg->p), "%s: %d messages to go...", label, n));
   msg->p_free=free;
   return msg;
 }
@@ -128,7 +129,7 @@ int main(void)
     thread_data[ii].mq=mq;
     thread_data[ii].msg_dly=dly[ii];
     thread_data[ii].n_msgs=10;
-    asprintf(&(thread_data[ii].label), "thread %d", ii+1);
+    assert(-1!=asprintf(&(thread_data[ii].label), "thread %d", ii+1));
     pthread_create(&(thread[ii]), NULL, thread_start, &thread_data[ii]);
     printf("%s started.\n", thread_data[ii].label);
   }
