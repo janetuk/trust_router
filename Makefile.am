@@ -148,12 +148,12 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tid_internal.h
 
 pkgdata_DATA=schema.sql
-nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/trusts.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-main.cfg redhat/default-main.cfg redhat/tids-wrapper redhat/sysconfig.tids
+nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/organizations.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-internal.cfg redhat/default-internal.cfg redhat/tids-wrapper redhat/sysconfig.tids
 
 if HAVE_SYSTEMD
 systemdsystemunit_DATA = tids.service
 endif
 
 EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service \
-	tr/manual.cfg tr/portal.cfg \
+	tr/internal.cfg tr/organizations.cfg \
 	redhat/tids.init
