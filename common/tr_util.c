@@ -36,7 +36,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-/*#include <trust_router/tr_dh.h>*/
+#include <trust_router/tr_dh.h>
 #include <tr_util.h>
 
 void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,

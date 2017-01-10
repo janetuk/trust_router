@@ -196,7 +196,7 @@ static int tid_srvr_blk_destructor(void *obj)
   if (srvr->aaa_server_dh!=NULL)
     tr_destroy_dh_params(srvr->aaa_server_dh);
   if (srvr->path!=NULL)
-    json_decref(srvr->path);
+    json_decref((json_t *)(srvr->path));
   return 0;
 }
 
@@ -262,16 +262,16 @@ TR_EXPORT TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *
   return head;
 }
 
-TR_EXPORT void tid_srvr_blk_set_path(TID_SRVR_BLK *block, json_t *path)
+TR_EXPORT void tid_srvr_blk_set_path(TID_SRVR_BLK *block, TID_PATH *path)
 {
   if (block->path!=NULL)
-    json_decref(block->path);
+    json_decref((json_t *)(block->path));
   block->path=path;
   if (block->path!=NULL)
-    json_incref(block->path);
+    json_incref((json_t *)(block->path));
 }
 
-TR_EXPORT const json_t *tid_srvr_get_path( const TID_SRVR_BLK *block)
+TR_EXPORT const TID_PATH *tid_srvr_get_path( const TID_SRVR_BLK *block)
 {
   if (!block)
     return NULL;
@@ -299,14 +299,14 @@ TR_EXPORT void tid_resp_set_error_path(TID_RESP *resp, json_t *ep)
     json_incref(resp->error_path);
 }
 
-TR_EXPORT json_t *tid_resp_get_error_path(const TID_RESP *resp)
+TR_EXPORT const TID_PATH *tid_resp_get_error_path(const TID_RESP *resp)
 {
   if (!resp)
     return NULL;
-  return resp->error_path;
+  return (const TID_PATH *)(resp->error_path);
 }
 
-TR_EXPORT json_t *tid_resp_get_a_path(const TID_RESP *const_resp)
+TR_EXPORT const TID_PATH *tid_resp_get_a_path(const TID_RESP *const_resp)
 {
   size_t index;
   TID_SRVR_BLK *server;
@@ -314,9 +314,8 @@ TR_EXPORT json_t *tid_resp_get_a_path(const TID_RESP *const_resp)
   if (!resp)
     return NULL;
 
-
   if (resp->error_path)
-    return resp->error_path;
+    return (const TID_PATH *)(resp->error_path);
   tid_resp_servers_foreach( resp, server, index) {
     if (server->path)
       return server->path;

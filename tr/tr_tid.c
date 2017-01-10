@@ -130,13 +130,16 @@ static void *tr_tids_req_fwd_thread(void *arg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_tids_fwd_cookie *args=talloc_get_type_abort(arg, struct tr_tids_fwd_cookie);
-  TIDC_INSTANCE *tidc=tidc_create(tmp_ctx);
+  TIDC_INSTANCE *tidc=tidc_create();
   TR_MQ_MSG *msg=NULL;
   TR_RESP_COOKIE *cookie=NULL;
   int rc=0;
   int success=0;
 
   talloc_steal(tmp_ctx, args); /* take responsibility for the cookie */
+
+  if (tidc!=NULL)
+    talloc_steal(tmp_ctx, tidc);
 
   /* create the cookie we will use for our response */
   cookie=talloc(tmp_ctx, TR_RESP_COOKIE);
@@ -272,11 +275,12 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   tids->req_count++;
 
   /* Duplicate the request, so we can modify and forward it */
-  if (NULL == (fwd_req=tid_dup_req(tmp_ctx, orig_req))) {
+  if (NULL == (fwd_req=tid_dup_req(orig_req))) {
     tr_debug("tr_tids_req_handler: Unable to duplicate request.");
     retval=-1;
     goto cleanup;
   }
+  talloc_steal(tmp_ctx, fwd_req);
 
   if (NULL == (cfg_comm=tr_comm_table_find_comm(cfg_mgr->active->ctable, orig_req->comm))) {
     tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", orig_req->comm->buf);
@@ -455,7 +459,8 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     aaa_cookie[n_aaa]->mq=mq;
     aaa_cookie[n_aaa]->aaa_hostname=tr_dup_name(this_aaa->hostname);
     aaa_cookie[n_aaa]->dh_params=tr_dh_dup(orig_req->tidc_dh);
-    aaa_cookie[n_aaa]->fwd_req=tid_dup_req(aaa_cookie[n_aaa], fwd_req);
+    aaa_cookie[n_aaa]->fwd_req=tid_dup_req(fwd_req);
+    talloc_steal(aaa_cookie[n_aaa], aaa_cookie[n_aaa]->fwd_req);
     tr_debug("tr_tids_req_handler: cookie %d initialized.", n_aaa);
 
     /* Take the cookie out of tmp_ctx before starting thread. If thread starts, it becomes

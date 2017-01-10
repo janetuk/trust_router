@@ -189,11 +189,12 @@ void tid_req_set_cookie(TID_REQ *req, void *cookie)
   req->cookie = cookie;
 }
 
-TID_REQ *tid_dup_req (TALLOC_CTX *mem_ctx, TID_REQ *orig_req) 
+/* struct is allocated in talloc null context */
+TID_REQ *tid_dup_req (TID_REQ *orig_req) 
 {
   TID_REQ *new_req = NULL;
 
-  if (NULL == (new_req = talloc_zero(mem_ctx, TID_REQ))) {
+  if (NULL == (new_req = talloc_zero(NULL, TID_REQ))) {
     tr_crit("tid_dup_req: Can't allocated duplicate request.");
     return NULL;
   }

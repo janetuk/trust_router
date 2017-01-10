@@ -55,9 +55,10 @@ static int tidc_destructor(void *obj)
   return 0;
 }
 
-TIDC_INSTANCE *tidc_create(TALLOC_CTX *mem_ctx)
+/* creates struct in talloc null context */
+TIDC_INSTANCE *tidc_create(void)
 {
-  TIDC_INSTANCE *tidc=talloc(mem_ctx, TIDC_INSTANCE);
+  TIDC_INSTANCE *tidc=talloc(NULL, TIDC_INSTANCE);
   if (tidc!=NULL) {
     tidc->client_dh=NULL;
     talloc_set_destructor((void *)tidc, tidc_destructor);
@@ -65,7 +66,7 @@ TIDC_INSTANCE *tidc_create(TALLOC_CTX *mem_ctx)
   return tidc;
 }
 
-void tidc_free(TIDC_INSTANCE *tidc)
+void tidc_destroy(TIDC_INSTANCE *tidc)
 {
   talloc_free(tidc);
 }

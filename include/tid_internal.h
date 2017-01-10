@@ -46,7 +46,7 @@ struct tid_srvr_blk {
   TR_NAME *key_name;
   DH *aaa_server_dh;		/* AAA server's public dh information */
   GTimeVal key_expiration; /**< absolute time at which key expires*/
-  json_t *path;/**< Path of trust routers that the request traversed*/
+  TID_PATH *path;/**< Path of trust routers that the request traversed*/
 };
 
 struct tid_resp {
@@ -95,7 +95,7 @@ struct tids_instance {
   char *ipaddr;
   const char *hostname;
   TIDS_REQ_FUNC *req_handler;
-  TIDS_AUTH_FUNC *auth_handler;
+  tids_auth_func *auth_handler;
   void *cookie;
   uint16_t tids_port;
   struct tr_rp_client *rp_gss;		/* Client matching GSS name */
@@ -113,7 +113,7 @@ void tid_srvr_blk_free(TID_SRVR_BLK *srvr);
 TID_SRVR_BLK *tid_srvr_blk_dup(TALLOC_CTX *mem_ctx, TID_SRVR_BLK *srvr);
 TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *new);
 #define tid_srvr_blk_add(head, new) ((head)=tid_srvr_blk_add_func((head),(new)))
-void tid_srvr_blk_set_path(TID_SRVR_BLK *block, json_t *path);
+void tid_srvr_blk_set_path(TID_SRVR_BLK *block, TID_PATH *path);
 
 void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons);
 void tid_resp_set_error_path(TID_RESP *resp, json_t *ep);

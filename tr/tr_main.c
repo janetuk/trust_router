@@ -174,10 +174,11 @@ int main(int argc, char *argv[])
   }
 
   /***** initialize the trust path query server instance *****/
-  if (NULL == (tr->tids = tids_create (tr))) {
+  if (NULL == (tr->tids = tids_create())) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
+  talloc_steal(tr, tr->tids);
 
   /***** initialize the trust router protocol server instance *****/
   if (NULL == (tr->trps = trps_new(tr))) {

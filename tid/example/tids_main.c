@@ -227,7 +227,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   }
   if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
     return -1;
-  tid_srvr_blk_set_path(resp->servers, req->path);
+  tid_srvr_blk_set_path(resp->servers, (TID_PATH *)(req->path));
 
   if (req->expiration_interval < 1)
     req->expiration_interval = 1;
@@ -385,7 +385,7 @@ int main (int argc,
 		     -1, &authorization_insert, NULL);
 
   /* Create a TID server instance */
-  if (NULL == (tids = tids_create(NULL))) {
+  if (NULL == (tids = tids_create())) {
     tr_crit("Unable to create TIDS instance, exiting.");
     return 1;
   }

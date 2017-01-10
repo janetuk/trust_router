@@ -294,7 +294,6 @@ int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_m
     tr_crit("tids_send_err_response: Can't create response.");
     return -1;
   }
-
   
   /* mark this as an error response, and include the error message */
   resp->result = TID_ERROR;
@@ -410,16 +409,16 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
   } 
 }
 
-TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx)
+TIDS_INSTANCE *tids_create (void)
 {
-  return talloc_zero(mem_ctx, TIDS_INSTANCE);
+  return talloc_zero(NULL, TIDS_INSTANCE);
 }
 
 /* Get a listener for tids requests, returns its socket fd. Accept
  * connections with tids_accept() */
 int tids_get_listener(TIDS_INSTANCE *tids, 
                       TIDS_REQ_FUNC *req_handler,
-                      TIDS_AUTH_FUNC *auth_handler,
+                      tids_auth_func *auth_handler,
                       const char *hostname,
                       unsigned int port,
                       void *cookie,

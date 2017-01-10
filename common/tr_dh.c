@@ -286,7 +286,12 @@ int tr_dh_pub_hash(TID_REQ *request,
   return 0;
 }
 
-void tr_dh_free(DH *dh)
+void tr_dh_free(unsigned char *dh_buf)
+{
+  free(dh_buf);
+}
+
+void tr_dh_destroy(DH *dh)
 {
   DH_free(dh);
 }

@@ -197,7 +197,7 @@ static DH *tr_msg_decode_dh(json_t *jdh)
       (NULL == (jg = json_object_get(jdh, "dh_g"))) ||
       (NULL == (jpub_key = json_object_get(jdh, "dh_pub_key")))) {
     tr_debug("tr_msg_decode_dh(): Error parsing dh_info.");
-    tr_dh_free(dh);
+    tr_dh_destroy(dh);
     return NULL;
   }
 
@@ -334,7 +334,7 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
   json_object_set_new(jsrvr, "server_dh", tr_msg_encode_dh(srvr->aaa_server_dh));
   if (srvr->path)
     /* The path is owned by the srvr, so grab an extra ref*/
-    json_object_set(jsrvr, "path", srvr->path);
+    json_object_set(jsrvr, "path", (json_t *)(srvr->path));
   return jsrvr;
 }
 
@@ -359,7 +359,7 @@ static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
   srvr->aaa_server_addr=talloc_strdup(srvr, json_string_value(jsrvr_addr));
   srvr->key_name = tr_new_name((char *)json_string_value(jsrvr_kn));
   srvr->aaa_server_dh = tr_msg_decode_dh(jsrvr_dh);
-  tid_srvr_blk_set_path(srvr, json_object_get(jsrvr, "path"));
+  tid_srvr_blk_set_path(srvr, (TID_PATH *) json_object_get(jsrvr, "path"));
   jsrvr_expire = json_object_get(jsrvr, "key_expiration");
   if (jsrvr_expire && json_is_string(jsrvr_expire)) {
     if (!g_time_val_from_iso8601(json_string_value(jsrvr_expire),
