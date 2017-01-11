@@ -36,6 +36,17 @@ common/tr_mq.c
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint
 
+lib_LTLIBRARIES = libtr_tid.la
+
+libtr_tid_la_SOURCES = $(tid_srcs) \
+$(common_srcs) \
+trp/trp_req.c \
+trp/trp_upd.c
+
+libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
+libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
+libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 3 -no-undefined
+
 common_t_constraint_SOURCES = common/t_constraint.c \
 common/tr_debug.c \
 common/tr_name.c \
@@ -134,7 +145,7 @@ common_tests_commtest_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 common_tests_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
-	include/tr_debug.h \
+	include/tr_debug.h include/trust_router/trp.h \
 	include/trust_router/tr_dh.h \
 	include/trust_router/tr_constraint.h \
 	include/trust_router/tr_versioning.h 
@@ -144,16 +155,19 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_idp.h include/tr_rp.h \
 	include/tr_comm.h include/tr_apc.h \
 	include/tr_tid.h include/tr_trp.h \
-	include/tr_filter.h \
-	include/tid_internal.h
+	include/tr_filter.h include/tr_gss.h \
+	include/tid_internal.h include/trp_internal.h \
+	include/tr_cfgwatch.h include/tr_event.h \
+	include/tr_mq.h include/trp_ptable.h \
+	include/trp_rtable.h include/tr_util.h
 
 pkgdata_DATA=schema.sql
-nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/trusts.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-main.cfg redhat/default-main.cfg redhat/tids-wrapper redhat/sysconfig.tids
+nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/organizations.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-internal.cfg redhat/default-internal.cfg redhat/tids-wrapper redhat/sysconfig.tids
 
 if HAVE_SYSTEMD
 systemdsystemunit_DATA = tids.service
 endif
 
 EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service \
-	tr/manual.cfg tr/portal.cfg \
+	tr/internal.cfg tr/organizations.cfg \
 	redhat/tids.init
