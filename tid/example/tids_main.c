@@ -355,11 +355,6 @@ int main (int argc,
   TIDS_INSTANCE *tids;
   TR_NAME *gssname = NULL;
   struct cmdline_args opts={NULL};
-#define MAX_SOCKETS 10
-  int tids_socket[MAX_SOCKETS];
-  size_t n_sockets;
-  struct pollfd poll_fds[MAX_SOCKETS];
-  size_t ii=0;
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
@@ -391,31 +386,7 @@ int main (int argc,
   }
 
   tids->ipaddr = opts.ip_address;
-
-  /* get listener for tids port */
-  n_sockets = tids_get_listener(tids, &tids_req_handler, auth_handler, opts.hostname, TID_PORT, gssname,
-                                tids_socket, MAX_SOCKETS);
-
-  for (ii=0; ii<n_sockets; ii++) {
-    poll_fds[ii].fd=tids_socket[ii];
-    poll_fds[ii].events=POLLIN; /* poll on ready for reading */
-    poll_fds[ii].revents=0;
-  }
-
-  /* main event loop */
-  while (1) {
-    /* wait up to 100 ms for an event, then handle any idle work */
-    if(poll(poll_fds, n_sockets, 100) > 0) {
-      for (ii=0; ii<n_sockets; ii++) {
-        if (poll_fds[ii].revents & POLLIN) {
-          if (0 != tids_accept(tids, tids_socket[ii])) {
-            tr_err("Error handling tids request.");
-          }
-        }
-      }
-    }
-    /* idle loop stuff here */
-  }
+  (void) tids_start(tids, &tids_req_handler, auth_handler, opts.hostname, TID_PORT, gssname);
 
   /* Clean-up the TID server instance */
   tids_destroy(tids);

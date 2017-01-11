@@ -44,6 +44,7 @@
 #include <netinet/in.h>
 #include <jansson.h>
 #include <talloc.h>
+#include <poll.h>
 #include <tid_internal.h>
 #include <gsscon.h>
 #include <tr_debug.h>
@@ -430,7 +431,7 @@ int tids_get_listener(TIDS_INSTANCE *tids,
 
   tids->tids_port = port;
   n_fd=tids_listen(tids, port, fd_out, max_fd);
-  if (n_fd==0)
+  if (n_fd<=0)
     tr_debug("tids_get_listener: Error opening port %d");
   else {
     /* opening port succeeded */
@@ -491,6 +492,66 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
 
   return 0;
 }
+
+/* Process tids requests forever. Should not return except on error. */
+#define MAX_SOCKETS 10
+int tids_start (TIDS_INSTANCE *tids, 
+                TIDS_REQ_FUNC *req_handler,
+                tids_auth_func *auth_handler,
+                const char *hostname,
+                unsigned int port,
+                void *cookie)
+{
+  int fd[MAX_SOCKETS]={0};
+  size_t n_fd=0;
+  struct pollfd poll_fd[MAX_SOCKETS]={{0}};
+  int ii=0;
+
+  n_fd=tids_get_listener(tids, req_handler, auth_handler, hostname, port, cookie, fd, MAX_SOCKETS);
+  if (n_fd <= 0) {
+    perror ("Error from tids_listen()");
+    return 1;
+  }
+
+  tr_info("Trust Path Query Server starting on host %s:%d.", hostname, port);
+
+  /* set up the poll structs */
+  for (ii=0; ii<n_fd; ii++) {
+    poll_fd[ii].fd=fd[ii];
+    poll_fd[ii].events=POLLIN;
+  }
+
+  while(1) {	/* accept incoming conns until we are stopped */
+    /* clear out events from previous iteration */
+    for (ii=0; ii<n_fd; ii++)
+      poll_fd[ii].revents=0;
+
+    /* wait indefinitely for a connection */
+    if (poll(poll_fd, n_fd, -1) < 0) {
+      perror("Error from poll()");
+      return 1;
+    }
+
+    /* fork handlers for any sockets that have data */
+    for (ii=0; ii<n_fd; ii++) {
+      if (poll_fd[ii].revents == 0)
+        continue;
+
+      if ((poll_fd[ii].revents & POLLERR) || (poll_fd[ii].revents & POLLNVAL)) {
+        perror("Error polling fd");
+        continue;
+      }
+
+      if (poll_fd[ii].revents & POLLIN) {
+        if (tids_accept(tids, poll_fd[ii].fd))
+          tr_err("tids_start: error in tids_accept().");
+      }
+    }
+  }
+
+  return 1;	/* should never get here, loops "forever" */
+}
+#undef MAX_SOCKETS
 
 void tids_destroy (TIDS_INSTANCE *tids)
 {
