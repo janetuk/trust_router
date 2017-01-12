@@ -44,6 +44,7 @@
 #include <netinet/in.h>
 #include <jansson.h>
 #include <talloc.h>
+#include <poll.h>
 #include <tid_internal.h>
 #include <gsscon.h>
 #include <tr_debug.h>
@@ -54,7 +55,7 @@ static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req)
   TID_RESP *resp=NULL;
   int success=0;
 
-  if ((NULL == (resp = talloc_zero(req, TID_RESP)))) {
+  if (NULL == (resp = tid_resp_new(req))) {
     tr_crit("tids_create_response: Error allocating response structure.");
     return NULL;
   }
@@ -77,67 +78,87 @@ static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req)
 
 cleanup:
   if ((!success) && (resp!=NULL)) {
-    if (resp->rp_realm!=NULL)
-      tr_free_name(resp->rp_realm);
-    if (resp->realm!=NULL)
-      tr_free_name(resp->realm);
-    if (resp->comm!=NULL)
-      tr_free_name(resp->comm);
-    if (resp->orig_coi!=NULL)
-      tr_free_name(resp->orig_coi);
     talloc_free(resp);
     resp=NULL;
   }
   return resp;
 }
 
-static void tids_destroy_response(TIDS_INSTANCE *tids, TID_RESP *resp) 
+static int tids_listen(TIDS_INSTANCE *tids, int port, int *fd_out, size_t max_fd) 
 {
-  if (resp) {
-    if (resp->err_msg)
-      tr_free_name(resp->err_msg);
-    if (resp->rp_realm)
-      tr_free_name(resp->rp_realm);
-    if (resp->realm)
-      tr_free_name(resp->realm);
-    if (resp->comm)
-      tr_free_name(resp->comm);
-    if (resp->orig_coi)
-      tr_free_name(resp->orig_coi);
-    talloc_free(resp);
+  int rc = 0;
+  int conn = -1;
+  int optval = 1;
+  struct addrinfo *ai=NULL;
+  struct addrinfo *ai_head=NULL;
+  struct addrinfo hints={.ai_flags=AI_PASSIVE,
+                         .ai_family=AF_UNSPEC,
+                         .ai_socktype=SOCK_STREAM,
+                         .ai_protocol=IPPROTO_TCP};
+  char *port_str=NULL;
+  size_t n_opened=0;
+
+  tr_debug("tids_listen: started!");
+  port_str=talloc_asprintf(NULL, "%d", port);
+  if (port_str==NULL) {
+    tr_debug("tids_listen: unable to allocate port.");
+    return -1;
   }
-}
 
-static int tids_listen (TIDS_INSTANCE *tids, int port) 
-{
-    int rc = 0;
-    int conn = -1;
-    int optval = 1;
+  tr_debug("getaddrinfo()=%d", getaddrinfo(NULL, port_str, &hints, &ai_head));
+  talloc_free(port_str);
+  tr_debug("tids_listen: got address info");
 
-    union {
-      struct sockaddr_storage storage;
-      struct sockaddr_in in4;
-    } addr;
+  /* TODO: listen on all ports */
+  for (ai=ai_head,n_opened=0; (ai!=NULL)&&(n_opened<max_fd); ai=ai->ai_next) {
+    if (0 > (conn = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol))) {
+      tr_debug("tids_listen: unable to open socket.");
+      continue;
+    }
 
-    struct sockaddr_in *saddr = (struct sockaddr_in *) &addr.in4;
+    optval=1;
+    if (0!=setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)))
+      tr_debug("tids_listen: unable to set SO_REUSEADDR."); /* not fatal? */
 
-    saddr->sin_port = htons (port);
-    saddr->sin_family = AF_INET;
-    saddr->sin_addr.s_addr = INADDR_ANY;
+    if (ai->ai_family==AF_INET6) {
+      /* don't allow IPv4-mapped IPv6 addresses (per RFC4942, not sure
+       * if still relevant) */
+      if (0!=setsockopt(conn, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval))) {
+        tr_debug("tids_listen: unable to set IPV6_V6ONLY. Skipping interface.");
+        close(conn);
+        continue;
+      }
+    }
 
-    if (0 > (conn = socket (AF_INET, SOCK_STREAM, 0)))
-      return conn;
+    rc=bind(conn, ai->ai_addr, ai->ai_addrlen);
+    if (rc<0) {
+      tr_debug("tids_listen: unable to bind to socket.");
+      close(conn);
+      continue;
+    }
 
-    setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+    if (0>listen(conn, 512)) {
+      tr_debug("tids_listen: unable to listen on bound socket.");
+      close(conn);
+      continue;
+    }
 
-    if (0 > (rc = bind (conn, (struct sockaddr *) saddr, sizeof(struct sockaddr_in))))
-      return rc;
+    /* ok, this one worked. Save it */
+    fd_out[n_opened++]=conn;
+  }
+  freeaddrinfo(ai_head);
 
-    if (0 > (rc = listen(conn, 512)))
-      return rc;
+  if (n_opened==0) {
+    tr_debug("tids_listen: no addresses available for listening.");
+    return -1;
+  }
 
-    tr_debug("tids_listen: TID Server listening on port %d", port);
-    return conn;
+  tr_debug("tids_listen: TRP Server listening on port %d on %d socket%s",
+           port,
+           n_opened,
+           (n_opened==1)?"":"s");
+
+  return n_opened;
 }
 
 /* returns EACCES if authorization is denied */
@@ -174,8 +195,11 @@ static int tids_auth_connection (TIDS_INSTANCE *inst,
 
   if (rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tids_auth_cb, inst)) {
     tr_debug("tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.", rc);
+    free(name);
     return -1;
   }
+  free(name);
+  nameBuffer.value=NULL; nameBuffer.length=0;
 
   if (rc = gsscon_authorize(*gssctx, &auth, &autherr)) {
     tr_debug("tids_auth_connection: Error from gsscon_authorize, rc = %d, autherr = %d.", 
@@ -271,7 +295,6 @@ int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_m
     tr_crit("tids_send_err_response: Can't create response.");
     return -1;
   }
-
   
   /* mark this as an error response, and include the error message */
   resp->result = TID_ERROR;
@@ -280,7 +303,7 @@ int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_m
 
   rc = tids_send_response(tids, req, resp);
   
-  tids_destroy_response(tids, resp);
+  tid_resp_free(resp);
   return rc;
 }
 
@@ -378,55 +401,57 @@ static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
       tr_debug("tids_handle_connection: Error from tids_send_response(), rc = %d.", rc);
       /* if we didn't already send a response, try to send a generic error. */
       if (!tr_msg_get_req(mreq)->resp_sent)
-	tids_send_err_response(tids, tr_msg_get_req(mreq), "Error sending response.");
+        tids_send_err_response(tids, tr_msg_get_req(mreq), "Error sending response.");
       /* Fall through to free the response, either way. */
     }
     
-    tids_destroy_response(tids, resp);
-    tr_msg_free_decoded(mreq);
+    tr_msg_free_decoded(mreq); /* takes resp with it */
     return;
   } 
 }
 
-TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx)
+TIDS_INSTANCE *tids_create (void)
 {
-  return talloc_zero(mem_ctx, TIDS_INSTANCE);
+  return talloc_zero(NULL, TIDS_INSTANCE);
 }
 
 /* Get a listener for tids requests, returns its socket fd. Accept
  * connections with tids_accept() */
 int tids_get_listener(TIDS_INSTANCE *tids, 
                       TIDS_REQ_FUNC *req_handler,
-                      TIDS_AUTH_FUNC *auth_handler,
+                      tids_auth_func *auth_handler,
                       const char *hostname,
                       unsigned int port,
-                      void *cookie)
+                      void *cookie,
+                      int *fd_out,
+                      size_t max_fd)
 {
-  int listen = -1;
+  size_t n_fd=0;
+  size_t ii=0;
 
   tids->tids_port = port;
-  if (0 > (listen = tids_listen(tids, port))) {
-    char errbuf[256];
-    if (0 == strerror_r(errno, errbuf, 256)) {
-      tr_debug("tids_get_listener: Error opening port %d: %s.", port, errbuf);
-    } else {
-      tr_debug("tids_get_listener: Unknown error openining port %d.", port);
-    }
-  } 
-
-  if (listen > 0) {
+  n_fd=tids_listen(tids, port, fd_out, max_fd);
+  if (n_fd<=0)
+    tr_debug("tids_get_listener: Error opening port %d");
+  else {
     /* opening port succeeded */
     tr_debug("tids_get_listener: Opened port %d.", port);
     
     /* make this socket non-blocking */
-    if (0 != fcntl(listen, F_SETFL, O_NONBLOCK)) {
-      tr_debug("tids_get_listener: Error setting O_NONBLOCK.");
-      close(listen);
-      listen=-1;
+    for (ii=0; ii<n_fd; ii++) {
+      if (0 != fcntl(fd_out[ii], F_SETFL, O_NONBLOCK)) {
+        tr_debug("tids_get_listener: Error setting O_NONBLOCK.");
+        for (ii=0; ii<n_fd; ii++) {
+          close(fd_out[ii]);
+          fd_out[ii]=-1;
+        }
+        n_fd=0;
+        break;
+      }
     }
   }
 
-  if (listen > 0) {
+  if (n_fd>0) {
     /* store the caller's request handler & cookie */
     tids->req_handler = req_handler;
     tids->auth_handler = auth_handler;
@@ -434,7 +459,7 @@ int tids_get_listener(TIDS_INSTANCE *tids,
     tids->cookie = cookie;
   }
 
-  return listen;
+  return n_fd;
 }
 
 /* Accept and process a connection on a port opened with tids_get_listener() */
@@ -469,56 +494,64 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
 }
 
 /* Process tids requests forever. Should not return except on error. */
+#define MAX_SOCKETS 10
 int tids_start (TIDS_INSTANCE *tids, 
-		TIDS_REQ_FUNC *req_handler,
-		TIDS_AUTH_FUNC *auth_handler,
-	        const char *hostname,
-		unsigned int port,
-		void *cookie)
+                TIDS_REQ_FUNC *req_handler,
+                tids_auth_func *auth_handler,
+                const char *hostname,
+                unsigned int port,
+                void *cookie)
 {
-  int listen = -1;
-  int conn = -1;
-  pid_t pid;
+  int fd[MAX_SOCKETS]={0};
+  size_t n_fd=0;
+  struct pollfd poll_fd[MAX_SOCKETS]={{0}};
+  int ii=0;
 
-  tids->tids_port = port;
-  if (0 > (listen = tids_listen(tids, port)))
+  n_fd=tids_get_listener(tids, req_handler, auth_handler, hostname, port, cookie, fd, MAX_SOCKETS);
+  if (n_fd <= 0) {
     perror ("Error from tids_listen()");
-
-  /* store the caller's request handler & cookie */
-  tids->req_handler = req_handler;
-  tids->auth_handler = auth_handler;
-  tids->hostname = hostname;
-  tids->cookie = cookie;
+    return 1;
+  }
 
   tr_info("Trust Path Query Server starting on host %s:%d.", hostname, port);
 
+  /* set up the poll structs */
+  for (ii=0; ii<n_fd; ii++) {
+    poll_fd[ii].fd=fd[ii];
+    poll_fd[ii].events=POLLIN;
+  }
+
   while(1) {	/* accept incoming conns until we are stopped */
+    /* clear out events from previous iteration */
+    for (ii=0; ii<n_fd; ii++)
+      poll_fd[ii].revents=0;
 
-    if (0 > (conn = accept(listen, NULL, NULL))) {
-      perror("Error from TIDS Server accept()");
+    /* wait indefinitely for a connection */
+    if (poll(poll_fd, n_fd, -1) < 0) {
+      perror("Error from poll()");
       return 1;
     }
 
-    if (0 > (pid = fork())) {
-      perror("Error on fork()");
-      return 1;
-    }
+    /* fork handlers for any sockets that have data */
+    for (ii=0; ii<n_fd; ii++) {
+      if (poll_fd[ii].revents == 0)
+        continue;
 
-    if (pid == 0) {
-      close(listen);
-      tids_handle_connection(tids, conn);
-      close(conn);
-      exit(0); /* exit to kill forked child process */
-    } else {
-      close(conn);
-    }
+      if ((poll_fd[ii].revents & POLLERR) || (poll_fd[ii].revents & POLLNVAL)) {
+        perror("Error polling fd");
+        continue;
+      }
 
-    /* clean up any processes that have completed */
-    while (waitpid(-1, 0, WNOHANG) > 0);
+      if (poll_fd[ii].revents & POLLIN) {
+        if (tids_accept(tids, poll_fd[ii].fd))
+          tr_err("tids_start: error in tids_accept().");
+      }
+    }
   }
 
   return 1;	/* should never get here, loops "forever" */
 }
+#undef MAX_SOCKETS
 
 void tids_destroy (TIDS_INSTANCE *tids)
 {

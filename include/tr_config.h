@@ -49,15 +49,17 @@
 #include <trp_internal.h>
 
 #define TR_DEFAULT_MAX_TREE_DEPTH 12
-#define TR_DEFAULT_TR_PORT 12308
+#define TR_DEFAULT_TRPS_PORT 12308
 #define TR_DEFAULT_TIDS_PORT 12309
-#define TR_DEFAULT_TRPS_PORT 12310
 #define TR_DEFAULT_LOG_THRESHOLD LOG_INFO
 #define TR_DEFAULT_CONSOLE_THRESHOLD LOG_NOTICE
 #define TR_DEFAULT_APC_EXPIRATION_INTERVAL 43200
 #define TR_DEFAULT_TRP_CONNECT_INTERVAL 10
-#define TR_DEFAULT_TRP_UPDATE_INTERVAL 120
+#define TR_DEFAULT_TRP_UPDATE_INTERVAL 30
 #define TR_DEFAULT_TRP_SWEEP_INTERVAL 30
+#define TR_DEFAULT_TID_REQ_TIMEOUT 5
+#define TR_DEFAULT_TID_RESP_NUMER 2
+#define TR_DEFAULT_TID_RESP_DENOM 3
 
 typedef enum tr_cfg_rc {
   TR_CFG_SUCCESS = 0,	/* No error */
@@ -79,14 +81,16 @@ typedef struct tr_cfg_internal {
   unsigned int trp_sweep_interval;
   unsigned int trp_update_interval;
   unsigned int trp_connect_interval;
+  unsigned int tid_req_timeout;
+  unsigned int tid_resp_numer; /* numerator of fraction of AAA servers to wait for in unshared mode */
+  unsigned int tid_resp_denom; /* denominator of fraction of AAA servers to wait for in unshared mode */
 } TR_CFG_INTERNAL;
 
 typedef struct tr_cfg {
   TR_CFG_INTERNAL *internal;		/* internal trust router config */
-  TR_IDP_REALM *idp_realms;		/* locally associated IDP Realms */
   TR_RP_CLIENT *rp_clients;		/* locally associated RP Clients */
   TRP_PTABLE *peers; /* TRP peer table */
-  TR_COMM *comms;			/* locally-known communities */
+  TR_COMM_TABLE *ctable; /* communities/realms */
   TR_AAA_SERVER *default_servers;	/* default server list */
   /* TBD -- Global Filters */
 } TR_CFG;
@@ -108,9 +112,9 @@ void tr_cfg_free(TR_CFG *cfg);
 void tr_cfg_mgr_free(TR_CFG_MGR *cfg);
 
 void tr_print_config(TR_CFG *cfg);
-void tr_print_comms(TR_COMM *comm_list);
-void tr_print_comm_idps(TR_IDP_REALM *idp_list);
-void tr_print_comm_rps(TR_RP_REALM *rp_list);
+void tr_print_comms(TR_COMM_TABLE *ctab);
+void tr_print_comm_idps(TR_COMM_TABLE *ctab, TR_COMM *comm);
+void tr_print_comm_rps(TR_COMM_TABLE *ctab, TR_COMM *comm);
 
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
 TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);

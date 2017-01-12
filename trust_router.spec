@@ -1,6 +1,6 @@
 %global optflags %{optflags} -Wno-parentheses
 Name:           trust_router
-Version:        1.5.2
+Version:        2.1.1
 Release:        1%{?dist}
 Summary:        Moonshot Trust Router
 
@@ -12,7 +12,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:  krb5-devel, glib2-devel
 BuildRequires: jansson-devel >= 2.4
-BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
+BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel, libevent-devel
 %{?el7:BuildRequires: systemd}
 Requires:       moonshot-gss-eap >= 0.9.3, sqlite
 
@@ -43,7 +43,7 @@ packages that wish trust_router functionality.
 
 %prep
 %setup -q
-
+autoreconf -f -i
 
 %build
 %configure --disable-static
@@ -57,16 +57,16 @@ find $RPM_BUILD_ROOT -name '*.la' -exec rm -f {} ';'
 
 # Install config files
 install -D -m 755 redhat/init $RPM_BUILD_ROOT/%{_initrddir}/trust_router
-install -D -m 640 redhat/trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/trusts.cfg
-install -D -m 640 redhat/default-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/main.cfg
-install -D -m 640 redhat/tr-test-main.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/main.cfg
+install -D -m 640 redhat/organizations.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/organizations.cfg
+install -D -m 640 redhat/default-internal.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/internal.cfg
+install -D -m 640 redhat/tr-test-internal.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/internal.cfg
 install -D -m 640 redhat/sysconfig $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/trust_router
 install -D -m 640 redhat/sysconfig.tids $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/tids
 install -D -m 755 redhat/tids.init $RPM_BUILD_ROOT/%{_initrddir}/tids
 
 # Link shared config
-ln -s ../../trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/trusts.cfg
-ln -s ../../trusts.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/trusts.cfg
+ln -s ../../organizations.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/organizations.cfg
+ln -s ../../organizations.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/organizations.cfg
 
 # Install wrapper scripts
 install -D -m 755 redhat/tidc-wrapper $RPM_BUILD_ROOT/%{_bindir}/tidc-wrapper
@@ -113,6 +113,12 @@ chmod 770 /var/log/trust_router
 %files
 %defattr(-,root,root,-)
 %doc README
+#%{_bindir}/tidc
+#%{_bindir}/tidc-wrapper
+#%{_bindir}/tids
+#%{_bindir}/tids-wrapper
+#%{_bindir}/trust_router
+#%{_bindir}/trust_router-wrapper
 %{_bindir}/*
 %{_datadir}/trust_router/schema.sql
 
@@ -129,11 +135,11 @@ chmod 770 /var/log/trust_router
 %dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router/conf.d/default
 %dir %attr(755,root,trustrouter) %{_sysconfdir}/trust_router/conf.d/tr-test
 
-%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/trusts.cfg
-%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/default/main.cfg
-%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/tr-test/main.cfg
-%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/default/trusts.cfg
-%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/tr-test/trusts.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/organizations.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/default/internal.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/tr-test/internal.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/default/organizations.cfg
+%attr(640,root,trustrouter) %config(noreplace) %{_sysconfdir}/trust_router/conf.d/tr-test/organizations.cfg
 
 %files libs
 %defattr(-,root,root,-)

@@ -45,17 +45,28 @@
 
 int tmp_len = 32;
 
-TIDC_INSTANCE *tidc_create ()
+static int tidc_destructor(void *obj)
 {
-  TIDC_INSTANCE *tidc = NULL;
+  TIDC_INSTANCE *tidc=talloc_get_type_abort(obj, TIDC_INSTANCE);
+  if (NULL!=tidc) {
+    if (NULL!=tidc->client_dh)
+      tr_destroy_dh_params(tidc->client_dh);
+  }
+  return 0;
+}
 
-  if (NULL == (tidc = talloc_zero(NULL, TIDC_INSTANCE)))
-    return NULL;
-
+/* creates struct in talloc null context */
+TIDC_INSTANCE *tidc_create(void)
+{
+  TIDC_INSTANCE *tidc=talloc(NULL, TIDC_INSTANCE);
+  if (tidc!=NULL) {
+    tidc->client_dh=NULL;
+    talloc_set_destructor((void *)tidc, tidc_destructor);
+  }
   return tidc;
 }
 
-void tidc_destroy (TIDC_INSTANCE *tidc)
+void tidc_destroy(TIDC_INSTANCE *tidc)
 {
   talloc_free(tidc);
 }
@@ -109,7 +120,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
     goto error;
   }
 
-  tid_req->tidc_dh = tidc->client_dh;
+  tid_req->tidc_dh = tr_dh_dup(tidc->client_dh);
 
   rc = tidc_fwd_request(tidc, tid_req, resp_handler, cookie);
   goto cleanup;
@@ -120,10 +131,10 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
   return rc;
 }
 
-int tidc_fwd_request (TIDC_INSTANCE *tidc,
-		      TID_REQ *tid_req,
-		      TIDC_RESP_FUNC *resp_handler,
-		      void *cookie)
+int tidc_fwd_request(TIDC_INSTANCE *tidc,
+                     TID_REQ *tid_req,
+		     TIDC_RESP_FUNC *resp_handler,
+                     void *cookie)
 {
   char *req_buf = NULL;
   char *resp_buf = NULL;
@@ -186,10 +197,11 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
   }
 
   if (resp_handler) {
-    /* Call the caller's response function */
+    /* Call the caller's response function. It must copy any data it needs before returning. */
     tr_debug("tidc_fwd_request: calling response callback function.");
     (*resp_handler)(tidc, tid_req, tr_msg_get_resp(resp_msg), cookie);
   }
+
   goto cleanup;
 
  error:
@@ -201,9 +213,8 @@ int tidc_fwd_request (TIDC_INSTANCE *tidc,
     free(req_buf);
   if (resp_buf)
     free(resp_buf);
-
-  /* TBD -- free the decoded response */
-
+  if (resp_msg)
+    tr_msg_free_decoded(resp_msg);
   return rc;
 }
 

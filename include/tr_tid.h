@@ -39,6 +39,8 @@
 #include <tr_event.h>
 #include <tr_config.h>
 
+#define TR_TID_MAX_AAA_SERVERS 10
+
 int tr_tids_event_init(struct event_base *base,
                        TIDS_INSTANCE *tids,
                        TR_CFG_MGR *cfg_mgr,

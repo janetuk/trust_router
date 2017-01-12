@@ -191,7 +191,7 @@ void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg)
 
 TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc)
 {
-  return tr_mq_pop(trpc->mq);
+  return tr_mq_pop(trpc->mq, 0);
 }
 
 void trpc_mq_clear(TRPC_INSTANCE *trpc)

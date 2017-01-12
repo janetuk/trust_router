@@ -189,11 +189,12 @@ void tid_req_set_cookie(TID_REQ *req, void *cookie)
   req->cookie = cookie;
 }
 
+/* struct is allocated in talloc null context */
 TID_REQ *tid_dup_req (TID_REQ *orig_req) 
 {
   TID_REQ *new_req = NULL;
 
-  if (NULL == (new_req = talloc_zero(orig_req, TID_REQ))) {
+  if (NULL == (new_req = talloc_zero(NULL, TID_REQ))) {
     tr_crit("tid_dup_req: Can't allocated duplicate request.");
     return NULL;
   }
@@ -253,8 +254,8 @@ void tid_srvr_get_address(const TID_SRVR_BLK *blk,
     assert(blk);
     sa = talloc_zero(blk, struct sockaddr_in);
     sa->sin_family = AF_INET;
-    sa->sin_addr = blk->aaa_server_addr;
-    sa->sin_port = htons(2083);
+    inet_aton(blk->aaa_server_addr, &(sa->sin_addr));
+    sa->sin_port = htons(2083); /* radsec port */
     *out_addr = (struct sockaddr *) sa;
     *out_len = sizeof( struct sockaddr_in);
 }

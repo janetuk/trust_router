@@ -41,6 +41,7 @@
 #include <poll.h>
 
 #include <tr_debug.h>
+#include <tr_util.h>
 #include <tid_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
@@ -147,6 +148,7 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
       if (SQLITE_DONE != sqlite3_result)
 	tr_crit("sqlite3: failed to write to database");
       sqlite3_reset(authorization_insert);
+      sqlite3_clear_bindings(authorization_insert);
     }
   return 0;
 }
@@ -160,7 +162,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   unsigned char *s_keybuf = NULL;
   int s_keylen = 0;
   char key_id[12];
-  unsigned char *pub_digest;
+  unsigned char *pub_digest=NULL;
   size_t pub_digest_len;
   
 
@@ -175,12 +177,11 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
 
 
   /* Allocate a new server block */
-  if (NULL == (resp->servers = talloc_zero(resp, TID_SRVR_BLK))){
-    tr_crit("tids_req_handler(): malloc failed.");
+  tid_srvr_blk_add(resp->servers, tid_srvr_blk_new(resp));
+  if (NULL==resp->servers) {
+    tr_crit("tids_req_handler(): unable to allocate server block.");
     return -1;
   }
-
-  resp->num_servers = 1;
 
   /* TBD -- Set up the server IP Address */
 
@@ -203,10 +204,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if (0 == inet_aton(tids->ipaddr, &(resp->servers->aaa_server_addr))) {
-    tr_debug("tids_req_handler: inet_aton() failed.");
-    return -1;
-  }
+  resp->servers->aaa_server_addr=talloc_strdup(resp->servers, tids->ipaddr);
 
   /* Set the key name */
   if (-1 == create_key_id(key_id, sizeof(key_id)))
@@ -229,7 +227,8 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   }
   if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
     return -1;
-  resp->servers->path = req->path;
+  tid_srvr_blk_set_path(resp->servers, (TID_PATH *)(req->path));
+
   if (req->expiration_interval < 1)
     req->expiration_interval = 1;
   g_get_current_time(&resp->servers->key_expiration);
@@ -238,14 +237,16 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   if (NULL != insert_stmt) {
     int sqlite3_result;
     gchar *expiration_str = g_time_val_to_iso8601(&resp->servers->key_expiration);
-        sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
     sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
-        sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
+    g_free(expiration_str); /* bind_text already made its own copy */
     sqlite3_result = sqlite3_step(insert_stmt);
     if (SQLITE_DONE != sqlite3_result)
       tr_crit("sqlite3: failed to write to database");
     sqlite3_reset(insert_stmt);
+    sqlite3_clear_bindings(insert_stmt);
   }
   
   /* Print out the key. */
@@ -255,6 +256,12 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   // }
   // fprintf(stderr, "\n");
 
+  if (s_keybuf!=NULL)
+    free(s_keybuf);
+
+  if (pub_digest!=NULL)
+    talloc_free(pub_digest);
+  
   return s_keylen;
 }
 
@@ -348,8 +355,6 @@ int main (int argc,
   TIDS_INSTANCE *tids;
   TR_NAME *gssname = NULL;
   struct cmdline_args opts={NULL};
-  int tids_socket=-1;
-  struct pollfd *poll_fds=NULL;
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
@@ -375,38 +380,13 @@ int main (int argc,
 		     -1, &authorization_insert, NULL);
 
   /* Create a TID server instance */
-  if (NULL == (tids = tids_create(NULL))) {
+  if (NULL == (tids = tids_create())) {
     tr_crit("Unable to create TIDS instance, exiting.");
     return 1;
   }
 
   tids->ipaddr = opts.ip_address;
-
-  /* get listener for tids port */
-  tids_socket = tids_get_listener(tids, &tids_req_handler , auth_handler, opts.hostname, TID_PORT, gssname);
-
-  poll_fds=malloc(sizeof(*poll_fds));
-  if (poll_fds == NULL) {
-    tr_crit("Could not allocate event polling list, exiting.");
-    return 1;
-  }
-
-  poll_fds[0].fd=tids_socket;
-  poll_fds[0].events=POLLIN; /* poll on ready for reading */
-  poll_fds[0].revents=0; 
-
-  /* main event loop */
-  while (1) {
-    /* wait up to 100 ms for an event, then handle any idle work */
-    if(poll(poll_fds, 1, 100) > 0) {
-      if (poll_fds[0].revents & POLLIN) {
-        if (0 != tids_accept(tids, tids_socket)) {
-          tr_err("Error handling tids request.");
-        }
-      }
-    }
-    /* idle loop stuff here */
-  }
+  (void) tids_start(tids, &tids_req_handler, auth_handler, opts.hostname, TID_PORT, gssname);
 
   /* Clean-up the TID server instance */
   tids_destroy(tids);

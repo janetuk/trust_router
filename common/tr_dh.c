@@ -77,6 +77,11 @@ unsigned char tr_2048_dhprime[2048/8] = {
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 };
 
+DH *tr_dh_new(void)
+{
+  return DH_new();
+}
+
 DH *tr_create_dh_params(unsigned char *priv_key, 
 			size_t keylen) {
 
@@ -170,6 +175,66 @@ void tr_destroy_dh_params(DH *dh) {
   }
 }
 
+DH *tr_dh_dup(DH *in)
+{
+  DH *out=DH_new();
+
+  if (out==NULL)
+    return NULL;
+
+  if (in->g==NULL)
+    out->g=NULL;
+  else {
+    out->g=BN_dup(in->g);
+    if (out->g==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  if (in->p==NULL)
+    out->p=NULL;
+  else {
+    out->p=BN_dup(in->p);
+    if (out->p==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  if (in->q==NULL)
+    out->q=NULL;
+  else {
+    out->q=BN_dup(in->q);
+    if (out->q==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  if (in->priv_key==NULL)
+    out->priv_key=NULL;
+  else {
+    out->priv_key=BN_dup(in->priv_key);
+    if (out->priv_key==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  if (in->pub_key==NULL)
+    out->pub_key=NULL;
+  else {
+    out->pub_key=BN_dup(in->pub_key);
+    if (out->g==NULL) {
+      DH_free(out);
+      return NULL;
+    }
+  }
+
+  return out;
+}
+
 int tr_compute_dh_key(unsigned char **pbuf, 
 		      BIGNUM *pub_key, 
 		      DH *priv_dh) {
@@ -212,14 +277,21 @@ int tr_dh_pub_hash(TID_REQ *request,
   unsigned char *bn_bytes = talloc_zero_size(request, BN_num_bytes(pub));
   unsigned char *digest = talloc_zero_size(request, SHA_DIGEST_LENGTH+1);
   assert(bn_bytes && digest);
-				    BN_bn2bin(pub, bn_bytes);
-				    SHA1(bn_bytes, BN_num_bytes(pub), digest);
-				    *out_digest = digest;
-				    *out_len = SHA_DIGEST_LENGTH;
-				    return 0;
+  BN_bn2bin(pub, bn_bytes);
+  SHA1(bn_bytes, BN_num_bytes(pub), digest);
+  *out_digest = digest;
+  *out_len = SHA_DIGEST_LENGTH;
+
+  talloc_free(bn_bytes);
+  return 0;
 }
 
 void tr_dh_free(unsigned char *dh_buf)
 {
   free(dh_buf);
+}
+
+void tr_dh_destroy(DH *dh)
+{
+  DH_free(dh);
 }

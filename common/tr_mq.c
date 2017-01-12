@@ -34,6 +34,8 @@
 
 #include <talloc.h>
 #include <pthread.h>
+#include <time.h>
+#include <errno.h>
 
 #include <tr_mq.h>
 #include <tr_debug.h>
@@ -107,11 +109,22 @@ static void tr_mq_msg_set_next(TR_MQ_MSG *msg, TR_MQ_MSG *next)
 TR_MQ *tr_mq_new(TALLOC_CTX *mem_ctx)
 {
   TR_MQ *mq=talloc(mem_ctx, TR_MQ);
+  pthread_condattr_t cattr;
+
   if (mq!=NULL) {
     pthread_mutex_init(&(mq->mutex), 0);
+    pthread_condattr_init(&cattr);
+
+    pthread_condattr_setclock(&cattr, CLOCK_MONOTONIC); /* use the monotonic clock for timeouts */
+    pthread_cond_init(&(mq->have_msg_cond), &cattr);
+    pthread_condattr_destroy(&cattr);
+
     mq->head=NULL;
     mq->tail=NULL;
     mq->last_hi_prio=NULL;
+
+    mq->notify_cb=NULL;
+    mq->notify_cb_arg=NULL;
   }
   return mq;
 }
@@ -252,6 +265,12 @@ void tr_mq_add(TR_MQ *mq, TR_MQ_MSG *msg)
   tr_mq_print(mq);
 #endif 
 
+  /* Before releasing the lock, signal any waiting threads that there's now
+   * something in the queue. Used for blocking tr_mq_pop() call. */
+
+  if (was_empty)
+    pthread_cond_broadcast(&(mq->have_msg_cond));
+
   tr_mq_unlock(mq);
 
   /* see if we need to tell someone we became non-empty */
@@ -259,12 +278,44 @@ void tr_mq_add(TR_MQ *mq, TR_MQ_MSG *msg)
     notify_cb(mq, notify_cb_arg);
 }
 
-/* caller must free msg via tr_mq_msg_free */
-TR_MQ_MSG *tr_mq_pop(TR_MQ *mq)
+/* Compute an absolute time from a desired timeout interval for use with tr_mq_pop().
+ * Fills in *ts and returns 0 on success. */
+int tr_mq_pop_timeout(time_t seconds, struct timespec *ts)
+{
+  if (0!=clock_gettime(CLOCK_MONOTONIC, ts))
+    return -1;
+
+  ts->tv_sec+=seconds;
+  return 0;
+}
+
+/* Caller must free msg via tr_mq_msg_free, waiting until absolute
+ * time ts_abort before giving up (using CLOCK_MONOTONIC). If ts_abort
+ * has passed, returns an existing message but will not wait if one is
+ * not already available. If ts_abort is null, no blocking.  Not
+ * guaranteed to wait if an error occurs - immediately returns without
+ * a message. Use tr_mq_pop_timeout() to get an absolute time that
+ * is guaranteed compatible with this function. */
+TR_MQ_MSG *tr_mq_pop(TR_MQ *mq, struct timespec *ts_abort)
 {
   TR_MQ_MSG *popped=NULL;
-
+  int wait_err=0;
+  
   tr_mq_lock(mq);
+  if ((tr_mq_get_head(mq)==NULL) && (ts_abort!=NULL)) {
+    /* No msgs yet, and blocking was requested */
+    while ((wait_err==0) && (NULL==tr_mq_get_head(mq)))
+      wait_err=pthread_cond_timedwait(&(mq->have_msg_cond),
+                                     &(mq->mutex),
+                                     ts_abort);
+    
+    if ((wait_err!=0) && (wait_err!=ETIMEDOUT)) {
+      tr_notice("tr_mq_pop: error waiting for message.");
+      return NULL;
+    }
+    /* if it timed out, ok to go ahead and check once more for a message, so no special exit */
+  }
+
   if (tr_mq_get_head(mq)!=NULL) {
     popped=tr_mq_get_head(mq);
     tr_mq_set_head(mq, tr_mq_msg_get_next(popped)); /* popped is the old head */

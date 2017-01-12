@@ -71,7 +71,7 @@ typedef void (TIDC_RESP_FUNC)(TIDC_INSTANCE *, TID_REQ *, TID_RESP *, void *);
 
 
 typedef int (TIDS_REQ_FUNC)(TIDS_INSTANCE *, TID_REQ *, TID_RESP *, void *);
-typedef int (TIDS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
+typedef int (tids_auth_func)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 
 
 
@@ -106,6 +106,7 @@ TR_EXPORT void tid_req_free( TID_REQ *req);
 
 TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx);
 void tid_resp_free(TID_RESP *resp);
+TID_RESP *tid_resp_dup(TALLOC_CTX *mem_ctx, TID_RESP *resp);
 TR_EXPORT int tid_resp_get_result(TID_RESP *resp);
 void tid_resp_set_result(TID_RESP *resp, int result);
 TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp);
@@ -146,16 +147,16 @@ TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gss
 TR_EXPORT int tidc_fwd_request (TIDC_INSTANCE *tidc, TID_REQ *req, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT DH *tidc_get_dh(TIDC_INSTANCE *);
 TR_EXPORT DH *tidc_set_dh(TIDC_INSTANCE *, DH *);
-TR_EXPORT void tidc_destroy (TIDC_INSTANCE *tidc);
+TR_EXPORT void tidc_destroy(TIDC_INSTANCE *tidc);
 
 /* TID Server functions, in tid/tids.c */
-TR_EXPORT TIDS_INSTANCE *tids_create (TALLOC_CTX *mem_ctx);
+TR_EXPORT TIDS_INSTANCE *tids_create (void);
 TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-			  TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
-			  unsigned int port, void *cookie);
+                          tids_auth_func *auth_handler, const char *hostname,
+                          unsigned int port, void *cookie);
 TR_EXPORT int tids_get_listener (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-			  TIDS_AUTH_FUNC *auth_handler, const char *hostname, 
-			  unsigned int port, void *cookie);
+                                 tids_auth_func *auth_handler, const char *hostname, 
+                                 unsigned int port, void *cookie, int *fd_out, size_t max_fd);
 TR_EXPORT int tids_accept(TIDS_INSTANCE *tids, int listen);
 TR_EXPORT int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp);
 TR_EXPORT int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_msg);

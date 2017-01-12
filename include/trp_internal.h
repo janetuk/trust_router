@@ -35,21 +35,26 @@
 #ifndef TRP_INTERNAL_H
 #define TRP_INTERNAL_H
 
+#include <jansson.h>
 #include <pthread.h>
 #include <talloc.h>
+#include <time.h>
 
 #include <gsscon.h>
 #include <tr_mq.h>
 #include <tr_msg.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
+#include <tr_apc.h>
+#include <tr_comm.h>
 #include <trust_router/trp.h>
+
+/* what clock do we use with clock_gettime() ? */
+#define TRP_CLOCK CLOCK_MONOTONIC
 
 /* info records */
 /* TRP update record types */
 typedef struct trp_inforec_route {
-  TR_NAME *comm;
-  TR_NAME *realm;
   TR_NAME *trust_router;
   TR_NAME *next_hop;
   unsigned int next_hop_port;
@@ -57,20 +62,31 @@ typedef struct trp_inforec_route {
   unsigned int interval;
 } TRP_INFOREC_ROUTE;
 
-/* TODO: define struct trp_msg_info_community */
+typedef struct trp_inforec_comm {
+  TR_COMM_TYPE comm_type;
+  TR_REALM_ROLE role;
+  TR_APC *apcs;
+  TR_NAME *owner_realm;
+  TR_NAME *owner_contact;
+  time_t expiration_interval; /* Minutes to key expiration; only valid for an APC */
+  json_t *provenance;
+  unsigned int interval;
+} TRP_INFOREC_COMM;
 
 typedef union trp_inforec_data {
   TRP_INFOREC_ROUTE *route;
-  /* TRP_INFOREC_COMM *comm; */
+  TRP_INFOREC_COMM *comm;
 } TRP_INFOREC_DATA;
 
 struct trp_inforec {
   TRP_INFOREC *next;
   TRP_INFOREC_TYPE type;
-  TRP_INFOREC_DATA data; /* contains pointer to one of the record types */
+  TRP_INFOREC_DATA *data; /* contains pointer to one of the record types */
 };
 
 struct trp_update {
+  TR_NAME *realm;
+  TR_NAME *comm;
   TRP_INFOREC *records;
   TR_NAME *peer; /* who did this update come from? */
 };
@@ -138,6 +154,7 @@ struct trps_instance {
   TR_MQ *mq; /* incoming message queue */
   TRP_PTABLE *ptable; /* peer table */
   TRP_RTABLE *rtable; /* route table */
+  TR_COMM_TABLE *ctable; /* community table */
   struct timeval connect_interval; /* interval between connection refreshes */
   struct timeval update_interval; /* interval between scheduled updates */
   struct timeval sweep_interval; /* interval between route table sweeps */
@@ -198,8 +215,10 @@ TRP_RC trpc_send_msg(TRPC_INSTANCE *trpc, const char *msg_content);
 
 TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx);
 void trps_free (TRPS_INSTANCE *trps);
+void trps_set_ctable(TRPS_INSTANCE *trps, TR_COMM_TABLE *comm);
 void trps_set_ptable(TRPS_INSTANCE *trps, TRP_PTABLE *ptable);
 void trps_set_peer_status_callback(TRPS_INSTANCE *trps, void (*cb)(TRP_PEER *, void *), void *cookie);
+TR_NAME *trps_dup_label(TRPS_INSTANCE *trps);
 TRP_RC trps_init_rtable(TRPS_INSTANCE *trps);
 void trps_clear_rtable(TRPS_INSTANCE *trps);
 void trps_set_connect_interval(TRPS_INSTANCE *trps, unsigned int interval);
@@ -219,7 +238,9 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       TRP_AUTH_FUNC auth_handler,
                       const char *hostname,
                       unsigned int port,
-                      void *cookie);
+                      void *cookie,
+                      int *fd_out,
+                      size_t max_fd);
 TR_MQ_MSG *trps_mq_pop(TRPS_INSTANCE *trps);
 void trps_mq_add(TRPS_INSTANCE *trps, TR_MQ_MSG *msg);
 TRP_RC trps_authorize_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn);
@@ -230,6 +251,7 @@ TRP_ROUTE *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR
 TRP_ROUTE *trps_get_selected_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TR_NAME *trps_get_next_hop(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm);
 TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps);
+TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps);
 TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_ROUTE *route);
 TRP_RC trps_add_peer(TRPS_INSTANCE *trps, TRP_PEER *peer);
 TRP_PEER *trps_get_peer_by_gssname(TRPS_INSTANCE *trps, TR_NAME *gssname);
@@ -237,4 +259,45 @@ TRP_PEER *trps_get_peer_by_servicename(TRPS_INSTANCE *trps, TR_NAME *servicename
 TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE type);
 int trps_peer_connected(TRPS_INSTANCE *trps, TRP_PEER *peer);
 TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_gssname);
+
+TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type);
+void trp_inforec_free(TRP_INFOREC *rec);
+TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec);
+void trp_inforec_set_next(TRP_INFOREC *rec, TRP_INFOREC *next_rec);
+TRP_INFOREC_TYPE trp_inforec_get_type(TRP_INFOREC *rec);
+void trp_inforec_set_type(TRP_INFOREC *rec, TRP_INFOREC_TYPE type);
+TR_NAME *trp_inforec_get_comm(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_dup_comm(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_comm(TRP_INFOREC *rec, TR_NAME *comm);
+TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_dup_realm(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_realm(TRP_INFOREC *rec, TR_NAME *realm);
+TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_dup_trust_router(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router);
+TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec);
+TR_NAME *trp_inforec_dup_next_hop(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop);
+unsigned int trp_inforec_get_metric(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_metric(TRP_INFOREC *rec, unsigned int metric);
+unsigned int trp_inforec_get_interval(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval);
+TR_NAME *trp_inforec_get_owner_realm(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_owner_realm(TRP_INFOREC *rec, TR_NAME *name);
+TR_NAME *trp_inforec_get_owner_contact(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_owner_contact(TRP_INFOREC *rec, TR_NAME *name);
+json_t *trp_inforec_get_provenance(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_provenance(TRP_INFOREC *rec, json_t *prov);
+TRP_INFOREC_TYPE trp_inforec_type_from_string(const char *s);
+const char *trp_inforec_type_to_string(TRP_INFOREC_TYPE msgtype);
+time_t trp_inforec_get_exp_interval(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_exp_interval(TRP_INFOREC *rec, time_t expint);
+TR_COMM_TYPE trp_inforec_get_comm_type(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_comm_type(TRP_INFOREC *rec, TR_COMM_TYPE type);
+TR_REALM_ROLE trp_inforec_get_role(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_role(TRP_INFOREC *rec, TR_REALM_ROLE role);
+TR_APC *trp_inforec_get_apcs(TRP_INFOREC *rec);
+TRP_RC trp_inforec_set_apcs(TRP_INFOREC *rec, TR_APC *apcs);
+TR_NAME *trp_inforec_dup_origin(TRP_INFOREC *rec);
+
 #endif /* TRP_INTERNAL_H */

@@ -37,23 +37,27 @@
 
 #include <trust_router/tr_name.h>
 #include <trp_internal.h>
+#include <tr_comm.h>
+#include <tr_apc.h>
 #include <tr_debug.h>
 
 
 /* static prototypes */
-static void *trp_inforec_route_new(TALLOC_CTX *mem_ctx);
-static void trp_inforec_route_print(TRP_INFOREC_DATA);
+static TRP_INFOREC_DATA *trp_inforec_route_new(TALLOC_CTX *mem_ctx);
+static void trp_inforec_route_print(TRP_INFOREC_DATA *);
+static TRP_INFOREC_DATA *trp_inforec_comm_new(TALLOC_CTX *mem_ctx);
+static void trp_inforec_comm_print(TRP_INFOREC_DATA *);
 
 
 struct trp_inforec_type_entry {
   const char *name;
   TRP_INFOREC_TYPE type;
-  void *(*allocate)(TALLOC_CTX *);
-  void (*print)(TRP_INFOREC_DATA);
+  TRP_INFOREC_DATA *(*allocate)(TALLOC_CTX *);
+  void (*print)(TRP_INFOREC_DATA *);
 };
 static struct trp_inforec_type_entry trp_inforec_type_table[] = {
   { "route", TRP_INFOREC_TYPE_ROUTE, trp_inforec_route_new, trp_inforec_route_print },
-  { "comm", TRP_INFOREC_TYPE_COMMUNITY, NULL, NULL },
+  { "comm", TRP_INFOREC_TYPE_COMMUNITY, trp_inforec_comm_new, trp_inforec_comm_print },
   { NULL, TRP_INFOREC_TYPE_UNKNOWN, NULL, NULL } /* must be the last entry */
 };
 
@@ -95,45 +99,77 @@ static int trp_inforec_route_destructor(void *object)
   TRP_INFOREC_ROUTE *body=talloc_get_type_abort(object, TRP_INFOREC_ROUTE);
   
   /* clean up TR_NAME data, which are not managed by talloc */
-  if (body->comm != NULL) {
-    tr_free_name(body->comm);
-    body->comm=NULL;
-    tr_debug("trp_inforec_route_destructor: freed community");
-  }
-  if (body->realm != NULL) {
-    tr_free_name(body->realm);
-    body->realm=NULL;
-    tr_debug("trp_inforec_route_destructor: freed realm");
-  }
-  if (body->trust_router != NULL) {
+  if (body->trust_router != NULL)
     tr_free_name(body->trust_router);
-    body->trust_router=NULL;
-    tr_debug("trp_inforec_route_destructor: freed trust_router");
-  }
-  if (body->next_hop != NULL) {
+  if (body->next_hop != NULL)
     tr_free_name(body->next_hop);
-    body->next_hop=NULL;
-    tr_debug("trp_inforec_route_destructor: freed next_hop");
-  }
-
   return 0;
 }
 
-static void *trp_inforec_route_new(TALLOC_CTX *mem_ctx)
+static TRP_INFOREC_DATA *trp_inforec_route_new(TALLOC_CTX *mem_ctx)
 {
-  TRP_INFOREC_ROUTE *new_rec=talloc(mem_ctx, TRP_INFOREC_ROUTE);
+  TRP_INFOREC_DATA *new_data=talloc(mem_ctx, TRP_INFOREC_DATA);
+  TRP_INFOREC_ROUTE *new_rec=NULL;
 
-  if (new_rec != NULL) {
-    new_rec->comm=NULL;
-    new_rec->realm=NULL;
+  if (new_data==NULL)
+    return NULL;
+
+  new_rec=talloc(new_data, TRP_INFOREC_ROUTE);
+  if (new_rec == NULL) {
+    talloc_free(new_data);
+    new_data=NULL;
+  } else {
     new_rec->trust_router=NULL;
     new_rec->next_hop=NULL;
     new_rec->next_hop_port=0;
     new_rec->metric=TRP_METRIC_INFINITY;
     new_rec->interval=0;
     talloc_set_destructor((void *)new_rec, trp_inforec_route_destructor);
+    new_data->route=new_rec;
   }
-  return new_rec;
+    
+  return new_data;
+}
+
+
+static int trp_inforec_comm_destructor(void *obj)
+{
+  TRP_INFOREC_COMM *rec=talloc_get_type_abort(obj, TRP_INFOREC_COMM);
+  if (rec->owner_realm!=NULL)
+    tr_free_name(rec->owner_realm);
+  if (rec->owner_contact!=NULL)
+    tr_free_name(rec->owner_contact);
+  if (rec->provenance!=NULL)
+    json_decref(rec->provenance);
+  return 0;
+}
+
+static TRP_INFOREC_DATA *trp_inforec_comm_new(TALLOC_CTX *mem_ctx)
+{
+  TRP_INFOREC_DATA *new_data=talloc(mem_ctx, TRP_INFOREC_DATA);
+  TRP_INFOREC_COMM *new_rec=NULL;
+
+  if (new_data==NULL)
+    return NULL;
+
+  new_rec=talloc(new_data, TRP_INFOREC_COMM);
+  if (new_rec==NULL) {
+    talloc_free(new_data);
+    new_data=NULL;
+  } else {
+    new_rec->comm_type=TR_COMM_UNKNOWN;
+    new_rec->role=TR_ROLE_UNKNOWN;
+    new_rec->apcs=NULL;
+    new_rec->owner_realm=NULL;
+    new_rec->owner_contact=NULL;
+    new_rec->expiration_interval=0;
+    new_rec->provenance=NULL;
+    new_rec->interval=0;
+    talloc_set_destructor((void *)new_rec, trp_inforec_comm_destructor);
+    new_data->comm=new_rec;
+  }
+
+  return new_data;
 }
 
 TRP_INFOREC *trp_inforec_get_next(TRP_INFOREC *rec)
@@ -159,7 +195,7 @@ void trp_inforec_set_next(TRP_INFOREC *rec, TRP_INFOREC *next_rec)
 
 TRP_INFOREC_TYPE trp_inforec_get_type(TRP_INFOREC *rec)
 {
-  if (rec)
+  if (rec!=NULL)
     return rec->type;
   else
     return TRP_INFOREC_TYPE_UNKNOWN;
@@ -171,78 +207,12 @@ void trp_inforec_set_type(TRP_INFOREC *rec, TRP_INFOREC_TYPE type)
     rec->type=type;
 }
 
-TR_NAME *trp_inforec_get_comm(TRP_INFOREC *rec)
-{
-  switch (rec->type) {
-  case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL)
-      return rec->data.route->comm;
-    break;
-  default:
-    break;
-  }
-  return NULL;
-}
-
-TR_NAME *trp_inforec_dup_comm(TRP_INFOREC *rec)
-{
-  return tr_dup_name(trp_inforec_get_comm(rec));
-}
-
-TRP_RC trp_inforec_set_comm(TRP_INFOREC *rec, TR_NAME *comm)
-{
-  switch (rec->type) {
-  case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL) {
-      rec->data.route->comm=comm;
-      return TRP_SUCCESS;
-    }
-    break;
-  default:
-    break;
-  }
-  return TRP_ERROR;
-}
-
-TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec)
-{
-  switch (rec->type) {
-  case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL)
-      return rec->data.route->realm;
-    break;
-  default:
-    break;
-  }
-  return NULL;
-}
-
-TR_NAME *trp_inforec_dup_realm(TRP_INFOREC *rec)
-{
-  return tr_dup_name(trp_inforec_get_realm(rec));
-}
-
-TRP_RC trp_inforec_set_realm(TRP_INFOREC *rec, TR_NAME *realm)
-{
-  switch (rec->type) {
-  case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL) {
-      rec->data.route->realm=realm;
-      return TRP_SUCCESS;
-    } 
-    break;
-  default:
-    break;
-  }
-  return TRP_ERROR;
-}
-
 TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL)
-      return rec->data.route->trust_router;
+    if (rec->data->route!=NULL)
+      return rec->data->route->trust_router;
     break;
   default:
     break;
@@ -259,8 +229,8 @@ TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL) {
-      rec->data.route->trust_router=trust_router;
+    if (rec->data->route!=NULL) {
+      rec->data->route->trust_router=trust_router;
       return TRP_SUCCESS;
     }
     break;
@@ -275,8 +245,8 @@ TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL)
-      return rec->data.route->next_hop;
+    if (rec->data->route!=NULL)
+      return rec->data->route->next_hop;
     break;
   default:
     break;
@@ -293,23 +263,25 @@ TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL) {
-      rec->data.route->next_hop=next_hop;
-      return TRP_SUCCESS;
-    }
+    if (rec->data->route==NULL)
+      return TRP_ERROR;
+    rec->data->route->next_hop=next_hop;
+    break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    /* next hop not used for community records */
     break;
   default:
     break;
   }
-  return TRP_ERROR;
+  return TRP_SUCCESS;
 }
 
 unsigned int trp_inforec_get_metric(TRP_INFOREC *rec)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL)
-      return rec->data.route->metric;
+    if (rec->data->route!=NULL)
+      return rec->data->route->metric;
     break;
   default:
     break;
@@ -321,8 +293,8 @@ TRP_RC trp_inforec_set_metric(TRP_INFOREC *rec, unsigned int metric)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL) {
-      rec->data.route->metric=metric;
+    if (rec->data->route!=NULL) {
+      rec->data->route->metric=metric;
       return TRP_SUCCESS;
     }
     break;
@@ -336,8 +308,12 @@ unsigned int trp_inforec_get_interval(TRP_INFOREC *rec)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL)
-      return rec->data.route->interval;
+    if (rec->data->route!=NULL)
+      return rec->data->route->interval;
+    break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->interval;
     break;
   default:
     break;
@@ -349,8 +325,155 @@ TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data.route!=NULL) {
-      rec->data.route->interval=interval;
+    if (rec->data->route!=NULL) {
+      rec->data->route->interval=interval;
+      return TRP_SUCCESS;
+    }
+    break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->interval=interval;
+      return TRP_SUCCESS;
+    }
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+time_t trp_inforec_get_exp_interval(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->expiration_interval;
+    break;
+  default:
+    break;
+  }
+  return 0;
+}
+
+TRP_RC trp_inforec_set_exp_interval(TRP_INFOREC *rec, time_t expint)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->expiration_interval=expint;
+      return TRP_SUCCESS;
+    }
+    break;
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_COMM_TYPE trp_inforec_get_comm_type(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->comm_type;
+    break;
+  default:
+    break;
+  }
+  return TR_COMM_UNKNOWN;
+}
+
+TRP_RC trp_inforec_set_comm_type(TRP_INFOREC *rec, TR_COMM_TYPE type)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->comm_type=type;
+      return TRP_SUCCESS;
+    }
+    break;
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_REALM_ROLE trp_inforec_get_role(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->role;
+    break;
+  default:
+    break;
+  }
+  return TR_ROLE_UNKNOWN;
+}
+
+TRP_RC trp_inforec_set_role(TRP_INFOREC *rec, TR_REALM_ROLE role)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->role=role;
+      return TRP_SUCCESS;
+      break;
+    }
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_APC *trp_inforec_get_apcs(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->apcs;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+TRP_RC trp_inforec_set_apcs(TRP_INFOREC *rec, TR_APC *apcs)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->apcs=apcs;
+      talloc_steal(rec, apcs);
+      return TRP_SUCCESS;
+    }
+    break;
+
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+TR_NAME *trp_inforec_get_owner_realm(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->owner_realm;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+TRP_RC trp_inforec_set_owner_realm(TRP_INFOREC *rec, TR_NAME *name)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->owner_realm=name;
       return TRP_SUCCESS;
   default:
     break;
@@ -360,35 +483,132 @@ TRP_RC trp_inforec_set_interval(TRP_INFOREC *rec, unsigned int interval)
   return TRP_ERROR;
 }
 
-/* for internal use only; must set rec->type before calling this */
-static TRP_RC trp_inforec_set_data(TRP_INFOREC *rec, void *data)
+TR_NAME *trp_inforec_get_owner_contact(TRP_INFOREC *rec)
 {
-  if (data==NULL)
-    return TRP_ERROR;
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->owner_contact;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+TRP_RC trp_inforec_set_owner_contact(TRP_INFOREC *rec, TR_NAME *name)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      rec->data->comm->owner_contact=name;
+      return TRP_SUCCESS;
+    }
+    break;
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+/* caller needs to incref the output if they're going to hang on to it */
+json_t *trp_inforec_get_provenance(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL)
+      return rec->data->comm->provenance;
+    break;
+  default:
+    break;
+  }
+  return NULL;
+}
+
+/* increments the reference count */
+TRP_RC trp_inforec_set_provenance(TRP_INFOREC *rec, json_t *prov)
+{
+  switch (rec->type) {
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    if (rec->data->comm!=NULL) {
+      if (rec->data->comm->provenance!=NULL)
+        json_decref(rec->data->comm->provenance);
+      rec->data->comm->provenance=prov;
+      json_incref(prov);
+      return TRP_SUCCESS;
+    }
+    break;
+  default:
+    break;
+  }
+  return TRP_ERROR;
+}
+
+static TRP_RC trp_inforec_add_to_provenance(TRP_INFOREC *rec, TR_NAME *name)
+{
+  json_t *jname=NULL;
 
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
-    rec->data.route=talloc_get_type(data, TRP_INFOREC_ROUTE);
+    /* no provenance list */
+    break;
+  case TRP_INFOREC_TYPE_COMMUNITY:
+    jname=tr_name_to_json_string(name);
+    if (jname==NULL)
+      return TRP_ERROR;
+    if (rec->data->comm->provenance==NULL) {
+      rec->data->comm->provenance=json_array();
+      if (rec->data->comm->provenance==NULL) {
+        json_decref(jname);
+        return TRP_ERROR;
+      }
+    }
+    if (0!=json_array_append_new(rec->data->comm->provenance, jname)) {
+      json_decref(jname);
+      return TRP_ERROR;
+    }
     break;
   default:
-    return TRP_BADTYPE;
+    break;
   }
   return TRP_SUCCESS;
+}
+
+TR_NAME *trp_inforec_dup_origin(TRP_INFOREC *rec)
+{
+  TR_NAME *origin=NULL;
+  json_t *prov=trp_inforec_get_provenance(rec);
+  const char *s=NULL;
+
+  if (prov==NULL)
+    return NULL;
+
+  s=json_string_value(json_array_get(prov, 0));
+  if (s==NULL) {
+    tr_debug("trp_inforec_dup_origin: empty origin in provenance list.");
+    return NULL;
+  }
+  origin=tr_new_name(s);
+  return origin;
 }
 
 /* generic record type */
 TRP_INFOREC *trp_inforec_new(TALLOC_CTX *mem_ctx, TRP_INFOREC_TYPE type)
 {
   TRP_INFOREC *new_rec=talloc(mem_ctx, TRP_INFOREC);
+  TRP_INFOREC_DATA *data=NULL;
   struct trp_inforec_type_entry *dtype=get_trp_inforec_type_entry(type);
 
   if ((new_rec != NULL) && (dtype->type != TRP_INFOREC_TYPE_UNKNOWN)) {
     trp_inforec_set_type(new_rec, type);
     trp_inforec_set_next(new_rec, NULL);
     if (dtype->allocate!=NULL) {
-      if (TRP_SUCCESS!=trp_inforec_set_data(new_rec, dtype->allocate(new_rec))) {
+      data=dtype->allocate(new_rec);
+      if (data!=NULL)
+        new_rec->data=data;
+      else {
         talloc_free(new_rec);
-        new_rec=NULL;
+        return NULL;
       }
     }
   }
@@ -404,6 +624,10 @@ void trp_inforec_free(TRP_INFOREC *rec)
 static int trp_upd_destructor(void *object)
 {
   TRP_UPD *upd=talloc_get_type_abort(object, TRP_UPD);
+  if (upd->realm!=NULL)
+    tr_free_name(upd->realm);
+  if (upd->comm!=NULL)
+    tr_free_name(upd->comm);
   if (upd->peer!=NULL)
     tr_free_name(upd->peer);
   return 0;
@@ -414,6 +638,8 @@ TRP_UPD *trp_upd_new(TALLOC_CTX *mem_ctx)
   TRP_UPD *new_body=talloc(mem_ctx, TRP_UPD);
 
   if (new_body!=NULL) {
+    new_body->realm=NULL;
+    new_body->comm=NULL;
     new_body->records=NULL;
     new_body->peer=NULL;
     talloc_set_destructor((void *)new_body, trp_upd_destructor);
@@ -451,6 +677,40 @@ void trp_upd_add_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
   talloc_steal(upd, rec);
 }
 
+TR_NAME *trp_upd_get_realm(TRP_UPD *upd)
+{
+  return upd->realm;
+}
+
+TR_NAME *trp_upd_dup_realm(TRP_UPD *upd)
+{
+  return tr_dup_name(upd->realm);
+}
+
+void trp_upd_set_realm(TRP_UPD *upd, TR_NAME *realm)
+{
+  if (upd->realm!=NULL)
+    tr_free_name(upd->realm);
+  upd->realm=realm;
+}
+
+TR_NAME *trp_upd_get_comm(TRP_UPD *upd)
+{
+  return upd->comm;
+}
+
+TR_NAME *trp_upd_dup_comm(TRP_UPD *upd)
+{
+  return tr_dup_name(upd->comm);
+}
+
+void trp_upd_set_comm(TRP_UPD *upd, TR_NAME *comm)
+{
+  if (upd->comm!=NULL)
+    tr_free_name(upd->comm);
+  upd->comm=comm;
+}
+
 TR_NAME *trp_upd_get_peer(TRP_UPD *upd)
 {
   return upd->peer;
@@ -473,21 +733,41 @@ void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
   
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
     if (trp_inforec_set_next_hop(rec, cpy=tr_new_name(hostname)) != TRP_SUCCESS) {
-      tr_err("trp_upd_set_peer: error setting peer.");
+      tr_err("trp_upd_set_next_hop: error setting next hop.");
       tr_free_name(cpy);
     }
   }
 }
 
-/* pretty print */
-static void trp_inforec_route_print(TRP_INFOREC_DATA data)
+void trp_upd_add_to_provenance(TRP_UPD *upd, TR_NAME *name)
 {
-  if (data.route!=NULL) {
-    printf("     community=%.*s\n     realm=%.*s\n     trust_router=%.*s\n     metric=%d\n     interval=%d]\n",
-           data.route->comm->len, data.route->comm->buf,
-           data.route->realm->len, data.route->realm->buf,
-           data.route->trust_router->len, data.route->trust_router->buf,
-           data.route->metric, data.route->interval);
+  TRP_INFOREC *rec=NULL;
+
+  /* add it to all inforecs */
+  for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
+    if (TRP_SUCCESS!=trp_inforec_add_to_provenance(rec, name))
+      tr_err("trp_upd_set_peer: error adding peer to provenance list.");
   }
 }
 
+/* pretty print */
+static void trp_inforec_route_print(TRP_INFOREC_DATA *data)
+{
+  if (data->route!=NULL) {
+    printf("     trust_router=%.*s\n     metric=%d\n     interval=%d]\n",
+           data->route->trust_router->len, data->route->trust_router->buf,
+           data->route->metric, data->route->interval);
+  }
+}
+
+static void trp_inforec_comm_print(TRP_INFOREC_DATA *data)
+{
+  if (data->comm!=NULL) {
+    printf("     type=%s\n     role=%s\n     owner=%.*s\n     contact=%.*s]\n",
+           tr_comm_type_to_str(data->comm->comm_type),
+           tr_realm_role_to_str(data->comm->role),
+           data->comm->owner_realm->len, data->comm->owner_realm->buf,
+           data->comm->owner_contact->len, data->comm->owner_contact->buf);
+    /* TODO: print apcs */
+  }
+}

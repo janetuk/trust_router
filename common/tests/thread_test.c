@@ -39,6 +39,7 @@
 #include <talloc.h>
 #include <time.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <tr_mq.h>
 
@@ -49,21 +50,21 @@ struct thread_data {
   char *label;
 };
 
-TR_MQ_MSG *make_msg(label, n)
+static TR_MQ_MSG *make_msg(char *label, int n)
 {
   TR_MQ_MSG *msg=NULL;
   msg=tr_mq_msg_new(NULL, "Message", TR_MQ_PRIO_NORMAL);
-  asprintf((char **)&(msg->p), "%s: %d messages to go...", label, n);
+  assert(-1!=asprintf((char **)&(msg->p), "%s: %d messages to go...", label, n));
   msg->p_free=free;
   return msg;
 }
 
-void *thread_start(void *arg)
+static void *thread_start(void *arg)
 {
   TR_MQ *mq=((struct thread_data *)arg)->mq;
   int n_msgs=((struct thread_data *)arg)->n_msgs;
   useconds_t msg_dly=((struct thread_data *)arg)->msg_dly;
-  const char *label=((struct thread_data *)arg)->label;
+  char *label=((struct thread_data *)arg)->label;
   
   while (n_msgs>=0) {
     usleep(msg_dly);
@@ -80,7 +81,7 @@ struct message_data {
   int ready;
 };
 
-void handle_messages(TR_MQ *mq, void *arg)
+static void handle_messages(TR_MQ *mq, void *arg)
 {
   struct message_data *status=(struct message_data *)arg;
   pthread_mutex_lock(&(status->lock));
@@ -89,12 +90,12 @@ void handle_messages(TR_MQ *mq, void *arg)
   pthread_mutex_unlock(&(status->lock));
 }
 
-void output_messages(TR_MQ *mq)
+static void output_messages(TR_MQ *mq)
 {
   TR_MQ_MSG *msg=NULL;
 
   printf("\n* handle_messages notified of new messages in queue.\n");
-  for (msg=tr_mq_pop(mq); msg!=NULL; msg=tr_mq_pop(mq)) {
+  for (msg=tr_mq_pop(mq, NULL); msg!=NULL; msg=tr_mq_pop(mq, NULL)) {
     printf("  > %s\n", (char *)msg->p);
     tr_mq_msg_free(msg);
   }
@@ -128,7 +129,7 @@ int main(void)
     thread_data[ii].mq=mq;
     thread_data[ii].msg_dly=dly[ii];
     thread_data[ii].n_msgs=10;
-    asprintf(&(thread_data[ii].label), "thread %d", ii+1);
+    assert(-1!=asprintf(&(thread_data[ii].label), "thread %d", ii+1));
     pthread_create(&(thread[ii]), NULL, thread_start, &thread_data[ii]);
     printf("%s started.\n", thread_data[ii].label);
   }
@@ -153,5 +154,6 @@ int main(void)
   for (ii=0; ii<N_THREADS; ii++)
     pthread_join(thread[ii], NULL);
 
+  printf("success\n");
   return 0;
 }

@@ -36,6 +36,7 @@
 
 #include <trust_router/tr_name.h>
 #include <tr_apc.h>
+#include <tr_debug.h>
 
 static int tr_apc_destructor(void *obj)
 {
@@ -71,7 +72,8 @@ static TR_APC *tr_apc_tail(TR_APC *apc)
   return apc;
 }
 
-TR_APC *tr_apc_add(TR_APC *head, TR_APC *new)
+/* do not call this directly, use the tr_apc_add() macro */
+TR_APC *tr_apc_add_func(TR_APC *head, TR_APC *new)
 {
   if (head==NULL)
     head=new;
@@ -86,10 +88,39 @@ TR_APC *tr_apc_add(TR_APC *head, TR_APC *new)
 }
 
 /* does not copy next pointer */
-TR_APC *tr_apc_dup(TALLOC_CTX *mem_ctx, TR_APC *apc)
+TR_APC *tr_apc_dup_one(TALLOC_CTX *mem_ctx, TR_APC *apc)
 {
   TR_APC *new=tr_apc_new(mem_ctx);
-  tr_apc_set_id(new, tr_apc_dup_id(apc));
+  if (new!=NULL) 
+    tr_apc_set_id(new, tr_apc_dup_id(apc));
+  return new;
+}
+
+/* copies next pointer */
+TR_APC *tr_apc_dup(TALLOC_CTX *mem_ctx, TR_APC *apc)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_APC *cur=NULL;
+  TR_APC *new=NULL;
+
+  if (apc==NULL)
+    return NULL;
+
+  if (NULL==(new=tr_apc_dup_one(tmp_ctx, apc)))
+    return NULL;
+  
+  for (cur=new,apc=apc->next; apc!=NULL; cur=cur->next,apc=apc->next) {
+    cur->next=tr_apc_dup_one(new, apc);
+    if (cur->next==NULL) {
+      new=NULL;
+      goto cleanup;
+    }
+  }
+
+  talloc_steal(mem_ctx, new);
+
+cleanup:
+  talloc_free(tmp_ctx);
   return new;
 }
 
@@ -107,11 +138,56 @@ TR_NAME *tr_apc_get_id(TR_APC *apc)
 
 TR_NAME *tr_apc_dup_id(TR_APC *apc)
 {
-  return tr_dup_name(apc->id);;
+  return tr_dup_name(apc->id);
 }
 
 
 char *tr_apc_to_str(TALLOC_CTX *mem_ctx, TR_APC *apc)
 {
   return talloc_strndup(mem_ctx, apc->id->buf, apc->id->len);
+}
+
+TR_APC_ITER *tr_apc_iter_new(TALLOC_CTX *mem_ctx)
+{
+  return talloc(mem_ctx, TR_APC_ITER);
+}
+
+TR_APC *tr_apc_iter_first(TR_APC_ITER *iter, TR_APC *apc)
+{
+  *iter=apc;
+  return *iter;
+}
+
+TR_APC *tr_apc_iter_next(TR_APC_ITER *iter)
+{
+  (*iter)=(*iter)->next;
+  return *iter;
+}
+
+void tr_apc_iter_free(TR_APC_ITER *iter)
+{
+  talloc_free(iter);
+}
+
+/* 1 on match, 0 on no match, -1 on error */
+int tr_apc_in_common(TR_APC *one, TR_APC *two)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  TR_APC_ITER *i_one=tr_apc_iter_new(tmp_ctx);
+  TR_APC_ITER *i_two=tr_apc_iter_new(tmp_ctx);
+  TR_APC *cur_one=NULL;
+  TR_APC *cur_two=NULL;
+
+  if ((i_one==NULL) || (i_two==NULL)) {
+    tr_err("tr_apc_in_common: unable to allocate iterators.");
+    talloc_free(tmp_ctx);
+    return -1;
+  }
+  for (cur_one=tr_apc_iter_first(i_one, one); cur_one!=NULL; cur_one=tr_apc_iter_next(i_one)) {
+    for (cur_two=tr_apc_iter_first(i_two, two); cur_two!=NULL; cur_two=tr_apc_iter_next(i_two)) {
+      if (cur_one==cur_two)
+        return 1;
+    }
+  }
+  return 0;
 }

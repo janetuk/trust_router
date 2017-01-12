@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
   TR_INSTANCE *tr = NULL;
   struct cmdline_args opts;
   struct event_base *ev_base;
-  struct tr_socket_event tids_ev;
+  struct tr_socket_event tids_ev = {0};
   struct event *cfgwatch_ev;
 
   configure_signals();
@@ -174,10 +174,11 @@ int main(int argc, char *argv[])
   }
 
   /***** initialize the trust path query server instance *****/
-  if (NULL == (tr->tids = tids_create (tr))) {
+  if (NULL == (tr->tids = tids_create())) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
+  talloc_steal(tr, tr->tids);
 
   /***** initialize the trust router protocol server instance *****/
   if (NULL == (tr->trps = trps_new(tr))) {
@@ -216,6 +217,7 @@ int main(int argc, char *argv[])
   /*tr_status_event_init();*/ /* install status reporting events */
 
   /* install TID server events */
+  tr_debug("Initializing TID server events.");
   if (0 != tr_tids_event_init(ev_base,
                               tr->tids,
                               tr->cfg_mgr,
@@ -226,11 +228,13 @@ int main(int argc, char *argv[])
   }
 
   /* install TRP handler events */
+  tr_debug("Initializing Dynamic Trust Router Protocol events.");
   if (TRP_SUCCESS != tr_trps_event_init(ev_base, tr)) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
 
+  tr_debug("Starting event loop.");
   tr_event_loop_run(ev_base); /* does not return until we are done */
 
   tr_destroy(tr); /* thanks to talloc, should destroy everything */

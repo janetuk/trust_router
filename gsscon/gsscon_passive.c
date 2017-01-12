@@ -56,136 +56,136 @@
 
 const char *gServiceName = NULL;
 
-int gsscon_passive_authenticate (int	            inSocket, 
-				 gss_buffer_desc    inNameBuffer,
-				 gss_ctx_id_t      *outGSSContext,
-				 client_cb_fn       clientCb,
-				 void              *clientCbData)
+int gsscon_passive_authenticate (int              inSocket, 
+                                 gss_buffer_desc    inNameBuffer,
+                                 gss_ctx_id_t      *outGSSContext,
+                                 client_cb_fn       clientCb,
+                                 void              *clientCbData)
 {
-    int err = 0;
-    OM_uint32 majorStatus;
-    OM_uint32 minorStatus = 0, minorStatusToo = 0;
-    gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
-    gss_name_t clientName = GSS_C_NO_NAME, serviceName = GSS_C_NO_NAME;
-    gss_cred_id_t acceptorCredentials = NULL;
-    gss_buffer_desc clientDisplayName = {0, NULL};
-    char *inputTokenBuffer = NULL;
-    size_t inputTokenBufferLength = 0;
-    gss_buffer_desc inputToken;  /* buffer received from the server */
+  int err = 0;
+  OM_uint32 majorStatus;
+  OM_uint32 minorStatus = 0, minorStatusToo = 0;
+  gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
+  gss_name_t clientName = GSS_C_NO_NAME, serviceName = GSS_C_NO_NAME;
+  gss_cred_id_t acceptorCredentials = NULL;
+  gss_buffer_desc clientDisplayName = {0, NULL};
+  char *inputTokenBuffer = NULL;
+  size_t inputTokenBufferLength = 0;
+  gss_buffer_desc inputToken;  /* buffer received from the server */
     
-    if (inSocket <  0 ) { err = EINVAL; }
-    if (!outGSSContext) { err = EINVAL; }
+  if (inSocket <  0 ) { err = EINVAL; }
+  if (!outGSSContext) { err = EINVAL; }
 
-    if (!err) {
-      majorStatus = gss_import_name (&minorStatus, &inNameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName); 
-      if (majorStatus != GSS_S_COMPLETE) {
-	gsscon_print_gss_errors ("gss_import_name(serviceName)", majorStatus, minorStatus);
-	err = minorStatus ? minorStatus : majorStatus; 
-      }
+  if (!err) {
+    majorStatus = gss_import_name (&minorStatus, &inNameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName); 
+    if (majorStatus != GSS_S_COMPLETE) {
+      gsscon_print_gss_errors ("gss_import_name(serviceName)", majorStatus, minorStatus);
+      err = minorStatus ? minorStatus : majorStatus; 
     }
+  }
 
-    if (!err) {
-      majorStatus = gss_acquire_cred ( &minorStatus, serviceName,
-				       GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
-				       GSS_C_ACCEPT, &acceptorCredentials,
-				       NULL /*mechs out*/, NULL /*time out*/);
-      if (majorStatus != GSS_S_COMPLETE) { 
-	gsscon_print_gss_errors ("gss_acquire_cred", majorStatus, minorStatus);
-	err = minorStatus ? minorStatus : majorStatus; 
-      }
+  if (!err) {
+    majorStatus = gss_acquire_cred ( &minorStatus, serviceName,
+                                     GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+                                     GSS_C_ACCEPT, &acceptorCredentials,
+                                     NULL /*mechs out*/, NULL /*time out*/);
+    if (majorStatus != GSS_S_COMPLETE) { 
+      gsscon_print_gss_errors ("gss_acquire_cred", majorStatus, minorStatus);
+      err = minorStatus ? minorStatus : majorStatus; 
     }
+  }
 
-    /* 
-     * The main authentication loop:
-     *
-     * GSS is a multimechanism API.  The number of packet exchanges required to  
-     * authenticatevaries between mechanisms.  As a result, we need to loop reading 
-     * input tokens from the client, calling gss_accept_sec_context on the input 
-     * tokens and send the resulting output tokens back to the client until we 
-     * get GSS_S_COMPLETE or an error.
-     *
-     * When we are done, save the client principal so we can make authorization 
-     * checks.
-     */
+  /* 
+   * The main authentication loop:
+   *
+   * GSS is a multimechanism API.  The number of packet exchanges required to  
+   * authenticatevaries between mechanisms.  As a result, we need to loop reading 
+   * input tokens from the client, calling gss_accept_sec_context on the input 
+   * tokens and send the resulting output tokens back to the client until we 
+   * get GSS_S_COMPLETE or an error.
+   *
+   * When we are done, save the client principal so we can make authorization 
+   * checks.
+   */
     
-    majorStatus = GSS_S_CONTINUE_NEEDED;
-    while (!err && (majorStatus != GSS_S_COMPLETE)) {
-        /* Clean up old input buffer */
-        if (inputTokenBuffer != NULL) {
-            free (inputTokenBuffer);
-            inputTokenBuffer = NULL;  /* don't double-free */
-        }
+  majorStatus = GSS_S_CONTINUE_NEEDED;
+  while (!err && (majorStatus != GSS_S_COMPLETE)) {
+    /* Clean up old input buffer */
+    if (inputTokenBuffer != NULL) {
+      free (inputTokenBuffer);
+      inputTokenBuffer = NULL;  /* don't double-free */
+    }
         
-        err = gsscon_read_token (inSocket, &inputTokenBuffer, &inputTokenBufferLength);
+    err = gsscon_read_token (inSocket, &inputTokenBuffer, &inputTokenBufferLength);
         
-        if (!err) {
-            /* Set up input buffers for the next run through the loop */
-            inputToken.value = inputTokenBuffer;
-            inputToken.length = inputTokenBufferLength;
-        }
+    if (!err) {
+      /* Set up input buffers for the next run through the loop */
+      inputToken.value = inputTokenBuffer;
+      inputToken.length = inputTokenBufferLength;
+    }
         
-        if (!err) {
-            /* buffer to send to the server */
-            gss_buffer_desc outputToken = { 0, NULL }; 
+    if (!err) {
+      /* buffer to send to the server */
+      gss_buffer_desc outputToken = { 0, NULL }; 
             
-            /*
-             * accept_sec_context does the actual work of taking the client's 
-             * request and generating an appropriate reply.              */
-            majorStatus = gss_accept_sec_context (&minorStatus, 
-                                                  &gssContext, 
-						  acceptorCredentials,
-                                                  &inputToken, 
-                                                  GSS_C_NO_CHANNEL_BINDINGS, 
-                                                  &clientName,
-                                                  NULL /* actual_mech_type */,
-                                                  &outputToken, 
-                                                  NULL /* req_flags */, 
-                                                  NULL /* time_rec */, 
-                                                  NULL /* delegated_cred_handle */);
+      /*
+       * accept_sec_context does the actual work of taking the client's 
+       * request and generating an appropriate reply.              */
+      majorStatus = gss_accept_sec_context (&minorStatus, 
+                                           &gssContext, 
+                                            acceptorCredentials,
+                                           &inputToken, 
+                                            GSS_C_NO_CHANNEL_BINDINGS, 
+                                           &clientName,
+                                            NULL /* actual_mech_type */,
+                                           &outputToken, 
+                                            NULL /* req_flags */, 
+                                            NULL /* time_rec */, 
+                                            NULL /* delegated_cred_handle */);
             
-            if ((outputToken.length > 0) && (outputToken.value != NULL)) {
-                /* Send the output token to the client (even on error) */
-                err = gsscon_write_token (inSocket, outputToken.value, outputToken.length);
+      if ((outputToken.length > 0) && (outputToken.value != NULL)) {
+        /* Send the output token to the client (even on error) */
+        err = gsscon_write_token (inSocket, outputToken.value, outputToken.length);
                 
-                /* free the output token */
-                gss_release_buffer (&minorStatusToo, &outputToken);
-            }
-        }
-        
-        if ((majorStatus != GSS_S_COMPLETE) && (majorStatus != GSS_S_CONTINUE_NEEDED)) {
-            gsscon_print_gss_errors ("gss_accept_sec_context", majorStatus, minorStatus);
-            err = minorStatus ? minorStatus : majorStatus; 
-        }            
-    }
-
-    if (!err) {
-      majorStatus = gss_display_name(&minorStatus, clientName, &clientDisplayName, NULL);
-      if (GSS_ERROR(majorStatus)) {
-	gsscon_print_gss_errors("gss_display_name", majorStatus, minorStatus);
-	err = EINVAL;
+        /* free the output token */
+        gss_release_buffer (&minorStatusToo, &outputToken);
       }
-      if (!err)
-	err = clientCb(clientName, &clientDisplayName, clientCbData);
     }
-
-    if (!err) { 
-        *outGSSContext = gssContext;
-        gssContext = NULL;
-    } else {
-        gsscon_print_error (err, "Authenticate failed");
-    }
-    
-    if (inputTokenBuffer) { free (inputTokenBuffer); }
-    if (gssContext != GSS_C_NO_CONTEXT) { 
-        gss_delete_sec_context (&minorStatus, &gssContext, GSS_C_NO_BUFFER); }
-if (clientName != GSS_C_NO_NAME)
-  gss_release_name(&minorStatus, &clientName);
-if (clientDisplayName.value != NULL)
-  gss_release_buffer(&minorStatus, &clientDisplayName);
- gss_release_name( &minorStatus, &serviceName);
- gss_release_cred( &minorStatus, &acceptorCredentials);
         
-    return err;
+    if ((majorStatus != GSS_S_COMPLETE) && (majorStatus != GSS_S_CONTINUE_NEEDED)) {
+      gsscon_print_gss_errors ("gss_accept_sec_context", majorStatus, minorStatus);
+      err = minorStatus ? minorStatus : majorStatus; 
+    }
+  }
+
+  if (!err) {
+    majorStatus = gss_display_name(&minorStatus, clientName, &clientDisplayName, NULL);
+    if (GSS_ERROR(majorStatus)) {
+      gsscon_print_gss_errors("gss_display_name", majorStatus, minorStatus);
+      err = EINVAL;
+    }
+    if (!err)
+      err = clientCb(clientName, &clientDisplayName, clientCbData);
+  }
+
+  if (!err) { 
+    *outGSSContext = gssContext;
+    gssContext = NULL;
+  } else {
+    gsscon_print_error (err, "Authenticate failed");
+  }
+    
+  if (inputTokenBuffer) { free (inputTokenBuffer); }
+  if (gssContext != GSS_C_NO_CONTEXT) { 
+    gss_delete_sec_context (&minorStatus, &gssContext, GSS_C_NO_BUFFER); }
+  if (clientName != GSS_C_NO_NAME)
+    gss_release_name(&minorStatus, &clientName);
+  if (clientDisplayName.value != NULL)
+    gss_release_buffer(&minorStatus, &clientDisplayName);
+  gss_release_name( &minorStatus, &serviceName);
+  gss_release_cred( &minorStatus, &acceptorCredentials);
+        
+  return err;
 }
 
     
@@ -195,18 +195,18 @@ if (clientDisplayName.value != NULL)
 
 static int ClientPrincipalIsAuthorizedForService (const char *inClientPrincipal)
 {
-    int err = 0;
-        /* 
-         * Here is where the server checks to see if the client principal should 
-         * be allowed to use your service. Typically it should check both the name 
-         * and the realm, since with cross-realm shared keys, a user at another 
-         * realm may be trying to contact your service.  
-         */
-        err = 0;
+  int err = 0;
+  /* 
+   * Here is where the server checks to see if the client principal should 
+   * be allowed to use your service. Typically it should check both the name 
+   * and the realm, since with cross-realm shared keys, a user at another 
+   * realm may be trying to contact your service.  
+   */
+  err = 0;
 
     
     
-    return err;
+  return err;
 }
 
 /* --------------------------------------------------------------------------- */
@@ -215,56 +215,56 @@ int gsscon_authorize (gss_ctx_id_t  inContext,
                       int          *outAuthorized, 
                       int          *outAuthorizationError)
 {
-    int err = 0;
-    OM_uint32 majorStatus;
-    OM_uint32 minorStatus = 0;
-    gss_name_t clientName = NULL;
-    gss_name_t serviceName = NULL;
-    char *clientPrincipal = NULL;
-    char *servicePrincipal = NULL;
+  int err = 0;
+  OM_uint32 majorStatus;
+  OM_uint32 minorStatus = 0;
+  gss_name_t clientName = NULL;
+  gss_name_t serviceName = NULL;
+  char *clientPrincipal = NULL;
+  char *servicePrincipal = NULL;
 
-    if (!inContext            ) { err = EINVAL; }
-    if (!outAuthorized        ) { err = EINVAL; }
-    if (!outAuthorizationError) { err = EINVAL; }
+  if (!inContext            ) { err = EINVAL; }
+  if (!outAuthorized        ) { err = EINVAL; }
+  if (!outAuthorizationError) { err = EINVAL; }
     
-    if (!err) {
-        /* Get the client and service principals used to authenticate */
-        majorStatus = gss_inquire_context (&minorStatus, 
-                                           inContext, 
-                                           &clientName, 
-                                           &serviceName, 
-                                           NULL, NULL, NULL, NULL, NULL);
-        if (majorStatus != GSS_S_COMPLETE) { 
-            err = minorStatus ? minorStatus : majorStatus; 
-        }
+  if (!err) {
+    /* Get the client and service principals used to authenticate */
+    majorStatus = gss_inquire_context (&minorStatus, 
+                                       inContext, 
+                                      &clientName, 
+                                      &serviceName, 
+                                       NULL, NULL, NULL, NULL, NULL);
+    if (majorStatus != GSS_S_COMPLETE) { 
+      err = minorStatus ? minorStatus : majorStatus; 
     }
+  }
     
+  if (!err) {
+    /* Pull the client principal string out of the gss name */
+    gss_buffer_desc nameToken;
+        
+    majorStatus = gss_display_name (&minorStatus, 
+                                    clientName, 
+                                   &nameToken, 
+                                    NULL);
+    if (majorStatus != GSS_S_COMPLETE) { 
+      err = minorStatus ? minorStatus : majorStatus; 
+    }
+        
     if (!err) {
-        /* Pull the client principal string out of the gss name */
-        gss_buffer_desc nameToken;
+      clientPrincipal = malloc (nameToken.length + 1);
+      if (clientPrincipal == NULL) { err = ENOMEM; }
+    }
         
-        majorStatus = gss_display_name (&minorStatus, 
-                                        clientName, 
-                                        &nameToken, 
-                                        NULL);
-        if (majorStatus != GSS_S_COMPLETE) { 
-            err = minorStatus ? minorStatus : majorStatus; 
-        }
-        
-        if (!err) {
-            clientPrincipal = malloc (nameToken.length + 1);
-            if (clientPrincipal == NULL) { err = ENOMEM; }
-        }
-        
-        if (!err) {
-            memcpy (clientPrincipal, nameToken.value, nameToken.length);
-            clientPrincipal[nameToken.length] = '\0';
-        }        
+    if (!err) {
+      memcpy (clientPrincipal, nameToken.value, nameToken.length);
+      clientPrincipal[nameToken.length] = '\0';
+    }        
 
-        if (nameToken.value) { gss_release_buffer (&minorStatus, &nameToken); }
-    }
+    if (nameToken.value) { gss_release_buffer (&minorStatus, &nameToken); }
+  }
     
-        if (!err) {
+  if (!err) {
     //    /* Pull the service principal string out of the gss name */
     //    gss_buffer_desc nameToken;
     //    
@@ -290,24 +290,24 @@ int gsscon_authorize (gss_ctx_id_t  inContext,
     // }
     
 
-	  int authorizationErr = 0;
-	  authorizationErr = ClientPrincipalIsAuthorizedForService (clientPrincipal);
+    int authorizationErr = 0;
+    authorizationErr = ClientPrincipalIsAuthorizedForService (clientPrincipal);
 
 
         
 //        printf ("'%s' is%s authorized for service '%s'\n", 
 //                clientPrincipal, authorizationErr ? " NOT" : "", servicePrincipal);            
 //        
-	  *outAuthorized = !authorizationErr;
-	  *outAuthorizationError = authorizationErr;
-        }
+    *outAuthorized = !authorizationErr;
+    *outAuthorizationError = authorizationErr;
+  }
     
-    if (serviceName     ) { gss_release_name (&minorStatus, &serviceName); }
-    if (clientName      ) { gss_release_name (&minorStatus, &clientName); }
-    if (clientPrincipal ) { free (clientPrincipal); }
-    if (servicePrincipal) { free (servicePrincipal); }
+  if (serviceName     ) { gss_release_name (&minorStatus, &serviceName); }
+  if (clientName      ) { gss_release_name (&minorStatus, &clientName); }
+  if (clientPrincipal ) { free (clientPrincipal); }
+  if (servicePrincipal) { free (servicePrincipal); }
 
-    return err; 
+  return err; 
 }
 
 

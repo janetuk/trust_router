@@ -50,16 +50,34 @@ typedef struct tr_rp_client {
 /* Structure to make a linked list of RP realms by name for community config */
 typedef struct tr_rp_realm {
   struct tr_rp_realm *next;
-  TR_NAME *realm_name;
+  TR_NAME *realm_id;
+  unsigned int refcount; /* how many TR_COMM_MEMBs refer to this realm */
 } TR_RP_REALM;
 
 /* prototypes */
 TR_RP_CLIENT *tr_rp_client_new(TALLOC_CTX *mem_ctx);
 void tr_rp_client_free(TR_RP_CLIENT *client);
-TR_RP_CLIENT *tr_rp_client_add(TR_RP_CLIENT *clients, TR_RP_CLIENT *new);
+TR_RP_CLIENT *tr_rp_client_add_func(TR_RP_CLIENT *clients, TR_RP_CLIENT *new);
+#define tr_rp_client_add(clients,new) ((clients)=tr_rp_client_add_func((clients),(new)))
 int tr_rp_client_add_gss_name(TR_RP_CLIENT *client, TR_NAME *name);
 int tr_rp_client_set_filter(TR_RP_CLIENT *client, TR_FILTER *filt);
-
 TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name);
-TR_RP_REALM *tr_rp_realm_add(TR_RP_REALM *head, TR_RP_REALM *new);
+
+TR_RP_REALM *tr_rp_realm_new(TALLOC_CTX *mem_ctx);
+void tr_rp_realm_free(TR_RP_REALM *rp);
+TR_NAME *tr_rp_realm_get_id(TR_RP_REALM *rp);
+TR_NAME *tr_rp_realm_dup_id(TR_RP_REALM *rp);
+void tr_rp_realm_set_id(TR_RP_REALM *rp, TR_NAME *id);
+TR_RP_REALM *tr_rp_realm_lookup(TR_RP_REALM *rp_realms, TR_NAME *rp_name);
+TR_RP_REALM *tr_rp_realm_add_func(TR_RP_REALM *head, TR_RP_REALM *new);
+#define tr_rp_realm_add(head,new) ((head)=tr_rp_realm_add_func((head),(new)))
+TR_RP_REALM *tr_rp_realm_remove_func(TR_RP_REALM *head, TR_RP_REALM *remove);
+#define tr_rp_realm_remove(head,remove) ((head)=tr_rp_realm_remove_func((head),(remove)))
+TR_RP_REALM *tr_rp_realm_sweep_func(TR_RP_REALM *head);
+#define tr_rp_realm_sweep(head) ((head)=tr_rp_realm_sweep_func((head)))
+void tr_rp_realm_incref(TR_RP_REALM *realm);
+void tr_rp_realm_decref(TR_RP_REALM *realm);
+
+char *tr_rp_realm_to_str(TALLOC_CTX *mem_ctx, TR_RP_REALM *rp);
+
 #endif

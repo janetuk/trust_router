@@ -214,7 +214,6 @@ static void tr_trps_cleanup_conn(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
   tr_debug("tr_trps_cleanup_conn: freeing %p", conn);
   pthread_join(*trp_connection_get_thread(conn), NULL);
   trps_remove_connection(trps, conn);
-  talloc_report_full(conn, stderr);
   trp_connection_free(conn);
   tr_debug("tr_trps_cleanup_conn: deleted connection");
 }
@@ -244,7 +243,6 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   TR_MQ_MSG *msg=NULL;
   const char *s=NULL;
 
-  talloc_report_full(trps->mq, stderr);
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
     s=tr_mq_msg_get_message(msg);
@@ -316,9 +314,10 @@ static void tr_trps_update(int listener, short event, void *arg)
   TRPS_INSTANCE *trps=cookie->trps;
   struct event *ev=cookie->ev;
 
-  tr_debug("tr_trps_update: sending scheduled route updates.");
+  tr_debug("tr_trps_update: sending scheduled route/community updates.");
   trps_update(trps, TRP_UPDATE_SCHEDULED);
   event_add(ev, &(trps->update_interval));
+  tr_debug("tr_trps_update: update interval=%d", trps->update_interval.tv_sec);
 }
 
 static void tr_trps_sweep(int listener, short event, void *arg)
@@ -329,6 +328,8 @@ static void tr_trps_sweep(int listener, short event, void *arg)
 
   tr_debug("tr_trps_sweep: sweeping routes.");
   trps_sweep_routes(trps);
+  tr_debug("tr_trps_sweep: sweeping communities.");
+  trps_sweep_ctable(trps);
   tr_trps_print_route_table(trps, stderr);
   /* schedule the event to run again */
   event_add(ev, &(trps->sweep_interval));
@@ -395,6 +396,7 @@ TRP_RC tr_trps_event_init(struct event_base *base, TR_INSTANCE *tr)
   struct tr_trps_event_cookie *sweep_cookie=NULL;
   struct timeval zero_time={0,0};
   TRP_RC retval=TRP_ERROR;
+  size_t ii=0;
 
   if (tr->events != NULL) {
     tr_notice("tr_trps_event_init: tr->events was not null. Freeing before reallocating..");
@@ -425,28 +427,31 @@ TRP_RC tr_trps_event_init(struct event_base *base, TR_INSTANCE *tr)
   trps_cookie->cfg_mgr=tr->cfg_mgr;
 
   /* get a trps listener */
-  listen_ev->sock_fd=trps_get_listener(tr->trps,
-                                       tr_trps_msg_handler,
-                                       tr_trps_gss_handler,
-                                       tr->cfg_mgr->active->internal->hostname,
-                                       tr->cfg_mgr->active->internal->trps_port,
-                                       (void *)trps_cookie);
-  if (listen_ev->sock_fd < 0) {
+  listen_ev->n_sock_fd=trps_get_listener(tr->trps,
+                                         tr_trps_msg_handler,
+                                         tr_trps_gss_handler,
+                                         tr->cfg_mgr->active->internal->hostname,
+                                         tr->cfg_mgr->active->internal->trps_port,
+                                         (void *)trps_cookie,
+                                         listen_ev->sock_fd,
+                                         TR_MAX_SOCKETS);
+  if (listen_ev->n_sock_fd==0) {
     tr_crit("Error opening TRP server socket.");
     retval=TRP_ERROR;
     tr_trps_events_free(tr->events);
     tr->events=NULL;
     goto cleanup;
   }
-  trps_cookie->ev=listen_ev->ev; /* in case it needs to frob the event */
-  
-  /* and its event */
-  listen_ev->ev=event_new(base,
-                          listen_ev->sock_fd,
-                          EV_READ|EV_PERSIST,
-                          tr_trps_event_cb,
-                          (void *)(tr->trps));
-  event_add(listen_ev->ev, NULL);
+
+  /* Set up events for the sockets */
+  for (ii=0; ii<listen_ev->n_sock_fd; ii++) {
+    listen_ev->ev[ii]=event_new(base,
+                                listen_ev->sock_fd[ii],
+                                EV_READ|EV_PERSIST,
+                                tr_trps_event_cb,
+                                (void *)(tr->trps));
+    event_add(listen_ev->ev[ii], NULL);
+  }
   
   /* now set up message queue processing event, only triggered by
    * tr_trps_mq_cb() */
@@ -545,6 +550,8 @@ static void *tr_trpc_thread(void *arg)
   const char *msg_type=NULL;
   char *encoded_msg=NULL;
   TR_NAME *peer_gssname=NULL;
+  int n_sent=0;
+  int exit_loop=0;
 
   struct trpc_notify_cb_data cb_data={0,
                                       PTHREAD_COND_INITIALIZER,
@@ -583,41 +590,40 @@ static void *tr_trpc_thread(void *arg)
     trps_mq_add(trps, msg); /* steals msg context */
     msg=NULL;
 
-    while(1) {
+    while(!exit_loop) {
       cb_data.msg_ready=0;
       pthread_cond_wait(&(cb_data.cond), &(cb_data.mutex));
       /* verify the condition */
       if (cb_data.msg_ready) {
-        msg=trpc_mq_pop(trpc);
-        if (msg==NULL) {
-          /* no message in the queue */
-          tr_err("tr_trpc_thread: notified of msg, but queue empty");
-          break;
-        }
+        for (msg=trpc_mq_pop(trpc),n_sent=0; msg!=NULL; msg=trpc_mq_pop(trpc),n_sent++) {
+          msg_type=tr_mq_msg_get_message(msg);
 
-        msg_type=tr_mq_msg_get_message(msg);
-
-        if (0==strcmp(msg_type, TR_MQMSG_ABORT)) {
-          tr_mq_msg_free(msg);
-          break; /* exit loop */
-        }
-        else if (0==strcmp(msg_type, TR_MQMSG_TRPC_SEND)) {
-          encoded_msg=tr_mq_msg_get_payload(msg);
-          if (encoded_msg==NULL)
-            tr_notice("tr_trpc_thread: null outgoing TRP message.");
-          else {
-            rc = trpc_send_msg(trpc, encoded_msg);
-            if (rc!=TRP_SUCCESS) {
-              tr_notice("tr_trpc_thread: trpc_send_msg failed.");
-              tr_mq_msg_free(msg);
-              break;
+          if (0==strcmp(msg_type, TR_MQMSG_ABORT)) {
+            exit_loop=1;
+            break;
+          }
+          else if (0==strcmp(msg_type, TR_MQMSG_TRPC_SEND)) {
+            encoded_msg=tr_mq_msg_get_payload(msg);
+            if (encoded_msg==NULL)
+              tr_notice("tr_trpc_thread: null outgoing TRP message.");
+            else {
+              rc = trpc_send_msg(trpc, encoded_msg);
+              if (rc!=TRP_SUCCESS) {
+                tr_notice("tr_trpc_thread: trpc_send_msg failed.");
+                exit_loop=1;
+                break;
+              }
             }
           }
-        }
-        else
-          tr_notice("tr_trpc_thread: unknown message '%s' received.", msg_type);
+          else
+            tr_notice("tr_trpc_thread: unknown message '%s' received.", msg_type);
 
-        tr_mq_msg_free(msg);
+          tr_mq_msg_free(msg);
+        }
+        if (n_sent==0)
+          tr_err("tr_trpc_thread: notified of msg, but queue empty");
+        else 
+          tr_debug("tr_trpc_thread: sent %d messages.", n_sent);
       }
     }
   }
@@ -755,7 +761,7 @@ TRP_RC tr_add_local_routes(TRPS_INSTANCE *trps, TR_CFG *cfg)
   if (trust_router_name==NULL)
     return TRP_NOMEM;
 
-  for (cur=cfg->idp_realms; cur!=NULL; cur=cur->next) {
+  for (cur=cfg->ctable->idp_realms; cur!=NULL; cur=cur->next) {
     local_routes=tr_make_local_routes(tmp_ctx, cur, trust_router_name, &n_routes);
     for (ii=0; ii<n_routes; ii++)
       trps_add_route(trps, local_routes[ii]);
@@ -834,6 +840,7 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
   trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);
+  trps_set_ctable(trps, new_cfg->ctable);
   trps_set_ptable(trps, new_cfg->peers);
   trps_set_peer_status_callback(trps, tr_peer_status_change, (void *)trps);
   trps_clear_rtable(trps); /* should we do this every time??? */

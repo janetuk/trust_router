@@ -51,6 +51,7 @@ typedef struct tr_constraint {
 
 TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
 void tr_constraint_free(TR_CONSTRAINT *cons);
+TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons);
 
 void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
 

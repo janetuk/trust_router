@@ -1,6 +1,6 @@
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
-bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/dh_test/tr_dh_test common/mq_test/mq_test common/mq_test/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/cfg_test/cfg_test
+bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/tests/tr_dh_test common/tests/mq_test common/tests/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/tests/cfg_test common/tests/commtest
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -10,7 +10,13 @@ common_srcs = common/tr_name.c \
 	common/tr_msg.c \
 	common/tr_dh.c \
         common/tr_debug.c \
-	common/tr_util.c
+	common/tr_util.c \
+	common/tr_apc.c \
+	common/tr_comm.c \
+	common/tr_rp.c \
+	common/tr_idp.c \
+	common/tr_filter.c \
+	common/tr_gss.c
 
 tid_srcs = tid/tid_resp.c \
 tid/tid_req.c \
@@ -24,18 +30,7 @@ trp/trp_ptable.c \
 trp/trp_rtable.c \
 trp/trp_req.c \
 trp/trp_upd.c \
-tid/tid_resp.c \
-tid/tid_req.c \
-common/tr_gss.c \
 common/tr_config.c \
-common/tr_idp.c \
-common/tr_apc.c \
-common/tr_comm.c \
-common/tr_filter.c \
-common/tr_rp.c \
-common/tr_msg.c \
-common/tr_constraint.c \
-common/tr_name.c \
 common/tr_mq.c
 
 check_PROGRAMS = common/t_constraint
@@ -50,7 +45,7 @@ trp/trp_upd.c
 
 libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
 libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
-libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 2 -no-undefined
+libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 3:0:1 -no-undefined
 
 common_t_constraint_SOURCES = common/t_constraint.c \
 common/tr_debug.c \
@@ -68,26 +63,28 @@ tr/tr_event.c \
 tr/tr_cfgwatch.c \
 tr/tr_tid.c \
 tr/tr_trp.c \
-$(trp_srcs)
+$(tid_srcs) \
+$(trp_srcs) \
+$(common_srcs)
 
-tr_trust_router_CFLAGS = $(AM_CFLAGS) -pthread
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads -pthread
-tr_trust_router_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
-
+tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 tr_trpc_SOURCES =tr/trpc_main.c \
 tr/tr_trp.c \
-$(trp_srcs)
-tr_trpc_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+$(trp_srcs) \
+$(tid_srcs) \
+$(common_srcs)
+
+tr_trpc_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 tr_trpc_LDFLAGS = $(AM_LDFLAGS) -pthread
-tr_trpc_CFLAGS = $(AM_CFLAGS) -pthread
 
 trp_msgtst_SOURCES = trp/msgtst.c \
-common/tr_msg.c \
+$(common_srcs) \
 trp/trp_req.c \
 trp/trp_upd.c \
 tid/tid_resp.c \
 tid/tid_req.c
-trp_msgtst_LDADD = libtr_tid.la $(GLIB_LIBS)
+trp_msgtst_LDADD =  $(GLIB_LIBS)
 
 trp_test_rtbl_test_SOURCES = trp/test/rtbl_test.c \
 common/tr_name.c \
@@ -97,41 +94,58 @@ trp/trp_rtable.c
 trp_test_rtbl_test_LDADD =  $(GLIB_LIBS)
 
 trp_test_ptbl_test_SOURCES = trp/test/ptbl_test.c \
-$(trp_srcs) 
-trp_test_ptbl_test_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+$(tid_srcs) \
+$(trp_srcs) \
+$(common_srcs)
+trp_test_ptbl_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
+trp_test_ptbl_test_LDFLAGS = $(AM_LDFLAGS) -pthread
 
-tid_example_tidc_SOURCES = tid/example/tidc_main.c
-tid_example_tidc_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+tid_example_tidc_SOURCES = tid/example/tidc_main.c \
+$(tid_srcs) \
+$(trp_srcs) \
+$(common_srcs)
+tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
+tid_example_tidc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
-tid_example_tids_SOURCES = tid/example/tids_main.c
-tid_example_tids_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
+tid_example_tids_SOURCES = tid/example/tids_main.c \
+$(tid_srcs) \
+$(trp_srcs) \
+$(common_srcs)
+tid_example_tids_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
+tid_example_tids_LDFLAGS = $(AM_LDFLAGS) -pthread
 
-common_dh_test_tr_dh_test_SOURCES = common/tr_dh.c \
+common_tests_tr_dh_test_SOURCES = common/tr_dh.c \
 common/tr_debug.c \
-common/dh_test/dh_test.c
+common/tests/dh_test.c
 
-common_mq_test_mq_test_SOURCES = common/tr_mq.c \
-common/mq_test/mq_test.c
+common_tests_mq_test_SOURCES = common/tr_mq.c \
+common/tests/mq_test.c \
+common/tr_debug.c
 
-common_mq_test_mq_test_CFLAGS = -pthread
-common_mq_test_mq_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
+common_tests_mq_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
-common_cfg_test_cfg_test_SOURCES = common/cfg_test/cfg_test.c \
+common_tests_cfg_test_SOURCES = common/tests/cfg_test.c \
+$(common_srcs) \
+$(tid_srcs) \
 $(trp_srcs)
+common_tests_cfg_test_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
+common_tests_cfg_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
-common_cfg_test_cfg_test_LDADD = gsscon/libgsscon.la libtr_tid.la $(GLIB_LIBS)
-common_cfg_test_cfg_test_CFLAGS = -pthread
-common_cfg_test_cfg_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
-
-common_mq_test_thread_test_SOURCES = common/tr_mq.c \
+common_tests_thread_test_SOURCES = common/tr_mq.c \
 common/tr_debug.c \
-common/mq_test/thread_test.c
+common/tests/thread_test.c
 
-common_mq_test_thread_test_CFLAGS = -pthread
-common_mq_test_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc
+common_tests_commtest_SOURCES = common/tests/commtest.c \
+$(common_srcs) \
+$(tid_srcs) \
+$(trp_srcs)
+common_tests_commtest_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
+common_tests_commtest_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
+
+common_tests_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
-	include/tr_debug.h \
+	include/tr_debug.h include/trust_router/trp.h \
 	include/trust_router/tr_dh.h \
 	include/trust_router/tr_constraint.h \
 	include/trust_router/tr_versioning.h 
@@ -141,16 +155,19 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_idp.h include/tr_rp.h \
 	include/tr_comm.h include/tr_apc.h \
 	include/tr_tid.h include/tr_trp.h \
-	include/tr_filter.h \
-	include/tid_internal.h
+	include/tr_filter.h include/tr_gss.h \
+	include/tid_internal.h include/trp_internal.h \
+	include/tr_cfgwatch.h include/tr_event.h \
+	include/tr_mq.h include/trp_ptable.h \
+	include/trp_rtable.h include/tr_util.h
 
 pkgdata_DATA=schema.sql
-nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/trusts.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-main.cfg redhat/default-main.cfg redhat/tids-wrapper redhat/sysconfig.tids
+nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/organizations.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-internal.cfg redhat/default-internal.cfg redhat/tids-wrapper redhat/sysconfig.tids
 
 if HAVE_SYSTEMD
 systemdsystemunit_DATA = tids.service
 endif
 
 EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service \
-	tr/manual.cfg tr/portal.cfg \
+	tr/internal.cfg tr/organizations.cfg \
 	redhat/tids.init
