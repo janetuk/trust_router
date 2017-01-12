@@ -5,7 +5,7 @@ moonshot-trust-router (2.1.1-1) unstable; urgency=medium
   * Support support multiple AAA servers for an IdP
   * Support IPv6 addressing
 
- -- Jennifer Richards <jennifer@painless-security.com>  Tue, 20 Sep 2016 14:57:24 -0400
+ -- Jennifer Richards <jennifer@painless-security.com>  Thu, 26 Jan 2017 18:00:00 -0400
 
 moonshot-trust-router (2.0-1) UNRELEASED; urgency=low
 
