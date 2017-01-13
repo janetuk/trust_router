@@ -51,6 +51,7 @@ common_t_constraint_SOURCES = common/t_constraint.c \
 common/tr_debug.c \
 common/tr_name.c \
 common/tr_constraint.c \
+common/tr_dh.c \
 tid/tid_req.c \
 tid/tid_resp.c
 
