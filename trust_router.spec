@@ -83,7 +83,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %pre
 getent group trustrouter > /dev/null || groupadd -r trustrouter
-getent passwd trustrouter > /dev/null || useradd -r -g trustrouter -d /var/lib/trustrouter -s /sbin/nologin -c "GSS-EAP Trust Router service account" trustrouter
+getent passwd trustrouter > /dev/null || useradd -r -g trustrouter -d /var/lib/trust_router -s /sbin/nologin -c "GSS-EAP Trust Router service account" trustrouter
 exit 0
 
 
