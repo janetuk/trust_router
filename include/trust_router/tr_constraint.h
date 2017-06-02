@@ -54,27 +54,12 @@ void tr_constraint_free(TR_CONSTRAINT *cons);
 TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons);
 
 void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
-
 int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
-/**
- * Create a new constraint set containing all constraints from #orig
- * with constraint_type #constraint_type and no others.  This constraint set is
- * live until #request is freed.
- */
 TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
                                                       TR_CONSTRAINT_SET *orig,
                                                       const char * constraint_type);
-
-TR_EXPORT TR_CONSTRAINT_SET
-*tr_constraint_set_intersect(TID_REQ *request,
-                             TR_CONSTRAINT_SET *input);
-
-/** Get the set of wildcard strings that matches a fully intersected
- * constraint set.  Requires that the constraint set only have one
- * constraint in it, but the constraint may have multiple matches for
- * a given type.  Returns true on success false on failure.  The
- * output is live as long as the request is live.
- */
+TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_intersect(TID_REQ *request,
+                                                         TR_CONSTRAINT_SET *input);
 int TR_EXPORT tr_constraint_set_get_match_strings(TID_REQ *,
                                                   TR_CONSTRAINT_SET *,
                                                   const char * constraint_type,

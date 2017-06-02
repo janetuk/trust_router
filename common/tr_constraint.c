@@ -99,7 +99,9 @@ TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons)
   return new;
 }
 
-/* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
+/* Returns TRUE (1) if the the string (str) matches the wildcard string (wc_str), FALSE (0) if not.
+ * Allows for a single '*' as the wildcard character if it is the first character. Leading white
+ * space is significant.
  */
 int tr_prefix_wildcard_match(const char *str, const char *wc_str)
 {
@@ -131,6 +133,8 @@ int tr_prefix_wildcard_match(const char *str, const char *wc_str)
     return 0;
 }
 
+/* This combines the two constraints in a filter line (TR_FLINE) into a single
+ * set with two constraints. */
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline)
 {
   json_t *cset = NULL;
@@ -152,8 +156,10 @@ TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline)
  *
  *	{cset: [{domain: [a.com, b.co.uk]},
  *	        {realm: [c.net, d.org]}]}
+ *
+ * This routine takes a TR_CONSTRAINT, converts it to its JSON representation,
+ * and adds that to the TR_CONSTRAINT_SET.
  */
-
 void tr_constraint_add_to_set(TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
 {
   json_t *jcons = NULL;
@@ -181,6 +187,9 @@ void tr_constraint_add_to_set(TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
   json_array_append_new((json_t *) *cset, jcons);
 }
 
+/* Test whether a JSON object has a valid structure
+ * to represent a constraint set.
+ */
 int tr_constraint_set_validate(TR_CONSTRAINT_SET *cset) {
   json_t *json = (json_t *) cset;
   size_t i;
@@ -217,6 +226,12 @@ int tr_constraint_set_validate(TR_CONSTRAINT_SET *cset) {
 }
 
 
+/**
+ * Create a new constraint set containing all constraints from #orig
+ * with constraint_type #constraint_type and no others.  This constraint set is
+ * live until #request is freed.
+ * TODO: use or remove the request parameter.
+ */
 TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
                                             TR_CONSTRAINT_SET *orig,
                                             const char *constraint_type)
@@ -345,7 +360,12 @@ TR_CONSTRAINT_SET *tr_constraint_set_intersect(TID_REQ *request,
   return (TR_CONSTRAINT_SET *) result_array;
 }
 
-
+/** Get the set of wildcard strings that matches a fully intersected
+ * constraint set.  Requires that the constraint set only have one
+ * constraint in it, but the constraint may have multiple matches for
+ * a given type.  Returns true on success false on failure.  The
+ * output is live as long as the request is live.
+ */
 int tr_constraint_set_get_match_strings(TID_REQ *request,
                                         TR_CONSTRAINT_SET *constraints,
                                         const char *constraint_type,

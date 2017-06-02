@@ -220,6 +220,9 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
 }
 
 
+/* Adds the JSON object ref to req's list of objects to release when the
+ * req is freed.
+ */
 void tid_req_cleanup_json( TID_REQ *req, json_t *ref)
 {
   (void) json_array_append_new(req->json_references, ref);
