@@ -40,7 +40,11 @@
 #include <tr_filter.h>
 
 
-int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints, TR_CONSTRAINT_SET **out_constraints, int *out_action) 
+int tr_filter_process_rp_permitted(TR_NAME *rp_realm,
+                                   TR_FILTER *rpp_filter,
+                                   TR_CONSTRAINT_SET *in_constraints,
+                                   TR_CONSTRAINT_SET **out_constraints,
+                                   int *out_action)
 {
   int i = 0, j = 0;
 
@@ -52,24 +56,24 @@ int tr_filter_process_rp_permitted (TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR
       (TR_FILTER_TYPE_RP_PERMITTED != rpp_filter->type)) {
     return TR_FILTER_NO_MATCH;
   }
-  
+
   /* Check if there is a match for this filter. */
   for (i = 0; i < TR_MAX_FILTER_LINES; i++) {
     for (j = 0; j < TR_MAX_FILTER_SPECS; j++) {
 
-      if ((rpp_filter->lines[i]) && 
-	  (rpp_filter->lines[i]->specs[j]) && 
-	  (tr_fspec_matches(rpp_filter->lines[i]->specs[j], rp_realm))) {
-	*out_action = rpp_filter->lines[i]->action;
-	*out_constraints = in_constraints;
-	if (rpp_filter->lines[i]->realm_cons)
-	  tr_constraint_add_to_set(out_constraints, 
-				   rpp_filter->lines[i]->realm_cons);
-	if (rpp_filter->lines[i]->domain_cons)
-	  tr_constraint_add_to_set(out_constraints, 
-				   rpp_filter->lines[i]->domain_cons);
+      if ((rpp_filter->lines[i]) &&
+          (rpp_filter->lines[i]->specs[j]) &&
+          (tr_fspec_matches(rpp_filter->lines[i]->specs[j], rp_realm))) {
+        *out_action = rpp_filter->lines[i]->action;
+        *out_constraints = in_constraints;
+        if (rpp_filter->lines[i]->realm_cons)
+          tr_constraint_add_to_set(out_constraints,
+                                   rpp_filter->lines[i]->realm_cons);
+        if (rpp_filter->lines[i]->domain_cons)
+          tr_constraint_add_to_set(out_constraints,
+                                   rpp_filter->lines[i]->domain_cons);
 
-	return TR_FILTER_MATCH;
+        return TR_FILTER_MATCH;
       }
     }
   }
@@ -84,39 +88,39 @@ void tr_fspec_free(TR_FSPEC *fspec)
 
 static int tr_fspec_destructor(void *obj)
 {
-  TR_FSPEC *fspec=talloc_get_type_abort(obj, TR_FSPEC);
+  TR_FSPEC *fspec = talloc_get_type_abort(obj, TR_FSPEC);
 
-  if (fspec->field!=NULL)
+  if (fspec->field != NULL)
     tr_free_name(fspec->field);
-  if (fspec->match!=NULL)
+  if (fspec->match != NULL)
     tr_free_name(fspec->match);
   return 0;
 }
 
 TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx)
 {
-  TR_FSPEC *fspec=talloc(mem_ctx, TR_FSPEC);
+  TR_FSPEC *fspec = talloc(mem_ctx, TR_FSPEC);
 
-  if (fspec!=NULL) {
-    fspec->field=NULL;
-    fspec->match=NULL;
-    talloc_set_destructor((void *)fspec, tr_fspec_destructor);
+  if (fspec != NULL) {
+    fspec->field = NULL;
+    fspec->match = NULL;
+    talloc_set_destructor((void *) fspec, tr_fspec_destructor);
   }
   return fspec;
 }
 
 void tr_fspec_set_match(TR_FSPEC *fspec, TR_NAME *match)
 {
-  if (fspec->match!=NULL)
+  if (fspec->match != NULL)
     tr_free_name(fspec->match);
-  fspec->match=match;
+  fspec->match = match;
 }
 
 /* returns 1 if the spec matches */
 int tr_fspec_matches(TR_FSPEC *fspec, TR_NAME *name)
 {
-  return ((fspec->match!=NULL) &&
-          (0!=tr_prefix_wildcard_match(name->buf, fspec->match->buf)));
+  return ((fspec->match != NULL) &&
+          (0 != tr_prefix_wildcard_match(name->buf, fspec->match->buf)));
 }
 
 void tr_fline_free(TR_FLINE *fline)
@@ -126,28 +130,28 @@ void tr_fline_free(TR_FLINE *fline)
 
 TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
 {
-  TR_FLINE *fl=talloc(mem_ctx, TR_FLINE);
-  int ii=0;
+  TR_FLINE *fl = talloc(mem_ctx, TR_FLINE);
+  int ii = 0;
 
-  if (fl!=NULL) {
-    fl->action=TR_FILTER_ACTION_UNKNOWN;
-    fl->realm_cons=NULL;
-    fl->domain_cons=NULL;
-    for (ii=0; ii<TR_MAX_FILTER_SPECS; ii++)
-      fl->specs[ii]=NULL;
+  if (fl != NULL) {
+    fl->action = TR_FILTER_ACTION_UNKNOWN;
+    fl->realm_cons = NULL;
+    fl->domain_cons = NULL;
+    for (ii = 0; ii < TR_MAX_FILTER_SPECS; ii++)
+      fl->specs[ii] = NULL;
   }
   return fl;
 }
 
 TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx)
 {
-  TR_FILTER *f=talloc(mem_ctx, TR_FILTER);
-  int ii=0;
+  TR_FILTER *f = talloc(mem_ctx, TR_FILTER);
+  int ii = 0;
 
-  if (f!=NULL) {
-    f->type=TR_FILTER_TYPE_UNKNOWN;
-    for (ii=0; ii<TR_MAX_FILTER_LINES; ii++)
-      f->lines[ii]=NULL;
+  if (f != NULL) {
+    f->type = TR_FILTER_TYPE_UNKNOWN;
+    for (ii = 0; ii < TR_MAX_FILTER_LINES; ii++)
+      f->lines[ii] = NULL;
   }
   return f;
 }
@@ -159,7 +163,7 @@ void tr_filter_free(TR_FILTER *filt)
 
 void tr_filter_set_type(TR_FILTER *filt, TR_FILTER_TYPE type)
 {
-  filt->type=type;
+  filt->type = type;
 }
 
 TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt)

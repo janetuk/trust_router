@@ -45,8 +45,8 @@
 
 
 typedef struct tr_constraint {
-  TR_NAME *type;
-  TR_NAME *matches[TR_MAX_CONST_MATCHES];
+    TR_NAME *type;
+    TR_NAME *matches[TR_MAX_CONST_MATCHES];
 } TR_CONSTRAINT;
 
 TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
@@ -62,12 +62,12 @@ int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
  * live until #request is freed.
  */
 TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
-				   TR_CONSTRAINT_SET *orig,
-				   const char * constraint_type);
+                                                      TR_CONSTRAINT_SET *orig,
+                                                      const char * constraint_type);
 
 TR_EXPORT TR_CONSTRAINT_SET
 *tr_constraint_set_intersect(TID_REQ *request,
-			     TR_CONSTRAINT_SET *input);
+                             TR_CONSTRAINT_SET *input);
 
 /** Get the set of wildcard strings that matches a fully intersected
  * constraint set.  Requires that the constraint set only have one
@@ -76,10 +76,10 @@ TR_EXPORT TR_CONSTRAINT_SET
  * output is live as long as the request is live.
  */
 int TR_EXPORT tr_constraint_set_get_match_strings(TID_REQ *,
-					    TR_CONSTRAINT_SET *,
-						  const char * constraint_type,
-						  tr_const_string **output,
-					    size_t *output_len);
+                                                  TR_CONSTRAINT_SET *,
+                                                  const char * constraint_type,
+                                                  tr_const_string **output,
+                                                  size_t *output_len);
 
- 
+
 #endif

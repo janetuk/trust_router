@@ -45,13 +45,13 @@
 
 static int tr_constraint_destructor(void *obj)
 {
-  TR_CONSTRAINT *cons=talloc_get_type_abort(obj, TR_CONSTRAINT);
-  int ii=0;
+  TR_CONSTRAINT *cons = talloc_get_type_abort(obj, TR_CONSTRAINT);
+  int ii = 0;
 
-  if (cons->type!=NULL)
+  if (cons->type != NULL)
     tr_free_name(cons->type);
-  for (ii=0; ii<TR_MAX_CONST_MATCHES; ii++) {
-    if (cons->matches[ii]!=NULL)
+  for (ii = 0; ii < TR_MAX_CONST_MATCHES; ii++) {
+    if (cons->matches[ii] != NULL)
       tr_free_name(cons->matches[ii]);
   }
   return 0;
@@ -59,14 +59,14 @@ static int tr_constraint_destructor(void *obj)
 
 TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx)
 {
-  TR_CONSTRAINT *cons=talloc(mem_ctx, TR_CONSTRAINT);
-  int ii=0;
+  TR_CONSTRAINT *cons = talloc(mem_ctx, TR_CONSTRAINT);
+  int ii = 0;
 
-  if (cons!=NULL) {
-    cons->type=NULL;
-    for (ii=0; ii<TR_MAX_CONST_MATCHES; ii++)
-      cons->matches[ii]=NULL;
-    talloc_set_destructor((void *)cons, tr_constraint_destructor);
+  if (cons != NULL) {
+    cons->type = NULL;
+    for (ii = 0; ii < TR_MAX_CONST_MATCHES; ii++)
+      cons->matches[ii] = NULL;
+    talloc_set_destructor((void *) cons, tr_constraint_destructor);
   }
   return cons;
 }
@@ -78,20 +78,20 @@ void tr_constraint_free(TR_CONSTRAINT *cons)
 
 TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons)
 {
-  TALLOC_CTX *tmp_ctx=NULL;
-  TR_CONSTRAINT *new=NULL;
-  int ii=0;
+  TALLOC_CTX *tmp_ctx = NULL;
+  TR_CONSTRAINT *new = NULL;
+  int ii = 0;
 
-  if (cons==NULL)
+  if (cons == NULL)
     return NULL;
 
-  tmp_ctx=talloc_new(NULL);
-  new=tr_constraint_new(tmp_ctx);
+  tmp_ctx = talloc_new(NULL);
+  new = tr_constraint_new(tmp_ctx);
 
-  if (new!=NULL) {
-    new->type=tr_dup_name(cons->type);
-    for (ii=0; ii<TR_MAX_CONST_MATCHES; ii++)
-      new->matches[ii]=tr_dup_name(cons->matches[ii]);
+  if (new != NULL) {
+    new->type = tr_dup_name(cons->type);
+    for (ii = 0; ii < TR_MAX_CONST_MATCHES; ii++)
+      new->matches[ii] = tr_dup_name(cons->matches[ii]);
     talloc_steal(mem_ctx, new);
   }
 
@@ -101,7 +101,8 @@ TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons)
 
 /* Returns TRUE (1) if the the string (str) matchs the wildcard string (wc_str), FALSE (0) if not.
  */
-int tr_prefix_wildcard_match (const char *str, const char *wc_str) {
+int tr_prefix_wildcard_match(const char *str, const char *wc_str)
+{
   const char *wc_post = wc_str;
   size_t len = 0;
   size_t wc_len = 0;
@@ -117,21 +118,20 @@ int tr_prefix_wildcard_match (const char *str, const char *wc_str) {
   if ('*' == wc_str[0]) {
     wc_post = &(wc_str[1]);
     wc_len--;
-  }else if (len != wc_len)
+  } else if (len != wc_len)
     return 0;
 
 
   if (wc_len > len)
     return 0;
-  
-  if (0 == strcmp(&(str[len-wc_len]), wc_post)) {
-    return 1;
-  }
-  else
-    return 0;
-  }
 
-TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline)
+  if (0 == strcmp(&(str[len - wc_len]), wc_post)) {
+    return 1;
+  } else
+    return 0;
+}
+
+TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline)
 {
   json_t *cset = NULL;
 
@@ -139,10 +139,10 @@ TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline)
     return NULL;
 
   if (fline->realm_cons)
-    tr_constraint_add_to_set((TR_CONSTRAINT_SET **)&cset, fline->realm_cons);
+    tr_constraint_add_to_set((TR_CONSTRAINT_SET **) &cset, fline->realm_cons);
   if (fline->domain_cons)
-    tr_constraint_add_to_set((TR_CONSTRAINT_SET **)&cset, fline->domain_cons);
-  
+    tr_constraint_add_to_set((TR_CONSTRAINT_SET **) &cset, fline->domain_cons);
+
   return (TR_CONSTRAINT_SET *) cset;
 }
 
@@ -154,7 +154,7 @@ TR_CONSTRAINT_SET *tr_constraint_set_from_fline (TR_FLINE *fline)
  *	        {realm: [c.net, d.org]}]}
  */
 
-void tr_constraint_add_to_set (TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
+void tr_constraint_add_to_set(TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
 {
   json_t *jcons = NULL;
   json_t *jmatches = NULL;
@@ -176,17 +176,16 @@ void tr_constraint_add_to_set (TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
   }
 
   json_object_set_new(jcons, cons->type->buf, jmatches);
-  
+
   /* Add the created object to the cset object */
   json_array_append_new((json_t *) *cset, jcons);
-} 
+}
 
- int tr_constraint_set_validate(TR_CONSTRAINT_SET *cset)
-{
+int tr_constraint_set_validate(TR_CONSTRAINT_SET *cset) {
   json_t *json = (json_t *) cset;
   size_t i;
   json_t *set_member;
-  if (!json_is_array(json)){
+  if (!json_is_array(json)) {
     tr_debug("Constraint_set is not an array");
     return 0;
   }
@@ -197,42 +196,42 @@ void tr_constraint_add_to_set (TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
       tr_debug("Constraint member at %zu is not an object\n", i);
       return 0;
     }
-    json_object_foreach( set_member, key, value) {
+    json_object_foreach(set_member, key, value) {
       size_t inner_index;
       json_t *inner_value;
       if (!json_is_array(value)) {
-	tr_debug("Constraint type %s at index %zu in constraint set is not an array\n", key,
-		 i);
-	return 0;
+        tr_debug("Constraint type %s at index %zu in constraint set is not an array\n", key,
+                 i);
+        return 0;
       }
       json_array_foreach(value, inner_index, inner_value) {
-	if (!json_is_string(inner_value)) {
-	  tr_debug("Constraint type %s at index %zu in constraint set has non-string element %zu\n",
-		   key, i, inner_index);
-	  return 0;
-	}
+        if (!json_is_string(inner_value)) {
+          tr_debug("Constraint type %s at index %zu in constraint set has non-string element %zu\n",
+                   key, i, inner_index);
+          return 0;
+        }
       }
-	}
+    }
   }
   return 1;
 }
 
 
-TR_CONSTRAINT_SET *tr_constraint_set_filter( TID_REQ *request,
-					     TR_CONSTRAINT_SET *orig,
-					     const char *constraint_type)
+TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
+                                            TR_CONSTRAINT_SET *orig,
+                                            const char *constraint_type)
 {
-  json_t *orig_cset = (json_t*) orig;
-  json_t  *new_cs = NULL;
+  json_t *orig_cset = (json_t *) orig;
+  json_t *new_cs = NULL;
   size_t index;
   json_t *set_member;
-  if (!tr_constraint_set_validate( (TR_CONSTRAINT_SET *) orig_cset)) {
+  if (!tr_constraint_set_validate((TR_CONSTRAINT_SET *) orig_cset)) {
     tr_debug ("tr_constraint_set_filter: not a valid constraint set\n");
     return NULL;
   }
   assert (new_cs = json_array());
   json_array_foreach(orig_cset, index, set_member) {
-    if (json_object_get( set_member, constraint_type))
+    if (json_object_get(set_member, constraint_type))
       json_array_append(new_cs, set_member);
   }
   return (TR_CONSTRAINT_SET *) new_cs;
@@ -255,40 +254,39 @@ static void merge_constraints(json_t *constraint, const char *key)
    */
   constraint_array = json_object_get(constraint, key);
   if (NULL == constraint_array)
-      return;
-  json_array_foreach( constraint_array, index_1, value_1)
-    json_array_foreach( constraint_array, index_2, value_2) {
-    if (index_2 <= index_1)
-      continue;
-    if ( tr_prefix_wildcard_match( json_string_value(value_2),
-				   json_string_value(value_1))) {
-      json_array_remove(constraint_array, index_2);
-      index_2--;
-    }else if (tr_prefix_wildcard_match( json_string_value(value_1),
-					json_string_value(value_2))) {
-      json_array_set(constraint_array, index_1, value_2);
-      json_array_remove(constraint_array, index_2);
-      index_2--;
+    return;
+  json_array_foreach(constraint_array, index_1, value_1)json_array_foreach(constraint_array, index_2, value_2) {
+      if (index_2 <= index_1)
+        continue;
+      if (tr_prefix_wildcard_match(json_string_value(value_2),
+                                   json_string_value(value_1))) {
+        json_array_remove(constraint_array, index_2);
+        index_2--;
+      } else if (tr_prefix_wildcard_match(json_string_value(value_1),
+                                          json_string_value(value_2))) {
+        json_array_set(constraint_array, index_1, value_2);
+        json_array_remove(constraint_array, index_2);
+        index_2--;
+      }
     }
-  }
 }
 
 /**
  * Returns an array of constraint strings that is the intersection of
  * all constraints in the constraint_set of type #type
  */
-static json_t *constraint_intersect_internal( TR_CONSTRAINT_SET *constraints,
-					      const char *constraint_type)
+static json_t *constraint_intersect_internal(TR_CONSTRAINT_SET *constraints,
+                                             const char *constraint_type)
 {
   json_t *constraint, *result = NULL;
   size_t i;
-  json_array_foreach( (json_t *) constraints, i, constraint) {
-    merge_constraints( constraint, constraint_type);
+  json_array_foreach((json_t *) constraints, i, constraint) {
+    merge_constraints(constraint, constraint_type);
     if (NULL == result) {
       result = json_object_get(constraint, constraint_type);
       if (NULL != result)
-	result = json_copy(result);
-    }    else {
+        result = json_copy(result);
+    } else {
       json_t *intersect, *value_1, *value_2;
       size_t index_1, index_2;
       intersect = json_object_get(constraint, constraint_type);
@@ -298,24 +296,25 @@ static json_t *constraint_intersect_internal( TR_CONSTRAINT_SET *constraints,
        *     constraint type we return empty (no access) rather than universal
        * access.*/
       if (!intersect)
-	continue;
-    result_loop:
+        continue;
+      result_loop:
       json_array_foreach(result, index_1, value_1) {
-	json_array_foreach(intersect, index_2, value_2) {
-	  if (tr_prefix_wildcard_match( json_string_value(value_1),
-					json_string_value(value_2)))
-	    goto result_acceptable;
-	  else if (tr_prefix_wildcard_match(json_string_value( value_2),
-					    json_string_value(value_1))) {
-	    json_array_set(result, index_1, value_2);
-	    goto result_acceptable;
-	}
-	}
-	json_array_remove(result, index_1);
-	if (index_1 == 0)
-	  goto result_loop;
-	index_1--;
-      result_acceptable: continue;
+        json_array_foreach(intersect, index_2, value_2) {
+          if (tr_prefix_wildcard_match(json_string_value(value_1),
+                                       json_string_value(value_2)))
+            goto result_acceptable;
+          else if (tr_prefix_wildcard_match(json_string_value(value_2),
+                                            json_string_value(value_1))) {
+            json_array_set(result, index_1, value_2);
+            goto result_acceptable;
+          }
+        }
+        json_array_remove(result, index_1);
+        if (index_1 == 0)
+          goto result_loop;
+        index_1--;
+        result_acceptable:
+        continue;
       }
     }
   }
@@ -326,10 +325,10 @@ static json_t *constraint_intersect_internal( TR_CONSTRAINT_SET *constraints,
  * Return the intersection of domain and realm constraints.
  * Return is live until #request is freed.
  */
-TR_CONSTRAINT_SET *tr_constraint_set_intersect( TID_REQ *request,
-						TR_CONSTRAINT_SET *input)
+TR_CONSTRAINT_SET *tr_constraint_set_intersect(TID_REQ *request,
+                                               TR_CONSTRAINT_SET *input)
 {
-  json_t *domain=NULL, *realm=NULL;
+  json_t *domain = NULL, *realm = NULL;
   json_t *result = NULL, *result_array = NULL;
   if (tr_constraint_set_validate(input)) {
     domain = constraint_intersect_internal(input, "domain");
@@ -342,17 +341,16 @@ TR_CONSTRAINT_SET *tr_constraint_set_intersect( TID_REQ *request,
     json_object_set_new(result, "realm", realm);
   assert(result_array = json_array());
   json_array_append_new(result_array, result);
-  tid_req_cleanup_json( request, result_array);
+  tid_req_cleanup_json(request, result_array);
   return (TR_CONSTRAINT_SET *) result_array;
 }
 
 
-int tr_constraint_set_get_match_strings(
-					TID_REQ *request,
-					TR_CONSTRAINT_SET *constraints,
-					const char *constraint_type,
-					tr_const_string **output,
-					size_t *output_len)
+int tr_constraint_set_get_match_strings(TID_REQ *request,
+                                        TR_CONSTRAINT_SET *constraints,
+                                        const char *constraint_type,
+                                        tr_const_string **output,
+                                        size_t *output_len)
 {
   json_t *cset = (json_t *) constraints;
   json_t *member, *matches, *value;;
@@ -372,8 +370,7 @@ int tr_constraint_set_get_match_strings(
   if (array_size == 0)
     return -1;
   *output = talloc_array_ptrtype(request, *output, array_size);
-  json_array_foreach( matches, index, value)
-    (*output)[index] = json_string_value(value);
+  json_array_foreach(matches, index, value)(*output)[index] = json_string_value(value);
   *output_len = array_size;
   return 0;
 }
