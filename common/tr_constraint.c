@@ -230,7 +230,6 @@ int tr_constraint_set_validate(TR_CONSTRAINT_SET *cset) {
  * Create a new constraint set containing all constraints from #orig
  * with constraint_type #constraint_type and no others.  This constraint set is
  * live until #request is freed.
- * TODO: use or remove the request parameter.
  */
 TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
                                             TR_CONSTRAINT_SET *orig,
@@ -249,6 +248,7 @@ TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
     if (json_object_get(set_member, constraint_type))
       json_array_append(new_cs, set_member);
   }
+  tid_req_cleanup_json(request, new_cs);
   return (TR_CONSTRAINT_SET *) new_cs;
 }
 
