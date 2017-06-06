@@ -1313,16 +1313,16 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
   if (realm!=NULL)
     tr_free_name(realm);
 
-    if (*rc==TR_CFG_SUCCESS)
-      talloc_steal(mem_ctx, client);
-    else {
-      talloc_free(client);
-      client=NULL;
-    }
-
-    talloc_free(tmp_ctx);
-    return client;
+  if (*rc==TR_CFG_SUCCESS)
+    talloc_steal(mem_ctx, client);
+  else {
+    talloc_free(client);
+    client=NULL;
   }
+
+  talloc_free(tmp_ctx);
+  return client;
+}
 
   /* Determine whether the realm is an RP realm */
 static int tr_cfg_is_rp_realm(json_t *jrealm)
