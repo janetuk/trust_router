@@ -83,19 +83,25 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
 }
 
 
+static void print_version_info(void)
+{
+  printf("Moonshot TID Client %s\n\n", PACKAGE_VERSION);
+}
+
 /* command-line option setup */
 
 /* argp global parameters */
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - TID Client";
+static const char doc[]=PACKAGE_NAME " - Moonshot TID Client " PACKAGE_VERSION;
 static const char arg_doc[]="<server> <RP-realm> <target-realm> <community> [<port>]"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
-  { NULL }
+    { "version", 'v', NULL, 0, "Print version information and exit"},
+    { NULL }
 };
 
 /* structure for communicating with option parser */
@@ -149,6 +155,10 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
     }
     break;
 
+  case 'v':
+    print_version_info();
+    exit(0);
+
   default:
     return ARGP_ERR_UNKNOWN;
   }
@@ -178,6 +188,8 @@ int main (int argc,
 
   argp_parse(&argp, argc, argv, 0, 0, &opts);
   /* TBD -- validity checking, dealing with quotes, etc. */
+
+  print_version_info();
 
   /* Use standalone logging */
   tr_log_open();

@@ -278,18 +278,24 @@ static int auth_handler(gss_name_t gss_name, TR_NAME *client,
   return result;
 }
 
+static void print_version_info(void)
+{
+  printf("Moonshot TID Server %s\n\n", PACKAGE_VERSION);
+}
+
 /* command-line option setup */
 
 /* argp global parameters */
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - TID Server";
+static const char doc[]=PACKAGE_NAME " - Moonshot TID Server " PACKAGE_VERSION;
 static const char arg_doc[]="<ip-address> <gss-name> <hostname> <database-name>"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
+  { "version", 'v', NULL, 0, "Print version information and exit"},
   { NULL }
 };
 
@@ -339,6 +345,10 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
     }
     break;
 
+  case 'v':
+    print_version_info();
+    exit(0);
+
   default:
     return ARGP_ERR_UNKNOWN;
   }
@@ -354,10 +364,12 @@ int main (int argc,
 {
   TIDS_INSTANCE *tids;
   TR_NAME *gssname = NULL;
-  struct cmdline_args opts={NULL};
+  struct cmdline_args opts={0};
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
+
+  print_version_info();
 
   talloc_set_log_stderr();
 

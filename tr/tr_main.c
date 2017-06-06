@@ -55,6 +55,11 @@
 
 /***** command-line option handling / setup *****/
 
+static void print_version_info(void)
+{
+  printf("Moonshot Trust Router %s\n\n", PACKAGE_VERSION);
+}
+
 /* Strip trailing / from a path name.*/
 static void remove_trailing_slash(char *s) {
   size_t n;
@@ -69,19 +74,21 @@ static void remove_trailing_slash(char *s) {
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - Moonshot Trust Router";
+static const char doc[]=PACKAGE_NAME " - Moonshot Trust Router " PACKAGE_VERSION;
 static const char arg_doc[]=""; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
     { "config-dir", 'c', "DIR", 0, "Specify configuration file location (default is current directory)"},
+    { "version", 'v', NULL, 0, "Print version information and exit"},
     { NULL }
 };
 
 /* structure for communicating with option parser */
 struct cmdline_args {
-  char *config_dir;
+    int version_requested;
+    char *config_dir;
 };
 
 /* parser for individual options - fills in a struct cmdline_args */
@@ -91,16 +98,20 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
   struct cmdline_args *arguments=state->input;
 
   switch (key) {
-  case 'c':
-    if (arg == NULL) {
-      /* somehow we got called without an argument */
-      return ARGP_ERR_UNKNOWN;
-    }
-    arguments->config_dir=arg;
-    break;
+    case 'c':
+      if (arg == NULL) {
+        /* somehow we got called without an argument */
+        return ARGP_ERR_UNKNOWN;
+      }
+      arguments->config_dir=arg;
+      break;
 
-  default:
-    return ARGP_ERR_UNKNOWN;
+    case 'v':
+      arguments->version_requested=1;
+      break;
+
+    default:
+      return ARGP_ERR_UNKNOWN;
   }
 
   return 0; /* success */
@@ -159,6 +170,7 @@ int main(int argc, char *argv[])
 
   /***** parse command-line arguments *****/
   /* set defaults */
+  opts.version_requested=0;
   opts.config_dir=".";
 
   /* parse the command line*/
@@ -166,6 +178,12 @@ int main(int argc, char *argv[])
 
   /* process options */
   remove_trailing_slash(opts.config_dir);
+
+
+  /***** Print version info *****/
+  print_version_info();
+  if (opts.version_requested)
+    return 0; /* requested that we print version and exit */
 
   /***** create a Trust Router instance *****/
   if (NULL == (tr = tr_create(main_ctx))) {
