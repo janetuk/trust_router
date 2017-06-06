@@ -32,6 +32,7 @@
  *
  */
 
+#include <strings.h>
 #include <jansson.h>
 #include <talloc.h>
 
@@ -80,7 +81,7 @@ TRP_INFOREC_TYPE trp_inforec_type_from_string(const char *s)
   struct trp_inforec_type_entry *entry=trp_inforec_type_table;
 
   while ((entry->type != TRP_INFOREC_TYPE_UNKNOWN)
-        && (strcmp(s, entry->name)!=0)) {
+        && (strcasecmp(s, entry->name)!=0)) {
     entry++;
   }
   return entry->type;
