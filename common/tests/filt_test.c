@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2017, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,28 +32,21 @@
  *
  */
 
-#ifndef TR_NAME_H
-#define TR_NAME_H
-#include <string.h>
-#include <jansson.h>
-#include <trust_router/tr_versioning.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
 
-typedef const char *tr_const_string;
+#include <tr_filter.h>
 
-typedef struct tr__name {
-  char *buf;
-  int len;
-} TR_NAME;
+int test_field_lookup(void)
+{
 
-TR_EXPORT TR_NAME *tr_new_name (const char *name);
-TR_EXPORT TR_NAME *tr_dup_name (TR_NAME *from);
-TR_EXPORT void tr_free_name (TR_NAME *name);
-TR_EXPORT int tr_name_cmp (TR_NAME *one, TR_NAME *two);
-int tr_name_cmp_str(TR_NAME *one, const char *two_str);
-int tr_name_prefix_wildcard_match(TR_NAME *str, TR_NAME *wc_str);
-TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
-TR_EXPORT char *tr_name_strdup(TR_NAME *);
-TR_EXPORT json_t *tr_name_to_json_string(TR_NAME *src);
-TR_EXPORT TR_NAME *tr_name_cat(TR_NAME *n1, TR_NAME *n2);
+  return 0;
+}
 
-#endif
+int main(void)
+{
+
+  printf("Success.\n");
+  return 0;
+}

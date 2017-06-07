@@ -48,7 +48,7 @@ void tr_free_name (TR_NAME *name)
   free(name);
 }
 
-TR_NAME *tr_new_name (const char *name) 
+TR_NAME *tr_new_name (const char *name)
 {
   TR_NAME *new;
 
@@ -102,6 +102,64 @@ int tr_name_cmp(TR_NAME *one, TR_NAME *two)
   return cmp;
 }
 
+/**
+ * Compare a TR_NAME with a null-terminated string.
+ *
+ * @param one TR_NAME to compare
+ * @param two_str Ordinary C null-terminated string
+ * @return 0 on match, <0 if one precedes two, >0 if two precedes one
+ */
+int tr_name_cmp_str(TR_NAME *one, const char *two_str)
+{
+  TR_NAME *two=tr_new_name(two_str);
+  int cmp=tr_name_cmp(one, two);
+  tr_free_name(two);
+  return cmp;
+}
+
+/**
+ * Compare strings, allowing one to have a single '*' as the wildcard character if it is the first character.
+ * Leading whitespace is significant.
+ *
+ * @param str Fixed string to compare
+ * @param wc_str Wildcard string to compare
+ * @return 1 if the the string (str) matches the wildcard string (wc_str), 0 if not.
+ *
+ */
+int tr_name_prefix_wildcard_match(TR_NAME *str, TR_NAME *wc_str)
+{
+  const char *wc_post=NULL;
+  size_t wc_len = 0;
+
+  if ((!str) || (!wc_str))
+    return 0;
+
+  if (0 == (wc_len = wc_str->len))
+    return 0;
+
+  if ('*' == wc_str->buf[0]) {
+    /* Wildcard, so the actual compare will start at the second character of wc_str */
+    wc_post = wc_str->buf + 1;
+    wc_len--;
+  } else if (str->len == wc_len) {
+    /* No wildcard, but the strings are the same length so may match.
+     * Compare the full strings. */
+    wc_post=wc_str->buf;
+    wc_len=wc_str->len;
+  } else {
+    /* No wildcard and strings are different length, so no match */
+    return 0;
+  }
+
+  /* A match is not possible if the fixed part of the wildcard string is longer than
+   * the string to match it against. */
+  if (wc_len > str->len)
+    return 0;
+
+  /* Now we compare the last wc_len characters of str against wc_post */
+  return (0 == strncmp(str->buf + str->len - wc_len, wc_post, wc_len));
+}
+
 void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
 {
   size_t used_len;
@@ -113,7 +171,7 @@ void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
   else dest[0] = '\0';
 }
 
-  
+
 char * tr_name_strdup(TR_NAME *src)
 {
   char *s = calloc(src->len+1, 1);

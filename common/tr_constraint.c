@@ -36,11 +36,10 @@
 #include <assert.h>
 #include <talloc.h>
 
-#include <tr_filter.h>
-#include <tr_debug.h>
-
 #include <trust_router/tr_constraint.h>
+#include <tr_filter.h>
 #include <tid_internal.h>
+#include <tr_debug.h>
 
 
 static int tr_constraint_destructor(void *obj)

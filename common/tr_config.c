@@ -597,7 +597,7 @@ static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_C
 
   jfilt=json_object_get(jfilts, "tid_inbound");
   if (jfilt!=NULL) {
-    filt=tr_cfg_parse_one_filter(tmp_ctx, jfilt, TR_FILTER_TYPE_TID_INCOMING, rc);
+    filt=tr_cfg_parse_one_filter(tmp_ctx, jfilt, TR_FILTER_TYPE_TID_INBOUND, rc);
     if (*rc!=TR_CFG_SUCCESS) {
       tr_debug("tr_cfg_parse_filters: Error parsing tid_inbound filter.");
       *rc=TR_CFG_NOPARSE;
@@ -1127,7 +1127,7 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  tr_filter_set_type(filt, TR_FILTER_TYPE_TID_INCOMING);
+  tr_filter_set_type(filt, TR_FILTER_TYPE_TID_INBOUND);
   filt->lines[0]=tr_fline_new(filt);
   if (filt->lines[0]==NULL) {
     tr_debug("tr_cfg_default_filter: could not allocate filter line.");

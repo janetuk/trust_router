@@ -35,16 +35,200 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <talloc.h>
+#include <assert.h>
 
 #include <tr_filter.h>
+#include <trp_internal.h>
+#include <tid_internal.h>
 
+const TR_FILTER_TYPE tr_filter_types[] = {
+    TR_FILTER_TYPE_TID_INBOUND,
+    TR_FILTER_TYPE_TRP_INBOUND,
+    TR_FILTER_TYPE_TRP_OUTBOUND
+};
+const size_t tr_num_filter_types=sizeof(tr_filter_types)/sizeof(tr_filter_types[0]);
+static const char *tr_filter_type_strings[] = {
+    "tid_inbound",
+    "trp_inbound",
+    "trp_outbound"
+};
+
+const char *tr_filter_type_to_string(TR_FILTER_TYPE t) {
+  int ii;
+  for (ii=0; ii<tr_num_filter_types;ii++) {
+    if (t==tr_filter_types[ii])
+      return tr_filter_type_strings[ii];
+  }
+  return NULL;
+}
+
+TR_FILTER_TYPE tr_filter_type_from_string(const char *s)
+{
+  int ii;
+  for (ii=0; ii<tr_num_filter_types; ii++) {
+    if (strcasecmp(s,  tr_filter_type_strings[ii])==0)
+      return tr_filter_types[ii];
+  }
+  return TR_FILTER_TYPE_UNKNOWN;
+}
+
+/* Function types for handling filter fields generally. All target values
+ * are represented as strings in a TR_NAME.
+ */
+typedef int (*TR_FILTER_FIELD_CMP)(void *target, TR_NAME *val); /* returns 1 on match, 0 on no match */
+typedef TR_NAME *(*TR_FILTER_FIELD_GET)(void *target); /* returns string form of the field value */
+
+/* static handler prototypes */
+static int tr_ff_cmp_tid_rp_realm(void *rp_req_arg, TR_NAME *val);
+static TR_NAME *tr_ff_get_tid_rp_realm(void *rp_req_arg);
+static int tr_ff_cmp_trp_info_type(void *inforec_arg, TR_NAME *val);
+static TR_NAME *tr_ff_get_trp_info_type(void *inforec_arg);
+
+/**
+ * Filter field handler table
+ */
+struct tr_filter_field_entry {
+    TR_FILTER_TYPE filter_type;
+    const char *name;
+    TR_FILTER_FIELD_CMP cmp;
+    TR_FILTER_FIELD_GET get;
+};
+static struct tr_filter_field_entry tr_filter_field_table[] = {
+    {TR_FILTER_TYPE_TID_INBOUND, "rp_realm", tr_ff_cmp_tid_rp_realm, tr_ff_get_tid_rp_realm},
+    {TR_FILTER_TYPE_TRP_INBOUND, "info_type", tr_ff_cmp_trp_info_type, tr_ff_get_trp_info_type},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "info_type", tr_ff_cmp_trp_info_type, tr_ff_get_trp_info_type},
+    {TR_FILTER_TYPE_UNKNOWN, NULL } /* This must be the final entry */
+};
+
+static struct tr_filter_field_entry *tr_filter_field_entry(TR_FILTER_TYPE filter_type, TR_NAME *field_name)
+{
+  unsigned int ii;
+
+  for (ii=0; tr_filter_field_table[ii].filter_type!=TR_FILTER_TYPE_UNKNOWN; ii++) {
+    if ((tr_filter_field_table[ii].filter_type==filter_type)
+        && (tr_name_cmp_str(field_name, tr_filter_field_table[ii].name)==0)) {
+      return tr_filter_field_table+ii;
+    }
+  }
+  return NULL;
+}
+
+static int tr_ff_cmp_tid_rp_realm(void *rp_req_arg, TR_NAME *val)
+{
+  TID_REQ *req=talloc_get_type_abort(rp_req_arg, TID_REQ);
+  assert(req);
+  return 0==tr_name_cmp(val, req->rp_realm);
+}
+
+static TR_NAME *tr_ff_get_tid_rp_realm(void *rp_req_arg)
+{
+  TID_REQ *req=talloc_get_type_abort(rp_req_arg, TID_REQ);
+  assert(req);
+  return tr_dup_name(req->rp_realm);
+}
+
+static int tr_ff_cmp_trp_info_type(void *inforec_arg, TR_NAME *val)
+{
+  TRP_INFOREC *inforec=talloc_get_type_abort(inforec_arg, TRP_INFOREC);
+  char *valstr=NULL;
+  int val_type=0;
+
+  assert(val);
+  assert(inforec);
+
+  /* nothing matches unknown */
+  if (inforec->type==TRP_INFOREC_TYPE_UNKNOWN)
+    return 0;
+
+  valstr = tr_name_strdup(val); /* get this as an official null-terminated string */
+  val_type = trp_inforec_type_from_string(valstr);
+  free(valstr);
+
+  return (val_type==inforec->type);
+}
+
+static TR_NAME *tr_ff_get_trp_info_type(void *inforec_arg)
+{
+  TRP_INFOREC *inforec=talloc_get_type_abort(inforec_arg, TRP_INFOREC);
+  return tr_new_name(trp_inforec_type_to_string(inforec->type));
+}
+
+/**
+ * Apply a filter to a target record or TID request.
+ *
+ * If one of the filter lines matches, out_action is set to the applicable action. If constraints
+ * is not NULL, the constraints from the matching filter line will be added to the constraint set
+ * *constraints, or to a new one if *constraints is NULL. In this case, TR_FILTER_MATCH will be
+ * returned.
+ *
+ * If there is no match, returns TR_FILTER_NO_MATCH, out_action is undefined, and constraints
+ * will not be changed.
+ *
+ * @param target Record or request to which the filter is applied
+ * @param filt Filter to apply
+ * @param constraints Pointer to existing set of constraints (NULL if not tracking constraints)
+ * @param out_action Action to be carried out (output)
+ * @return TR_FILTER_MATCH or TR_FILTER_NO_MATCH
+ */
+int tr_filter_apply(void *target,
+                    TR_FILTER *filt,
+                    TR_CONSTRAINT_SET **constraints,
+                    TR_FILTER_ACTION *out_action)
+{
+  unsigned int ii=0, jj=0;
+  int retval=TR_FILTER_NO_MATCH;
+
+  /* Default action is reject */
+  *out_action = TR_FILTER_ACTION_REJECT;
+
+  /* Validate filter */
+  if ((filt==NULL) || (filt->type==TR_FILTER_TYPE_UNKNOWN))
+    return TR_FILTER_NO_MATCH;
+
+  /* Step through filter lines looking for a match. If a line matches, retval
+   * will be set to TR_FILTER_MATCH, so stop then. */
+  for (ii=0, retval=TR_FILTER_NO_MATCH;
+       (ii<TR_MAX_FILTER_LINES) && (retval==TR_FILTER_NO_MATCH);
+       ii++) {
+    /* skip empty lines (these shouldn't really happen) */
+    if (filt->lines[ii]==NULL)
+      continue;
+
+    /* Assume we are going to succeed. If any specs fail to match, we'll set
+     * this to TR_FILTER_NO_MATCH. */
+    retval=TR_FILTER_MATCH;
+    for (jj=0; jj<TR_MAX_FILTER_SPECS; jj++) {
+      /* skip empty specs (these shouldn't really happen either) */
+      if (filt->lines[ii]->specs[jj]==NULL)
+        continue;
+
+      if (!tr_fspec_matches(filt->lines[ii]->specs[jj], filt->type, target)) {
+        retval=TR_FILTER_NO_MATCH; /* set this in case this is the last filter line */
+        break; /* give up on this filter line */
+      }
+    }
+  }
+
+  if (retval==TR_FILTER_MATCH) {
+    /* Matched line ii. Grab its action and constraints. */
+    *out_action = filt->lines[ii]->action;
+    if (constraints!=NULL) {
+      /* if either constraint is missing, these are no-ops */
+      tr_constraint_add_to_set(constraints, filt->lines[ii]->realm_cons);
+      tr_constraint_add_to_set(constraints, filt->lines[ii]->domain_cons);
+    }
+  }
+
+  return retval;
+}
 
 int tr_filter_process_rp_permitted(TR_NAME *rp_realm,
                                    TR_FILTER *rpp_filter,
                                    TR_CONSTRAINT_SET *in_constraints,
                                    TR_CONSTRAINT_SET **out_constraints,
-                                   int *out_action)
+                                   TR_FILTER_ACTION *out_action)
 {
   int i = 0, j = 0;
 
@@ -53,7 +237,7 @@ int tr_filter_process_rp_permitted(TR_NAME *rp_realm,
 
   /* If this isn't a valid rp_permitted filter, return no match. */
   if ((!rpp_filter) ||
-      (TR_FILTER_TYPE_RP_PERMITTED != rpp_filter->type)) {
+      (TR_FILTER_TYPE_TID_INBOUND != rpp_filter->type)) {
     return TR_FILTER_NO_MATCH;
   }
 
@@ -63,7 +247,7 @@ int tr_filter_process_rp_permitted(TR_NAME *rp_realm,
 
       if ((rpp_filter->lines[i]) &&
           (rpp_filter->lines[i]->specs[j]) &&
-          (tr_fspec_matches(rpp_filter->lines[i]->specs[j], rp_realm))) {
+          (tr_fspec_matches(rpp_filter->lines[i]->specs[j], 0, rp_realm))) { /* todo: fix or remove */
         *out_action = rpp_filter->lines[i]->action;
         *out_constraints = in_constraints;
         if (rpp_filter->lines[i]->realm_cons)
@@ -117,10 +301,22 @@ void tr_fspec_set_match(TR_FSPEC *fspec, TR_NAME *match)
 }
 
 /* returns 1 if the spec matches */
-int tr_fspec_matches(TR_FSPEC *fspec, TR_NAME *name)
+int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, void *target)
 {
+  struct tr_filter_field_entry *field=NULL;
+  TR_NAME *name=NULL;
+
+  if ((fspec==NULL) || (fspec->match==NULL))
+    return 0;
+
+  /* Look up how to handle the requested field */
+  field = tr_filter_field_entry(ftype, fspec->field);
+  if (field==NULL)
+    return 0;
+
+  name=field->get(target);
   return ((fspec->match != NULL) &&
-          (0 != tr_prefix_wildcard_match(name->buf, fspec->match->buf)));
+          (0 != tr_name_prefix_wildcard_match(name, fspec->match)));
 }
 
 void tr_fline_free(TR_FLINE *fline)

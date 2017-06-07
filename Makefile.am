@@ -1,6 +1,8 @@
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
-bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/tests/tr_dh_test common/tests/mq_test common/tests/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/tests/cfg_test common/tests/commtest
+bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/tests/tr_dh_test common/tests/mq_test \
+              common/tests/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/tests/cfg_test \
+              common/tests/commtest common/tests/name_test
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -9,7 +11,7 @@ common_srcs = common/tr_name.c \
 	common/jansson_iterators.h \
 	common/tr_msg.c \
 	common/tr_dh.c \
-        common/tr_debug.c \
+    common/tr_debug.c \
 	common/tr_util.c \
 	common/tr_apc.c \
 	common/tr_comm.c \
@@ -144,6 +146,14 @@ common_tests_commtest_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 common_tests_commtest_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
 common_tests_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
+
+common_tests_name_test_SOURCES = common/tests/name_test.c \
+              $(common_srcs) \
+              $(tid_srcs) \
+              $(trp_srcs)
+common_tests_name_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
+common_tests_name_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
+
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/tr_debug.h include/trust_router/trp.h \

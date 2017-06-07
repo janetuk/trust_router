@@ -247,7 +247,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   TR_COMM *cfg_apc = NULL;
-  int oaction = TR_FILTER_ACTION_REJECT;
+  TR_FILTER_ACTION oaction = TR_FILTER_ACTION_REJECT;
   time_t expiration_interval=0;
   struct tr_tids_event_cookie *cookie=talloc_get_type_abort(cookie_in, struct tr_tids_event_cookie);
   TR_CFG_MGR *cfg_mgr=cookie->cfg_mgr;

@@ -40,6 +40,8 @@
 
 #include <trust_router/tr_name.h>
 #include <trust_router/tr_constraint.h>
+#include <trust_router/tid.h>
+#include <trust_router/trp.h>
 
 #define TR_MAX_FILTERS  5
 #define TR_MAX_FILTER_LINES 8
@@ -58,12 +60,15 @@ typedef enum {
 
 /* Filter types */
 typedef enum {
-    TR_FILTER_TYPE_TID_INCOMING = 0,
+    TR_FILTER_TYPE_TID_INBOUND = 0,
+    TR_FILTER_TYPE_TRP_INBOUND,
+    TR_FILTER_TYPE_TRP_OUTBOUND,
     TR_FILTER_TYPE_UNKNOWN
 } TR_FILTER_TYPE;
-/* #define for backward compatibility, TODO: get rid of this -jlr */
-#define TR_FILTER_TYPE_RP_PERMITTED TR_FILTER_TYPE_TID_INCOMING
 
+extern const size_t tr_num_filter_types;
+const char *tr_filter_type_to_string(TR_FILTER_TYPE t);
+TR_FILTER_TYPE tr_filter_type_from_string(const char *s);
 
 typedef struct tr_fspec {
     TR_NAME *field;
@@ -100,14 +105,15 @@ void tr_fspec_free(TR_FSPEC *fspec);
 
 void tr_fspec_set_match(TR_FSPEC *fspec, TR_NAME *match);
 
-int tr_fspec_matches(TR_FSPEC *fspec, TR_NAME *name);
+int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, void *target);
 
 
 /*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
 int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);
 
+int tr_filter_apply(void *target, TR_FILTER *filt, TR_CONSTRAINT_SET **constraints, TR_FILTER_ACTION *out_action);
 int tr_filter_process_rp_permitted(TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints,
-                                   TR_CONSTRAINT_SET **out_constraints, int *out_action);
+                                   TR_CONSTRAINT_SET **out_constraints, TR_FILTER_ACTION *out_action);
 
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline);
 
