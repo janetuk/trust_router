@@ -66,6 +66,7 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
     peer->incoming_status=PEER_DISCONNECTED;
     peer->conn_status_cb=NULL;
     peer->conn_status_cookie=NULL;
+    peer->filter=NULL;
     talloc_set_destructor((void *)peer, trp_peer_destructor);
   }
   return peer;
@@ -147,7 +148,7 @@ void trp_peer_add_gss_name(TRP_PEER *peer, TR_NAME *gss_name)
 void trp_peer_set_gss_names(TRP_PEER *peer, TR_GSS_NAMES *gss_names)
 {
   if (peer->gss_names!=NULL)
-    talloc_free(peer->gss_names);
+    tr_gss_names_free(peer->gss_names);
 
   peer->gss_names=gss_names;
   talloc_steal(peer, gss_names);
@@ -204,6 +205,27 @@ void trp_peer_set_conn_status_cb(TRP_PEER *peer, void (*cb)(TRP_PEER *, void *),
 {
   peer->conn_status_cb=cb;
   peer->conn_status_cookie=cookie;
+}
+
+/**
+ * Set the filter associated with this peer. Any existing filter will be freed. Takes responsibility for
+ * freeing the new filter.
+ *
+ * @param peer Peer to modify
+ * @param filt New filter to attach to the peer
+ */
+void trp_peer_set_filter(TRP_PEER *peer, TR_FILTER *filt)
+{
+  if (peer->filter!=NULL)
+    tr_filter_free(peer->filter);
+
+  peer->filter=filt;
+  talloc_steal(peer, filt);
+}
+
+TR_FILTER *trp_peer_get_filter(TRP_PEER *peer)
+{
+  return peer->filter;
 }
 
 struct timespec *trp_peer_get_last_conn_attempt(TRP_PEER *peer)

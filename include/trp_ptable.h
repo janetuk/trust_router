@@ -41,6 +41,7 @@
 #include <trust_router/tr_name.h>
 #include <tr_gss.h>
 #include <trust_router/trp.h>
+#include <tr_filter.h>
 
 typedef enum trp_peer_conn_status {
   PEER_DISCONNECTED=0,
@@ -61,6 +62,7 @@ struct trp_peer {
   TRP_PEER_CONN_STATUS incoming_status;
   void (*conn_status_cb)(TRP_PEER *, void *); /* callback for connected status change */
   void *conn_status_cookie;
+  TR_FILTER *filter;
 };
 
 typedef struct trp_ptable {
@@ -106,6 +108,8 @@ void trp_peer_set_incoming_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status);
 int trp_peer_is_connected(TRP_PEER *peer);
 void trp_peer_set_linkcost(TRP_PEER *peer, unsigned int linkcost);
 void trp_peer_set_conn_status_cb(TRP_PEER *peer, void (*cb)(TRP_PEER *, void *), void *cookie);
+void trp_peer_set_filter(TRP_PEER *peer, TR_FILTER *filt);
+TR_FILTER *trp_peer_get_filter(TRP_PEER *peer);
 char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep);
 
 #endif /* _TRP_PTABLE_H_ */

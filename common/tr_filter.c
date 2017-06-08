@@ -43,37 +43,6 @@
 #include <trp_internal.h>
 #include <tid_internal.h>
 
-const TR_FILTER_TYPE tr_filter_types[] = {
-    TR_FILTER_TYPE_TID_INBOUND,
-    TR_FILTER_TYPE_TRP_INBOUND,
-    TR_FILTER_TYPE_TRP_OUTBOUND
-};
-const size_t tr_num_filter_types=sizeof(tr_filter_types)/sizeof(tr_filter_types[0]);
-static const char *tr_filter_type_strings[] = {
-    "tid_inbound",
-    "trp_inbound",
-    "trp_outbound"
-};
-
-const char *tr_filter_type_to_string(TR_FILTER_TYPE t) {
-  int ii;
-  for (ii=0; ii<tr_num_filter_types;ii++) {
-    if (t==tr_filter_types[ii])
-      return tr_filter_type_strings[ii];
-  }
-  return NULL;
-}
-
-TR_FILTER_TYPE tr_filter_type_from_string(const char *s)
-{
-  int ii;
-  for (ii=0; ii<tr_num_filter_types; ii++) {
-    if (strcasecmp(s,  tr_filter_type_strings[ii])==0)
-      return tr_filter_types[ii];
-  }
-  return TR_FILTER_TYPE_UNKNOWN;
-}
-
 /* Function types for handling filter fields generally. All target values
  * are represented as strings in a TR_NAME.
  */
@@ -273,31 +242,42 @@ void tr_fspec_free(TR_FSPEC *fspec)
 static int tr_fspec_destructor(void *obj)
 {
   TR_FSPEC *fspec = talloc_get_type_abort(obj, TR_FSPEC);
+  size_t ii;
 
   if (fspec->field != NULL)
     tr_free_name(fspec->field);
-  if (fspec->match != NULL)
-    tr_free_name(fspec->match);
+  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
+    if (fspec->match[ii] != NULL)
+      tr_free_name(fspec->match[ii]);
+  }
   return 0;
 }
 
 TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx)
 {
   TR_FSPEC *fspec = talloc(mem_ctx, TR_FSPEC);
+  size_t ii=0;
 
   if (fspec != NULL) {
     fspec->field = NULL;
-    fspec->match = NULL;
-    talloc_set_destructor((void *) fspec, tr_fspec_destructor);
+    for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++)
+      fspec->match[ii] = NULL;
+
+    talloc_set_destructor((void *)fspec, tr_fspec_destructor);
   }
   return fspec;
 }
 
-void tr_fspec_set_match(TR_FSPEC *fspec, TR_NAME *match)
+void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match)
 {
-  if (fspec->match != NULL)
-    tr_free_name(fspec->match);
-  fspec->match = match;
+  size_t ii;
+  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
+    if (fspec->match[ii]==NULL) {
+      fspec->match[ii]=match;
+      break;
+    }
+  }
+  /* TODO: handle case that adding the match failed */
 }
 
 /* returns 1 if the spec matches */
@@ -305,8 +285,9 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, void *target)
 {
   struct tr_filter_field_entry *field=NULL;
   TR_NAME *name=NULL;
+  size_t ii=0;
 
-  if ((fspec==NULL) || (fspec->match==NULL))
+  if (fspec==NULL)
     return 0;
 
   /* Look up how to handle the requested field */
@@ -315,8 +296,13 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, void *target)
     return 0;
 
   name=field->get(target);
-  return ((fspec->match != NULL) &&
-          (0 != tr_name_prefix_wildcard_match(name, fspec->match)));
+  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
+    if (fspec->match[ii]!=NULL) {
+      if (tr_name_prefix_wildcard_match(name, fspec->match[ii]))
+        return 1;
+    }
+  }
+  return 0;
 }
 
 void tr_fline_free(TR_FLINE *fline)
@@ -365,4 +351,71 @@ void tr_filter_set_type(TR_FILTER *filt, TR_FILTER_TYPE type)
 TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt)
 {
   return filt->type;
+}
+
+/**
+ * Check that a filter is valid, i.e., can be processed.
+ *
+ * @param filt Filter to verify
+ * @return 1 if the filter is valid, 0 otherwise
+ */
+int tr_filter_validate(TR_FILTER *filt)
+{
+  size_t ii=0, jj=0, kk=0;
+
+  if (!filt)
+    return 0;
+
+  /* check that we recognize the type */
+  switch(filt->type) {
+    case TR_FILTER_TYPE_TID_INBOUND:
+    case TR_FILTER_TYPE_TRP_INBOUND:
+    case TR_FILTER_TYPE_TRP_OUTBOUND:
+      break;
+
+    default:
+      return 0; /* if we get here, either TR_FILTER_TYPE_UNKNOWN or an invalid value was found */
+  }
+  for (ii=0; ii<TR_MAX_FILTER_LINES; ii++) {
+    if (filt->lines[ii]==NULL)
+      continue; /* an empty filter line is valid */
+
+    /* check that we recognize the action */
+    switch(filt->lines[ii]->action) {
+      case TR_FILTER_ACTION_ACCEPT:
+      case TR_FILTER_ACTION_REJECT:
+        break;
+
+      default:
+        /* if we get here, either TR_FILTER_ACTION_UNKNOWN or an invalid value was found */
+        return 0;
+    }
+
+    for (jj=0; jj<TR_MAX_FILTER_SPECS; jj++) {
+      if (filt->lines[ii]->specs[jj]==NULL)
+        continue; /* an empty filter spec is valid */
+
+      if (!tr_filter_validate_spec_field(filt->type, filt->lines[ii]->specs[jj]))
+        return 0;
+
+      /* check that at least one match is non-null */
+      for (kk=0; kk<TR_MAX_FILTER_SPEC_MATCHES; kk++) {
+        if (filt->lines[ii]->specs[jj]->match[kk]!=NULL)
+          break;
+      }
+      if (kk==TR_MAX_FILTER_SPEC_MATCHES)
+        return 0;
+    }
+  }
+
+  /* We ran the gauntlet. Success! */
+  return 1;
+}
+
+int tr_filter_validate_spec_field(TR_FILTER_TYPE ftype, TR_FSPEC *fspec)
+{
+  if ((fspec==NULL) || (tr_filter_field_entry(ftype, fspec->field)==NULL))
+    return 0; /* unknown field */
+
+  return 1;
 }

@@ -1,0 +1,59 @@
+{
+  "local_organizations": [
+    { "organization_name": "invalid filter - unknown field",
+      "realms": [
+        { "realm": "realm",
+          "gss_names": ["gss"],
+          "filters": {
+            "tid_inbound": [
+              { "action": "accept",
+                "specs": [
+                  { "field": "rp_realm",
+                    "match": [
+                      "a.realm",
+                      "*.a.realm"
+                    ]
+                  }
+                ]
+              },
+              { "action": "accept",
+                "specs": [
+                  { "field": "info_type",
+                    "match": ["community"]}
+                ]
+              }
+            ],
+            "trp_inbound": [
+              { "action": "accept",
+                "specs": [
+                  { "field": "this is not a real field",
+                    "match": ["realm"]}
+                ]
+              },
+              { "action": "accept",
+                "specs": [
+                  { "field": "info_type",
+                    "match": ["community"]}
+                ]
+              }
+            ],
+            "trp_outbound": [
+              { "action": "accept",
+                "specs": [
+                  { "field": "info_type",
+                    "match": ["realm"]}
+                ]
+              },
+              { "action": "accept",
+                "specs": [
+                  { "field": "info_type",
+                    "match": ["community"]}
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

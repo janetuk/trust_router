@@ -2,7 +2,7 @@ DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
 bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/tests/tr_dh_test common/tests/mq_test \
               common/tests/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/tests/cfg_test \
-              common/tests/commtest common/tests/name_test
+              common/tests/commtest common/tests/name_test common/tests/filt_test
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -37,6 +37,7 @@ common/tr_mq.c
 
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint
+TEST_CFLAGS = -Wno-missing-prototypes
 
 lib_LTLIBRARIES = libtr_tid.la
 
@@ -153,7 +154,15 @@ common_tests_name_test_SOURCES = common/tests/name_test.c \
               $(trp_srcs)
 common_tests_name_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 common_tests_name_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
+common_tests_name_test_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
+common_tests_filt_test_SOURCES = common/tests/filt_test.c \
+              $(common_srcs) \
+              $(tid_srcs) \
+              $(trp_srcs)
+common_tests_filt_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
+common_tests_filt_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
+common_tests_filt_test_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/tr_debug.h include/trust_router/trp.h \

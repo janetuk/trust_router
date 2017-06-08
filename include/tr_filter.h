@@ -46,6 +46,7 @@
 #define TR_MAX_FILTERS  5
 #define TR_MAX_FILTER_LINES 8
 #define TR_MAX_FILTER_SPECS 8
+#define TR_MAX_FILTER_SPEC_MATCHES 8
 
 /* Filter actions */
 typedef enum {
@@ -66,13 +67,9 @@ typedef enum {
     TR_FILTER_TYPE_UNKNOWN
 } TR_FILTER_TYPE;
 
-extern const size_t tr_num_filter_types;
-const char *tr_filter_type_to_string(TR_FILTER_TYPE t);
-TR_FILTER_TYPE tr_filter_type_from_string(const char *s);
-
 typedef struct tr_fspec {
     TR_NAME *field;
-    TR_NAME *match;
+    TR_NAME *match[TR_MAX_FILTER_SPEC_MATCHES];
 } TR_FSPEC;
 
 typedef struct tr_fline {
@@ -103,7 +100,7 @@ TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx);
 
 void tr_fspec_free(TR_FSPEC *fspec);
 
-void tr_fspec_set_match(TR_FSPEC *fspec, TR_NAME *match);
+void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
 
 int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, void *target);
 
@@ -116,5 +113,8 @@ int tr_filter_process_rp_permitted(TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_
                                    TR_CONSTRAINT_SET **out_constraints, TR_FILTER_ACTION *out_action);
 
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline);
+
+int tr_filter_validate(TR_FILTER *filt);
+int tr_filter_validate_spec_field(TR_FILTER_TYPE ftype, TR_FSPEC *fspec);
 
 #endif
