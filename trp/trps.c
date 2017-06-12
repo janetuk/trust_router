@@ -1003,6 +1003,43 @@ cleanup:
   return rc;
 }
 
+/**
+ * Apply applicable TRP_INBOUND filters to an inforec. Rejects everything if peer has no filters.
+ *
+ * @param trps Active TRPS instance
+ * @param peer_name Name of peer that sent this inforec
+ * @param rec Inforec to filter
+ * @return 1 if accepted by the filter, 0 otherwise
+ */
+static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TR_NAME *peer_name, TRP_INFOREC *rec)
+{
+  TRP_PEER *peer=NULL;
+  TR_FILTER_ACTION action=TR_FILTER_ACTION_REJECT;
+
+  /* Look up the peer. For inbound messages, the peer is identified by its GSS name */
+  peer=trps_get_peer_by_gssname(trps, peer_name);
+  if (peer==NULL) {
+    tr_err("trps_filter_inbound_inforec: received inforec from unknown peer (%.*s), rejecting.",
+           peer_name->len,
+           peer_name->buf);
+    return 0;
+  }
+
+  /* tr_filter_apply() and tr_filter_set_get() handle null filter sets/filters by rejecting */
+  if ((TR_FILTER_NO_MATCH==tr_filter_apply(rec,
+                                           tr_filter_set_get(peer->filters, TR_FILTER_TYPE_TRP_INBOUND),
+                                           NULL,
+                                           &action))
+      || (action!=TR_FILTER_ACTION_ACCEPT)) {
+    /* either the filter did not match or it matched a reject rule */
+    return 0;
+  }
+
+  /* filter matched an accept rule */
+  return 1;
+}
+
+
 static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
 {
   TRP_INFOREC *rec=NULL;
@@ -1021,6 +1058,11 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
   }
 
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
+    if (!trps_filter_inbound_inforec(trps, trp_upd_get_peer(upd), rec)) {
+      tr_debug("trps_handle_update: inforec rejected by filter.");
+      continue; /* just go on to the next record */
+    }
+
     switch (trp_inforec_get_type(rec)) {
     case TRP_INFOREC_TYPE_ROUTE:
       tr_debug("trps_handle_update: handling route inforec.");

@@ -237,6 +237,15 @@ static void tr_trps_print_route_table(TRPS_INSTANCE *trps, FILE *f)
   }
 }
 
+/**
+ * Event handler to process TRP messages from connection threads. These
+ * are added to the message queue (mq) in tr_trps_msg_handler(), which
+ * runs in the other threads.
+ *
+ * @param socket Ignored
+ * @param event Ignored
+ * @param arg Pointer to the TRPS_INSTANCE
+ */
 static void tr_trps_process_mq(int socket, short event, void *arg)
 {
   TRPS_INSTANCE *trps=talloc_get_type_abort(arg, TRPS_INSTANCE);
