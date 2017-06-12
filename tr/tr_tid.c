@@ -302,13 +302,16 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     goto cleanup;
   }
 
-  if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm,
-                                                            tr_filter_set_get(tids->rp_gss->filters,
-                                                                              TR_FILTER_TYPE_TID_INBOUND),
-                                                            orig_req->cons,
-                                                           &fwd_req->cons,
-                                                           &oaction)) ||
-      (TR_FILTER_ACTION_REJECT == oaction)) {
+  /* Keep original constraints, may add more from the filter. These will be added to orig_req as
+   * well. Need to verify that this is acceptable behavior, but it's what we've always done. */
+  fwd_req->cons=orig_req->cons;
+
+  if ((TR_FILTER_NO_MATCH == tr_filter_apply(orig_req,
+                                             tr_filter_set_get(tids->rp_gss->filters,
+                                                               TR_FILTER_TYPE_TID_INBOUND),
+                                             &(fwd_req->cons),
+                                             &oaction)) ||
+      (TR_FILTER_ACTION_ACCEPT != oaction)) {
     tr_notice("tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
     retval=-1;

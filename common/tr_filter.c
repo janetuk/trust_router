@@ -196,47 +196,6 @@ int tr_filter_apply(void *target,
   return retval;
 }
 
-int tr_filter_process_rp_permitted(TR_NAME *rp_realm,
-                                   TR_FILTER *rpp_filter,
-                                   TR_CONSTRAINT_SET *in_constraints,
-                                   TR_CONSTRAINT_SET **out_constraints,
-                                   TR_FILTER_ACTION *out_action)
-{
-  int i = 0, j = 0;
-
-  *out_action = TR_FILTER_ACTION_REJECT;
-  *out_constraints = NULL;
-
-  /* If this isn't a valid rp_permitted filter, return no match. */
-  if ((!rpp_filter) ||
-      (TR_FILTER_TYPE_TID_INBOUND != rpp_filter->type)) {
-    return TR_FILTER_NO_MATCH;
-  }
-
-  /* Check if there is a match for this filter. */
-  for (i = 0; i < TR_MAX_FILTER_LINES; i++) {
-    for (j = 0; j < TR_MAX_FILTER_SPECS; j++) {
-
-      if ((rpp_filter->lines[i]) &&
-          (rpp_filter->lines[i]->specs[j]) &&
-          (tr_fspec_matches(rpp_filter->lines[i]->specs[j], 0, rp_realm))) { /* todo: fix or remove */
-        *out_action = rpp_filter->lines[i]->action;
-        *out_constraints = in_constraints;
-        if (rpp_filter->lines[i]->realm_cons)
-          tr_constraint_add_to_set(out_constraints,
-                                   rpp_filter->lines[i]->realm_cons);
-        if (rpp_filter->lines[i]->domain_cons)
-          tr_constraint_add_to_set(out_constraints,
-                                   rpp_filter->lines[i]->domain_cons);
-
-        return TR_FILTER_MATCH;
-      }
-    }
-  }
-  /* If there is no match, indicate that. */
-  return TR_FILTER_NO_MATCH;
-}
-
 void tr_fspec_free(TR_FSPEC *fspec)
 {
   talloc_free(fspec);

@@ -121,8 +121,6 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, void *target);
 int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);
 
 int tr_filter_apply(void *target, TR_FILTER *filt, TR_CONSTRAINT_SET **constraints, TR_FILTER_ACTION *out_action);
-int tr_filter_process_rp_permitted(TR_NAME *rp_realm, TR_FILTER *rpp_filter, TR_CONSTRAINT_SET *in_constraints,
-                                   TR_CONSTRAINT_SET **out_constraints, TR_FILTER_ACTION *out_action);
 
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline);
 
