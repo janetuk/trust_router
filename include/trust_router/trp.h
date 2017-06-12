@@ -79,6 +79,8 @@ void trp_upd_free(TRP_UPD *update);
 TR_EXPORT TRP_INFOREC *trp_upd_get_inforec(TRP_UPD *upd);
 void trp_upd_set_inforec(TRP_UPD *upd, TRP_INFOREC *rec);
 void trp_upd_add_inforec(TRP_UPD *upd, TRP_INFOREC *rec);
+void trp_upd_remove_inforec(TRP_UPD *upd, TRP_INFOREC *rec);
+size_t trp_upd_num_inforecs(TRP_UPD *upd);
 TR_EXPORT TR_NAME *trp_upd_get_realm(TRP_UPD *upd);
 TR_NAME *trp_upd_dup_realm(TRP_UPD *upd);
 void trp_upd_set_realm(TRP_UPD *upd, TR_NAME *realm);

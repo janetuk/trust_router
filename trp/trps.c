@@ -1652,6 +1652,47 @@ cleanup:
   return rc;
 }
 
+/**
+ * Filter the inforecs in a single update
+ *
+ * @param filt The filter to apply
+ * @param upd The update to filter
+ */
+static void trps_filter_one_outbound_update(TR_FILTER *filt, TRP_UPD *upd)
+{
+  TRP_INFOREC *this=NULL, *next=NULL;
+  TR_FILTER_ACTION action=TR_FILTER_ACTION_REJECT;
+
+  for(this=trp_upd_get_inforec(upd); this!=NULL; this=next) {
+    next=this->next;
+    if ((TR_FILTER_NO_MATCH==tr_filter_apply(this, filt, NULL, &action))
+        || (action!=TR_FILTER_ACTION_ACCEPT)) {
+      /* Either no filter matched or one matched and rejected this record */
+      trp_upd_remove_inforec(upd, this); /* "this" is now invalid */
+    }
+  }
+}
+
+/**
+ * May shuffle the update list.
+ *
+ * @param filters The filter set for the relevant TRP peer
+ * @param updates GPtrArray of updates to filter
+ */
+static void trps_filter_outbound_updates(TR_FILTER_SET *filters, GPtrArray *updates)
+{
+  TRP_UPD *upd=NULL;
+  int ii=0;
+
+  /* walk backward through the array so we can remove elements */
+  for (ii=updates->len-1; ii>=0; ii--) {
+    upd=g_ptr_array_index(updates, ii);
+    trps_filter_one_outbound_update(tr_filter_set_get(filters, TR_FILTER_TYPE_TRP_OUTBOUND), upd);
+    /* see if we removed all the records from this update */
+    if (trp_upd_num_inforecs(upd)==0)
+      g_ptr_array_remove_index_fast(updates, ii); /* does not preserve order at index ii or higher */
+  }
+}
 
 /* helper for trps_update_one_peer. Frees the TRP_UPD pointed to by a GPtrArray element */
 static void trps_trp_upd_destroy(gpointer data)
@@ -1745,26 +1786,33 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
   if (updates->len<=0)
     tr_debug("trps_update_one_peer: no updates for %.*s", peer_label->len, peer_label->buf);
   else {
-    tr_debug("trps_update_one_peer: sending %d update messages.", updates->len);
-    for (ii=0; ii<updates->len; ii++) {
-      upd=(TRP_UPD *)g_ptr_array_index(updates, ii);
-      /* now encode the update message */
-      tr_msg_set_trp_upd(&msg, upd);
-      encoded=tr_msg_encode(&msg);
-      if (encoded==NULL) {
-        tr_err("trps_update_one_peer: error encoding update.");
-        rc=TRP_ERROR;
-        goto cleanup;
+    /* Apply outbound TRP filters for this peer */
+    trps_filter_outbound_updates(peer->filters, updates);
+
+    if (updates->len<=0)
+      tr_debug("trps_update_one_peer: no updates for %.*s after filtering.", peer_label->len, peer_label->buf);
+    else {
+      tr_debug("trps_update_one_peer: sending %d update messages.", updates->len);
+      for (ii=0; ii<updates->len; ii++) {
+        upd = (TRP_UPD *) g_ptr_array_index(updates, ii);
+        /* now encode the update message */
+        tr_msg_set_trp_upd(&msg, upd);
+        encoded = tr_msg_encode(&msg);
+        if (encoded == NULL) {
+          tr_err("trps_update_one_peer: error encoding update.");
+          rc = TRP_ERROR;
+          goto cleanup;
+        }
+
+        tr_debug("trps_update_one_peer: adding message to queue.");
+        if (trps_send_msg(trps, peer, encoded) != TRP_SUCCESS)
+          tr_err("trps_update_one_peer: error queueing update.");
+        else
+          tr_debug("trps_update_one_peer: update queued successfully.");
+
+        tr_msg_free_encoded(encoded);
+        encoded = NULL;
       }
-
-      tr_debug("trps_update_one_peer: adding message to queue.");
-      if (trps_send_msg(trps, peer, encoded) != TRP_SUCCESS)
-        tr_err("trps_update_one_peer: error queueing update.");
-      else
-        tr_debug("trps_update_one_peer: update queued successfully.");
-
-      tr_msg_free_encoded(encoded);
-      encoded=NULL;
     }
   }
 

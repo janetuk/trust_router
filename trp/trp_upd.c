@@ -678,6 +678,45 @@ void trp_upd_add_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
   talloc_steal(upd, rec);
 }
 
+/**
+ * Removes and frees the selected inforec.
+ *
+ * @param upd Update to remove from
+ * @param rec Inforec to remove
+ */
+void trp_upd_remove_inforec(TRP_UPD *upd, TRP_INFOREC *rec)
+{
+  TRP_INFOREC *this=upd->records;
+
+  /* special case for the first element */
+  if (this==rec) {
+    upd->records=upd->records->next;
+    trp_inforec_free(this);
+    return;
+  }
+
+  while (this->next!=NULL) {
+    if (this->next==rec) {
+      this->next=this->next->next; /* this->next is not null */
+      trp_inforec_free(rec);
+    }
+    this=this->next;
+  }
+}
+
+size_t trp_upd_num_inforecs(TRP_UPD *upd)
+{
+  size_t count=0;
+  TRP_INFOREC *this=upd->records;
+
+  while (this != NULL) {
+    count++;
+    this=this->next;
+  }
+  return count;
+}
+
+
 TR_NAME *trp_upd_get_realm(TRP_UPD *upd)
 {
   return upd->realm;
