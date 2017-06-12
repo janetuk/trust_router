@@ -69,7 +69,7 @@ void tr_msg_set_trp_req(TR_MSG *msg, TRP_REQ *req);
 
 /* Encoders/Decoders */
 char *tr_msg_encode(TR_MSG *msg);
-TR_MSG *tr_msg_decode(char *jmsg, size_t len);
+TR_MSG *tr_msg_decode(const char *jmsg, size_t len);
 void tr_msg_free_encoded(char *jmsg);
 void tr_msg_free_decoded(TR_MSG *msg);
 

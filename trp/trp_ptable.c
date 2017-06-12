@@ -66,7 +66,7 @@ TRP_PEER *trp_peer_new(TALLOC_CTX *memctx)
     peer->incoming_status=PEER_DISCONNECTED;
     peer->conn_status_cb=NULL;
     peer->conn_status_cookie=NULL;
-    peer->filter=NULL;
+    peer->filters=NULL;
     talloc_set_destructor((void *)peer, trp_peer_destructor);
   }
   return peer;
@@ -212,20 +212,20 @@ void trp_peer_set_conn_status_cb(TRP_PEER *peer, void (*cb)(TRP_PEER *, void *),
  * freeing the new filter.
  *
  * @param peer Peer to modify
- * @param filt New filter to attach to the peer
+ * @param filts New filter to attach to the peer
  */
-void trp_peer_set_filter(TRP_PEER *peer, TR_FILTER *filt)
+void trp_peer_set_filters(TRP_PEER *peer, TR_FILTER_SET *filts)
 {
-  if (peer->filter!=NULL)
-    tr_filter_free(peer->filter);
+  if (peer->filters!=NULL)
+    tr_filter_set_free(peer->filters);
 
-  peer->filter=filt;
-  talloc_steal(peer, filt);
+  peer->filters=filts;
+  talloc_steal(peer, filts);
 }
 
-TR_FILTER *trp_peer_get_filter(TRP_PEER *peer)
+TR_FILTER *trp_peer_get_filter(TRP_PEER *peer, TR_FILTER_TYPE ftype)
 {
-  return peer->filter;
+  return tr_filter_set_get(peer->filters, ftype);
 }
 
 struct timespec *trp_peer_get_last_conn_attempt(TRP_PEER *peer)

@@ -44,7 +44,7 @@ typedef struct tr_rp_client {
   struct tr_rp_client *next;
   struct tr_rp_client *comm_next;
   TR_GSS_NAMES *gss_names;
-  TR_FILTER *filter;
+  TR_FILTER_SET *filters;
 } TR_RP_CLIENT;
 
 /* Structure to make a linked list of RP realms by name for community config */
@@ -60,7 +60,7 @@ void tr_rp_client_free(TR_RP_CLIENT *client);
 TR_RP_CLIENT *tr_rp_client_add_func(TR_RP_CLIENT *clients, TR_RP_CLIENT *new);
 #define tr_rp_client_add(clients,new) ((clients)=tr_rp_client_add_func((clients),(new)))
 int tr_rp_client_add_gss_name(TR_RP_CLIENT *client, TR_NAME *name);
-int tr_rp_client_set_filter(TR_RP_CLIENT *client, TR_FILTER *filt);
+int tr_rp_client_set_filters(TR_RP_CLIENT *client, TR_FILTER_SET *filts);
 TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name);
 
 TR_RP_REALM *tr_rp_realm_new(TALLOC_CTX *mem_ctx);

@@ -295,7 +295,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
    * the TIDS handler subprocess. */
 
   if ((!tids->rp_gss) || 
-      (!tids->rp_gss->filter)) {
+      (!tids->rp_gss->filters)) {
     tr_notice("tr_tids_req_handler: No GSS name for incoming request.");
     tids_send_err_response(tids, orig_req, "No GSS name for request");
     retval=-1;
@@ -303,7 +303,8 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   }
 
   if ((TR_FILTER_NO_MATCH == tr_filter_process_rp_permitted(orig_req->rp_realm,
-                                                            tids->rp_gss->filter,
+                                                            tr_filter_set_get(tids->rp_gss->filters,
+                                                                              TR_FILTER_TYPE_TID_INBOUND),
                                                             orig_req->cons,
                                                            &fwd_req->cons,
                                                            &oaction)) ||

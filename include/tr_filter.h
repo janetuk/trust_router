@@ -50,9 +50,9 @@
 
 /* Filter actions */
 typedef enum {
-    TR_FILTER_ACTION_REJECT = 0,
-    TR_FILTER_ACTION_ACCEPT,
-    TR_FILTER_ACTION_UNKNOWN
+  TR_FILTER_ACTION_REJECT = 0,
+  TR_FILTER_ACTION_ACCEPT,
+  TR_FILTER_ACTION_UNKNOWN
 } TR_FILTER_ACTION;
 
 /* Match codes */
@@ -61,28 +61,40 @@ typedef enum {
 
 /* Filter types */
 typedef enum {
-    TR_FILTER_TYPE_TID_INBOUND = 0,
-    TR_FILTER_TYPE_TRP_INBOUND,
-    TR_FILTER_TYPE_TRP_OUTBOUND,
-    TR_FILTER_TYPE_UNKNOWN
+  TR_FILTER_TYPE_TID_INBOUND = 0,
+  TR_FILTER_TYPE_TRP_INBOUND,
+  TR_FILTER_TYPE_TRP_OUTBOUND,
+  TR_FILTER_TYPE_UNKNOWN
 } TR_FILTER_TYPE;
 
 typedef struct tr_fspec {
-    TR_NAME *field;
-    TR_NAME *match[TR_MAX_FILTER_SPEC_MATCHES];
+  TR_NAME *field;
+  TR_NAME *match[TR_MAX_FILTER_SPEC_MATCHES];
 } TR_FSPEC;
 
 typedef struct tr_fline {
-    TR_FILTER_ACTION action;
-    TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
-    TR_CONSTRAINT *realm_cons;
-    TR_CONSTRAINT *domain_cons;
+  TR_FILTER_ACTION action;
+  TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
+  TR_CONSTRAINT *realm_cons;
+  TR_CONSTRAINT *domain_cons;
 } TR_FLINE;
 
 typedef struct tr_filter {
-    TR_FILTER_TYPE type;
-    TR_FLINE *lines[TR_MAX_FILTER_LINES];
+  TR_FILTER_TYPE type;
+  TR_FLINE *lines[TR_MAX_FILTER_LINES];
 } TR_FILTER;
+
+
+typedef struct tr_filter_set TR_FILTER_SET;
+struct tr_filter_set {
+  TR_FILTER *this;
+  TR_FILTER_SET *next;
+};
+
+TR_FILTER_SET *tr_filter_set_new(TALLOC_CTX *mem_ctx);
+void tr_filter_set_free(TR_FILTER_SET *fs);
+int tr_filter_set_add(TR_FILTER_SET *set, TR_FILTER *new);
+TR_FILTER *tr_filter_set_get(TR_FILTER_SET *set, TR_FILTER_TYPE type);
 
 TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx);
 
@@ -116,5 +128,7 @@ TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline);
 
 int tr_filter_validate(TR_FILTER *filt);
 int tr_filter_validate_spec_field(TR_FILTER_TYPE ftype, TR_FSPEC *fspec);
+const char *tr_filter_type_to_string(TR_FILTER_TYPE ftype);
+TR_FILTER_TYPE tr_filter_type_from_string(const char *s);
 
 #endif

@@ -410,41 +410,12 @@ static TR_CONSTRAINT *tr_cfg_parse_one_constraint(TALLOC_CTX *mem_ctx, char *cty
   return cons;
 }
 
-TR_FILTER_TYPE filter_type[]={TR_FILTER_TYPE_TID_INBOUND,
-                              TR_FILTER_TYPE_TRP_INBOUND,
-                              TR_FILTER_TYPE_TRP_OUTBOUND};
-const char *filter_label[]={"tid_inbound",
-                            "trp_inbound",
-                            "trp_outbound"};
-size_t num_filter_types=sizeof(filter_type)/sizeof(filter_type[0]);
-
-static const char *filter_type_to_string(TR_FILTER_TYPE ftype)
-{
-  size_t ii=0;
-
-  for (ii=0; ii<num_filter_types; ii++) {
-    if (ftype==filter_type[ii])
-      return filter_label[ii];
-  }
-  return "unknown";
-}
-
-static TR_FILTER_TYPE filter_type_from_string(const char *s)
-{
-  size_t ii=0;
-
-  for(ii=0; ii<num_filter_types; ii++) {
-    if (0==strcmp(s, filter_label[ii]))
-      return filter_type[ii];
-  }
-  return TR_FILTER_TYPE_UNKNOWN;
-}
-
 static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR_FILTER_TYPE ftype, TR_CFG_RC *rc)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   TR_FILTER *filt = NULL;
   json_t *jfaction = NULL;
+  json_t *jfline = NULL;
   json_t *jfspecs = NULL;
   json_t *this_jfspec = NULL;
   json_t *jfield = NULL;
@@ -478,15 +449,15 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
   }
 
   /* For each entry in the filter... */
-  for (i = 0; i < json_array_size(jfilt); i++) {
-    if ((NULL == (jfaction = json_object_get(json_array_get(jfilt, i), "action"))) ||
+  json_array_foreach(jfilt, i, jfline) {
+    if ((NULL == (jfaction = json_object_get(jfline, "action"))) ||
         (!json_is_string(jfaction))) {
       tr_debug("tr_cfg_parse_one_filter: Error parsing filter action.");
       *rc = TR_CFG_NOPARSE;
       goto cleanup;
     }
 
-    if ((NULL == (jfspecs = json_object_get(json_array_get(jfilt, i), "specs"))) ||
+    if ((NULL == (jfspecs = json_object_get(jfline, "specs"))) ||
         (!json_is_array(jfspecs)) ||
         (0 == json_array_size(jfspecs))) {
       tr_debug("tr_cfg_parse_one_filter: Error parsing filter specs.");
@@ -517,7 +488,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       goto cleanup;
     }
 
-    if (NULL != (jrc = json_object_get(json_array_get(jfilt, i), "realm_constraints"))) {
+    if (NULL != (jrc = json_object_get(jfline, "realm_constraints"))) {
       if (!json_is_array(jrc)) {
         tr_err("tr_cfg_parse_one_filter: cannot parse realm_constraints, not an array.");
         *rc = TR_CFG_NOPARSE;
@@ -537,7 +508,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       }
     }
 
-    if (NULL != (jdc = json_object_get(json_array_get(jfilt, i), "domain_constraints"))) {
+    if (NULL != (jdc = json_object_get(jfline, "domain_constraints"))) {
       if (!json_is_array(jdc)) {
         tr_err("tr_cfg_parse_one_filter: cannot parse domain_constraints, not an array.");
         *rc = TR_CFG_NOPARSE;
@@ -620,7 +591,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
         tr_debug("tr_cfg_parse_one_filter: Invalid filter field \"%.*s\" for %s filter, spec %d, filter %d.",
                  filt->lines[i]->specs[j]->field->len,
                  filt->lines[i]->specs[j]->field->buf,
-                 filter_type_to_string(filt->type),
+                 tr_filter_type_to_string(filt->type),
                  i, j);
         *rc = TR_CFG_ERROR;
         goto cleanup;
@@ -643,12 +614,13 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
   return filt;
 }
 
-static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_CFG_RC *rc)
+static TR_FILTER_SET *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_CFG_RC *rc)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   json_t *jfilt;
   const char *filt_label=NULL;
   TR_FILTER *filt=NULL;
+  TR_FILTER_SET *filt_set=NULL;
   TR_FILTER_TYPE filt_type=TR_FILTER_TYPE_UNKNOWN;
 
   *rc=TR_CFG_ERROR;
@@ -656,6 +628,13 @@ static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_C
   /* no filters */
   if (jfilts==NULL) {
     *rc=TR_CFG_SUCCESS;
+    goto cleanup;
+  }
+
+  filt_set=tr_filter_set_new(tmp_ctx);
+  if (filt_set==NULL) {
+    tr_debug("tr_cfg_parse_filters: Unable to allocate filter set.");
+    *rc = TR_CFG_NOMEM;
     goto cleanup;
   }
 
@@ -668,7 +647,7 @@ static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_C
     }
 
     /* check that we recognize the filter type */
-    filt_type=filter_type_from_string(filt_label);
+    filt_type=tr_filter_type_from_string(filt_label);
     if (filt_type==TR_FILTER_TYPE_UNKNOWN) {
       tr_debug("tr_cfg_parse_filters: Unrecognized filter (%s) defined.", filt_label);
       *rc = TR_CFG_NOPARSE;
@@ -678,6 +657,7 @@ static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_C
     /* finally, parse the filter */
     tr_debug("tr_cfg_parse_filters: Found %s filter.", filt_label);
     filt = tr_cfg_parse_one_filter(tmp_ctx, jfilt, filt_type, rc);
+    tr_filter_set_add(filt_set, filt);
     if (*rc != TR_CFG_SUCCESS) {
       tr_debug("tr_cfg_parse_filters: Error parsing %s filter.", filt_label);
       *rc = TR_CFG_NOPARSE;
@@ -689,14 +669,14 @@ static TR_FILTER *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_C
 
  cleanup:
   if (*rc==TR_CFG_SUCCESS)
-    talloc_steal(mem_ctx, filt);
-  else if (filt!=NULL) {
-    talloc_free(filt);
-    filt=NULL;
+    talloc_steal(mem_ctx, filt_set);
+  else if (filt_set!=NULL) {
+    talloc_free(filt_set);
+    filt_set=NULL;
   }
 
   talloc_free(tmp_ctx);
-  return filt;
+  return filt_set;
 }
 
 static TR_AAA_SERVER *tr_cfg_parse_one_aaa_server(TALLOC_CTX *mem_ctx, json_t *jaddr, TR_CFG_RC *rc)
@@ -1167,10 +1147,11 @@ static TR_GSS_NAMES *tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_na
 }
 
 /* default filter accepts realm and *.realm */
-static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_CFG_RC *rc)
+static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_CFG_RC *rc)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_FILTER *filt=NULL;
+  TR_FILTER_SET *filt_set=NULL;
   TR_CONSTRAINT *cons=NULL;
   TR_NAME *name=NULL;
   TR_NAME *n_prefix=tr_new_name("*.");
@@ -1181,7 +1162,7 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
   
 
   if ((realm==NULL) || (rc==NULL)) {
-    tr_debug("tr_cfg_default_filter: invalid arguments.");
+    tr_debug("tr_cfg_default_filters: invalid arguments.");
     if (rc!=NULL)
       *rc=TR_CFG_BAD_PARAMS;
     goto cleanup;
@@ -1192,21 +1173,21 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
       (n_rp_realm_2==NULL) ||
       (n_domain==NULL) ||
       (n_realm==NULL)) {
-    tr_debug("tr_cfg_default_filter: unable to allocate names.");
+    tr_debug("tr_cfg_default_filters: unable to allocate names.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
 
   filt=tr_filter_new(tmp_ctx);
   if (filt==NULL) {
-    tr_debug("tr_cfg_default_filter: could not allocate filter.");
+    tr_debug("tr_cfg_default_filters: could not allocate filter.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
   tr_filter_set_type(filt, TR_FILTER_TYPE_TID_INBOUND);
   filt->lines[0]=tr_fline_new(filt);
   if (filt->lines[0]==NULL) {
-    tr_debug("tr_cfg_default_filter: could not allocate filter line.");
+    tr_debug("tr_cfg_default_filters: could not allocate filter line.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
@@ -1218,7 +1199,7 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
 
   name=tr_dup_name(realm);
   if (name==NULL) {
-    tr_debug("tr_cfg_default_filter: could not allocate realm name.");
+    tr_debug("tr_cfg_default_filters: could not allocate realm name.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
@@ -1231,7 +1212,7 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
   n_rp_realm_2=NULL; /* we don't own this name any more */
 
   if (NULL==(name=tr_name_cat(n_prefix, realm))) {
-    tr_debug("tr_cfg_default_filter: could not allocate wildcard realm name.");
+    tr_debug("tr_cfg_default_filters: could not allocate wildcard realm name.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
@@ -1241,7 +1222,7 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
 
   /* domain constraint */
   if (NULL==(cons=tr_constraint_new(filt->lines[0]))) {
-    tr_debug("tr_cfg_default_filter: could not allocate domain constraint.");
+    tr_debug("tr_cfg_default_filters: could not allocate domain constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
@@ -1250,14 +1231,14 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
   n_domain=NULL; /* belongs to the constraint now */
   name=tr_dup_name(realm);
   if (name==NULL) {
-    tr_debug("tr_cfg_default_filter: could not allocate realm name for domain constraint.");
+    tr_debug("tr_cfg_default_filters: could not allocate realm name for domain constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
   cons->matches[0]=name;
   name=tr_name_cat(n_prefix, realm);
   if (name==NULL) {
-    tr_debug("tr_cfg_default_filter: could not allocate wildcard realm name for domain constraint.");
+    tr_debug("tr_cfg_default_filters: could not allocate wildcard realm name for domain constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
@@ -1268,7 +1249,7 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
 
   /* realm constraint */
   if (NULL==(cons=tr_constraint_new(filt->lines[0]))) {
-    tr_debug("tr_cfg_default_filter: could not allocate realm constraint.");
+    tr_debug("tr_cfg_default_filters: could not allocate realm constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
@@ -1277,14 +1258,14 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
   n_realm=NULL; /* belongs to the constraint now */
   name=tr_dup_name(realm);
   if (name==NULL) {
-    tr_debug("tr_cfg_default_filter: could not allocate realm name for realm constraint.");
+    tr_debug("tr_cfg_default_filters: could not allocate realm name for realm constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
   cons->matches[0]=name;
   name=tr_name_cat(n_prefix, realm);
   if (name==NULL) {
-    tr_debug("tr_cfg_default_filter: could not allocate wildcard realm name for realm constraint.");
+    tr_debug("tr_cfg_default_filters: could not allocate wildcard realm name for realm constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
@@ -1292,7 +1273,15 @@ static TR_FILTER *tr_cfg_default_filter(TALLOC_CTX *mem_ctx, TR_NAME *realm, TR_
   name=NULL;
   filt->lines[0]->realm_cons=cons;
 
-  talloc_steal(mem_ctx, filt);
+  /* put the filter in a set */
+  filt_set=tr_filter_set_new(tmp_ctx);
+  if ((filt_set==NULL)||(0!=tr_filter_set_add(filt_set, filt))) {
+    tr_debug("tr_cfg_default_filters: could not allocate filter set.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+  talloc_steal(mem_ctx, filt_set);
+
 cleanup:
   talloc_free(tmp_ctx);
 
@@ -1312,7 +1301,7 @@ cleanup:
   if (name!=NULL)
     tr_free_name(name);
 
-  return filt;
+  return filt_set;
 }
 
 /* parses rp client */
@@ -1321,7 +1310,7 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_RP_CLIENT *client=NULL;
   TR_CFG_RC call_rc=TR_CFG_ERROR;
-  TR_FILTER *new_filt=NULL;
+  TR_FILTER_SET *new_filts=NULL;
   TR_NAME *realm=NULL;
   json_t *jfilt=NULL;
   json_t *jrealm_id=NULL;
@@ -1366,7 +1355,7 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
   /* parse filters */
   jfilt=json_object_get(jrealm, "filters");
   if (jfilt!=NULL) {
-    new_filt=tr_cfg_parse_filters(tmp_ctx, jfilt, &call_rc);
+    new_filts=tr_cfg_parse_filters(tmp_ctx, jfilt, &call_rc);
     if (call_rc!=TR_CFG_SUCCESS) {
       tr_err("tr_cfg_parse_one_rp_client: could not parse filters.");
       *rc=TR_CFG_NOPARSE;
@@ -1374,7 +1363,7 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
     }
   } else {
     tr_debug("tr_cfg_parse_one_rp_client: no filters specified, using default filters.");
-    new_filt=tr_cfg_default_filter(tmp_ctx, realm, &call_rc);
+    new_filts= tr_cfg_default_filters(tmp_ctx, realm, &call_rc);
     if (call_rc!=TR_CFG_SUCCESS) {
       tr_err("tr_cfg_parse_one_rp_client: could not set default filters.");
       *rc=TR_CFG_NOPARSE;
@@ -1382,7 +1371,7 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
     }
   }
 
-  tr_rp_client_set_filter(client, new_filt);
+  tr_rp_client_set_filters(client, new_filts);
   *rc=TR_CFG_SUCCESS;
 
   cleanup:
@@ -1617,7 +1606,7 @@ static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
   json_t *jfilt=NULL;
   TRP_PEER *new_peer=NULL;
   TR_GSS_NAMES *names=NULL;
-  TR_FILTER *filt=NULL;
+  TR_FILTER_SET *filt_set=NULL;
   TR_CFG_RC rc=TR_CFG_ERROR;
 
   jhost=json_object_get(jporg, "hostname");
@@ -1672,13 +1661,13 @@ static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
   trp_peer_set_gss_names(new_peer, names);
 
   if (jfilt) {
-    filt=tr_cfg_parse_filters(tmp_ctx, jfilt, &rc);
+    filt_set=tr_cfg_parse_filters(tmp_ctx, jfilt, &rc);
     if (rc!=TR_CFG_SUCCESS) {
       tr_err("tr_cfg_parse_one_peer_org: unable to parse filters.");
       rc=TR_CFG_NOPARSE;
       goto cleanup;
     }
-    trp_peer_set_filter(new_peer, filt);
+    trp_peer_set_filters(new_peer, filt_set);
   }
 
   /* success! */

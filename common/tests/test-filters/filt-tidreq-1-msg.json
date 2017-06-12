@@ -1,0 +1,17 @@
+{
+  "msg_type": "tid_request",
+  "msg_body": {
+    "rp_realm": "my realm",
+    "target_realm": "your realm",
+    "community": "our community",
+    "orig_coi": "our aliased community",
+    "dh_info": {
+      "dh_p": "DEADBEEF",
+      "dh_g": "FEA57",
+      "dh_pub_key": "12345678"
+    },
+    "constraints": [{"constraint": ["value"]}],
+    "path": ["hop", "skip", "jump"],
+    "expiration_interval": 13
+  }
+}

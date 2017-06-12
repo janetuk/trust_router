@@ -159,7 +159,7 @@ int tr_filter_apply(void *target,
   /* Step through filter lines looking for a match. If a line matches, retval
    * will be set to TR_FILTER_MATCH, so stop then. */
   for (ii=0, retval=TR_FILTER_NO_MATCH;
-       (ii<TR_MAX_FILTER_LINES) && (retval==TR_FILTER_NO_MATCH);
+       ii<TR_MAX_FILTER_LINES;
        ii++) {
     /* skip empty lines (these shouldn't really happen) */
     if (filt->lines[ii]==NULL)
@@ -178,6 +178,9 @@ int tr_filter_apply(void *target,
         break; /* give up on this filter line */
       }
     }
+
+    if (retval==TR_FILTER_MATCH)
+      break;
   }
 
   if (retval==TR_FILTER_MATCH) {
@@ -419,3 +422,116 @@ int tr_filter_validate_spec_field(TR_FILTER_TYPE ftype, TR_FSPEC *fspec)
 
   return 1;
 }
+
+/**
+ * Allocate a new filter set.
+ *
+ * @param mem_ctx Talloc context for the new set
+ * @return Pointer to new set, or null on error
+ */
+TR_FILTER_SET *tr_filter_set_new(TALLOC_CTX *mem_ctx)
+{
+  TR_FILTER_SET *set=talloc(mem_ctx, TR_FILTER_SET);
+  if (set!=NULL) {
+    set->next=NULL;
+    set->this=NULL;
+  }
+  return set;
+}
+
+/**
+ * Free a filter set
+ *
+ * @param fs Filter set to free
+ */
+void tr_filter_set_free(TR_FILTER_SET *fs)
+{
+  talloc_free(fs);
+}
+
+/**
+ * Find the tail of the filter set linked list.
+ *
+ * @param set Set to find tail of
+ * @return Last element in the list
+ */
+static TR_FILTER_SET *tr_filter_set_tail(TR_FILTER_SET *set)
+{
+  while (set->next)
+    set=set->next;
+  return set;
+}
+
+/**
+ * Add new filter to filter set.
+ *
+ * @param set Filter set
+ * @param new New filter to add
+ * @return 0 on success, nonzero on error
+ */
+int tr_filter_set_add(TR_FILTER_SET *set, TR_FILTER *new)
+{
+  TR_FILTER_SET *tail=NULL;
+
+  if (set->this==NULL)
+    tail=set;
+  else {
+    tail=tr_filter_set_tail(set);
+    tail->next=tr_filter_set_new(set);
+    if (tail->next==NULL)
+      return 1;
+    tail=tail->next;
+  }
+  tail->this=new;
+  talloc_steal(tail, new);
+  return 0;
+}
+
+/**
+ * Find a filter of a given type in the filter set. If there are multiple, returns the first one.
+ *
+ * @param set Filter set to search
+ * @param type Type of filter to find
+ * @return Borrowed pointer to the filter, or null if no filter of that type is found
+ */
+TR_FILTER *tr_filter_set_get(TR_FILTER_SET *set, TR_FILTER_TYPE type)
+{
+  TR_FILTER_SET *cur=set;
+  while(cur!=NULL) {
+    if ((cur->this != NULL) && (cur->this->type == type))
+      return cur->this;
+    cur=cur->next;
+  }
+  return NULL;
+}
+
+TR_FILTER_TYPE filter_type[]={TR_FILTER_TYPE_TID_INBOUND,
+                              TR_FILTER_TYPE_TRP_INBOUND,
+                              TR_FILTER_TYPE_TRP_OUTBOUND};
+const char *filter_label[]={"tid_inbound",
+                            "trp_inbound",
+                            "trp_outbound"};
+size_t num_filter_types=sizeof(filter_type)/sizeof(filter_type[0]);
+
+const char *tr_filter_type_to_string(TR_FILTER_TYPE ftype)
+{
+  size_t ii=0;
+
+  for (ii=0; ii<num_filter_types; ii++) {
+    if (ftype==filter_type[ii])
+      return filter_label[ii];
+  }
+  return "unknown";
+}
+
+TR_FILTER_TYPE tr_filter_type_from_string(const char *s)
+{
+  size_t ii=0;
+
+  for(ii=0; ii<num_filter_types; ii++) {
+    if (0==strcmp(s, filter_label[ii]))
+      return filter_type[ii];
+  }
+  return TR_FILTER_TYPE_UNKNOWN;
+}
+

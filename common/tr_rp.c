@@ -54,7 +54,7 @@ TR_RP_CLIENT *tr_rp_client_new(TALLOC_CTX *mem_ctx)
     client->next=NULL;
     client->comm_next=NULL;
     client->gss_names=NULL;
-    client->filter=NULL;
+    client->filters=NULL;
     talloc_set_destructor((void *)client, tr_rp_client_destructor);
   }
   return client;
@@ -96,12 +96,12 @@ int tr_rp_client_add_gss_name(TR_RP_CLIENT *rp_client, TR_NAME *gss_name)
   return tr_gss_names_add(rp_client->gss_names, gss_name);
 }
 
-int tr_rp_client_set_filter(TR_RP_CLIENT *client, TR_FILTER *filt)
+int tr_rp_client_set_filters(TR_RP_CLIENT *client, TR_FILTER_SET *filts)
 {
-  if (client->filter!=NULL)
-    tr_filter_free(client->filter);
-  client->filter=filt;
-  talloc_steal(client, filt);
+  if (client->filters!=NULL)
+    tr_filter_set_free(client->filters);
+  client->filters=filts;
+  talloc_steal(client, filts);
   return 0; /* success */
 }
 

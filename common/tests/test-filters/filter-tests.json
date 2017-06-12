@@ -1,0 +1,23 @@
+[
+  { "test label": "first TRP test",
+    "filter file": "test-filters/filt-inforec-1.json",
+    "filter type": "trp_inbound",
+    "target file": "test-filters/filt-inforec-1-msg.json",
+    "expect match": "yes",
+    "action": "accept"
+  },
+  { "test label": "second TRP test",
+    "filter file": "test-filters/filt-inforec-1.json",
+    "filter type": "trp_outbound",
+    "target file": "test-filters/filt-inforec-1-msg.json",
+    "expect match": "no",
+    "action": ""
+  },
+  { "test label": "first TID test",
+    "filter file": "test-filters/filt-tidreq-1.json",
+    "filter type": "tid_inbound",
+    "target file": "test-filters/filt-tidreq-1-msg.json",
+    "expect match": "yes",
+    "action": "accept"
+  }
+]

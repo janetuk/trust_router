@@ -35,6 +35,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
+#include <jansson.h>
 
 #include <trp_internal.h>
 #include <tid_internal.h>
@@ -50,13 +52,13 @@
  * @param filt_out Will point to the loaded filter on success
  * @return Return value from tr_cfg_parse_one_config_file()
  */
-int load_filter(const char *fname, TR_FILTER **filt_out)
+int load_filter(const char *fname, TR_FILTER_SET **filts_out)
 {
   TR_CFG *cfg=tr_cfg_new(NULL);
   TR_CFG_RC rc=TR_CFG_ERROR;
 
   assert(fname);
-  assert(filt_out);
+  assert(filts_out);
 
   rc=tr_cfg_parse_one_config_file(cfg, fname);
   if (rc!=TR_CFG_SUCCESS)
@@ -65,10 +67,10 @@ int load_filter(const char *fname, TR_FILTER **filt_out)
   /* Steal the filter from the first rp_client */
   assert(cfg);
   assert(cfg->rp_clients);
-  assert(cfg->rp_clients->filter);
-  *filt_out=cfg->rp_clients->filter;
-  cfg->rp_clients->filter=NULL; /* can't use the _set_filter() because that will free the filter */
-  talloc_steal(NULL, *filt_out);
+  assert(cfg->rp_clients->filters);
+  *filts_out=cfg->rp_clients->filters;
+  cfg->rp_clients->filters=NULL; /* can't use the _set_filter() because that will free the filter */
+  talloc_steal(NULL, *filts_out);
 
 cleanup:
   tr_cfg_free(cfg);
@@ -82,31 +84,174 @@ cleanup:
  */
 int test_load_filter(void)
 {
-  TR_FILTER *filt=NULL;
+  TR_FILTER_SET *filts=NULL;
 
-  assert(TR_CFG_SUCCESS==load_filter(FILTER_PATH "valid-filt.json", &filt));
-  assert(TR_CFG_NOPARSE==load_filter(FILTER_PATH "invalid-filt-repeated-key.json", &filt));
-  assert(TR_CFG_ERROR==load_filter(FILTER_PATH "invalid-filt-unknown-field.json", &filt));
+  assert(TR_CFG_SUCCESS==load_filter(FILTER_PATH "valid-filt.json", &filts));
+  if (filts) tr_filter_set_free(filts);
+  filts=NULL;
+  assert(TR_CFG_NOPARSE==load_filter(FILTER_PATH "invalid-filt-repeated-key.json", &filts));
+  if (filts) tr_filter_set_free(filts);
+  filts=NULL;
+  assert(TR_CFG_ERROR==load_filter(FILTER_PATH "invalid-filt-unknown-field.json", &filts));
+  if (filts) tr_filter_set_free(filts);
+  filts=NULL;
   return 1;
 }
 
-int test_trp_inforec_filter(TRP_INFOREC_TYPE type)
+/**
+ * Read the first inforec from the TR_MSG encoded in JSON file named fname.
+ *
+ * @param fname Filename with path for TR_MSG JSON
+ * @return Pointer to the decoded inforec, or NULL on failure
+ */
+TRP_INFOREC *load_inforec(const char *fname)
 {
-  TRP_INFOREC *inforec=trp_inforec_new(NULL, type);
-  TR_FILTER *filt=tr_filter_new(NULL);
+  TR_MSG *msg=NULL;
+  TRP_UPD *upd=NULL;
+  TRP_INFOREC *inforec=NULL;
+  json_t *decoded=json_load_file(fname, JSON_REJECT_DUPLICATES|JSON_DISABLE_EOF_CHECK, NULL);
+  char *encoded=json_dumps(decoded, 0); /* silly way to read the file without mucking around */
 
-  assert(inforec);
-  assert(filt);
+  assert(decoded);
+  json_decref(decoded);
 
+  assert(encoded);
+  assert(msg=tr_msg_decode(encoded, strlen(encoded)));
+  assert(upd=tr_msg_get_trp_upd(msg));
+  assert(inforec=trp_upd_get_inforec(upd));
+  /* now remove the inforec from the update context */
+  talloc_steal(NULL, inforec);
+  tr_msg_free_decoded(msg);
+  tr_msg_free_encoded(encoded);
+  return inforec;
+}
 
+/* make this bigger than your message file */
+#define MAX_FILE_SIZE 20000
+TID_REQ *load_tid_req(const char *fname)
+{
+  TID_REQ *out=NULL;
+  TR_MSG *msg=NULL;
+  FILE *f=NULL;
+  char *msgbuf=NULL;
+  size_t msglen=0;
+
+  msgbuf=malloc(MAX_FILE_SIZE);
+  assert(msgbuf);
+  f=fopen(fname, "r");
+  assert(f);
+  msglen=fread(msgbuf, 1, MAX_FILE_SIZE, f);
+  assert(msglen);
+  assert(feof(f));
+  msg=tr_msg_decode(msgbuf, msglen);
+  free(msgbuf);
+  msgbuf=NULL;
+
+  assert(msg);
+  assert(tr_msg_get_msg_type(msg)==TID_REQUEST);
+
+  /* take the tid req out of the msg */
+  out=tr_msg_get_req(msg);
+  tr_msg_set_req(msg, NULL);
+  assert(out);
+
+  tr_msg_free_decoded(msg);
+  return out;
+}
+
+/**
+ * Read a set of filters from a config JSON in filt_fname and test against the tid_req or inforec in target_fname.
+ * If expect==1, succeed if the target is accepted by the filter, otherwise succeed if it is rejected.
+ * Takes filters from the first rp_realm defined in the filter file and the first inforec or tid req from
+ * the target file.
+ *
+ * @param filt_fname Name of JSON file containing filters
+ * @param ftype Which type of filter to test
+ * @param target_fname  Name of JSON file containing inforec
+ * @param expected_match 1 if we expect a match, 0 otherwise
+ * @param expected_action Expected action if the filter matches
+ * @return 1 if expected result is obtained, 0 or does not return otherwise
+ */
+int test_one_filter(const char *filt_fname,
+                    TR_FILTER_TYPE ftype,
+                    const char *target_fname,
+                    int expected_match,
+                    TR_FILTER_ACTION expected_action)
+{
+  void *target=NULL;
+  TR_FILTER_SET *filts=NULL;
+  TR_FILTER_ACTION action=TR_FILTER_ACTION_UNKNOWN;
+
+  /* load filter for first test */
+  assert(TR_CFG_SUCCESS==load_filter(filt_fname, &filts));
+
+  /* load the target req or inforec */
+  switch(ftype) {
+    case TR_FILTER_TYPE_TID_INBOUND:
+      target=load_tid_req(target_fname);
+      break;
+
+    case TR_FILTER_TYPE_TRP_INBOUND:
+    case TR_FILTER_TYPE_TRP_OUTBOUND:
+      target=load_inforec(target_fname);
+      break;
+
+    default:
+      printf("Unknown filter type.\n");
+  }
+  assert(target);
+
+  assert(expected_match==tr_filter_apply(target, tr_filter_set_get(filts, ftype), NULL, &action));
+  if (expected_match==TR_FILTER_MATCH)
+    assert(action==expected_action);
+
+  tr_filter_set_free(filts);
+  switch(ftype) {
+    case TR_FILTER_TYPE_TID_INBOUND:
+      tid_req_free((TID_REQ *)target);
+      break;
+
+    case TR_FILTER_TYPE_TRP_INBOUND:
+    case TR_FILTER_TYPE_TRP_OUTBOUND:
+      trp_inforec_free((TRP_INFOREC *)target);
+      break;
+
+    default:
+      printf("Unknown filter type.\n");
+  }
   return 1;
 }
 
-
-int test_trp_filter(void)
+int test_filter(void)
 {
-  assert(test_trp_inforec_filter(TRP_INFOREC_TYPE_ROUTE));
-  assert(test_trp_inforec_filter(TRP_INFOREC_TYPE_COMMUNITY));
+  json_t *test_list=json_load_file(FILTER_PATH "filter-tests.json", JSON_DISABLE_EOF_CHECK, NULL);
+  json_t *this;
+  size_t ii;
+  const char *filt_file, *target_file;
+  TR_FILTER_TYPE ftype;
+  int expect_match;
+  TR_FILTER_ACTION action;
+
+  json_array_foreach(test_list, ii, this) {
+    printf("Running filter test case: %s\n", json_string_value(json_object_get(this, "test label")));
+    fflush(stdout);
+
+    filt_file=json_string_value(json_object_get(this, "filter file"));
+    ftype=tr_filter_type_from_string(json_string_value(json_object_get(this, "filter type")));
+    target_file=json_string_value(json_object_get(this, "target file"));
+    if (0==strcmp("yes", json_string_value(json_object_get(this, "expect match"))))
+      expect_match=TR_FILTER_MATCH;
+    else
+      expect_match=TR_FILTER_NO_MATCH;
+
+    if (0==strcmp("accept", json_string_value(json_object_get(this, "action"))))
+      action=TR_FILTER_ACTION_ACCEPT;
+    else
+      action=TR_FILTER_ACTION_REJECT;
+
+    assert(test_one_filter(filt_file, ftype, target_file, expect_match, action));
+  }
+
   return 1;
 }
 
@@ -115,6 +260,7 @@ int test_trp_filter(void)
 int main(void)
 {
   assert(test_load_filter());
+  assert(test_filter());
   printf("Success\n");
   return 0;
 }

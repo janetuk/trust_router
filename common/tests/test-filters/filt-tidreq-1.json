@@ -1,0 +1,53 @@
+{
+  "local_organizations": [
+    { "organization_name": "tidreq filter test 1",
+      "realms": [
+        { "realm": "realm",
+          "gss_names": ["gss"],
+          "filters": {
+            "tid_inbound": [
+              { "action": "accept",
+                "specs": [
+                  { "field": "rp_realm",
+                    "match": [
+                      "my realm",
+                      "*.my realm"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "trp_inbound": [
+              { "action": "accept",
+                "specs": [
+                  { "field": "info_type",
+                    "match": ["route"]}
+                ]
+              },
+              { "action": "accept",
+                "specs": [
+                  { "field": "info_type",
+                    "match": ["community"]}
+                ]
+              }
+            ],
+            "trp_outbound": [
+              { "action": "accept",
+                "specs": [
+                  { "field": "info_type",
+                    "match": ["invalid value"]}
+                ]
+              },
+              { "action": "accept",
+                "specs": [
+                  { "field": "info_type",
+                    "match": ["community"]}
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

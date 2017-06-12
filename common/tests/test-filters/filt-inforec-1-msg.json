@@ -1,0 +1,15 @@
+{
+  "msg_type": "trp_update",
+  "msg_body": {
+    "community": "my community",
+    "realm": "my realm",
+    "records": [
+      {
+        "record_type": "route",
+        "trust_router": "tr",
+        "metric": 27,
+        "interval": 11
+      }
+    ]
+  }
+}
