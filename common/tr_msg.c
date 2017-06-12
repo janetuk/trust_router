@@ -218,17 +218,17 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
 
   assert(jreq = json_object());
 
-  jstr = json_string(req->rp_realm->buf);
+  jstr = tr_name_to_json_string(req->rp_realm);
   json_object_set_new(jreq, "rp_realm", jstr);
 
-  jstr = json_string(req->realm->buf);
+  jstr = tr_name_to_json_string(req->realm);
   json_object_set_new(jreq, "target_realm", jstr);
 
-  jstr = json_string(req->comm->buf);
+  jstr = tr_name_to_json_string(req->comm);
   json_object_set_new(jreq, "community", jstr);
   
   if (req->orig_coi) {
-    jstr = json_string(req->orig_coi->buf);
+    jstr = tr_name_to_json_string(req->orig_coi);
     json_object_set_new(jreq, "orig_coi", jstr);
   }
 
@@ -329,7 +329,7 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
 		      "key_expiration", json_string(time_str));
   g_free(time_str);
   /* Server DH Block */
-  jstr = json_string(srvr->key_name->buf);
+  jstr = tr_name_to_json_string(srvr->key_name);
   json_object_set_new(jsrvr, "key_name", jstr);
   json_object_set_new(jsrvr, "server_dh", tr_msg_encode_dh(srvr->aaa_server_dh));
   if (srvr->path)
@@ -446,7 +446,7 @@ static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
     jstr = json_string("error");
     json_object_set_new(jresp, "result", jstr);
     if (resp->err_msg) {
-      jstr = json_string(resp->err_msg->buf);
+      jstr = tr_name_to_json_string(resp->err_msg);
       json_object_set_new(jresp, "err_msg", jstr);
     }
   }
@@ -455,17 +455,17 @@ static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
     json_object_set_new(jresp, "result", jstr);
   }
 
-  jstr = json_string(resp->rp_realm->buf);
+  jstr = tr_name_to_json_string(resp->rp_realm);
   json_object_set_new(jresp, "rp_realm", jstr);
 
-  jstr = json_string(resp->realm->buf);
+  jstr = tr_name_to_json_string(resp->realm);
   json_object_set_new(jresp, "target_realm", jstr);
 
-  jstr = json_string(resp->comm->buf);
+  jstr = tr_name_to_json_string(resp->comm);
   json_object_set_new(jresp, "comm", jstr);
 
   if (resp->orig_coi) {
-    jstr = json_string(resp->orig_coi->buf);
+    jstr = tr_name_to_json_string(resp->orig_coi);
     json_object_set_new(jresp, "orig_coi", jstr);
   }
 
@@ -1198,7 +1198,7 @@ char *tr_msg_encode(TR_MSG *msg)
   return encoded;
 }
 
-TR_MSG *tr_msg_decode(char *jbuf, size_t buflen)
+TR_MSG *tr_msg_decode(const char *jbuf, size_t buflen)
 {
   TR_MSG *msg=NULL;
   json_t *jmsg = NULL;
@@ -1265,20 +1265,22 @@ void tr_msg_free_encoded(char *jmsg)
 void tr_msg_free_decoded(TR_MSG *msg)
 {
   if (msg) {
-    switch (msg->msg_type) {
-    case TID_REQUEST:
-      tid_req_free(tr_msg_get_req(msg));
-      break;
-    case TID_RESPONSE:
-      tid_resp_free(tr_msg_get_resp(msg));
-      break;
-    case TRP_UPDATE:
-      trp_upd_free(tr_msg_get_trp_upd(msg));
-      break;
-    case TRP_REQUEST:
-      trp_req_free(tr_msg_get_trp_req(msg));
-    default:
-      break;
+    if (msg->msg_rep!=NULL) {
+      switch (msg->msg_type) {
+        case TID_REQUEST:
+          tid_req_free(tr_msg_get_req(msg));
+          break;
+        case TID_RESPONSE:
+          tid_resp_free(tr_msg_get_resp(msg));
+          break;
+        case TRP_UPDATE:
+          trp_upd_free(tr_msg_get_trp_upd(msg));
+          break;
+        case TRP_REQUEST:
+          trp_req_free(tr_msg_get_trp_req(msg));
+        default:
+          break;
+      }
     }
     free (msg);
   }
