@@ -178,7 +178,7 @@ int test_one_filter(const char *filt_fname,
                     int expected_match,
                     TR_FILTER_ACTION expected_action)
 {
-  void *target=NULL;
+  TR_FILTER_TARGET *target=NULL;
   TR_FILTER_SET *filts=NULL;
   TR_FILTER_ACTION action=TR_FILTER_ACTION_UNKNOWN;
 
@@ -188,12 +188,13 @@ int test_one_filter(const char *filt_fname,
   /* load the target req or inforec */
   switch(ftype) {
     case TR_FILTER_TYPE_TID_INBOUND:
-      target=load_tid_req(target_fname);
+      target=tr_filter_target_tid_req(NULL, load_tid_req(target_fname));
       break;
 
     case TR_FILTER_TYPE_TRP_INBOUND:
     case TR_FILTER_TYPE_TRP_OUTBOUND:
-      target=load_inforec(target_fname);
+      /* TODO: read realm and community */
+      target=tr_filter_target_trp_inforec(NULL, load_inforec(target_fname), NULL, NULL);
       break;
 
     default:
@@ -208,17 +209,22 @@ int test_one_filter(const char *filt_fname,
   tr_filter_set_free(filts);
   switch(ftype) {
     case TR_FILTER_TYPE_TID_INBOUND:
-      tid_req_free((TID_REQ *)target);
+      tid_req_free(target->tid_req);
       break;
 
     case TR_FILTER_TYPE_TRP_INBOUND:
     case TR_FILTER_TYPE_TRP_OUTBOUND:
-      trp_inforec_free((TRP_INFOREC *)target);
+      trp_inforec_free(target->trp_inforec);
+      if (target->realm!=NULL)
+        tr_free_name(target->realm);
+      if (target->comm!=NULL)
+        tr_free_name(target->comm);
       break;
 
     default:
       printf("Unknown filter type.\n");
   }
+  tr_filter_target_free(target);
   return 1;
 }
 

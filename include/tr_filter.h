@@ -91,6 +91,19 @@ struct tr_filter_set {
   TR_FILTER_SET *next;
 };
 
+/**
+ * Structure to hold information needed to filter different targets.
+ */
+typedef struct tr_filter_target {
+  /* An inforec also needs realm and community information */
+  TRP_INFOREC *trp_inforec;
+  TR_NAME *realm;
+  TR_NAME *comm;
+
+  /* a TID request has all the data it needs to be filtered */
+  TID_REQ *tid_req;
+} TR_FILTER_TARGET;
+
 TR_FILTER_SET *tr_filter_set_new(TALLOC_CTX *mem_ctx);
 void tr_filter_set_free(TR_FILTER_SET *fs);
 int tr_filter_set_add(TR_FILTER_SET *set, TR_FILTER *new);
@@ -114,13 +127,16 @@ void tr_fspec_free(TR_FSPEC *fspec);
 
 void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
 
-int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, void *target);
+int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *target);
 
 
 /*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
 int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);
 
-int tr_filter_apply(void *target, TR_FILTER *filt, TR_CONSTRAINT_SET **constraints, TR_FILTER_ACTION *out_action);
+int tr_filter_apply(TR_FILTER_TARGET *target, TR_FILTER *filt, TR_CONSTRAINT_SET **constraints, TR_FILTER_ACTION *out_action);
+void tr_filter_target_free(TR_FILTER_TARGET *target);
+TR_FILTER_TARGET *tr_filter_target_tid_req(TALLOC_CTX *mem_ctx, TID_REQ *req);
+TR_FILTER_TARGET *tr_filter_target_trp_inforec(TALLOC_CTX *mem_ctx, TRP_INFOREC *inforec, TR_NAME *realm, TR_NAME *comm);
 
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline);
 

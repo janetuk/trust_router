@@ -35,7 +35,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <talloc.h>
 #include <assert.h>
 
@@ -46,14 +45,14 @@
 /* Function types for handling filter fields generally. All target values
  * are represented as strings in a TR_NAME.
  */
-typedef int (*TR_FILTER_FIELD_CMP)(void *target, TR_NAME *val); /* returns 1 on match, 0 on no match */
-typedef TR_NAME *(*TR_FILTER_FIELD_GET)(void *target); /* returns string form of the field value */
+typedef int (*TR_FILTER_FIELD_CMP)(TR_FILTER_TARGET *target, TR_NAME *val); /* returns 1 on match, 0 on no match */
+typedef TR_NAME *(*TR_FILTER_FIELD_GET)(TR_FILTER_TARGET *target); /* returns string form of the field value */
 
 /* static handler prototypes */
-static int tr_ff_cmp_tid_rp_realm(void *rp_req_arg, TR_NAME *val);
-static TR_NAME *tr_ff_get_tid_rp_realm(void *rp_req_arg);
-static int tr_ff_cmp_trp_info_type(void *inforec_arg, TR_NAME *val);
-static TR_NAME *tr_ff_get_trp_info_type(void *inforec_arg);
+static int tr_ff_cmp_tid_rp_realm(TR_FILTER_TARGET *target, TR_NAME *val);
+static TR_NAME *tr_ff_get_tid_rp_realm(TR_FILTER_TARGET *target);
+static int tr_ff_cmp_trp_info_type(TR_FILTER_TARGET *target, TR_NAME *val);
+static TR_NAME *tr_ff_get_trp_info_type(TR_FILTER_TARGET *target);
 
 /**
  * Filter field handler table
@@ -84,23 +83,76 @@ static struct tr_filter_field_entry *tr_filter_field_entry(TR_FILTER_TYPE filter
   return NULL;
 }
 
-static int tr_ff_cmp_tid_rp_realm(void *rp_req_arg, TR_NAME *val)
+static TR_FILTER_TARGET *tr_filter_target_new(TALLOC_CTX *mem_ctx)
 {
-  TID_REQ *req=talloc_get_type_abort(rp_req_arg, TID_REQ);
+  TR_FILTER_TARGET *target=talloc(mem_ctx, TR_FILTER_TARGET);
+  if (target) {
+    target->trp_inforec=NULL;
+    target->comm=NULL;
+    target->realm=NULL;
+    target->tid_req=NULL;
+  }
+  return target;
+}
+void tr_filter_target_free(TR_FILTER_TARGET *target)
+{
+  talloc_free(target);
+}
+
+/**
+ * Create a filter target for a TID request. Does not change the context of the request,
+ * so this is only valid until that is freed.
+ *
+ * @param mem_ctx talloc context for the object
+ * @param req TID request object
+ * @return pointer to a TR_FILTER_TARGET structure, or null on allocation failure
+ */
+TR_FILTER_TARGET *tr_filter_target_tid_req(TALLOC_CTX *mem_ctx, TID_REQ *req)
+{
+  TR_FILTER_TARGET *target=tr_filter_target_new(mem_ctx);
+  if (target)
+    target->tid_req=req; /* borrowed, not adding to our context */
+  return target;
+}
+
+/**
+ * Create a filter target for a TRP inforec. Does not change the context of the inforec or duplicate TR_NAMEs,
+ * so this is only valid until those are freed.
+ *
+ * @param mem_ctx talloc context for the object
+ * @param inforec TRP inforec
+ * @param realm realm name
+ * @param comm community name
+ * @return pointer to a TR_FILTER_TARGET structure, or null on allocation failure
+ */
+TR_FILTER_TARGET *tr_filter_target_trp_inforec(TALLOC_CTX *mem_ctx, TRP_INFOREC *inforec, TR_NAME *realm, TR_NAME *comm)
+{
+  TR_FILTER_TARGET *target=tr_filter_target_new(mem_ctx);
+  if (target) {
+    target->trp_inforec = inforec; /* borrowed, not adding to our context */
+    target->realm=realm;
+    target->comm=comm;
+  }
+  return target;
+}
+
+static int tr_ff_cmp_tid_rp_realm(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  TID_REQ *req=target->tid_req;
   assert(req);
   return 0==tr_name_cmp(val, req->rp_realm);
 }
 
-static TR_NAME *tr_ff_get_tid_rp_realm(void *rp_req_arg)
+static TR_NAME *tr_ff_get_tid_rp_realm(TR_FILTER_TARGET *target)
 {
-  TID_REQ *req=talloc_get_type_abort(rp_req_arg, TID_REQ);
+  TID_REQ *req=target->tid_req;
   assert(req);
   return tr_dup_name(req->rp_realm);
 }
 
-static int tr_ff_cmp_trp_info_type(void *inforec_arg, TR_NAME *val)
+static int tr_ff_cmp_trp_info_type(TR_FILTER_TARGET *target, TR_NAME *val)
 {
-  TRP_INFOREC *inforec=talloc_get_type_abort(inforec_arg, TRP_INFOREC);
+  TRP_INFOREC *inforec=target->trp_inforec;
   char *valstr=NULL;
   int val_type=0;
 
@@ -118,9 +170,9 @@ static int tr_ff_cmp_trp_info_type(void *inforec_arg, TR_NAME *val)
   return (val_type==inforec->type);
 }
 
-static TR_NAME *tr_ff_get_trp_info_type(void *inforec_arg)
+static TR_NAME *tr_ff_get_trp_info_type(TR_FILTER_TARGET *target)
 {
-  TRP_INFOREC *inforec=talloc_get_type_abort(inforec_arg, TRP_INFOREC);
+  TRP_INFOREC *inforec=target->trp_inforec;
   return tr_new_name(trp_inforec_type_to_string(inforec->type));
 }
 
@@ -141,7 +193,7 @@ static TR_NAME *tr_ff_get_trp_info_type(void *inforec_arg)
  * @param out_action Action to be carried out (output)
  * @return TR_FILTER_MATCH or TR_FILTER_NO_MATCH
  */
-int tr_filter_apply(void *target,
+int tr_filter_apply(TR_FILTER_TARGET *target,
                     TR_FILTER *filt,
                     TR_CONSTRAINT_SET **constraints,
                     TR_FILTER_ACTION *out_action)
@@ -243,7 +295,7 @@ void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match)
 }
 
 /* returns 1 if the spec matches */
-int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, void *target)
+int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *target)
 {
   struct tr_filter_field_entry *field=NULL;
   TR_NAME *name=NULL;

@@ -1009,12 +1009,16 @@ cleanup:
  * @param trps Active TRPS instance
  * @param peer_name Name of peer that sent this inforec
  * @param rec Inforec to filter
+ * @param realm Name of realm
+ * @param comm Name of community
  * @return 1 if accepted by the filter, 0 otherwise
  */
-static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TR_NAME *peer_name, TRP_INFOREC *rec)
+static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TR_NAME *peer_name, TRP_INFOREC *rec, TR_NAME *realm, TR_NAME *comm)
 {
   TRP_PEER *peer=NULL;
   TR_FILTER_ACTION action=TR_FILTER_ACTION_REJECT;
+  TR_FILTER_TARGET *target=NULL;
+  int retval=0;
 
   /* Look up the peer. For inbound messages, the peer is identified by its GSS name */
   peer=trps_get_peer_by_gssname(trps, peer_name);
@@ -1026,17 +1030,26 @@ static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TR_NAME *peer_name, 
   }
 
   /* tr_filter_apply() and tr_filter_set_get() handle null filter sets/filters by rejecting */
-  if ((TR_FILTER_NO_MATCH==tr_filter_apply(rec,
-                                           tr_filter_set_get(peer->filters, TR_FILTER_TYPE_TRP_INBOUND),
-                                           NULL,
-                                           &action))
-      || (action!=TR_FILTER_ACTION_ACCEPT)) {
-    /* either the filter did not match or it matched a reject rule */
-    return 0;
+  target=tr_filter_target_trp_inforec(NULL, rec, realm, comm);
+  if (target==NULL) {
+    /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
+    tr_crit("trps_filter_inbound_inforec: Unable to allocate filter target, cannot apply filter!");
   }
+  if ((target==NULL)
+      || (TR_FILTER_NO_MATCH==tr_filter_apply(target,
+                                              tr_filter_set_get(peer->filters, TR_FILTER_TYPE_TRP_INBOUND),
+                                              NULL,
+                                              &action))
+      || (action!=TR_FILTER_ACTION_ACCEPT)) {
+    /* either the filter did not match or it matched a reject rule or allocating the target failed */
+    retval=0;
+  } else
+    retval=1;
+  if (target!=NULL)
+    tr_filter_target_free(target);
 
   /* filter matched an accept rule */
-  return 1;
+  return retval;
 }
 
 
@@ -1058,7 +1071,11 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
   }
 
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    if (!trps_filter_inbound_inforec(trps, trp_upd_get_peer(upd), rec)) {
+    if (!trps_filter_inbound_inforec(trps,
+                                     trp_upd_get_peer(upd),
+                                     rec,
+                                     trp_upd_get_realm(upd),
+                                     trp_upd_get_comm(upd))) {
       tr_debug("trps_handle_update: inforec rejected by filter.");
       continue; /* just go on to the next record */
     }
@@ -1662,14 +1679,24 @@ static void trps_filter_one_outbound_update(TR_FILTER *filt, TRP_UPD *upd)
 {
   TRP_INFOREC *this=NULL, *next=NULL;
   TR_FILTER_ACTION action=TR_FILTER_ACTION_REJECT;
+  TR_FILTER_TARGET *target=NULL;
 
   for(this=trp_upd_get_inforec(upd); this!=NULL; this=next) {
     next=this->next;
-    if ((TR_FILTER_NO_MATCH==tr_filter_apply(this, filt, NULL, &action))
+    target=tr_filter_target_trp_inforec(NULL, this, trp_upd_get_realm(upd), trp_upd_get_comm(upd));
+    if (target==NULL) {
+      /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
+      tr_crit("trps_filter_one_outbound_update: Unable to allocate filter target, cannot apply filter!");
+    }
+    if ((target==NULL)
+        || (TR_FILTER_NO_MATCH==tr_filter_apply(target, filt, NULL, &action))
         || (action!=TR_FILTER_ACTION_ACCEPT)) {
-      /* Either no filter matched or one matched and rejected this record */
+      /* Either no filter matched or one matched and rejected this record.
+       * Also filter out record if we were unable to allocate a target. */
       trp_upd_remove_inforec(upd, this); /* "this" is now invalid */
     }
+    if (target!=NULL)
+      tr_filter_target_free(target);
   }
 }
 
@@ -1704,8 +1731,8 @@ static void trps_trp_upd_destroy(gpointer data)
 static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
                                    TRP_PEER *peer,
                                    TRP_UPDATE_TYPE update_type,
-                                   TR_NAME *comm,
-                                   TR_NAME *realm)
+                                   TR_NAME *realm,
+                                   TR_NAME *comm)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_MSG msg; /* not a pointer! */
@@ -1932,8 +1959,8 @@ static TRP_RC trps_handle_request(TRPS_INSTANCE *trps, TRP_REQ *req)
   return trps_update_one_peer(trps,
                               trps_get_peer_by_gssname(trps, trp_req_get_peer(req)),
                               TRP_UPDATE_REQUESTED,
-                              comm,
-                              realm);
+                              realm,
+                              comm);
 }
 
 

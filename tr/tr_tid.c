@@ -261,6 +261,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   unsigned int resp_frac_numer=cfg_mgr->active->internal->tid_resp_numer;
   unsigned int resp_frac_denom=cfg_mgr->active->internal->tid_resp_denom;
   TR_RESP_COOKIE *payload=NULL;
+  TR_FILTER_TARGET *target=NULL;
   int ii=0;
   int retval=-1;
 
@@ -306,12 +307,18 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
    * well. Need to verify that this is acceptable behavior, but it's what we've always done. */
   fwd_req->cons=orig_req->cons;
 
-  if ((TR_FILTER_NO_MATCH == tr_filter_apply(orig_req,
-                                             tr_filter_set_get(tids->rp_gss->filters,
-                                                               TR_FILTER_TYPE_TID_INBOUND),
-                                             &(fwd_req->cons),
-                                             &oaction)) ||
-      (TR_FILTER_ACTION_ACCEPT != oaction)) {
+  target=tr_filter_target_tid_req(tmp_ctx, orig_req);
+  if (target==NULL) {
+    /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
+    tr_crit("tid_req_handler: Unable to allocate filter target, cannot apply filter!");
+  }
+  if ((target==NULL)
+      || (TR_FILTER_NO_MATCH == tr_filter_apply(target,
+                                                tr_filter_set_get(tids->rp_gss->filters,
+                                                                  TR_FILTER_TYPE_TID_INBOUND),
+                                                &(fwd_req->cons),
+                                                &oaction))
+      || (TR_FILTER_ACTION_ACCEPT != oaction)) {
     tr_notice("tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "RP Realm filter error");
     retval=-1;
