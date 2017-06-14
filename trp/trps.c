@@ -1007,20 +1007,20 @@ cleanup:
  * Apply applicable TRP_INBOUND filters to an inforec. Rejects everything if peer has no filters.
  *
  * @param trps Active TRPS instance
- * @param peer_name Name of peer that sent this inforec
+ * @param upd TRP_UPD that contains the inforec to filter
  * @param rec Inforec to filter
- * @param realm Name of realm
- * @param comm Name of community
  * @return 1 if accepted by the filter, 0 otherwise
  */
-static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TR_NAME *peer_name, TRP_INFOREC *rec, TR_NAME *realm, TR_NAME *comm)
+static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC *rec)
 {
   TRP_PEER *peer=NULL;
+  TR_NAME *peer_name=NULL;
   TR_FILTER_ACTION action=TR_FILTER_ACTION_REJECT;
   TR_FILTER_TARGET *target=NULL;
   int retval=0;
 
   /* Look up the peer. For inbound messages, the peer is identified by its GSS name */
+  peer_name=trp_upd_get_peer(upd);
   peer=trps_get_peer_by_gssname(trps, peer_name);
   if (peer==NULL) {
     tr_err("trps_filter_inbound_inforec: received inforec from unknown peer (%.*s), rejecting.",
@@ -1030,7 +1030,7 @@ static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TR_NAME *peer_name, 
   }
 
   /* tr_filter_apply() and tr_filter_set_get() handle null filter sets/filters by rejecting */
-  target=tr_filter_target_trp_inforec(NULL, rec, realm, comm);
+  target= tr_filter_target_trp_inforec(NULL, upd, rec);
   if (target==NULL) {
     /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
     tr_crit("trps_filter_inbound_inforec: Unable to allocate filter target, cannot apply filter!");
@@ -1071,11 +1071,7 @@ static TRP_RC trps_handle_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
   }
 
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    if (!trps_filter_inbound_inforec(trps,
-                                     trp_upd_get_peer(upd),
-                                     rec,
-                                     trp_upd_get_realm(upd),
-                                     trp_upd_get_comm(upd))) {
+    if (!trps_filter_inbound_inforec(trps, upd, rec)) {
       tr_debug("trps_handle_update: inforec rejected by filter.");
       continue; /* just go on to the next record */
     }
@@ -1683,7 +1679,7 @@ static void trps_filter_one_outbound_update(TR_FILTER *filt, TRP_UPD *upd)
 
   for(this=trp_upd_get_inforec(upd); this!=NULL; this=next) {
     next=this->next;
-    target=tr_filter_target_trp_inforec(NULL, this, trp_upd_get_realm(upd), trp_upd_get_comm(upd));
+    target= tr_filter_target_trp_inforec(NULL, upd, this);
     if (target==NULL) {
       /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
       tr_crit("trps_filter_one_outbound_update: Unable to allocate filter target, cannot apply filter!");

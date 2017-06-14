@@ -45,51 +45,18 @@
 /* Function types for handling filter fields generally. All target values
  * are represented as strings in a TR_NAME.
  */
-typedef int (*TR_FILTER_FIELD_CMP)(TR_FILTER_TARGET *target, TR_NAME *val); /* returns 1 on match, 0 on no match */
-typedef TR_NAME *(*TR_FILTER_FIELD_GET)(TR_FILTER_TARGET *target); /* returns string form of the field value */
 
-/* static handler prototypes */
-static int tr_ff_cmp_tid_rp_realm(TR_FILTER_TARGET *target, TR_NAME *val);
-static TR_NAME *tr_ff_get_tid_rp_realm(TR_FILTER_TARGET *target);
-static int tr_ff_cmp_trp_info_type(TR_FILTER_TARGET *target, TR_NAME *val);
-static TR_NAME *tr_ff_get_trp_info_type(TR_FILTER_TARGET *target);
-
-/**
- * Filter field handler table
- */
-struct tr_filter_field_entry {
-    TR_FILTER_TYPE filter_type;
-    const char *name;
-    TR_FILTER_FIELD_CMP cmp;
-    TR_FILTER_FIELD_GET get;
-};
-static struct tr_filter_field_entry tr_filter_field_table[] = {
-    {TR_FILTER_TYPE_TID_INBOUND, "rp_realm", tr_ff_cmp_tid_rp_realm, tr_ff_get_tid_rp_realm},
-    {TR_FILTER_TYPE_TRP_INBOUND, "info_type", tr_ff_cmp_trp_info_type, tr_ff_get_trp_info_type},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "info_type", tr_ff_cmp_trp_info_type, tr_ff_get_trp_info_type},
-    {TR_FILTER_TYPE_UNKNOWN, NULL } /* This must be the final entry */
-};
-
-static struct tr_filter_field_entry *tr_filter_field_entry(TR_FILTER_TYPE filter_type, TR_NAME *field_name)
-{
-  unsigned int ii;
-
-  for (ii=0; tr_filter_field_table[ii].filter_type!=TR_FILTER_TYPE_UNKNOWN; ii++) {
-    if ((tr_filter_field_table[ii].filter_type==filter_type)
-        && (tr_name_cmp_str(field_name, tr_filter_field_table[ii].name)==0)) {
-      return tr_filter_field_table+ii;
-    }
-  }
-  return NULL;
-}
+/* CMP functions return values like strcmp: 0 on match, <0 on target<val, >0 on target>val */
+typedef int (*TR_FILTER_FIELD_CMP)(TR_FILTER_TARGET *target, TR_NAME *val);
+/* get functions return TR_NAME format of the field value. Caller must free it. */
+typedef TR_NAME *(*TR_FILTER_FIELD_GET)(TR_FILTER_TARGET *target);
 
 static TR_FILTER_TARGET *tr_filter_target_new(TALLOC_CTX *mem_ctx)
 {
   TR_FILTER_TARGET *target=talloc(mem_ctx, TR_FILTER_TARGET);
   if (target) {
     target->trp_inforec=NULL;
-    target->comm=NULL;
-    target->realm=NULL;
+    target->trp_upd=NULL;
     target->tid_req=NULL;
   }
   return target;
@@ -120,36 +87,32 @@ TR_FILTER_TARGET *tr_filter_target_tid_req(TALLOC_CTX *mem_ctx, TID_REQ *req)
  * so this is only valid until those are freed.
  *
  * @param mem_ctx talloc context for the object
+ * @param upd Update containing the TRP inforec
  * @param inforec TRP inforec
- * @param realm realm name
- * @param comm community name
  * @return pointer to a TR_FILTER_TARGET structure, or null on allocation failure
  */
-TR_FILTER_TARGET *tr_filter_target_trp_inforec(TALLOC_CTX *mem_ctx, TRP_INFOREC *inforec, TR_NAME *realm, TR_NAME *comm)
+TR_FILTER_TARGET *tr_filter_target_trp_inforec(TALLOC_CTX *mem_ctx, TRP_UPD *upd, TRP_INFOREC *inforec)
 {
   TR_FILTER_TARGET *target=tr_filter_target_new(mem_ctx);
   if (target) {
     target->trp_inforec = inforec; /* borrowed, not adding to our context */
-    target->realm=realm;
-    target->comm=comm;
+    target->trp_upd=upd;
   }
   return target;
 }
 
+/** Handler functions for TID RP_REALM field */
 static int tr_ff_cmp_tid_rp_realm(TR_FILTER_TARGET *target, TR_NAME *val)
 {
-  TID_REQ *req=target->tid_req;
-  assert(req);
-  return 0==tr_name_cmp(val, req->rp_realm);
+  return tr_name_cmp(tid_req_get_rp_realm(target->tid_req), val);
 }
 
 static TR_NAME *tr_ff_get_tid_rp_realm(TR_FILTER_TARGET *target)
 {
-  TID_REQ *req=target->tid_req;
-  assert(req);
-  return tr_dup_name(req->rp_realm);
+  return tr_dup_name(tid_req_get_rp_realm(target->tid_req));
 }
 
+/** Handler functions for TRP info_type field */
 static int tr_ff_cmp_trp_info_type(TR_FILTER_TARGET *target, TR_NAME *val)
 {
   TRP_INFOREC *inforec=target->trp_inforec;
@@ -167,6 +130,7 @@ static int tr_ff_cmp_trp_info_type(TR_FILTER_TARGET *target, TR_NAME *val)
   val_type = trp_inforec_type_from_string(valstr);
   free(valstr);
 
+  /* we do not define an ordering of info types */
   return (val_type==inforec->type);
 }
 
@@ -174,6 +138,248 @@ static TR_NAME *tr_ff_get_trp_info_type(TR_FILTER_TARGET *target)
 {
   TRP_INFOREC *inforec=target->trp_inforec;
   return tr_new_name(trp_inforec_type_to_string(inforec->type));
+}
+
+/** Handlers for TRP realm field */
+static int tr_ff_cmp_trp_realm(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_name_cmp(trp_upd_get_realm(target->trp_upd), val);
+}
+
+static TR_NAME *tr_ff_get_trp_realm(TR_FILTER_TARGET *target)
+{
+  return tr_dup_name(trp_upd_get_realm(target->trp_upd));
+}
+
+/** Handlers for TID realm field */
+static int tr_ff_cmp_tid_realm(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_name_cmp(tid_req_get_realm(target->tid_req), val);
+}
+
+static TR_NAME *tr_ff_get_tid_realm(TR_FILTER_TARGET *target)
+{
+  return tr_dup_name(tid_req_get_realm(target->tid_req));
+}
+
+/** Handlers for TRP community field */
+static int tr_ff_cmp_trp_comm(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_name_cmp(trp_upd_get_comm(target->trp_upd), val);
+}
+
+static TR_NAME *tr_ff_get_trp_comm(TR_FILTER_TARGET *target)
+{
+  return tr_dup_name(trp_upd_get_comm(target->trp_upd));
+}
+
+/** Handlers for TID community field */
+static int tr_ff_cmp_tid_comm(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_name_cmp(tid_req_get_comm(target->tid_req), val);
+}
+
+static TR_NAME *tr_ff_get_tid_comm(TR_FILTER_TARGET *target)
+{
+  return tr_dup_name(tid_req_get_comm(target->tid_req));
+}
+
+/** Handlers for TRP community_type field */
+static TR_NAME *tr_ff_get_trp_comm_type(TR_FILTER_TARGET *target)
+{
+  TR_NAME *type=NULL;
+
+  switch(trp_inforec_get_comm_type(target->trp_inforec)) {
+    case TR_COMM_APC:
+      type=tr_new_name("apc");
+      break;
+    case TR_COMM_COI:
+      type=tr_new_name("coi");
+      break;
+    default:
+      type=NULL;
+      break; /* unknown types always fail */
+  }
+
+  return type;
+}
+
+static int tr_ff_cmp_trp_comm_type(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  TR_NAME *type=tr_ff_get_trp_comm_type(target);
+  int retval=0;
+
+  if (type==NULL)
+    retval=1;
+  else {
+    retval = tr_name_cmp(val, type);
+    tr_free_name(type);
+  }
+  return retval;
+}
+
+/** Handlers for TRP realm_role field */
+static TR_NAME *tr_ff_get_trp_realm_role(TR_FILTER_TARGET *target)
+{
+  TR_NAME *type=NULL;
+
+  switch(trp_inforec_get_role(target->trp_inforec)) {
+    case TR_ROLE_IDP:
+      type=tr_new_name("idp");
+      break;
+    case TR_ROLE_RP:
+      type=tr_new_name("rp");
+      break;
+    default:
+      type=NULL;
+      break; /* unknown types always fail */
+  }
+
+  return type;
+}
+
+static int tr_ff_cmp_trp_realm_role(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  TR_NAME *type=tr_ff_get_trp_realm_role(target);
+  int retval=0;
+
+  if (type==NULL)
+    retval=1;
+  else {
+    retval = tr_name_cmp(val, type);
+    tr_free_name(type);
+  }
+  return retval;
+}
+
+/** Handlers for TRP apc field */
+static int tr_ff_cmp_trp_apc(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  /* TODO: Handle multiple APCs, not just the first */
+  return tr_name_cmp(tr_apc_get_id(trp_inforec_get_apcs(target->trp_inforec)), val);
+}
+
+static TR_NAME *tr_ff_get_trp_apc(TR_FILTER_TARGET *target)
+{
+  /* TODO: Handle multiple APCs, not just the first */
+  return tr_dup_name(tr_apc_get_id(trp_inforec_get_apcs(target->trp_inforec)));
+}
+
+/** Handlers for TRP owner_realm field */
+static int tr_ff_cmp_trp_owner_realm(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_name_cmp(trp_inforec_get_owner_realm(target->trp_inforec), val);
+}
+
+static TR_NAME *tr_ff_get_trp_owner_realm(TR_FILTER_TARGET *target)
+{
+  return tr_dup_name(trp_inforec_get_owner_realm(target->trp_inforec));
+}
+
+/** Handlers for TRP trust_router field */
+static int tr_ff_cmp_trp_trust_router(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_name_cmp(trp_inforec_get_trust_router(target->trp_inforec), val);
+}
+
+static TR_NAME *tr_ff_get_trp_trust_router(TR_FILTER_TARGET *target)
+{
+  return tr_dup_name(trp_inforec_get_trust_router(target->trp_inforec));
+}
+
+/** Handlers for TRP owner_contact field */
+static int tr_ff_cmp_trp_owner_contact(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_name_cmp(trp_inforec_get_owner_contact(target->trp_inforec), val);
+}
+
+static TR_NAME *tr_ff_get_trp_owner_contact(TR_FILTER_TARGET *target)
+{
+  return tr_dup_name(trp_inforec_get_owner_contact(target->trp_inforec));
+}
+
+/** Handlers for TID req original_coi field */
+static int tr_ff_cmp_tid_orig_coi(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_name_cmp(tid_req_get_orig_coi(target->tid_req), val);
+}
+
+static TR_NAME *tr_ff_get_tid_orig_coi(TR_FILTER_TARGET *target)
+{
+  return tr_dup_name(tid_req_get_orig_coi(target->tid_req));
+}
+
+/**
+ * Filter field handler table
+ */
+struct tr_filter_field_entry {
+  TR_FILTER_TYPE filter_type;
+  const char *name;
+  TR_FILTER_FIELD_CMP cmp;
+  TR_FILTER_FIELD_GET get;
+};
+static struct tr_filter_field_entry tr_filter_field_table[] = {
+    /* realm */
+    {TR_FILTER_TYPE_TID_INBOUND, "realm", tr_ff_cmp_tid_realm, tr_ff_get_tid_realm},
+    {TR_FILTER_TYPE_TRP_INBOUND, "realm", tr_ff_cmp_trp_realm, tr_ff_get_trp_realm},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "realm", tr_ff_cmp_trp_realm, tr_ff_get_trp_realm},
+
+    /* community */
+    {TR_FILTER_TYPE_TID_INBOUND, "community", tr_ff_cmp_tid_comm, tr_ff_get_tid_comm},
+    {TR_FILTER_TYPE_TRP_INBOUND, "community", tr_ff_cmp_trp_comm, tr_ff_get_trp_comm},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "community", tr_ff_cmp_trp_comm, tr_ff_get_trp_comm},
+
+    /* community type */
+    {TR_FILTER_TYPE_TRP_INBOUND, "community_type", tr_ff_cmp_trp_comm_type, tr_ff_get_trp_comm_type},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "community_type", tr_ff_cmp_trp_comm_type, tr_ff_get_trp_comm_type},
+
+    /* realm role */
+    {TR_FILTER_TYPE_TRP_INBOUND, "realm_role", tr_ff_cmp_trp_realm_role, tr_ff_get_trp_realm_role},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "realm_role", tr_ff_cmp_trp_realm_role, tr_ff_get_trp_realm_role},
+
+    /* apc */
+    {TR_FILTER_TYPE_TRP_INBOUND, "apc", tr_ff_cmp_trp_apc, tr_ff_get_trp_apc},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "apc", tr_ff_cmp_trp_apc, tr_ff_get_trp_apc},
+
+    /* trust_router */
+    {TR_FILTER_TYPE_TRP_INBOUND, "trust_router", tr_ff_cmp_trp_trust_router, tr_ff_get_trp_trust_router},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "trust_router", tr_ff_cmp_trp_trust_router, tr_ff_get_trp_trust_router},
+
+    /* owner_realm */
+    {TR_FILTER_TYPE_TRP_INBOUND, "owner_realm", tr_ff_cmp_trp_owner_realm, tr_ff_get_trp_owner_realm},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "owner_realm", tr_ff_cmp_trp_owner_realm, tr_ff_get_trp_owner_realm},
+
+    /* owner_contact */
+    {TR_FILTER_TYPE_TRP_INBOUND, "owner_contact", tr_ff_cmp_trp_owner_contact, tr_ff_get_trp_owner_contact},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "owner_contact", tr_ff_cmp_trp_owner_contact, tr_ff_get_trp_owner_contact},
+
+    /* rp_realm */
+    {TR_FILTER_TYPE_TID_INBOUND, "rp_realm", tr_ff_cmp_tid_rp_realm, tr_ff_get_tid_rp_realm},
+
+    /* original coi */
+    {TR_FILTER_TYPE_TID_INBOUND, "original_coi", tr_ff_cmp_tid_orig_coi, tr_ff_get_tid_orig_coi},
+
+    /* info_type */
+    {TR_FILTER_TYPE_TRP_INBOUND, "info_type", tr_ff_cmp_trp_info_type, tr_ff_get_trp_info_type},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "info_type", tr_ff_cmp_trp_info_type, tr_ff_get_trp_info_type},
+
+    /* Unknown */
+    {TR_FILTER_TYPE_UNKNOWN, NULL } /* This must be the final entry */
+};
+
+/* TODO: support TRP metric field (requires > < comparison instead of wildcard match) */
+
+static struct tr_filter_field_entry *tr_filter_field_entry(TR_FILTER_TYPE filter_type, TR_NAME *field_name)
+{
+  unsigned int ii;
+
+  for (ii=0; tr_filter_field_table[ii].filter_type!=TR_FILTER_TYPE_UNKNOWN; ii++) {
+    if ((tr_filter_field_table[ii].filter_type==filter_type)
+        && (tr_name_cmp_str(field_name, tr_filter_field_table[ii].name)==0)) {
+      return tr_filter_field_table+ii;
+    }
+  }
+  return NULL;
 }
 
 /**
@@ -299,6 +505,8 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *ta
 {
   struct tr_filter_field_entry *field=NULL;
   TR_NAME *name=NULL;
+  int retval=0;
+
   size_t ii=0;
 
   if (fspec==NULL)
@@ -313,10 +521,11 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *ta
   for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
     if (fspec->match[ii]!=NULL) {
       if (tr_name_prefix_wildcard_match(name, fspec->match[ii]))
-        return 1;
+        retval=1;
     }
   }
-  return 0;
+  tr_free_name(name);
+  return retval;
 }
 
 void tr_fline_free(TR_FLINE *fline)

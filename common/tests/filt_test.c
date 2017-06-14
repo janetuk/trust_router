@@ -194,7 +194,7 @@ int test_one_filter(const char *filt_fname,
     case TR_FILTER_TYPE_TRP_INBOUND:
     case TR_FILTER_TYPE_TRP_OUTBOUND:
       /* TODO: read realm and community */
-      target=tr_filter_target_trp_inforec(NULL, load_inforec(target_fname), NULL, NULL);
+      target= tr_filter_target_trp_inforec(NULL, NULL, load_inforec(target_fname));
       break;
 
     default:
@@ -215,10 +215,8 @@ int test_one_filter(const char *filt_fname,
     case TR_FILTER_TYPE_TRP_INBOUND:
     case TR_FILTER_TYPE_TRP_OUTBOUND:
       trp_inforec_free(target->trp_inforec);
-      if (target->realm!=NULL)
-        tr_free_name(target->realm);
-      if (target->comm!=NULL)
-        tr_free_name(target->comm);
+      if (target->trp_upd!=NULL)
+        trp_upd_free(target->trp_upd);
       break;
 
     default:
