@@ -1637,8 +1637,8 @@ static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
     goto cleanup;
   }
 
-  if ((jfilt!=NULL) && (!json_is_array(jfilt))) {
-    tr_err("tr_cfg_parse_one_peer_org: filters is not an array.");
+  if ((jfilt!=NULL) && (!json_is_object(jfilt))) {
+    tr_err("tr_cfg_parse_one_peer_org: filters is not an object.");
     rc=TR_CFG_NOPARSE;
     goto cleanup;
   }
