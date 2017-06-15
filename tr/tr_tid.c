@@ -319,8 +319,8 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
                                                 &(fwd_req->cons),
                                                 &oaction))
       || (TR_FILTER_ACTION_ACCEPT != oaction)) {
-    tr_notice("tr_tids_req_handler: RP realm (%s) does not match RP Realm filter for GSS name", orig_req->rp_realm->buf);
-    tids_send_err_response(tids, orig_req, "RP Realm filter error");
+    tr_notice("tr_tids_req_handler: Incoming TID request rejected by filter for GSS name", orig_req->rp_realm->buf);
+    tids_send_err_response(tids, orig_req, "Incoming TID request filter error");
     retval=-1;
     goto cleanup;
   }
