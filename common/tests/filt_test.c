@@ -37,7 +37,9 @@
 #include <assert.h>
 #include <string.h>
 #include <jansson.h>
-
+#if JANSSON_VERSION_HEX < 0x020500
+#include "../jansson_iterators.h"
+#endif
 #include <trp_internal.h>
 #include <tid_internal.h>
 #include <tr_filter.h>

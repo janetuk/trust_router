@@ -32,7 +32,9 @@
  *
  */
 #include <jansson.h>
+#if JANSSON_VERSION_HEX < 0x020500
 #include "jansson_iterators.h"
+#endif
 #include <assert.h>
 #include <talloc.h>
 

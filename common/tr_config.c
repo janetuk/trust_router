@@ -49,6 +49,10 @@
 #include <tr.h>
 #include <trust_router/trp.h>
 
+#if JANSSON_VERSION_HEX < 0x020500
+#include "jansson_iterators.h"
+#endif
+
 void tr_print_config (TR_CFG *cfg) {
   tr_notice("tr_print_config: Logging running trust router configuration.");
   tr_print_comms(cfg->ctable);
