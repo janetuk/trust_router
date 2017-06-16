@@ -237,6 +237,17 @@ static void tr_trps_print_route_table(TRPS_INSTANCE *trps, FILE *f)
   }
 }
 
+static void tr_trps_print_comm_table(TRPS_INSTANCE *trps, FILE *f)
+{
+  char *table=tr_comm_table_to_str(NULL, trps->ctable);
+  if (table==NULL)
+    fprintf(f, "Unable to print community table.\n");
+  else {
+    fprintf(f, "%s\n", table);
+    talloc_free(table);
+  }
+}
+
 /**
  * Event handler to process TRP messages from connection threads. These
  * are added to the message queue (mq) in tr_trps_msg_handler(), which
@@ -307,6 +318,7 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
         tr_notice("tr_trps_process_mq: error handling message.");
       else {
         tr_trps_print_route_table(trps, stderr);
+        tr_trps_print_comm_table(trps, stderr);
       }
     }
     else
@@ -340,6 +352,7 @@ static void tr_trps_sweep(int listener, short event, void *arg)
   tr_debug("tr_trps_sweep: sweeping communities.");
   trps_sweep_ctable(trps);
   tr_trps_print_route_table(trps, stderr);
+  tr_trps_print_comm_table(trps, stderr);
   /* schedule the event to run again */
   event_add(ev, &(trps->sweep_interval));
 }
@@ -858,5 +871,6 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   trps_update(trps, TRP_UPDATE_TRIGGERED); /* send any triggered routes */
   tr_print_config(new_cfg);
   tr_trps_print_route_table(trps, stderr);
+  tr_trps_print_comm_table(trps, stderr);
 }
 

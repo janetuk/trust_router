@@ -131,6 +131,7 @@ TR_COMM_MEMB *tr_comm_table_find_idp_memb_origin(TR_COMM_TABLE *ctab, TR_NAME *i
 TR_COMM_MEMB *tr_comm_table_find_idp_memb(TR_COMM_TABLE *ctab, TR_NAME *idp_realm, TR_NAME *comm);
 TR_COMM *tr_comm_table_find_comm(TR_COMM_TABLE *ctab, TR_NAME *comm_id);
 size_t tr_comm_table_size(TR_COMM_TABLE *ctab);
+char *tr_comm_table_to_str(TALLOC_CTX *mem_ctx, TR_COMM_TABLE *ctab);
 void tr_comm_table_print(FILE *f, TR_COMM_TABLE *ctab);
 
 TR_COMM_MEMB *tr_comm_memb_new(TALLOC_CTX *mem_ctx);

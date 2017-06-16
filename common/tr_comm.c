@@ -1411,40 +1411,76 @@ TR_REALM_ROLE tr_realm_role_from_str(const char *s)
   return TR_ROLE_UNKNOWN;
 }
 
-static void tr_comm_table_print_provenance(FILE *f, json_t *prov)
+static char *tr_comm_table_append_provenance(char *ctable_s, json_t *prov)
 {
   const char *s=NULL;
+  char *tmp=NULL;
   size_t ii=0;
 
   for (ii=0; ii<json_array_size(prov); ii++) {
     s=json_string_value(json_array_get(prov, ii));
-    if (s!=NULL)
-      fprintf(f, "%s%s", s, ((ii+1)==json_array_size(prov))?"":", ");
+    if (s!=NULL) {
+      tmp=talloc_asprintf_append(ctable_s, "%s%s", s, ((ii + 1) == json_array_size(prov)) ? "" : ", ");
+      if (tmp==NULL)
+        return NULL;
+      ctable_s=tmp;
+    }
   }
+  return ctable_s;
+}
+
+char *tr_comm_table_to_str(TALLOC_CTX *mem_ctx, TR_COMM_TABLE *ctab)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  char *ctable_s=NULL;
+  char *tmp=NULL;
+#define append_on_success_helper(tab,tmp,expr) if(NULL==((tmp)=(expr))){(tab)=NULL;goto cleanup;}(tab)=(tmp)
+
+  TR_COMM_MEMB *p1=NULL; /* for walking the main list */
+  TR_COMM_MEMB *p2=NULL; /* for walking the same-origin lists */
+
+  ctable_s=talloc_asprintf(tmp_ctx, ">> Membership table start <<\n");
+  if (ctable_s==NULL)
+    goto cleanup;
+
+  for (p1=ctab->memberships; p1!=NULL; p1=p1->next) {
+    append_on_success_helper(
+        ctable_s, tmp,
+        talloc_asprintf_append(ctable_s, "* %s %s/%s\n  %s (%p) - prov: ",
+                               tr_realm_role_to_str(tr_comm_memb_get_role(p1)),
+                               tr_comm_memb_get_realm_id(p1)->buf,
+                               tr_comm_get_id(tr_comm_memb_get_comm(p1))->buf,
+                               (tr_comm_memb_get_origin(p1)==NULL)?"null origin":(tr_comm_memb_get_origin(p1)->buf),
+                               p1));
+
+    append_on_success_helper(ctable_s, tmp, tr_comm_table_append_provenance(ctable_s, p1->provenance));
+
+    append_on_success_helper(ctable_s, tmp, talloc_strdup_append_buffer(ctable_s, "\n"));
+
+    for (p2=p1->origin_next; p2!=NULL; p2=p2->origin_next) {
+      append_on_success_helper(
+          ctable_s, tmp,
+          talloc_asprintf_append(ctable_s, "  %s (%p) - prov: ",
+          (tr_comm_memb_get_origin(p2)==NULL)?"null origin":(tr_comm_memb_get_origin(p2)->buf),
+              p2));
+      append_on_success_helper(ctable_s, tmp, tr_comm_table_append_provenance(ctable_s, p2->provenance));
+      append_on_success_helper(ctable_s, tmp, talloc_strdup_append_buffer(ctable_s, "\n"));
+    }
+    append_on_success_helper(ctable_s, tmp, talloc_strdup_append_buffer(ctable_s, "\n"));
+  }
+
+cleanup:
+  if (ctable_s!=NULL)
+    talloc_steal(mem_ctx, ctable_s);
+
+  talloc_free(tmp_ctx);
+  return ctable_s;
 }
 
 void tr_comm_table_print(FILE *f, TR_COMM_TABLE *ctab)
 {
-  TR_COMM_MEMB *p1=NULL; /* for walking the main list */
-  TR_COMM_MEMB *p2=NULL; /* for walking the same-origin lists */
-
-  fprintf(f, ">> Membership table start <<\n");
-  for (p1=ctab->memberships; p1!=NULL; p1=p1->next) {
-    fprintf(f, "* %s %s/%s\n  %s (%p) - prov: ",
-            tr_realm_role_to_str(tr_comm_memb_get_role(p1)),
-            tr_comm_memb_get_realm_id(p1)->buf,
-            tr_comm_get_id(tr_comm_memb_get_comm(p1))->buf,
-            (tr_comm_memb_get_origin(p1)==NULL)?"null origin":(tr_comm_memb_get_origin(p1)->buf),
-            p1);
-    tr_comm_table_print_provenance(f, p1->provenance);
-    fprintf(f, "\n");
-    for (p2=p1->origin_next; p2!=NULL; p2=p2->origin_next) {
-      fprintf(f, "  %s (%p) - prov: ",
-              (tr_comm_memb_get_origin(p2)==NULL)?"null origin":(tr_comm_memb_get_origin(p2)->buf),
-              p2);
-      tr_comm_table_print_provenance(f, p2->provenance);
-      fprintf(f, "\n");
-    }
-    fprintf(f, "\n");
-  }
+  char *s=tr_comm_table_to_str(NULL, ctab);
+  if (s!=NULL)
+    fprintf(f, "%s", s);
+  talloc_free(s);
 }
