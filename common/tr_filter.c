@@ -41,6 +41,7 @@
 #include <tr_filter.h>
 #include <trp_internal.h>
 #include <tid_internal.h>
+#include <tr_debug.h>
 
 /* Function types for handling filter fields generally. All target values
  * are represented as strings in a TR_NAME.
@@ -253,16 +254,19 @@ static int tr_ff_cmp_trp_realm_role(TR_FILTER_TARGET *target, TR_NAME *val)
 }
 
 /** Handlers for TRP apc field */
+/* TODO: Handle multiple APCs, not just the first */
 static int tr_ff_cmp_trp_apc(TR_FILTER_TARGET *target, TR_NAME *val)
 {
-  /* TODO: Handle multiple APCs, not just the first */
   return tr_name_cmp(tr_apc_get_id(trp_inforec_get_apcs(target->trp_inforec)), val);
 }
 
 static TR_NAME *tr_ff_get_trp_apc(TR_FILTER_TARGET *target)
 {
-  /* TODO: Handle multiple APCs, not just the first */
-  return tr_dup_name(tr_apc_get_id(trp_inforec_get_apcs(target->trp_inforec)));
+  TR_APC *apc=trp_inforec_get_apcs(target->trp_inforec);
+  if (apc==NULL)
+    return NULL;
+
+  return tr_dup_name(tr_apc_get_id(apc));
 }
 
 /** Handlers for TRP owner_realm field */
@@ -325,13 +329,13 @@ static struct tr_filter_field_entry tr_filter_field_table[] = {
     {TR_FILTER_TYPE_TRP_OUTBOUND, "realm", tr_ff_cmp_trp_realm, tr_ff_get_trp_realm},
 
     /* community */
-    {TR_FILTER_TYPE_TID_INBOUND, "community", tr_ff_cmp_tid_comm, tr_ff_get_tid_comm},
-    {TR_FILTER_TYPE_TRP_INBOUND, "community", tr_ff_cmp_trp_comm, tr_ff_get_trp_comm},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "community", tr_ff_cmp_trp_comm, tr_ff_get_trp_comm},
+    {TR_FILTER_TYPE_TID_INBOUND, "comm", tr_ff_cmp_tid_comm, tr_ff_get_tid_comm},
+    {TR_FILTER_TYPE_TRP_INBOUND, "comm", tr_ff_cmp_trp_comm, tr_ff_get_trp_comm},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "comm", tr_ff_cmp_trp_comm, tr_ff_get_trp_comm},
 
     /* community type */
-    {TR_FILTER_TYPE_TRP_INBOUND, "community_type", tr_ff_cmp_trp_comm_type, tr_ff_get_trp_comm_type},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "community_type", tr_ff_cmp_trp_comm_type, tr_ff_get_trp_comm_type},
+    {TR_FILTER_TYPE_TRP_INBOUND, "comm_type", tr_ff_cmp_trp_comm_type, tr_ff_get_trp_comm_type},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "comm_type", tr_ff_cmp_trp_comm_type, tr_ff_get_trp_comm_type},
 
     /* realm role */
     {TR_FILTER_TYPE_TRP_INBOUND, "realm_role", tr_ff_cmp_trp_realm_role, tr_ff_get_trp_realm_role},
@@ -514,15 +518,36 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *ta
 
   /* Look up how to handle the requested field */
   field = tr_filter_field_entry(ftype, fspec->field);
-  if (field==NULL)
+  if (field==NULL) {
+    tr_err("tr_fspec_matches: No entry to handle field %.*s for %*s filter.",
+           fspec->field->len, fspec->field->buf,
+           tr_filter_type_to_string(ftype));
     return 0;
+  }
 
   name=field->get(target);
+  if (name==NULL)
+    return 0; /* if there's no value, there's no match */
+
   for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
     if (fspec->match[ii]!=NULL) {
-      if (tr_name_prefix_wildcard_match(name, fspec->match[ii]))
+      if (tr_name_prefix_wildcard_match(name, fspec->match[ii])) {
         retval=1;
+        tr_debug("tr_fspec_matches: Field %.*s value \"%.*s\" matches \"%.*s\" for %s filter.",
+                 fspec->field->len, fspec->field->buf,
+                 name->len, name->buf,
+                 fspec->match[ii]->len, fspec->match[ii]->buf,
+                 tr_filter_type_to_string(ftype));
+        break;
+      }
     }
+  }
+
+  if (!retval) {
+        tr_debug("tr_fspec_matches: Field %.*s value \"%.*s\" does not match for %s filter.",
+                 fspec->field->len, fspec->field->buf,
+                 name->len, name->buf,
+                 tr_filter_type_to_string(ftype));
   }
   tr_free_name(name);
   return retval;
