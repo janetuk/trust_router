@@ -1742,7 +1742,9 @@ static TR_CFG_RC tr_cfg_parse_default_servers (TR_CFG *trc, json_t *jcfg)
 static void tr_cfg_parse_comm_idps(TR_CFG *trc, json_t *jidps, TR_COMM *comm, TR_CFG_RC *rc)
 {
   TR_IDP_REALM *found_idp=NULL;
-  int i = 0;
+  json_t *jidp_name=NULL;
+  TR_NAME *idp_name=NULL;
+  size_t ii = 0;
 
   if ((!trc) ||
       (!jidps) ||
@@ -1752,13 +1754,17 @@ static void tr_cfg_parse_comm_idps(TR_CFG *trc, json_t *jidps, TR_COMM *comm, TR
     return;
   }
 
-  for (i=0; i < json_array_size(jidps); i++) {
-    found_idp=tr_cfg_find_idp(trc, 
-                              tr_new_name((char *)json_string_value(json_array_get(jidps, i))), 
-                              rc);
+  json_array_foreach(jidps, ii, jidp_name) {
+    idp_name=tr_new_name(json_string_value(jidp_name));
+    if (idp_name==NULL) {
+      *rc = TR_CFG_NOMEM;
+      return;
+    }
+    found_idp=tr_cfg_find_idp(trc, idp_name, rc);
+    tr_free_name(idp_name);
+
     if ((found_idp==NULL) || (*rc!=TR_CFG_SUCCESS)) {
-      tr_debug("tr_cfg_parse_comm_idps: Unknown IDP %s.", 
-               (char *)json_string_value(json_array_get(jidps, i)));
+      tr_debug("tr_cfg_parse_comm_idps: Unknown IDP %s.", json_string_value(jidp_name));
       *rc=TR_CFG_ERROR;
       return;
     }
