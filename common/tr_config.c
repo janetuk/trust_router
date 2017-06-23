@@ -1924,16 +1924,26 @@ static TR_COMM *tr_cfg_parse_one_comm (TALLOC_CTX *mem_ctx, TR_CFG *trc, json_t 
     json_t *jexpire  = json_object_get(jcomm, "expiration_interval");
     comm->expiration_interval = 43200; /*30 days*/
     if (jexpire) {
-	if (!json_is_integer(jexpire)) {
-	  fprintf(stderr, "tr_parse_one_comm: expiration_interval is not an integer\n");
-    comm=NULL;
-    goto cleanup;
-	}
-	comm->expiration_interval = json_integer_value(jexpire);
-	if (comm->expiration_interval <= 10)
-	  comm->expiration_interval = 11; /* Freeradius waits 10 minutes between successful TR queries*/
-	if (comm->expiration_interval > 129600) /* 90 days*/
-	comm->expiration_interval = 129600;
+      if (!json_is_integer(jexpire)) {
+        tr_err("tr_parse_one_comm: expiration_interval is not an integer for comm %.*s",
+                 tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
+        comm=NULL;
+        goto cleanup;
+      }
+      comm->expiration_interval = json_integer_value(jexpire);
+      if (comm->expiration_interval <= 10) {
+        comm->expiration_interval = 11; /* Freeradius waits 10 minutes between successful TR queries*/
+        tr_notice(
+            "tr_parse_one_comm: expiration interval for %.*s less than minimum of 11 minutes; using 11 minutes instead.",
+            tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
+      }
+      if (comm->expiration_interval > 129600) {
+        /* > 90 days*/
+        comm->expiration_interval = 129600;
+        tr_notice(
+            "tr_parse_one_comm: expiration interval for %.*s exceeds maximum of 90 days; using 90 days instead.",
+            tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
+      }
     }
   }
 

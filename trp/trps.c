@@ -1705,7 +1705,7 @@ static void trps_filter_one_outbound_update(TR_FILTER *filt, TRP_UPD *upd)
 static void trps_filter_outbound_updates(TR_FILTER_SET *filters, GPtrArray *updates)
 {
   TRP_UPD *upd=NULL;
-  int ii=0;
+  guint ii=0;
 
   /* walk backward through the array so we can remove elements */
   for (ii=updates->len-1; ii>=0; ii--) {
