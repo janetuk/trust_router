@@ -1,3 +1,11 @@
+moonshot-trust-router (3.0.0-1) unstable; urgency=medium
+
+  * New upstream release
+  * Support full TID and TRP filtering
+  * Add --version option
+
+ -- Jennifer Richards <jennifer@painless-security.com>  Thu, 06 Jun 2017 12:22:37 -0400
+
 moonshot-trust-router (2.1.1-1) unstable; urgency=medium
 
   * New upstream release
