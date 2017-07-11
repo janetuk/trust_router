@@ -46,7 +46,7 @@
 #define TR_MAX_FILTERS  5
 #define TR_MAX_FILTER_LINES 8
 #define TR_MAX_FILTER_SPECS 8
-#define TR_MAX_FILTER_SPEC_MATCHES 8
+#define TR_MAX_FILTER_SPEC_MATCHES 64
 
 /* Filter actions */
 typedef enum {
