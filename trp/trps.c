@@ -1707,13 +1707,14 @@ static void trps_filter_outbound_updates(TR_FILTER_SET *filters, GPtrArray *upda
   TRP_UPD *upd=NULL;
   guint ii=0;
 
-  /* walk backward through the array so we can remove elements */
-  for (ii=updates->len-1; ii>=0; ii--) {
-    upd=g_ptr_array_index(updates, ii);
+  /* Walk backward through the array so we can remove elements. Careful about loop
+   * termination - remember that ii is unsigned. */
+  for (ii=updates->len; ii>0; ii--) {
+    upd=g_ptr_array_index(updates, ii-1);
     trps_filter_one_outbound_update(tr_filter_set_get(filters, TR_FILTER_TYPE_TRP_OUTBOUND), upd);
     /* see if we removed all the records from this update */
     if (trp_upd_num_inforecs(upd)==0)
-      g_ptr_array_remove_index_fast(updates, ii); /* does not preserve order at index ii or higher */
+      g_ptr_array_remove_index_fast(updates, ii-1); /* does not preserve order at index ii or higher */
   }
 }
 
