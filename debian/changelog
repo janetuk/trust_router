@@ -3,7 +3,7 @@ moonshot-trust-router (3.0.0-2) unstable; urgency=medium
   * Fix loop termination condition in trps_filter_outbound_updates()
   * Correct the default TID and TRP ports in internal.cfg
 
- -- Jennifer Richards <jennifer@painless-security.com>  Thu, 06 Jun 2017 12:22:37 -0400
+ -- Jennifer Richards <jennifer@painless-security.com>  Thu, 11 Jun 2017 11:25:14 -0400
 
 moonshot-trust-router (3.0.0-1) unstable; urgency=medium
 
