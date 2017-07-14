@@ -1,3 +1,9 @@
+moonshot-trust-router (3.0.0-4) unstable; urgency=medium
+
+  * Initialize refcount for IDP realms
+
+ -- Jennifer Richards <jennifer@painless-security.com>  Fri, 14 Jun 2017 18:55:03 -0400
+
 moonshot-trust-router (3.0.0-3) unstable; urgency=medium
 
   * Apply filters from all RP clients applicable to a GSS name to a TID request
