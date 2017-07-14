@@ -2088,7 +2088,7 @@ TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, st
     goto cleanup;
   }
 
-  cfg_mgr->new->peers=trp_ptable_new(cfg_mgr);
+  cfg_mgr->new->peers=trp_ptable_new(cfg_mgr); /* not sure why this isn't in cfg_mgr->new's context */
 
   /* Parse configuration information from each config file */
   for (ii=0; ii<n; ii++) {
