@@ -139,6 +139,7 @@ TR_IDP_REALM *tr_idp_realm_new(TALLOC_CTX *mem_ctx)
     idp->aaa_servers=NULL;
     idp->apcs=NULL;
     idp->origin=TR_REALM_LOCAL;
+    idp->refcount=0;
     talloc_set_destructor((void *)idp, tr_idp_realm_destructor);
   }
   return idp;
