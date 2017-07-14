@@ -98,7 +98,7 @@ struct tids_instance {
   tids_auth_func *auth_handler;
   void *cookie;
   uint16_t tids_port;
-  struct tr_rp_client *rp_gss;		/* Client matching GSS name */
+  TR_NAME *gss_name;		/* GSS name client used for authentication */
 };
 
 /** Decrement a reference to #json when this tid_req is cleaned up. A

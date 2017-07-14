@@ -243,6 +243,8 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   pthread_t aaa_thread[TR_TID_MAX_AAA_SERVERS];
   struct tr_tids_fwd_cookie *aaa_cookie[TR_TID_MAX_AAA_SERVERS]={NULL};
   TID_RESP *aaa_resp[TR_TID_MAX_AAA_SERVERS]={NULL};
+  TR_RP_CLIENT *rp_client=NULL;
+  TR_RP_CLIENT_ITER *rpc_iter=NULL;
   TR_NAME *apc = NULL;
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
@@ -290,13 +292,13 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     goto cleanup;
   }
 
-  /* Check that the rp_realm matches the filter for the GSS name that 
-   * was received. N.B. that tids->rp_gss was pointed at the correct
-   * rp_client when we received its GSS name. It is only set within
-   * the TIDS handler subprocess. */
+  /* We now need to apply the filters associated with the RP client handing us the request.
+   * It is possible (or even likely) that more than one client is associated with the GSS
+   * name we got from the authentication. We will apply all of them in an arbitrary order.
+   * For this to result in well-defined behavior, either only accept or only reject filter
+   * lines should be used, or a unique GSS name must be given for each RP realm. */
 
-  if ((!tids->rp_gss) || 
-      (!tids->rp_gss->filters)) {
+  if (!tids->gss_name) {
     tr_notice("tr_tids_req_handler: No GSS name for incoming request.");
     tids_send_err_response(tids, orig_req, "No GSS name for request");
     retval=-1;
@@ -309,21 +311,42 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
 
   target=tr_filter_target_tid_req(tmp_ctx, orig_req);
   if (target==NULL) {
-    /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
     tr_crit("tid_req_handler: Unable to allocate filter target, cannot apply filter!");
-  }
-  if ((target==NULL)
-      || (TR_FILTER_NO_MATCH == tr_filter_apply(target,
-                                                tr_filter_set_get(tids->rp_gss->filters,
-                                                                  TR_FILTER_TYPE_TID_INBOUND),
-                                                &(fwd_req->cons),
-                                                &oaction))
-      || (TR_FILTER_ACTION_ACCEPT != oaction)) {
-    tr_notice("tr_tids_req_handler: Incoming TID request rejected by filter for GSS name", orig_req->rp_realm->buf);
     tids_send_err_response(tids, orig_req, "Incoming TID request filter error");
     retval=-1;
     goto cleanup;
   }
+
+  rpc_iter=tr_rp_client_iter_new(tmp_ctx);
+  if (rpc_iter==NULL) {
+    tr_err("tid_req_handler: Unable to allocate RP client iterator.");
+    retval=-1;
+    goto cleanup;
+  }
+  for (rp_client=tr_rp_client_iter_first(rpc_iter, cfg_mgr->active->rp_clients);
+       rp_client != NULL;
+       rp_client=tr_rp_client_iter_next(rpc_iter)) {
+
+    if (!tr_gss_names_matches(rp_client->gss_names, tids->gss_name))
+      continue; /* skip any that don't match the GSS name */
+
+    if (TR_FILTER_MATCH == tr_filter_apply(target,
+                                           tr_filter_set_get(rp_client->filters,
+                                                             TR_FILTER_TYPE_TID_INBOUND),
+                                           &(fwd_req->cons),
+                                           &oaction))
+      break; /* Stop looking, oaction is set */
+  }
+
+  /* We get here whether or not a filter matched. If tr_filter_apply() doesn't match, it returns
+   * a default action of reject, so we don't have to check why we exited the loop. */
+  if (oaction != TR_FILTER_ACTION_ACCEPT) {
+    tr_notice("tr_tids_req_handler: Incoming TID request rejected by filter for GSS name", orig_req->rp_realm->buf);
+    tids_send_err_response(tids, orig_req, "Incoming TID request filter error");
+    retval = -1;
+    goto cleanup;
+  }
+
   /* Check that the rp_realm is a member of the community in the request */
   if (NULL == tr_comm_find_rp(cfg_mgr->active->ctable, cfg_comm, orig_req->rp_realm)) {
     tr_notice("tr_tids_req_handler: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
@@ -602,7 +625,6 @@ cleanup:
 static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
                                void *data)
 {
-  TR_RP_CLIENT *rp;
   struct tr_tids_event_cookie *cookie=talloc_get_type_abort(data, struct tr_tids_event_cookie);
   TIDS_INSTANCE *tids = cookie->tids;
   TR_CFG_MGR *cfg_mgr = cookie->cfg_mgr;
@@ -612,15 +634,15 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
     return -1;
   }
 
-  /* look up the RP client matching the GSS name */
-  if ((NULL == (rp = tr_rp_client_lookup(cfg_mgr->active->rp_clients, gss_name)))) {
-    tr_debug("tr_tids_gss_handler: Unknown GSS name %s", gss_name->buf);
+  /* Ensure at least one client exists using this GSS name */
+  if (NULL == tr_rp_client_lookup(cfg_mgr->active->rp_clients, gss_name)) {
+    tr_debug("tr_tids_gss_handler: Unknown GSS name %.*s", gss_name->len, gss_name->buf);
     return -1;
   }
 
-  /* Store the rp client */
-  tids->rp_gss = rp;
-  tr_debug("Client's GSS Name: %s", gss_name->buf);
+  /* Store the GSS name */
+  tids->gss_name = tr_dup_name(gss_name);
+  tr_debug("Client's GSS Name: %.*s", gss_name->len, gss_name->buf);
 
   return 0;
 }

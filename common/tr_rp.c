@@ -105,20 +105,55 @@ int tr_rp_client_set_filters(TR_RP_CLIENT *client, TR_FILTER_SET *filts)
   return 0; /* success */
 }
 
-TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name)
+TR_RP_CLIENT_ITER *tr_rp_client_iter_new(TALLOC_CTX *memctx)
 {
-  TR_RP_CLIENT *rp = NULL;
+  return talloc(memctx, TR_RP_CLIENT_ITER);
+}
 
-  if ((!rp_clients) || (!gss_name)) {
-    tr_debug("tr_rp_client_lookup: Bad parameters.");
+void tr_rp_client_iter_free(TR_RP_CLIENT_ITER *iter)
+{
+  talloc_free(iter);
+}
+
+TR_RP_CLIENT *tr_rp_client_iter_first(TR_RP_CLIENT_ITER *iter, TR_RP_CLIENT *rp_clients)
+{
+  if (!iter) {
+    tr_err("tr_rp_client_iter_first: Iterator is null, failing.");
     return NULL;
   }
+  *iter=rp_clients;
+  return *iter;
+}
 
-  for (rp = rp_clients; NULL != rp; rp = rp->next) {
-    if (tr_gss_names_matches(rp->gss_names, gss_name))
-      return rp;
-  } 
-  return NULL;
+TR_RP_CLIENT *tr_rp_client_iter_next(TR_RP_CLIENT_ITER *iter)
+{
+  if (*iter)
+    *iter=(*iter)->next;
+  return *iter;
+}
+
+/**
+ * Find a client associated with a GSS name. It's possible there are other clients that match as well.
+ *
+ * @param rp_clients List of RP clients to search
+ * @param gss_name GSS name to search for
+ * @return Borrowed reference to an RP client linked to the GSS name
+ */
+TR_RP_CLIENT *tr_rp_client_lookup(TR_RP_CLIENT *rp_clients, TR_NAME *gss_name)
+{
+  TR_RP_CLIENT_ITER *iter=tr_rp_client_iter_new(NULL);
+  TR_RP_CLIENT *client=NULL;
+
+  if (iter==NULL) {
+    tr_err("tr_rp_client_lookup: Unable to allocate iterator");
+    return NULL;
+  }
+  for (client=tr_rp_client_iter_first(iter, rp_clients); client != NULL; client=tr_rp_client_iter_next(iter)) {
+    if (tr_gss_names_matches(client->gss_names, gss_name))
+      break;
+  }
+  tr_rp_client_iter_free(iter);
+  return client;
 }
 
 TR_RP_REALM *tr_rp_realm_lookup(TR_RP_REALM *rp_realms, TR_NAME *rp_name)
