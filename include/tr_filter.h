@@ -49,7 +49,7 @@
 #define TR_MAX_FILTER_SPEC_MATCHES 64
 
 /* Filter actions */
-typedef enum {
+typedef enum tr_filter_action {
   TR_FILTER_ACTION_REJECT = 0,
   TR_FILTER_ACTION_ACCEPT,
   TR_FILTER_ACTION_UNKNOWN
