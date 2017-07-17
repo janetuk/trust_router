@@ -41,6 +41,7 @@
 #include <tr_debug.h>
 #include <tid_internal.h>
 #include <trust_router/tr_dh.h>
+#include <trust_router/tid.h>
 
 static void tidc_resp_handler (TIDC_INSTANCE * tidc, 
 			TID_REQ *req,
@@ -50,6 +51,7 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
   int c_keylen = 0;
   unsigned char *c_keybuf = NULL;
   int i;
+  struct timeval tv;
 
   printf ("Response received! Realm = %s, Community = %s.\n", resp->realm->buf, resp->comm->buf);
 
@@ -63,7 +65,12 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
     fprintf(stderr, "tidc_resp_handler: Response does not contain server info.\n");
     return;
   }
-  
+  if (tid_srvr_get_key_expiration(tid_resp_get_server(resp, 0), &tv))
+    printf("Error reading key expiration\n");
+  else
+    printf("Key expiration: %s", ctime(&tv.tv_sec));
+
+
   if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf, 
 				      resp->servers->aaa_server_dh->pub_key, 
 				      req->tidc_dh))) {
