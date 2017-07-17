@@ -278,6 +278,17 @@ TR_EXPORT const TID_PATH *tid_srvr_get_path( const TID_SRVR_BLK *block)
   return block->path;
 }
 
+TR_EXPORT int tid_srvr_get_key_expiration(const TID_SRVR_BLK *block, struct timeval *tv_out)
+{
+  if ((block==NULL) || (tv_out==NULL))
+    return -1; /* error */
+
+  tv_out->tv_sec=block->key_expiration.tv_sec;
+  tv_out->tv_usec=block->key_expiration.tv_usec;
+  return 0;
+}
+
+
 TR_EXPORT void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons)
 {
   json_t *jc=(json_t *)cons;

@@ -132,7 +132,8 @@ TR_EXPORT void tid_srvr_get_address(const TID_SRVR_BLK *,
 TR_EXPORT DH *tid_srvr_get_dh(TID_SRVR_BLK *);
 TR_EXPORT const TR_NAME *tid_srvr_get_key_name(const TID_SRVR_BLK *);
 TR_EXPORT const TID_PATH *tid_srvr_get_path(const TID_SRVR_BLK *);
-
+/* Key expiration time is expressed as time since 1970-01-01 00:00:00 UTC */
+TR_EXPORT int tid_srvr_get_key_expiration(const TID_SRVR_BLK *, struct timeval *tv_out);
 
 #define tid_resp_servers_foreach(RESP, SERVER, INDEX) \
   for (INDEX=0,SERVER=NULL;						\

@@ -48,7 +48,7 @@ trp/trp_upd.c
 
 libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
 libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
-libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 3:0:1 -no-undefined
+libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 4:0:2 -no-undefined
 
 common_t_constraint_SOURCES = common/t_constraint.c \
 common/tr_debug.c \
