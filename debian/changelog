@@ -1,3 +1,9 @@
+moonshot-trust-router (3.0.0-5) unstable; urgency=medium
+
+  * Add public accessor for TID_SRVR_BLK's key_expiration
+
+ -- Jennifer Richards <jennifer@painless-security.com>  Mon, 17 Jun 2017 14:51:38 -0400
+
 moonshot-trust-router (3.0.0-4) unstable; urgency=medium
 
   * Initialize refcount for IDP realms
