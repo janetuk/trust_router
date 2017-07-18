@@ -1480,7 +1480,8 @@ cleanup:
 void tr_comm_table_print(FILE *f, TR_COMM_TABLE *ctab)
 {
   char *s=tr_comm_table_to_str(NULL, ctab);
-  if (s!=NULL)
-    fprintf(f, "%s", s);
-  talloc_free(s);
+  if (s!=NULL) {
+    tr_debug("%s", s);
+    talloc_free(s);
+  }
 }

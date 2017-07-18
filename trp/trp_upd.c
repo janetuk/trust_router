@@ -794,7 +794,7 @@ void trp_upd_add_to_provenance(TRP_UPD *upd, TR_NAME *name)
 static void trp_inforec_route_print(TRP_INFOREC_DATA *data)
 {
   if (data->route!=NULL) {
-    printf("     trust_router=%.*s\n     metric=%d\n     interval=%d]\n",
+    tr_info("     trust_router=%.*s\n     metric=%d\n     interval=%d]\n",
            data->route->trust_router->len, data->route->trust_router->buf,
            data->route->metric, data->route->interval);
   }
@@ -803,7 +803,7 @@ static void trp_inforec_route_print(TRP_INFOREC_DATA *data)
 static void trp_inforec_comm_print(TRP_INFOREC_DATA *data)
 {
   if (data->comm!=NULL) {
-    printf("     type=%s\n     role=%s\n     owner=%.*s\n     contact=%.*s]\n",
+    tr_info("     type=%s\n     role=%s\n     owner=%.*s\n     contact=%.*s]\n",
            tr_comm_type_to_str(data->comm->comm_type),
            tr_realm_role_to_str(data->comm->role),
            data->comm->owner_realm->len, data->comm->owner_realm->buf,

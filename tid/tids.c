@@ -325,7 +325,7 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
 
   if (NULL == (resp_buf = tr_msg_encode(&mresp))) {
 
-    fprintf(stderr, "tids_send_response: Error encoding json response.\n");
+    tr_err("tids_send_response: Error encoding json response.");
     tr_audit_req(req);
 
     return -1;
