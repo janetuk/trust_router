@@ -100,10 +100,9 @@ typedef struct tr_cfg_mgr {
   TR_CFG *new;
 } TR_CFG_MGR;
 
-int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files);
+int tr_find_config_files(const char *config_dir, struct dirent ***cfg_files);
 void tr_free_config_file_list(int n, struct dirent ***cfg_files);
-TR_CFG_RC tr_parse_config (TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, struct dirent **cfg_files);
-TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path);
+TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, unsigned int n_files, char **files_with_paths);
 TR_CFG_RC tr_apply_new_config (TR_CFG_MGR *cfg_mgr);
 TR_CFG_RC tr_cfg_validate (TR_CFG *trc);
 TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx);

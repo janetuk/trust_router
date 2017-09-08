@@ -2019,13 +2019,6 @@ TR_CFG_RC tr_cfg_validate(TR_CFG *trc)
   return rc;
 }
 
-/* Join two paths and return a pointer to the result. This should be freed
- * via talloc_free. Returns NULL on failure. */
-static char *join_paths(TALLOC_CTX *mem_ctx, const char *p1, const char *p2)
-{
-  return talloc_asprintf(mem_ctx, "%s/%s", p1, p2); /* returns NULL on a failure */
-}
-
 static void tr_cfg_log_json_error(const char *label, json_error_t *rc)
 {
   tr_debug("%s: JSON parse error on line %d: %s",
@@ -2034,7 +2027,14 @@ static void tr_cfg_log_json_error(const char *label, json_error_t *rc)
 	   rc->text);
 }
 
-TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
+/**
+ * Parse a config file and return its JSON structure. Also emits a serial number to the log
+ * if one is present.
+ *
+ * @param file_with_path The file (with path!) to parse
+ * @return Pointer to the result of parsing, or null on error
+ */
+static json_t *tr_cfg_parse_one_config_file(const char *file_with_path)
 {
   json_t *jcfg=NULL;
   json_t *jser=NULL;
@@ -2045,10 +2045,10 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
     tr_debug("tr_cfg_parse_one_config_file: Error parsing config file %s.", 
              file_with_path);
     tr_cfg_log_json_error("tr_cfg_parse_one_config_file", &rc);
-    return TR_CFG_NOPARSE;
+    return NULL;
   }
 
-  // Look for serial number and log it if it exists
+  // Look for serial number and log it if it exists (borrowed reference, so no need to free it later)
   if (NULL!=(jser=json_object_get(jcfg, "serial_number"))) {
     if (json_is_number(jser)) {
       tr_notice("tr_parse_one_config_file: Attempting to load revision %" JSON_INTEGER_FORMAT " of '%s'.",
@@ -2057,29 +2057,108 @@ TR_CFG_RC tr_cfg_parse_one_config_file(TR_CFG *cfg, const char *file_with_path)
     }
   }
 
-  if ((TR_CFG_SUCCESS != tr_cfg_parse_internal(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_local_orgs(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_peer_orgs(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_default_servers(cfg, jcfg)) ||
-      (TR_CFG_SUCCESS != tr_cfg_parse_comms(cfg, jcfg)))
-    return TR_CFG_ERROR;
-
-  return TR_CFG_SUCCESS;
+  return jcfg;
 }
 
-/* Reads configuration files in config_dir ("" or "./" will use the current directory). */
-TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, struct dirent **cfg_files)
+/**
+ * Helper to free an array returned by tr_cfg_parse_config_files
+ * @param n_jcfgs
+ * @param jcfgs
+ */
+static void tr_cfg_parse_free_jcfgs(unsigned int n_jcfgs, json_t **jcfgs)
+{
+  int ii=0;
+  for (ii=0; ii<n_jcfgs; ii++)
+    json_decref(jcfgs[ii]);
+  talloc_free(jcfgs);
+}
+
+/**
+ * Parse a list of configuration files. Returns an array of JSON objects, free this with
+ * tr_cfg_parse_free_jcfgs(), a helper function
+ *
+ * @param config_dir
+ * @param n_files
+ * @param cfg_files
+ * @return
+ */
+static json_t **tr_cfg_parse_config_files(TALLOC_CTX *mem_ctx, unsigned int n_files, char **files_with_paths)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  char *file_with_path;
-  int ii;
+  unsigned int ii=0;
+  json_t **jcfgs=NULL;
+
+  /* first allocate the jcfgs */
+  jcfgs=talloc_array(NULL, json_t *, n_files);
+  if (jcfgs==NULL) {
+    tr_crit("tr_parse_config_files: cannot allocate JSON structure array");
+    goto cleanup;
+  }
+  for (ii=0; ii<n_files; ii++) {
+    jcfgs[ii]=tr_cfg_parse_one_config_file(files_with_paths[ii]);
+    if (jcfgs[ii]==NULL) {
+      tr_err("tr_parse_config: Error parsing JSON in %s", files_with_paths[ii]);
+      tr_cfg_parse_free_jcfgs(ii, jcfgs); /* frees the JSON objects and the jcfgs array */
+      jcfgs=NULL;
+      goto cleanup;
+    }
+  }
+cleanup:
+  if (jcfgs)
+    talloc_steal(mem_ctx, jcfgs); /* give this to the caller's context if we succeeded */
+  talloc_free(tmp_ctx);
+  return jcfgs;
+}
+
+/* define a type for config parse functions */
+typedef TR_CFG_RC (TR_CFG_PARSE_FN)(TR_CFG *, json_t *);
+/**
+ * Helper function to parse a collection of JSON structures using a generic parse function.
+ *
+ * @param cfg Config structure to receive results
+ * @param jcfgs Pointer to an array of decoded JSON structures
+ * @param n_jcfg Number of JSON structures in the array
+ * @param parse_fn Function to apply
+ * @return TR_CFG_SUCCESS on success, _FAIL or an error code on failure
+ */
+static TR_CFG_RC tr_cfg_parse_helper(TR_CFG *cfg, json_t **jcfgs, size_t n_jcfg, TR_CFG_PARSE_FN parse_fn)
+{
+  size_t ii=0;
+  json_t *this_jcfg=NULL;
+  TR_CFG_RC ret=TR_CFG_ERROR;
+
+  /* TODO validate arguments */
+
+  for (ii=0; ii<n_jcfg; ii++) {
+    this_jcfg=jcfgs[ii];
+    ret=parse_fn(cfg, this_jcfg);
+    if (ret!=TR_CFG_SUCCESS)
+      break;
+  }
+  return ret;
+}
+
+
+/**
+ *  Reads configuration files in config_dir ("" or "./" will use the current directory).
+ *
+ * @param cfg_mgr Configuration manager
+ * @param n_files Number of entries in cfg_files
+ * @param files_with_paths Array of filenames with path to load
+ * @return TR_CFG_SUCCESS on success, TR_CFG_ERROR or a more specific error on failure
+ */
+TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, unsigned int n_files, char **files_with_paths)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  json_t **jcfgs=NULL;
   TR_CFG_RC cfg_rc=TR_CFG_ERROR;
 
-  if ((!cfg_mgr) || (!cfg_files) || (n<=0)) {
+  if ((!cfg_mgr) || (!files_with_paths)) {
     cfg_rc=TR_CFG_BAD_PARAMS;
     goto cleanup;
   }
 
+  /* get a fresh config to fill in, freeing old one if needed */
   if (cfg_mgr->new != NULL)
     tr_cfg_free(cfg_mgr->new);
   cfg_mgr->new=tr_cfg_new(tmp_ctx); /* belongs to the temporary context for now */
@@ -2088,24 +2167,22 @@ TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, st
     goto cleanup;
   }
 
+  /* first parse the json */
+  jcfgs=tr_cfg_parse_config_files(tmp_ctx, n_files, files_with_paths);
+  if (jcfgs==NULL) {
+    cfg_rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
   cfg_mgr->new->peers=trp_ptable_new(cfg_mgr); /* not sure why this isn't in cfg_mgr->new's context */
 
-  /* Parse configuration information from each config file */
-  for (ii=0; ii<n; ii++) {
-    file_with_path=join_paths(tmp_ctx, config_dir, cfg_files[ii]->d_name); /* must free result with talloc_free */
-    if(file_with_path == NULL) {
-      tr_crit("tr_parse_config: error joining path.");
-      cfg_rc=TR_CFG_NOMEM;
-      goto cleanup;
-    }
-    tr_debug("tr_parse_config: Parsing %s.", cfg_files[ii]->d_name); /* print the filename without the path */
-    cfg_rc=tr_cfg_parse_one_config_file(cfg_mgr->new, file_with_path);
-    if (cfg_rc!=TR_CFG_SUCCESS) {
-      tr_crit("tr_parse_config: Error parsing %s", file_with_path);
-      goto cleanup;
-    }
-    talloc_free(file_with_path); /* done with filename */
-  }
+  /* now run through the parsers on the JSON */
+  if ((TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_internal))) ||
+      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_local_orgs))) ||
+      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_peer_orgs))) ||
+      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_default_servers))) ||
+      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_comms))))
+    goto cleanup; /* cfg_rc was set above */
 
   /* make sure we got a complete, consistent configuration */
   if (TR_CFG_SUCCESS != tr_cfg_validate(cfg_mgr->new)) {
@@ -2119,6 +2196,8 @@ TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, const char *config_dir, int n, st
   cfg_rc=TR_CFG_SUCCESS;
 
 cleanup:
+  if (jcfgs!=NULL)
+    tr_cfg_parse_free_jcfgs(n_files, jcfgs);
   talloc_free(tmp_ctx);
   return cfg_rc;
 }
@@ -2197,7 +2276,7 @@ static int is_cfg_file(const struct dirent *dent) {
  * allocated array of pointers to struct dirent entries, as returned
  * by scandir(). These can be freed with tr_free_config_file_list().
  */
-int tr_find_config_files (const char *config_dir, struct dirent ***cfg_files) {
+int tr_find_config_files(const char *config_dir, struct dirent ***cfg_files) {
   int n = 0;
   
   n = scandir(config_dir, cfg_files, is_cfg_file, alphasort);
