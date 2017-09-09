@@ -2067,13 +2067,14 @@ typedef TR_CFG_RC (TR_CFG_PARSE_FN)(TR_CFG *, json_t *);
  * @param parse_fn Function to apply
  * @return TR_CFG_SUCCESS on success, _FAIL or an error code on failure
  */
-static TR_CFG_RC tr_cfg_parse_helper(TR_CFG *cfg, json_t **jcfgs, size_t n_jcfg, TR_CFG_PARSE_FN parse_fn)
+static TR_CFG_RC tr_cfg_parse_helper(TR_CFG *cfg, unsigned int n_jcfg, json_t **jcfgs, TR_CFG_PARSE_FN parse_fn)
 {
   size_t ii=0;
   json_t *this_jcfg=NULL;
   TR_CFG_RC ret=TR_CFG_ERROR;
 
-  /* TODO validate arguments */
+  if ((cfg==NULL) || (jcfgs==NULL) || (parse_fn==NULL))
+    return TR_CFG_ERROR;
 
   for (ii=0; ii<n_jcfg; ii++) {
     this_jcfg=jcfgs[ii];
@@ -2123,11 +2124,11 @@ TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, unsigned int n_files, char **file
   cfg_mgr->new->peers=trp_ptable_new(cfg_mgr); /* not sure why this isn't in cfg_mgr->new's context */
 
   /* now run through the parsers on the JSON */
-  if ((TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_internal))) ||
-      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_local_orgs))) ||
-      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_peer_orgs))) ||
-      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_default_servers))) ||
-      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, jcfgs, n_files, tr_cfg_parse_comms))))
+  if ((TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_internal))) ||
+      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_local_orgs))) ||
+      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_peer_orgs))) ||
+      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_default_servers))) ||
+      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_comms))))
     goto cleanup; /* cfg_rc was set above */
 
   /* make sure we got a complete, consistent configuration */
