@@ -1460,60 +1460,6 @@ static TR_NAME *tr_cfg_parse_org_name(TALLOC_CTX *mem_ctx, json_t *j_org, TR_CFG
   return name;
 }
 
-#if 0
-/* TODO: are we using this? JLR */
-/* Update the community information with data from a new batch of IDP realms.
- * May partially add realms if there is a failure, no guarantees.
- * Call like comms=tr_comm_idp_update(comms, new_realms, &rc) */
-static TR_COMM *tr_cfg_comm_idp_update(TALLOC_CTX *mem_ctx,
-                                       TR_COMM_TABLE *ctab,
-                                       TR_IDP_REALM *new_realms,
-                                       TR_CFG_RC *rc)
-{
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TR_COMM *comm=NULL; /* community looked up in comms table */
-  TR_COMM *new_comms=NULL; /* new communities as we create them */
-  TR_IDP_REALM *realm=NULL;
-  TR_APC *apc=NULL; /* apc of one realm */
-
-  if (rc==NULL) {
-    *rc=TR_CFG_BAD_PARAMS;
-    goto cleanup;
-  }
-
-  /* start with an empty list communities, then fill that in */
-  for (realm=new_realms; realm!=NULL; realm=realm->next) {
-    for (apc=realm->apcs; apc!=NULL; apc=apc->next) {
-      comm=tr_comm_lookup(comms, apc->id);
-      if (comm==NULL) {
-        comm=tr_comm_new(tmp_ctx);
-        if (comm==NULL) {
-          tr_debug("tr_cfg_comm_idp_update: unable to allocate new community.");
-          *rc=TR_CFG_NOMEM;
-          goto cleanup;
-        }
-        /* fill in the community with info */
-        comm->type=TR_COMM_APC; /* realms added this way are in APCs */
-        comm->expiration_interval=TR_DEFAULT_APC_EXPIRATION_INTERVAL;
-        tr_comm_set_id(comm, tr_dup_name(apc->id));
-        tr_comm_add_idp_realm(comm, realm);
-        tr_comm_add(new_comms, comm);
-      } else {
-        /* add this realm to the comm */
-        tr_comm_add_idp_realm(comm, realm);
-      }
-    }
-  }
-
-  /* we successfully built a list, add it to the other list */
-  tr_comm_add(comms, new_comms);
-  talloc_steal(mem_ctx, comms);
- cleanup:
-  talloc_free(tmp_ctx);
-  return comms;
-}
-#endif
-
 static TR_CFG_RC tr_cfg_parse_one_local_org(TR_CFG *trc, json_t *jlorg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
