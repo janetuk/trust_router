@@ -46,16 +46,17 @@
 
 struct peer_entry {
   char *server;
+  char *gss_name;
   unsigned int port;
   unsigned int linkcost;
 };
 
 static struct peer_entry peer_data[]={
-  {"peer0", 10000, 0x0001},
-  {"peer1", 15000, 0x0002},
-  {"peer2", 20000, 0x0004},
-  {"peer3", 25000, 0x0008},
-  {"peer4", 30000, 0x0010}
+  {"peer0", "trustrouter@peer0", 10000, 0x0001},
+  {"peer1", "trustrouter@peer1", 15000, 0x0002},
+  {"peer2", "trustrouter@peer2", 20000, 0x0004},
+  {"peer3", "trustrouter@peer3", 25000, 0x0008},
+  {"peer4", "trustrouter@peer4", 30000, 0x0010}
 };
 static size_t n_peers=sizeof(peer_data)/sizeof(peer_data[0]);
 
@@ -69,6 +70,8 @@ static void populate_ptable(TRPS_INSTANCE *trps)
     assert(new_peer!=NULL);
     trp_peer_set_server(new_peer, peer_data[i].server);
     assert(trp_peer_get_server(new_peer)!=NULL);
+    trp_peer_add_gss_name(new_peer, tr_new_name(peer_data[i].gss_name));
+    assert(trp_peer_get_gss_names(new_peer)!=NULL);
     trp_peer_set_port(new_peer, peer_data[i].port);
     trp_peer_set_linkcost(new_peer, peer_data[i].linkcost);
     assert(trps_add_peer(trps, new_peer)==TRP_SUCCESS);
