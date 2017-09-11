@@ -1,3 +1,11 @@
+moonshot-trust-router (3.0.2-1) unstable; urgency=medium
+
+  * Remove unintended dependency on Jansson in trust_router/tr_name.h
+  * Load multiple configuration files properly
+  * Fix memory leak when loading configuration files
+
+ -- Jennifer Richards <jennifer@painless-security.com>  Mon, 11 Sep 2017 18:29:47 -0400
+
 moonshot-trust-router (3.0.0-4) unstable; urgency=medium
 
   * Initialize refcount for IDP realms
