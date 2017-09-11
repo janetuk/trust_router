@@ -36,7 +36,7 @@
 #include <talloc.h>
 #include <assert.h>
 
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 #include <tr_comm.h>
 #include <tr_idp.h>
 #include <tr_config.h>
@@ -118,16 +118,18 @@ static int verify_rp_cfg(TR_CFG *cfg)
 int main(void)
 {
   TALLOC_CTX *mem_ctx=talloc_new(NULL);
-  TR_CFG *cfg=NULL;
+  TR_CFG_MGR *cfg_mgr=NULL;
   TR_CFG_RC rc=TR_CFG_ERROR;
+  char *fname=NULL;
 
   tr_log_open();
 
   talloc_set_log_fn(tr_talloc_log);
-  cfg=tr_cfg_new(mem_ctx);
+  cfg_mgr=tr_cfg_mgr_new(mem_ctx);
 
   printf("Parsing idp.cfg.\n");
-  rc=tr_cfg_parse_one_config_file(cfg, "idp.cfg");
+  fname="idp.cfg";
+  rc=tr_parse_config(cfg_mgr, 1, &fname);
   switch(rc) {
   case TR_CFG_SUCCESS:
     tr_debug("main: TR_CFG_SUCCESS");
@@ -147,55 +149,21 @@ int main(void)
   }
 
   printf("Verifying IDP parse results... ");
-  if (verify_idp_cfg(cfg)!=0) {
+  if (verify_idp_cfg(cfg_mgr->new)!=0) {
     printf("Error!\n");
     exit(-1);
   }
   printf("success!\n");
 
   printf("Verifying RP parse results... ");
-  if (verify_rp_cfg(cfg)!=0) {
+  if (verify_rp_cfg(cfg_mgr->new)!=0) {
     printf("Error!\n");
     exit(-1);
   }
   printf("success!\n");
 
   talloc_report_full(mem_ctx, stderr);
-  tr_cfg_free(cfg);
-
-  printf("Cleared configuration for next test.\n\n");
-
-  cfg=tr_cfg_new(mem_ctx);
-  
-  printf("Parsing rp.cfg.\n");
-  rc=tr_cfg_parse_one_config_file(cfg, "rp.cfg");
-  switch(rc) {
-  case TR_CFG_SUCCESS:
-    tr_debug("main: TR_CFG_SUCCESS");
-    break;
-  case TR_CFG_ERROR:
-    tr_debug("main: TR_CFG_ERROR");
-    break;
-  case TR_CFG_BAD_PARAMS:
-    tr_debug("main: TR_CFG_BAD_PARAMS");
-    break;
-  case TR_CFG_NOPARSE:
-    tr_debug("main: TR_CFG_NOPARSE");
-    break;
-  case TR_CFG_NOMEM:
-    tr_debug("main: TR_CFG_NOMEM");
-    break;
-  }
-
-#if 0
-  printf("Verifying RP parse results... ");
-  if (verify_rp_cfg(cfg)!=0) {
-    printf("Error!\n");
-    exit(-1);
-  }
-  printf("success!\n");
-#endif
-
+  tr_cfg_mgr_free(cfg_mgr);
   talloc_free(mem_ctx);
   return 0;
 }

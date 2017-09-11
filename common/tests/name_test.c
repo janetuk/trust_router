@@ -36,7 +36,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 
 /* returns 1 on success */
 int test_wildcard_prefix_match(const char *s, const char *wcs, int expect);

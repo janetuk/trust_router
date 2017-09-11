@@ -38,7 +38,7 @@
 #include <time.h>
 #include <talloc.h>
 
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 #include <tr_gss.h>
 #include <trust_router/trp.h>
 #include <tr_filter.h>

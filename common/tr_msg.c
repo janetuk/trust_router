@@ -45,7 +45,7 @@
 #include <tr_apc.h>
 #include <tr_comm.h>
 #include <tr_msg.h>
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 #include <trp_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>

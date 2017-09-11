@@ -35,7 +35,7 @@
 #include <talloc.h>
 
 #include <tr.h>
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 #include <tr_gss.h>
 #include <tr_config.h>
 #include <tr_rp.h>
