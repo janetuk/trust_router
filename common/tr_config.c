@@ -237,7 +237,7 @@ static TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jcfg)
     }
     if (NULL != (jhname = json_object_get(jint, "hostname"))) {
       if (json_is_string(jhname)) {
-        trc->internal->hostname = json_string_value(jhname);
+        trc->internal->hostname = talloc_strdup(trc->internal, json_string_value(jhname));
       } else {
         tr_debug("tr_cfg_parse_internal: Parsing error, hostname is not a string.");
         return TR_CFG_NOPARSE;
@@ -1596,7 +1596,7 @@ static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
     goto cleanup;
   }
 
-  trp_peer_set_server(new_peer, json_string_value(jhost));
+  trp_peer_set_server(new_peer, json_string_value(jhost)); /* string is strdup'ed in _set_server() */
   if (jport==NULL)
     trp_peer_set_port(new_peer, TRP_PORT);
   else
