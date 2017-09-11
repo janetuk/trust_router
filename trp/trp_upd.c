@@ -36,7 +36,7 @@
 #include <jansson.h>
 #include <talloc.h>
 
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 #include <trp_internal.h>
 #include <tr_comm.h>
 #include <tr_apc.h>

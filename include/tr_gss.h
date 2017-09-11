@@ -36,7 +36,7 @@
 #define __TR_GSS_H__
 
 #include <talloc.h>
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 
 #define TR_MAX_GSS_NAMES 5
 

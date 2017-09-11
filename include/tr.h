@@ -38,7 +38,6 @@
 #include <talloc.h>
 
 #include <tid_internal.h>
-#include <trust_router/tr_name.h>
 #include <tr_msg.h>
 #include <tr_rp.h>
 #include <tr_trp.h>

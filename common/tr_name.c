@@ -36,7 +36,7 @@
 #include <string.h>
 #include <jansson.h>
 
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 
 void tr_free_name (TR_NAME *name)
 {
