@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2017, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,24 +32,23 @@
  *
  */
 
-#ifndef TR_NAME_H
-#define TR_NAME_H
-#include <string.h>
-#include <trust_router/tr_versioning.h>
+/** This is the internal version of the trust_router/tr_name.h header.
+ * That one is used for the public API provided by libtr-tid. Declarations
+ * that should not be included in the public API, dependencies on headers
+ * that are not needed for the API, etc., belong here. Anything needed
+ * in order to use the library should go in trust_router/tr_name.h.
+ */
 
-typedef const char *tr_const_string;
+#ifndef TR_NAME_INTERNAL_H
 
-typedef struct tr__name {
-  char *buf;
-  int len;
-} TR_NAME;
+#include<trust_router/tr_name.h>
+#include <jansson.h>
 
-TR_EXPORT TR_NAME *tr_new_name (const char *name);
-TR_EXPORT TR_NAME *tr_dup_name (TR_NAME *from);
-TR_EXPORT void tr_free_name (TR_NAME *name);
-TR_EXPORT int tr_name_cmp (TR_NAME *one, TR_NAME *two);
-TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
-TR_EXPORT char *tr_name_strdup(TR_NAME *);
-TR_EXPORT TR_NAME *tr_name_cat(TR_NAME *n1, TR_NAME *n2);
+/** Prototypes */
+json_t *tr_name_to_json_string(TR_NAME *src);
+int tr_name_cmp_str(TR_NAME *one, const char *two_str);
+int tr_name_prefix_wildcard_match(TR_NAME *str, TR_NAME *wc_str);
 
-#endif
+#define TR_NAME_INTERNAL_H
+
+#endif //TRUST_ROUTER_TR_NAME_INTERNAL_H

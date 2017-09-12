@@ -325,7 +325,7 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
 
   if (NULL == (resp_buf = tr_msg_encode(&mresp))) {
 
-    fprintf(stderr, "tids_send_response: Error encoding json response.\n");
+    tr_err("tids_send_response: Error encoding json response.");
     tr_audit_req(req);
 
     return -1;
@@ -432,15 +432,15 @@ int tids_get_listener(TIDS_INSTANCE *tids,
   tids->tids_port = port;
   n_fd=tids_listen(tids, port, fd_out, max_fd);
   if (n_fd<=0)
-    tr_debug("tids_get_listener: Error opening port %d");
+    tr_err("tids_get_listener: Error opening port %d");
   else {
     /* opening port succeeded */
-    tr_debug("tids_get_listener: Opened port %d.", port);
+    tr_info("tids_get_listener: Opened port %d.", port);
     
     /* make this socket non-blocking */
     for (ii=0; ii<n_fd; ii++) {
       if (0 != fcntl(fd_out[ii], F_SETFL, O_NONBLOCK)) {
-        tr_debug("tids_get_listener: Error setting O_NONBLOCK.");
+        tr_err("tids_get_listener: Error setting O_NONBLOCK.");
         for (ii=0; ii<n_fd; ii++) {
           close(fd_out[ii]);
           fd_out[ii]=-1;

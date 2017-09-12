@@ -37,7 +37,7 @@
 
 #include <talloc.h>
 
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 
 /* Used to hold lists of APC names in cfg. */
 typedef struct tr_apc {

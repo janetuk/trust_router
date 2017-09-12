@@ -1,8 +1,25 @@
 {
+  "tr_internal": {
+    "hostname": "server.example.com"
+  },
+  "communities": [
+    {
+      "apcs": [],
+      "community_id": "apc.example.com",
+      "idp_realms": ["realm"],
+      "rp_realms": ["realm"],
+      "type": "apc"
+    }
+  ],
   "local_organizations": [
     { "organization_name": "tidreq filter test 1",
       "realms": [
         { "realm": "realm",
+          "identity_provider": {
+            "aaa_servers": ["rad"],
+            "apcs": ["apc.example.com"],
+            "shared_config": "no"
+          },
           "gss_names": ["gss"],
           "filters": {
             "tid_inbound": [

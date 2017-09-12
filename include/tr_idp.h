@@ -38,7 +38,7 @@
 #include <talloc.h>
 #include <time.h>
 
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 #include <tr_apc.h>
 
 typedef struct tr_aaa_server {

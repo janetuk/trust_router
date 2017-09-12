@@ -226,26 +226,30 @@ static void tr_trps_cleanup_trpc(TRPS_INSTANCE *trps, TRPC_INSTANCE *trpc)
   tr_debug("tr_trps_cleanup_trpc: deleted connection");
 }
 
-static void tr_trps_print_route_table(TRPS_INSTANCE *trps, FILE *f)
+/**
+ * Get a dynamically allocated string with a description of the route table.
+ * Caller must free the string using talloc_free().
+ *
+ * @param memctx talloc context for the string
+ * @param trps trps instance containing the route table
+ * @return pointer to the output, or NULL on error
+ */
+static char *tr_trps_route_table_to_str(TALLOC_CTX *memctx, TRPS_INSTANCE *trps)
 {
-  char *table=trp_rtable_to_str(NULL, trps->rtable, " | ", NULL);
-  if (table==NULL)
-    fprintf(f, "Unable to print route table.\n");
-  else {
-    fprintf(f, "%s\n", table);
-    talloc_free(table);
-  }
+  return trp_rtable_to_str(memctx, trps->rtable, " | ", NULL);
 }
 
-static void tr_trps_print_comm_table(TRPS_INSTANCE *trps, FILE *f)
+/**
+ * Get a dynamically allocated string with a description of the community table.
+ * Caller must free the string using talloc_free().
+ *
+ * @param memctx talloc context for the string
+ * @param trps trps instance containing the community table
+ * @return pointer to the output, or NULL on error
+ */
+static char *tr_trps_comm_table_to_str(TALLOC_CTX *memctx, TRPS_INSTANCE *trps)
 {
-  char *table=tr_comm_table_to_str(NULL, trps->ctable);
-  if (table==NULL)
-    fprintf(f, "Unable to print community table.\n");
-  else {
-    fprintf(f, "%s\n", table);
-    talloc_free(table);
-  }
+  return tr_comm_table_to_str(memctx, trps->ctable);
 }
 
 /**
@@ -316,10 +320,6 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
     else if (0==strcmp(s, TR_MQMSG_MSG_RECEIVED)) {
       if (trps_handle_tr_msg(trps, tr_mq_msg_get_payload(msg))!=TRP_SUCCESS)
         tr_notice("tr_trps_process_mq: error handling message.");
-      else {
-        tr_trps_print_route_table(trps, stderr);
-        tr_trps_print_comm_table(trps, stderr);
-      }
     }
     else
       tr_notice("tr_trps_process_mq: unknown message '%s' received.", tr_mq_msg_get_message(msg));
@@ -346,13 +346,23 @@ static void tr_trps_sweep(int listener, short event, void *arg)
   struct tr_trps_event_cookie *cookie=talloc_get_type_abort(arg, struct tr_trps_event_cookie);
   TRPS_INSTANCE *trps=cookie->trps;
   struct event *ev=cookie->ev;
+  char *table_str=NULL;
 
   tr_debug("tr_trps_sweep: sweeping routes.");
   trps_sweep_routes(trps);
   tr_debug("tr_trps_sweep: sweeping communities.");
   trps_sweep_ctable(trps);
-  tr_trps_print_route_table(trps, stderr);
-  tr_trps_print_comm_table(trps, stderr);
+  table_str=tr_trps_route_table_to_str(NULL, trps);
+  if (table_str!=NULL) {
+    tr_debug(table_str);
+    talloc_free(table_str);
+  }
+
+  table_str=tr_trps_comm_table_to_str(NULL, trps);
+  if (table_str!=NULL) {
+    tr_debug(table_str);
+    talloc_free(table_str);
+  }
   /* schedule the event to run again */
   event_add(ev, &(trps->sweep_interval));
 }
@@ -852,6 +862,7 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
 {
   TR_INSTANCE *tr=talloc_get_type_abort(cookie, TR_INSTANCE);
   TRPS_INSTANCE *trps=tr->trps;
+  char *table_str=NULL;
 
   tr->cfgwatch->poll_interval.tv_sec=new_cfg->internal->cfg_poll_interval;
   tr->cfgwatch->poll_interval.tv_usec=0;
@@ -870,7 +881,15 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   trps_update_active_routes(trps); /* find new routes */
   trps_update(trps, TRP_UPDATE_TRIGGERED); /* send any triggered routes */
   tr_print_config(new_cfg);
-  tr_trps_print_route_table(trps, stderr);
-  tr_trps_print_comm_table(trps, stderr);
+  table_str=tr_trps_route_table_to_str(NULL, trps);
+  if (table_str!=NULL) {
+    tr_info(table_str);
+    talloc_free(table_str);
+  }
+  table_str=tr_trps_comm_table_to_str(NULL, trps);
+  if (table_str!=NULL) {
+    tr_info(table_str);
+    talloc_free(table_str);
+  }
 }
 

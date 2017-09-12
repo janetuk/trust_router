@@ -48,7 +48,7 @@ trp/trp_upd.c
 
 libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
 libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
-libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 3:0:1 -no-undefined
+libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 4:0:2 -no-undefined
 
 common_t_constraint_SOURCES = common/t_constraint.c \
 common/tr_debug.c \
@@ -179,7 +179,8 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tid_internal.h include/trp_internal.h \
 	include/tr_cfgwatch.h include/tr_event.h \
 	include/tr_mq.h include/trp_ptable.h \
-	include/trp_rtable.h include/tr_util.h
+	include/trp_rtable.h include/tr_util.h \
+	include/tr_name_internal.h
 
 pkgdata_DATA=schema.sql
 nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/organizations.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-internal.cfg redhat/default-internal.cfg redhat/tids-wrapper redhat/sysconfig.tids

@@ -85,6 +85,9 @@ int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name)
 {
   int ii=0;
 
+  if (!gn)
+    return 0;
+
   for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
     if ((gn->names[ii]!=NULL) &&
         (0==tr_name_cmp(gn->names[ii], name)))

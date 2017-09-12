@@ -54,28 +54,29 @@
  * @param filt_out Will point to the loaded filter on success
  * @return Return value from tr_cfg_parse_one_config_file()
  */
-int load_filter(const char *fname, TR_FILTER_SET **filts_out)
+int load_filter(char *fname, TR_FILTER_SET **filts_out)
 {
-  TR_CFG *cfg=tr_cfg_new(NULL);
+  TR_CFG_MGR *cfg_mgr=tr_cfg_mgr_new(NULL);
   TR_CFG_RC rc=TR_CFG_ERROR;
 
+  assert(cfg_mgr);
   assert(fname);
   assert(filts_out);
 
-  rc=tr_cfg_parse_one_config_file(cfg, fname);
+  rc=tr_parse_config(cfg_mgr, 1, &fname);
   if (rc!=TR_CFG_SUCCESS)
     goto cleanup;
 
   /* Steal the filter from the first rp_client */
-  assert(cfg);
-  assert(cfg->rp_clients);
-  assert(cfg->rp_clients->filters);
-  *filts_out=cfg->rp_clients->filters;
-  cfg->rp_clients->filters=NULL; /* can't use the _set_filter() because that will free the filter */
+  assert(cfg_mgr->new);
+  assert(cfg_mgr->new->rp_clients);
+  assert(cfg_mgr->new->rp_clients->filters);
+  *filts_out=cfg_mgr->new->rp_clients->filters;
+  cfg_mgr->new->rp_clients->filters=NULL; /* can't use the _set_filter() because that will free the filter */
   talloc_steal(NULL, *filts_out);
 
 cleanup:
-  tr_cfg_free(cfg);
+  tr_cfg_mgr_free(cfg_mgr);
   return rc;
 }
 
@@ -94,7 +95,7 @@ int test_load_filter(void)
   assert(TR_CFG_NOPARSE==load_filter(FILTER_PATH "invalid-filt-repeated-key.json", &filts));
   if (filts) tr_filter_set_free(filts);
   filts=NULL;
-  assert(TR_CFG_ERROR==load_filter(FILTER_PATH "invalid-filt-unknown-field.json", &filts));
+  assert(TR_CFG_NOPARSE==load_filter(FILTER_PATH "invalid-filt-unknown-field.json", &filts));
   if (filts) tr_filter_set_free(filts);
   filts=NULL;
   return 1;
@@ -174,7 +175,7 @@ TID_REQ *load_tid_req(const char *fname)
  * @param expected_action Expected action if the filter matches
  * @return 1 if expected result is obtained, 0 or does not return otherwise
  */
-int test_one_filter(const char *filt_fname,
+int test_one_filter(char *filt_fname,
                     TR_FILTER_TYPE ftype,
                     const char *target_fname,
                     int expected_match,
@@ -233,7 +234,7 @@ int test_filter(void)
   json_t *test_list=json_load_file(FILTER_PATH "filter-tests.json", JSON_DISABLE_EOF_CHECK, NULL);
   json_t *this;
   size_t ii;
-  const char *filt_file, *target_file;
+  char *filt_file, *target_file;
   TR_FILTER_TYPE ftype;
   int expect_match;
   TR_FILTER_ACTION action;
@@ -242,9 +243,9 @@ int test_filter(void)
     printf("Running filter test case: %s\n", json_string_value(json_object_get(this, "test label")));
     fflush(stdout);
 
-    filt_file=json_string_value(json_object_get(this, "filter file"));
+    filt_file=talloc_strdup(NULL, json_string_value(json_object_get(this, "filter file")));
     ftype=tr_filter_type_from_string(json_string_value(json_object_get(this, "filter type")));
-    target_file=json_string_value(json_object_get(this, "target file"));
+    target_file=talloc_strdup(NULL, json_string_value(json_object_get(this, "target file")));
     if (0==strcmp("yes", json_string_value(json_object_get(this, "expect match"))))
       expect_match=TR_FILTER_MATCH;
     else
@@ -256,6 +257,9 @@ int test_filter(void)
       action=TR_FILTER_ACTION_REJECT;
 
     assert(test_one_filter(filt_file, ftype, target_file, expect_match, action));
+
+    talloc_free(filt_file);
+    talloc_free(target_file);
   }
 
   return 1;

@@ -35,7 +35,7 @@
 #include <talloc.h>
 #include <time.h>
 
-#include <trust_router/tr_name.h>
+#include <tr_name_internal.h>
 #include <tr_idp.h>
 #include <tr_config.h>
 #include <tr_debug.h>
@@ -345,11 +345,11 @@ char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp)
   }
 
   result=talloc_asprintf(mem_ctx,
-                         "IDP realm: \"%.*s\"\n"
-                         "  shared: %s\n"
-                         "  local: %s\n"
-                         "  AAA servers: %s\n"
-                         "  APCs: %s\n",
+                         "IDP realm: \"%.*s\""
+                         "  shared: %s"
+                         "  local: %s"
+                         "  AAA servers: %s"
+                         "  APCs: %s",
                          idp->realm_id->len, idp->realm_id->buf,
                          (idp->shared_config)?"yes":"no",
                          (idp->origin==TR_REALM_LOCAL)?"yes":"no",

@@ -186,15 +186,63 @@ static int tr_cfgwatch_update_needed(TR_CFGWATCH *cfg_status)
   return update_needed;
 }
 
+/* Join two paths and return a pointer to the result. This should be freed
+ * via talloc_free. Returns NULL on failure. */
+static char *join_paths(TALLOC_CTX *mem_ctx, const char *p1, const char *p2)
+{
+  return talloc_asprintf(mem_ctx, "%s/%s", p1, p2); /* returns NULL on a failure */
+}
+
+/**
+ * Join a directory name with the filenames from an array of struct dirent.
+ * Outputs an array of pointers to strings that must be freed via talloc_free on
+ * the array. The strings in the array are in the context of the array, so will
+ * be freed automatically.
+ *
+ * @param ctx talloc context to contain the result on success
+ * @param dir
+ * @param n_files
+ * @param files
+ * @return Null on failure, or an array of pointers to strings
+ */
+static char **dirent_to_full_path(TALLOC_CTX *mem_ctx, const char *dir, unsigned int n_files, struct dirent **files)
+{
+  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
+  unsigned int ii=0;
+  char **files_with_paths=talloc_array(tmp_ctx, char *, n_files);
+
+  if (files_with_paths==NULL) {
+    tr_crit("dirent_to_full_path: unable to allocate filename array");
+    goto cleanup;
+  }
+
+  for (ii=0; ii<n_files; ii++) {
+    files_with_paths[ii]=join_paths(files_with_paths, dir, files[ii]->d_name);
+    if(files_with_paths[ii] == NULL) {
+      tr_crit("dirent_to_full_path: error joining path for %s.", files[ii]->d_name);
+      files_with_paths=NULL; /* will be freed automatically by talloc_free */
+      goto cleanup;
+    }
+  }
+
+cleanup:
+  if (files_with_paths!=NULL)
+    talloc_steal(mem_ctx, files_with_paths);
+  talloc_free(tmp_ctx);
+  return files_with_paths;
+}
+
+
 /* must specify the ctx and tr in cfgwatch! */
 int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   char *config_dir=cfgwatch->config_dir;
-  int n_files = 0;
+  unsigned int n_files = 0;
   struct dirent **cfg_files=NULL;
   TR_CFG_RC rc = TR_CFG_SUCCESS;	/* presume success */
   struct tr_fstat *new_fstat_list=NULL;
+  char **files_with_paths=NULL;
   int retval=0;
 
   /* find the configuration files -- n.b., tr_find_config_files()
@@ -205,18 +253,26 @@ int tr_read_and_apply_config(TR_CFGWATCH *cfgwatch)
     tr_debug("tr_read_and_apply_config: No configuration files.");
     retval=1; goto cleanup;
   }
+  /* n_files > 0 from here on */
 
   /* Get the list of update times.
    * Do this before loading in case they change between obtaining their timestamp
    * and reading the file---this way they will immediately reload if this happens. */
-  new_fstat_list=tr_fstat_get_all(tmp_ctx, config_dir, cfg_files, n_files);
+  new_fstat_list=tr_fstat_get_all(tmp_ctx, config_dir, cfg_files, (unsigned int)n_files);
   if (new_fstat_list==NULL) {
     tr_debug("tr_read_and_apply_config: Could not allocate config file status list.");
     retval=1; goto cleanup;
   }
-  
+
+  /* get the filenames with their paths */
+  files_with_paths=dirent_to_full_path(tmp_ctx, config_dir, n_files, cfg_files);
+  if (files_with_paths==NULL) {
+    tr_err("tr_read_and_apply_config: Could not append path to filenames.");
+    retval=1; goto cleanup;
+  }
+
   /* now fill it in (tr_parse_config allocates space for new config) */
-  if (TR_CFG_SUCCESS != (rc = tr_parse_config(cfgwatch->cfg_mgr, config_dir, n_files, cfg_files))) {
+  if (TR_CFG_SUCCESS != (rc = tr_parse_config(cfgwatch->cfg_mgr, n_files, files_with_paths))) {
     tr_debug("tr_read_and_apply_config: Error parsing configuration information, rc=%d.", rc);
     retval=1; goto cleanup;
   }
