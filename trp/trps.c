@@ -464,15 +464,15 @@ int trps_get_listener(TRPS_INSTANCE *trps,
 
   n_fd=trps_listen(trps, port, fd_out, max_fd);
   if (n_fd==0)
-    tr_debug("trps_get_listener: Error opening port %d.");
+    tr_err("trps_get_listener: Error opening port %d.");
   else {
     /* opening port succeeded */
-    tr_debug("trps_get_listener: Opened port %d.", port);
+    tr_info("trps_get_listener: Opened port %d.", port);
     
     /* make the sockets non-blocking */
     for (ii=0; ii<n_fd; ii++) {
       if (0 != fcntl(fd_out[ii], F_SETFL, O_NONBLOCK)) {
-        tr_debug("trps_get_listener: Error setting O_NONBLOCK.");
+        tr_err("trps_get_listener: Error setting O_NONBLOCK.");
         for (ii=0; ii<n_fd; ii++) {
           close(fd_out[ii]);
           fd_out[ii]=-1;
