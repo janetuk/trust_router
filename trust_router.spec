@@ -10,7 +10,7 @@ URL:            http://www.project-moonshot.org/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires: autoconf
+BuildRequires: autoconf, automake, m4
 BuildRequires:  krb5-devel, glib2-devel
 BuildRequires: jansson-devel >= 2.4
 BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel, libevent-devel
