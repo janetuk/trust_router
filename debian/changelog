@@ -1,19 +1,15 @@
-moonshot-trust-router (3.0.2-2) unstable; urgency=medium
+moonshot-trust-router (3.0.3-1) unstable; urgency=medium
 
-  * Add --no-start option to dh_installinit for TIDS service
+  * Always return NULL if allocation fails in tr_compute_dh_key
 
  -- Jennifer Richards <jennifer@painless-security.com>  Tue, 12 Sep 2017 11:28:11 -0400
 
-moonshot-trust-router (3.0.2-1) unstable; urgency=medium
+moonshot-trust-router (3.0.2-2) unstable; urgency=medium
 
+  * Add --no-start option to dh_installinit for TIDS service
   * Remove unintended dependency on Jansson in trust_router/tr_name.h
   * Load multiple configuration files properly
   * Fix memory leak when loading configuration files
-
- -- Jennifer Richards <jennifer@painless-security.com>  Mon, 11 Sep 2017 18:29:47 -0400
-
-moonshot-trust-router (3.0.1-1) unstable; urgency=medium
-
   * Reduce amount of debug output
 
  -- Jennifer Richards <jennifer@painless-security.com>  Tue, 18 Jun 2017 17:56:43 -0400
