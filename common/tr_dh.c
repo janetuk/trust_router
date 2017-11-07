@@ -82,7 +82,7 @@ DH *tr_dh_new(void)
   return DH_new();
 }
 
-DH *tr_create_dh_params(unsigned char *priv_key, 
+DH *tr_create_dh_params(unsigned char *priv_key,
 			size_t keylen) {
 
   DH *dh = NULL;
@@ -95,6 +95,7 @@ DH *tr_create_dh_params(unsigned char *priv_key,
       (NULL == (dh->p = BN_new())) ||
       (NULL == (dh->q = BN_new()))) {
     DH_free(dh);
+    return NULL;
   }
 
   BN_set_word(dh->g, 2);
@@ -235,15 +236,15 @@ DH *tr_dh_dup(DH *in)
   return out;
 }
 
-int tr_compute_dh_key(unsigned char **pbuf, 
-		      BIGNUM *pub_key, 
+int tr_compute_dh_key(unsigned char **pbuf,
+		      BIGNUM *pub_key,
 		      DH *priv_dh) {
   size_t buflen;
   unsigned char *buf = NULL;;
   int rc = 0;
-  
-  if ((!pbuf) || 
-      (!pub_key) || 
+
+  if ((!pbuf) ||
+      (!pub_key) ||
       (!priv_dh)) {
     tr_debug("tr_compute_dh_key: Invalid parameters.");
     return(-1);
@@ -256,7 +257,7 @@ int tr_compute_dh_key(unsigned char **pbuf,
     return -1;
   }
 
-  
+
   rc = DH_compute_key(buf, pub_key, priv_dh);
   if (0 <= rc) {
     *pbuf = buf;
