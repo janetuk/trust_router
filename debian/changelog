@@ -1,8 +1,9 @@
-moonshot-trust-router (3.0.3-1) unstable; urgency=medium
+moonshot-trust-router (3.0.3-2) unstable; urgency=medium
 
   * Always return NULL if allocation fails in tr_compute_dh_key
+  * Improve example organizations.cfg
 
- -- Jennifer Richards <jennifer@painless-security.com>  Tue, 12 Sep 2017 11:28:11 -0400
+ -- Jennifer Richards <jennifer@painless-security.com>  Tue, 13 Nov 2017 12:16:35 -0400
 
 moonshot-trust-router (3.0.2-2) unstable; urgency=medium
 
@@ -12,7 +13,7 @@ moonshot-trust-router (3.0.2-2) unstable; urgency=medium
   * Fix memory leak when loading configuration files
   * Reduce amount of debug output
 
- -- Jennifer Richards <jennifer@painless-security.com>  Tue, 18 Jun 2017 17:56:43 -0400
+ -- Jennifer Richards <jennifer@painless-security.com>  Tue, 12 Sep 2017 11:28:11 -0400
 
 moonshot-trust-router (3.0.0-5) unstable; urgency=medium
 
