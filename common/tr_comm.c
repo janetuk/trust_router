@@ -372,10 +372,10 @@ static TR_COMM *tr_comm_sweep_func(TR_COMM *head)
     return NULL;
 
   /* will not remove the head here, that has already been done */
-  for (comm=head; comm->next!=NULL; comm=comm->next) {
+  for (comm=head; (comm!=NULL) && (comm->next!=NULL); comm=comm->next) {
     if (comm->next->refcount==0) {
       old_next=comm->next;
-      tr_comm_remove(head, comm->next); /* changes comm->next */
+      tr_comm_remove(head, comm->next); /* changes comm->next, may make it null */
       tr_comm_free(old_next);
     }
   }
