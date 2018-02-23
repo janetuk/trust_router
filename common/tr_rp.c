@@ -290,10 +290,10 @@ TR_RP_REALM *tr_rp_realm_sweep_func(TR_RP_REALM *head)
     return NULL;
 
   /* will not remove the head here, that has already been done */
-  for (rp=head; rp->next!=NULL; rp=rp->next) {
+  for (rp=head; (rp!=NULL) && (rp->next!=NULL); rp=rp->next) {
     if (rp->next->refcount==0) {
       old_next=rp->next;
-      tr_rp_realm_remove(head, rp->next); /* changes rp->next */
+      tr_rp_realm_remove(head, rp->next); /* changes rp->next, may make it null */
       tr_rp_realm_free(old_next);
     }
   }

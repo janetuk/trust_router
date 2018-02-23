@@ -389,11 +389,11 @@ TR_IDP_REALM *tr_idp_realm_sweep_func(TR_IDP_REALM *head)
   if (head==NULL)
     return NULL;
 
-  /* will not remove the head here, that has already been done */
-  for (idp=head; idp->next!=NULL; idp=idp->next) {
+  /* Will not remove the head here, that has already been done.*/
+  for (idp=head; (idp!=NULL) && (idp->next!=NULL); idp=idp->next) {
     if (idp->next->refcount==0) {
       old_next=idp->next;
-      tr_idp_realm_remove(head, idp->next); /* changes idp->next */
+      tr_idp_realm_remove(head, idp->next); /* changes idp->next, may make it NULL */
       tr_idp_realm_free(old_next);
     }
   }
