@@ -1,3 +1,9 @@
+moonshot-trust-router (3.3.0-1) unstable; urgency=medium
+
+  * Fix segfault when sweeping realms and communities
+
+ -- Jennifer Richards <jennifer@painless-security.com>  Fri, 23 Feb 2018 12:09:20 -0500
+
 moonshot-trust-router (3.0.2-1) unstable; urgency=medium
 
   * Remove unintended dependency on Jansson in trust_router/tr_name.h
