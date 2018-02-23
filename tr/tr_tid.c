@@ -399,38 +399,32 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   tr_debug("tr_tids_req_handler: looking up route.");
   route=trps_get_selected_route(trps, orig_req->comm, orig_req->realm);
   if (route==NULL) {
-    tr_notice("tr_tids_req_handler: no route table entry found for realm (%s) in community (%s).",
-              orig_req->realm->buf, orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "Missing trust route error");
-    retval=-1;
-    goto cleanup;
-  }
-  tr_debug("tr_tids_req_handler: found route.");
-  if (trp_route_is_local(route)) {
-    tr_debug("tr_tids_req_handler: route is local.");
-    aaa_servers = tr_idp_aaa_server_lookup(cfg_mgr->active->ctable->idp_realms, 
-                                           orig_req->realm, 
-                                           orig_req->comm,
-                                          &idp_shared);
-  } else {
-    tr_debug("tr_tids_req_handler: route not local.");
-    aaa_servers = tr_aaa_server_new(tmp_ctx, trp_route_get_next_hop(route));
-    idp_shared=0;
-  }
-
-  /* Find the AAA server(s) for this request */
-  if (NULL == aaa_servers) {
-    tr_debug("tr_tids_req_handler: No AAA Servers for realm %s, defaulting.", orig_req->realm->buf);
-    if (NULL == (aaa_servers = tr_default_server_lookup (cfg_mgr->active->default_servers,
-                                                         orig_req->comm))) {
+    /* No route. Use default AAA servers if we have them. */
+    tr_debug("tr_tids_req_handler: No route for realm %s, defaulting.", orig_req->realm->buf);
+    if (NULL == (aaa_servers = tr_default_server_lookup(cfg_mgr->active->default_servers,
+                                                        orig_req->comm))) {
       tr_notice("tr_tids_req_handler: No default AAA servers, discarded.");
       tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
-      retval=-1;
+      retval = -1;
       goto cleanup;
     }
-    idp_shared=0;
+    idp_shared = 0;
   } else {
-    /* if we aren't defaulting, check idp coi and apc membership */
+    /* Found a route. Determine the AAA servers or next hop address. */
+    tr_debug("tr_tids_req_handler: found route.");
+    if (trp_route_is_local(route)) {
+      tr_debug("tr_tids_req_handler: route is local.");
+      aaa_servers = tr_idp_aaa_server_lookup(cfg_mgr->active->ctable->idp_realms,
+                                             orig_req->realm,
+                                             orig_req->comm,
+                                             &idp_shared);
+    } else {
+      tr_debug("tr_tids_req_handler: route not local.");
+      aaa_servers = tr_aaa_server_new(tmp_ctx, trp_route_get_next_hop(route));
+      idp_shared = 0;
+    }
+
+    /* Since we aren't defaulting, check idp coi and apc membership */
     if (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_comm, fwd_req->realm))) {
       tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of community (%s).", orig_req->realm->buf, orig_req->comm->buf);
       tids_send_err_response(tids, orig_req, "IDP community membership error");
@@ -443,6 +437,15 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       retval=-1;
       goto cleanup;
     }
+  }
+
+  /* Make sure we came through with a AAA server. If not, we can't handle the request. */
+  if (NULL == aaa_servers) {
+    tr_notice("tr_tids_req_handler: no route or AAA server for realm (%s) in community (%s).",
+              orig_req->realm->buf, orig_req->comm->buf);
+    tids_send_err_response(tids, orig_req, "Missing trust route error");
+    retval = -1;
+    goto cleanup;
   }
 
   /* send a TID request to the AAA server(s), and get the answer(s) */
