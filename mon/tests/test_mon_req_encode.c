@@ -12,7 +12,7 @@
 
 #define JSON_DUMP_OPTS 0
 
-char *reconfigure()
+static char *reconfigure()
 {
   TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_RECONFIGURE);
   json_t *req_json = tr_mon_req_encode(req);
@@ -25,7 +25,7 @@ char *reconfigure()
   return result;
 }
 
-char *show_plain()
+static char *show_plain()
 {
   TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_SHOW);
   json_t *req_json = tr_mon_req_encode(req);
@@ -38,7 +38,7 @@ char *show_plain()
   return result;
 }
 
-char *show_options(const TR_MON_OPT_TYPE *opts)
+static char *show_options(const TR_MON_OPT_TYPE *opts)
 {
   TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_SHOW);
   json_t *req_json = NULL;
@@ -62,7 +62,7 @@ char *show_options(const TR_MON_OPT_TYPE *opts)
   return result;
 }
 
-char *read_file(const char *filename)
+static char *read_file(const char *filename)
 {
   FILE *f = fopen(filename, "r");
   char *s = NULL;

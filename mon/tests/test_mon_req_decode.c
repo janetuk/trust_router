@@ -13,7 +13,7 @@
 /**
  * @return reconfigure command
  */
-TR_MON_REQ *reconfigure()
+static TR_MON_REQ *reconfigure()
 {
   TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_RECONFIGURE);
   assert(req);
@@ -23,7 +23,7 @@ TR_MON_REQ *reconfigure()
 /**
  * @return show command with no options
  */
-TR_MON_REQ *show_plain()
+static TR_MON_REQ *show_plain()
 {
   TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_SHOW);
   assert(req);
@@ -34,7 +34,7 @@ TR_MON_REQ *show_plain()
  * @param opts array of option types, terminated with OPT_TYPE_UNKNOWN
  * @return show command with the requested options, excluding the terminator
  */
-TR_MON_REQ *show_options(const TR_MON_OPT_TYPE *opts)
+static TR_MON_REQ *show_options(const TR_MON_OPT_TYPE *opts)
 {
   TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_SHOW);
   assert(req);
@@ -49,7 +49,7 @@ TR_MON_REQ *show_options(const TR_MON_OPT_TYPE *opts)
 /**
  * @return show command with every option
  */
-TR_MON_REQ *show_all_options()
+static TR_MON_REQ *show_all_options()
 {
   TR_MON_OPT_TYPE opts[] = {
       OPT_TYPE_SHOW_SERIAL,
@@ -65,7 +65,7 @@ TR_MON_REQ *show_all_options()
   return show_options(opts);
 }
 
-char *read_file(const char *filename)
+static char *read_file(const char *filename)
 {
   FILE *f = fopen(filename, "r");
   char *s = NULL;
@@ -80,7 +80,7 @@ char *read_file(const char *filename)
   return s;
 }
 
-int equal(TR_MON_REQ *r1, TR_MON_REQ *r2)
+static int equal(TR_MON_REQ *r1, TR_MON_REQ *r2)
 {
   size_t ii;
 
@@ -98,7 +98,7 @@ int equal(TR_MON_REQ *r1, TR_MON_REQ *r2)
   return 1;
 }
 
-int run_test(const char *filename, TR_MON_REQ *(generator)())
+static int run_test(const char *filename, TR_MON_REQ *(generator)())
 {
   TR_MON_REQ *req = NULL;
   TR_MON_REQ *expected = NULL;

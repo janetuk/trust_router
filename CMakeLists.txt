@@ -96,8 +96,8 @@ set(SOURCE_FILES
 add_executable(trust_router ${SOURCE_FILES})
 
 # Test build targets - for debugging
-add_executable(test_mon_req_encode mon/tr_mon_req.c mon/tr_mon_req.h mon/test/test_mon_req_encode.c mon/tr_mon_req_encode.c)
+add_executable(test_mon_req_encode mon/tr_mon_req.c mon/tr_mon_req.h mon/tests/test_mon_req_encode.c mon/tr_mon_req_encode.c)
 target_link_libraries(test_mon_req_encode jansson talloc glib-2.0)
 
-add_executable(test_mon_req_decode mon/tr_mon_req.c mon/tr_mon_req.h mon/test/test_mon_req_decode.c mon/tr_mon_req_decode.c)
+add_executable(test_mon_req_decode mon/tr_mon_req.c mon/tr_mon_req.h mon/tests/test_mon_req_decode.c mon/tr_mon_req_decode.c)
 target_link_libraries(test_mon_req_decode jansson talloc glib-2.0)

@@ -129,6 +129,7 @@ const char *cmd_to_string(TR_MON_CMD cmd)
     case MON_CMD_SHOW:
       return "show";
   }
+  return NULL;
 }
 
 // Helper macro for the cmd_from_string method
@@ -176,6 +177,7 @@ const char *opt_type_to_string(TR_MON_OPT_TYPE opt_type)
     case OPT_TYPE_SHOW_COMMUNITIES:
       return "communities";
   }
+  return NULL;
 }
 
 // Helper macro for the opt_type_from_string method
