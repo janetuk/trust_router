@@ -20,7 +20,8 @@ common_srcs = common/tr_name.c \
 	common/tr_rp.c \
 	common/tr_idp.c \
 	common/tr_filter.c \
-	common/tr_gss.c
+	common/tr_gss.c \
+	common/tr_socket.c
 
 tid_srcs = tid/tid_resp.c \
 tid/tid_req.c \
