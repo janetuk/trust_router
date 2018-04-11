@@ -90,14 +90,18 @@ set(SOURCE_FILES
     trp/trp_rtable.c
     trp/trp_upd.c
     trp/trpc.c
-    trp/trps.c include/tr_name_internal.h mon/tr_mon_req.c mon/tr_mon_req.h mon/tr_mon_req_encode.c mon/tr_mon_req_decode.c)
+    trp/trps.c include/tr_name_internal.h mon/tr_mon_req.c mon/tr_mon_req_encode.c mon/tr_mon_req_decode.c
+        mon/tr_mon_resp.c mon/tr_mon.c mon/tr_mon_resp_encode.c)
 
 # Does not actually build!
 add_executable(trust_router ${SOURCE_FILES})
 
 # Test build targets - for debugging
-add_executable(test_mon_req_encode mon/tr_mon_req.c mon/tr_mon_req.h mon/tests/test_mon_req_encode.c mon/tr_mon_req_encode.c)
+add_executable(test_mon_req_encode mon/tr_mon.c mon/tr_mon_req.c mon/tests/test_mon_req_encode.c mon/tr_mon_req_encode.c)
 target_link_libraries(test_mon_req_encode jansson talloc glib-2.0)
 
-add_executable(test_mon_req_decode mon/tr_mon_req.c mon/tr_mon_req.h mon/tests/test_mon_req_decode.c mon/tr_mon_req_decode.c)
+add_executable(test_mon_req_decode mon/tr_mon.c mon/tr_mon_req.c mon/tests/test_mon_req_decode.c mon/tr_mon_req_decode.c)
 target_link_libraries(test_mon_req_decode jansson talloc glib-2.0)
+
+add_executable(test_mon_resp_encode mon/tr_mon.c mon/tr_mon_req.c mon/tr_mon_resp.c mon/tr_mon_resp_encode.c common/tr_name.c mon/tests/test_mon_resp_encode.c)
+target_link_libraries(test_mon_resp_encode jansson talloc glib-2.0)

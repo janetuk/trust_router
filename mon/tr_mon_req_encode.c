@@ -37,7 +37,7 @@
 #include <jansson.h>
 #include <glib.h>
 
-#include "tr_mon_req.h"
+#include <tr_mon.h>
 
 // Monitoring request encoders
 

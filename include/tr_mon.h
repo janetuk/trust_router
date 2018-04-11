@@ -39,11 +39,14 @@
 #include <talloc.h>
 #include <jansson.h>
 #include <gmodule.h>
+#include <tr_name_internal.h>
 
 /* Typedefs */
 typedef struct tr_mon_req TR_MON_REQ;
+typedef struct tr_mon_resp TR_MON_RESP;
 
 typedef enum tr_mon_cmd TR_MON_CMD;
+typedef enum tr_mon_resp_code TR_MON_RESP_CODE;
 
 typedef struct tr_mon_opt TR_MON_OPT;
 typedef enum tr_mon_opt_type TR_MON_OPT_TYPE;
@@ -64,6 +67,12 @@ enum tr_mon_cmd {
   MON_CMD_UNKNOWN=0,
   MON_CMD_RECONFIGURE,
   MON_CMD_SHOW
+};
+
+/* These should be explicitly numbered because they form part of the public API */
+enum tr_mon_resp_code {
+  MON_RESP_SUCCESS=0,
+  MON_RESP_ERROR=1, // generic error
 };
 
 enum tr_mon_opt_type {
@@ -92,18 +101,26 @@ struct tr_mon_req {
   GArray *options;
 };
 
+struct tr_mon_resp {
+  TR_MON_REQ *req; // request this responds to
+  TR_MON_RESP_CODE code;
+  TR_NAME *message;
+  json_t *payload;
+};
+
 /* Prototypes */
+/* tr_mon.c */
+const char *cmd_to_string(TR_MON_CMD cmd);
+TR_MON_CMD cmd_from_string(const char *s);
+const char *opt_type_to_string(TR_MON_OPT_TYPE opt_type);
+TR_MON_OPT_TYPE opt_type_from_string(const char *s);
+
+/* tr_mon_req.c */
 TR_MON_REQ *tr_mon_req_new(TALLOC_CTX *mem_ctx, TR_MON_CMD cmd);
 void tr_mon_req_free(TR_MON_REQ *req);
 TR_MON_RC tr_mon_req_add_option(TR_MON_REQ *req, TR_MON_OPT_TYPE opt_type);
 size_t tr_mon_req_opt_count(TR_MON_REQ *req);
 TR_MON_OPT *tr_mon_req_opt_index(TR_MON_REQ *req, size_t index);
-
-const char *cmd_to_string(TR_MON_CMD cmd);
-TR_MON_CMD cmd_from_string(const char *s);
-
-const char *opt_type_to_string(TR_MON_OPT_TYPE opt_type);
-TR_MON_OPT_TYPE opt_type_from_string(const char *s);
 
 /* tr_mon_req_encode.c */
 json_t *tr_mon_req_encode(TR_MON_REQ *req);
@@ -111,6 +128,15 @@ json_t *tr_mon_req_encode(TR_MON_REQ *req);
 /* tr_mon_req_decode.c */
 TR_MON_REQ *tr_mon_req_decode(TALLOC_CTX *mem_ctx, const char *req_json);
 
-/* tr_mon_rec_decode.c */
+/* tr_mon_resp.c */
+TR_MON_RESP *tr_mon_resp_new(TALLOC_CTX *mem_ctx,
+                             TR_MON_REQ *req,
+                             TR_MON_RESP_CODE code,
+                             const char *msg,
+                             json_t *payload);
+void tr_mon_resp_free(TR_MON_RESP *resp);
+
+/* tr_mon_resp_encode.c */
+json_t *tr_mon_resp_encode(TR_MON_RESP *resp);
 
 #endif //TRUST_ROUTER_TR_MON_REQ_H

@@ -1,9 +1,10 @@
+ACLOCAL_AMFLAGS = -I m4
 DISTCHECK_CONFIGURE_FLAGS = \
 	--with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
 bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/tests/tr_dh_test common/tests/mq_test \
               common/tests/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/tests/cfg_test \
               common/tests/commtest common/tests/name_test common/tests/filt_test mon/tests/test_mon_req_encode \
-              mon/tests/test_mon_req_decode
+              mon/tests/test_mon_req_decode mon/tests/test_mon_resp_encode
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -37,9 +38,12 @@ common/tr_config.c \
 common/tr_mq.c
 
 mon_srcs =                      \
+    mon/tr_mon.c                \
     mon/tr_mon_req.c            \
     mon/tr_mon_req_encode.c     \
-    mon/tr_mon_req_decode.c
+    mon/tr_mon_req_decode.c     \
+    mon/tr_mon_resp.c           \
+    mon/tr_mon_resp_encode.c
 
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint
@@ -171,14 +175,22 @@ common_tests_filt_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 common_tests_filt_test_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
 mon_tests_test_mon_req_encode_SOURCES = mon/tests/test_mon_req_encode.c \
-    $(mon_srcs)
+    $(mon_srcs) \
+    common/tr_name.c
 mon_tests_test_mon_req_encode_LDADD = $(GLIB_LIBS)
 mon_tests_test_mon_req_encode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
 mon_tests_test_mon_req_decode_SOURCES = mon/tests/test_mon_req_decode.c \
-    $(mon_srcs)
+    $(mon_srcs) \
+    common/tr_name.c
 mon_tests_test_mon_req_decode_LDADD = $(GLIB_LIBS)
 mon_tests_test_mon_req_decode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
+
+mon_tests_test_mon_resp_encode_SOURCES = mon/tests/test_mon_resp_encode.c \
+    $(mon_srcs) \
+    common/tr_name.c
+mon_tests_test_mon_resp_encode_LDADD = $(GLIB_LIBS)
+mon_tests_test_mon_resp_encode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
 pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/tr_debug.h include/trust_router/trp.h \

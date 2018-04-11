@@ -8,7 +8,7 @@
 #include <string.h>
 #include <glib.h>
 
-#include "../tr_mon_req.h"
+#include <tr_mon.h>
 
 #define JSON_DUMP_OPTS 0
 

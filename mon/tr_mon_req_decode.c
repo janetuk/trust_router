@@ -1,4 +1,4 @@
-#include "tr_mon_req.h"/*
+/*
  * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
@@ -36,7 +36,7 @@
 #include <talloc.h>
 #include <jansson.h>
 
-#include "tr_mon_req.h"
+#include <tr_mon.h>
 
 // Monitoring request decoders
 

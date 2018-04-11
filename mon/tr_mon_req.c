@@ -35,9 +35,8 @@
 
 #include <talloc.h>
 #include <gmodule.h>
-#include <string.h>
 
-#include "tr_mon_req.h"
+#include <tr_mon.h>
 
 // Monitoring request message common code
 
@@ -110,92 +109,6 @@ size_t tr_mon_req_opt_count(TR_MON_REQ *req)
 
 TR_MON_OPT *tr_mon_req_opt_index(TR_MON_REQ *req, size_t index)
 {
-  TR_MON_OPT *result = (TR_MON_OPT *) &g_array_index(req->options, TR_MON_OPT, index);
+  TR_MON_OPT *result = &g_array_index(req->options, TR_MON_OPT, index);
   return result;
 }
-
-/**
- * This method defines the command strings
- */
-const char *cmd_to_string(TR_MON_CMD cmd)
-{
-  switch(cmd) {
-    case MON_CMD_UNKNOWN:
-      return NULL;
-
-    case MON_CMD_RECONFIGURE:
-      return "reconfigure";
-
-    case MON_CMD_SHOW:
-      return "show";
-  }
-  return NULL;
-}
-
-// Helper macro for the cmd_from_string method
-#define return_if_matches(s, cmd)            \
-  do {                                       \
-    if (strcmp((s), cmd_to_string(cmd))==0)  \
-      return (cmd);                          \
-  } while(0)
-
-TR_MON_CMD cmd_from_string(const char *s)
-{
-  return_if_matches(s, MON_CMD_RECONFIGURE);
-  return_if_matches(s, MON_CMD_SHOW);
-  return MON_CMD_UNKNOWN;
-}
-#undef return_if_matches
-
-/**
- * This method defines the option type strings
- */
-const char *opt_type_to_string(TR_MON_OPT_TYPE opt_type)
-{
-  switch(opt_type) {
-    case OPT_TYPE_UNKNOWN:
-      return NULL;
-
-    case OPT_TYPE_SHOW_VERSION:
-      return "version";
-
-    case OPT_TYPE_SHOW_SERIAL:
-      return "serial";
-
-    case OPT_TYPE_SHOW_UPTIME:
-      return "uptime";
-
-    case OPT_TYPE_SHOW_TID_REQ_COUNT:
-      return "tid_req_count";
-
-    case OPT_TYPE_SHOW_TID_REQ_PENDING:
-      return "tid_req_pending";
-
-    case OPT_TYPE_SHOW_ROUTES:
-      return "routes";
-
-    case OPT_TYPE_SHOW_COMMUNITIES:
-      return "communities";
-  }
-  return NULL;
-}
-
-// Helper macro for the opt_type_from_string method
-#define return_if_matches(s, cmd)                 \
-  do {                                            \
-    if (strcmp((s), opt_type_to_string(cmd))==0)  \
-      return (cmd);                               \
-  } while(0)
-
-TR_MON_OPT_TYPE opt_type_from_string(const char *s)
-{
-  return_if_matches(s, OPT_TYPE_SHOW_VERSION);
-  return_if_matches(s, OPT_TYPE_SHOW_SERIAL);
-  return_if_matches(s, OPT_TYPE_SHOW_UPTIME);
-  return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_COUNT);
-  return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_PENDING);
-  return_if_matches(s, OPT_TYPE_SHOW_ROUTES);
-  return_if_matches(s, OPT_TYPE_SHOW_COMMUNITIES);
-  return OPT_TYPE_UNKNOWN;
-}
-#undef return_if_matches
