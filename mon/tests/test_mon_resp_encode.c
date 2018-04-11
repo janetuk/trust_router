@@ -7,32 +7,32 @@
 #include <assert.h>
 #include <string.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 #define JSON_DUMP_OPTS 0
 
-static char *reconfigure(TR_MON_RESP_CODE code, const char *message)
+static char *reconfigure(MON_RESP_CODE code, const char *message)
 {
-  TR_MON_REQ *req = NULL;
-  TR_MON_RESP *resp = NULL;
+  MON_REQ *req = NULL;
+  MON_RESP *resp = NULL;
   json_t *resp_json = NULL;
   char *result = NULL;
 
-  req = tr_mon_req_new(NULL, MON_CMD_RECONFIGURE);
+  req = mon_req_new(NULL, MON_CMD_RECONFIGURE);
   assert(req);
 
-  resp = tr_mon_resp_new(NULL, req, code, message, NULL);
+  resp = mon_resp_new(NULL, req, code, message, NULL);
   assert(resp);
 
-  resp_json = tr_mon_resp_encode(resp);
+  resp_json = mon_resp_encode(resp);
   assert(resp_json);
 
   result = json_dumps(resp_json, JSON_DUMP_OPTS);
   assert(result);
 
   json_decref(resp_json);
-  tr_mon_resp_free(resp);
-  tr_mon_req_free(req);
+  mon_resp_free(resp);
+  mon_req_free(req);
   return result;
 }
 
@@ -48,46 +48,46 @@ static char *reconfigure_error()
 
 static char *show_success()
 {
-  TR_MON_REQ *req = NULL;
-  TR_MON_RESP *resp = NULL;
+  MON_REQ *req = NULL;
+  MON_RESP *resp = NULL;
   json_t *resp_json = NULL;
   json_t *payload = NULL;
   char *result = NULL;
 
-  req = tr_mon_req_new(NULL, MON_CMD_SHOW);
+  req = mon_req_new(NULL, MON_CMD_SHOW);
   // Only need the command to be set in req, don't actually need the options
   assert(req);
 
   payload = json_object();
   assert(payload);
   assert(! json_object_set_new(payload,
-                               opt_type_to_string(OPT_TYPE_SHOW_VERSION),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_VERSION),
                                json_string("1.2.3-4")));
   assert(! json_object_set_new(payload,
-                               opt_type_to_string(OPT_TYPE_SHOW_SERIAL),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_SERIAL),
                                json_integer(1234567890)));
   assert(! json_object_set_new(payload,
-                               opt_type_to_string(OPT_TYPE_SHOW_SERIAL),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_SERIAL),
                                json_integer(86400)));
   assert(! json_object_set_new(payload,
-                               opt_type_to_string(OPT_TYPE_SHOW_TID_REQ_PENDING),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_TID_REQ_PENDING),
                                json_integer(13)));
   assert(! json_object_set_new(payload,
-                               opt_type_to_string(OPT_TYPE_SHOW_TID_REQ_COUNT),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_TID_REQ_COUNT),
                                json_integer(1432)));
 
-  resp = tr_mon_resp_new(NULL, req, MON_RESP_SUCCESS, "success", payload);
+  resp = mon_resp_new(NULL, req, MON_RESP_SUCCESS, "success", payload);
   assert(resp);
 
-  resp_json = tr_mon_resp_encode(resp);
+  resp_json = mon_resp_encode(resp);
   assert(resp_json);
 
   result = json_dumps(resp_json, JSON_DUMP_OPTS);
   assert(result);
 
   json_decref(resp_json);
-  tr_mon_resp_free(resp);
-  tr_mon_req_free(req);
+  mon_resp_free(resp);
+  mon_req_free(req);
   return result;
 }
 

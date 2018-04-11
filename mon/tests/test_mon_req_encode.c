@@ -8,57 +8,57 @@
 #include <string.h>
 #include <glib.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 #define JSON_DUMP_OPTS 0
 
 static char *reconfigure()
 {
-  TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_RECONFIGURE);
-  json_t *req_json = tr_mon_req_encode(req);
+  MON_REQ *req = mon_req_new(NULL, MON_CMD_RECONFIGURE);
+  json_t *req_json = mon_req_encode(req);
   char *result = json_dumps(req_json, JSON_DUMP_OPTS);
   assert(req);
   assert(req_json);
   assert(result);
   json_decref(req_json);
-  tr_mon_req_free(req);
+  mon_req_free(req);
   return result;
 }
 
 static char *show_plain()
 {
-  TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_SHOW);
-  json_t *req_json = tr_mon_req_encode(req);
+  MON_REQ *req = mon_req_new(NULL, MON_CMD_SHOW);
+  json_t *req_json = mon_req_encode(req);
   char *result = json_dumps(req_json, JSON_DUMP_OPTS);
   assert(req);
   assert(req_json);
   assert(result);
   json_decref(req_json);
-  tr_mon_req_free(req);
+  mon_req_free(req);
   return result;
 }
 
-static char *show_options(const TR_MON_OPT_TYPE *opts)
+static char *show_options(const MON_OPT_TYPE *opts)
 {
-  TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_SHOW);
+  MON_REQ *req = mon_req_new(NULL, MON_CMD_SHOW);
   json_t *req_json = NULL;
   char *result = NULL;
 
   assert(req);
 
   while (*opts != OPT_TYPE_UNKNOWN) {
-    assert(TR_MON_SUCCESS == tr_mon_req_add_option(req, *opts));
+    assert(MON_SUCCESS == mon_req_add_option(req, *opts));
     opts++;
   }
 
-  req_json = tr_mon_req_encode(req);
+  req_json = mon_req_encode(req);
   assert(req_json);
 
   result = json_dumps(req_json, JSON_DUMP_OPTS);
   assert(result);
 
   json_decref(req_json);
-  tr_mon_req_free(req);
+  mon_req_free(req);
   return result;
 }
 
@@ -78,7 +78,7 @@ static char *read_file(const char *filename)
 int main(void)
 {
   char *s = NULL;
-  TR_MON_OPT_TYPE opts[10];
+  MON_OPT_TYPE opts[10];
   char *expected = NULL;
 
   // Test reconfigure command

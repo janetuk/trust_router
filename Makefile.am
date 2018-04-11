@@ -38,12 +38,12 @@ common/tr_config.c \
 common/tr_mq.c
 
 mon_srcs =                      \
-    mon/tr_mon.c                \
-    mon/tr_mon_req.c            \
-    mon/tr_mon_req_encode.c     \
-    mon/tr_mon_req_decode.c     \
-    mon/tr_mon_resp.c           \
-    mon/tr_mon_resp_encode.c
+    mon/mon_common.c                \
+    mon/mon_req.c            \
+    mon/mon_req_encode.c     \
+    mon/mon_req_decode.c     \
+    mon/mon_resp.c           \
+    mon/mon_resp_encode.c
 
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint

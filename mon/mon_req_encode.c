@@ -37,7 +37,7 @@
 #include <jansson.h>
 #include <glib.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 // Monitoring request encoders
 
@@ -54,20 +54,20 @@
  * @param opts array of options
  * @return reference to a JSON array of options
  */
-static json_t *tr_mon_opts_decode(GArray *opts)
+static json_t *mon_opts_decode(GArray *opts)
 {
   json_t *array_json = json_array(); // the array of options
   json_t *opt_json = NULL; // individual option JSON object
   json_t *type_json = NULL;
   guint ii = 0;
-  TR_MON_OPT this_opt;
+  MON_OPT this_opt;
 
   if (array_json == NULL)
     return NULL; // failed
 
   /* Iterate over the options */
   for (ii=0; ii < opts->len; ii++) {
-    this_opt = g_array_index(opts, TR_MON_OPT, ii);
+    this_opt = g_array_index(opts, MON_OPT, ii);
 
     /* Create the JSON object for this option */
     opt_json = json_object();
@@ -83,7 +83,7 @@ static json_t *tr_mon_opts_decode(GArray *opts)
     }
 
     /* Create the type string for this option */
-    type_json = json_string(opt_type_to_string(this_opt.type));
+    type_json = json_string(mon_opt_type_to_string(this_opt.type));
     if (type_json == NULL) {
       json_decref(array_json);
       return NULL;
@@ -108,13 +108,13 @@ static json_t *tr_mon_opts_decode(GArray *opts)
  * Format:
  * {
  *   "command": "some_command",
- *   "options": [...see tr_mon_opts_to_json()...]
+ *   "options": [...see mon_opts_to_json()...]
  * }
  *
  * @param req request to encode
  * @return reference to a JSON object
  */
-json_t *tr_mon_req_encode(TR_MON_REQ *req)
+json_t *mon_req_encode(MON_REQ *req)
 {
   json_t *req_json = NULL;
   json_t *cmd_json = NULL;
@@ -126,7 +126,7 @@ json_t *tr_mon_req_encode(TR_MON_REQ *req)
     return NULL;
 
   /* Allocate the JSON string for the command */
-  cmd_json = json_string(cmd_to_string(req->command));
+  cmd_json = json_string(mon_cmd_to_string(req->command));
   if (cmd_json == NULL) {
     json_decref(req_json);
     return NULL;
@@ -142,7 +142,7 @@ json_t *tr_mon_req_encode(TR_MON_REQ *req)
 
   /* If we have options, add them to the object */
   if (req->options->len > 0) {
-    opts_json = tr_mon_opts_decode(req->options);
+    opts_json = mon_opts_decode(req->options);
     if (opts_json == NULL) {
       json_decref(req_json);
       return NULL;

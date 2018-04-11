@@ -36,16 +36,16 @@
 #include <talloc.h>
 #include <tr_name_internal.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 // Monitoring request message common code
 
 /**
  * Destructor used by talloc to ensure proper cleanup
  */
-static int tr_mon_resp_destructor(void *object)
+static int mon_resp_destructor(void *object)
 {
-  TR_MON_RESP *resp = talloc_get_type_abort(object, TR_MON_RESP);
+  MON_RESP *resp = talloc_get_type_abort(object, MON_RESP);
   /* free the message */
   if (resp->message) {
     tr_free_name(resp->message);
@@ -60,7 +60,7 @@ static int tr_mon_resp_destructor(void *object)
 /**
  * Allocate a new monitoring response
  *
- * Caller must free using tr_mon_resp_free().
+ * Caller must free using mon_resp_free().
  *
  * Makes its own copy of the message, so caller can dispose of
  * that after allocating the response.
@@ -72,25 +72,25 @@ static int tr_mon_resp_destructor(void *object)
  * calling this.
  *
  * @param mem_ctx talloc context for allocation
- * @param req TR_MON_REQ this response corresponds to
+ * @param req MON_REQ this response corresponds to
  * @param code numeric response code
  * @param msg string description of response code
  * @param payload JSON object to be send as payload, or null for no payload
  * @return response allocated in the requested talloc context, null on failure
  */
-TR_MON_RESP *tr_mon_resp_new(TALLOC_CTX *mem_ctx,
-                             TR_MON_REQ *req,
-                             TR_MON_RESP_CODE code,
-                             const char *msg,
-                             json_t *payload)
+MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx,
+                          MON_REQ *req,
+                          MON_RESP_CODE code,
+                          const char *msg,
+                          json_t *payload)
 {
-  TR_MON_RESP *resp = talloc(mem_ctx, TR_MON_RESP);
+  MON_RESP *resp = talloc(mem_ctx, MON_RESP);
   if (resp) {
     resp->req = req;
     resp->code = code;
     resp->message = tr_new_name(msg);
     resp->payload = payload;
-    talloc_set_destructor((void *)resp, tr_mon_resp_destructor);
+    talloc_set_destructor((void *)resp, mon_resp_destructor);
     if (resp->message == NULL) {
       talloc_free(resp); // destructor will be called
       resp = NULL;
@@ -104,7 +104,7 @@ TR_MON_RESP *tr_mon_resp_new(TALLOC_CTX *mem_ctx,
  *
  * @param resp request to free, must not be null
  */
-void tr_mon_resp_free(TR_MON_RESP *resp)
+void mon_resp_free(MON_RESP *resp)
 {
   talloc_free(resp);
 }

@@ -33,8 +33,8 @@
  */
 
 
-#ifndef TRUST_ROUTER_TR_MON_REQ_H
-#define TRUST_ROUTER_TR_MON_REQ_H
+#ifndef TRUST_ROUTER_MON_REQ_H
+#define TRUST_ROUTER_MON_REQ_H
 
 #include <talloc.h>
 #include <jansson.h>
@@ -42,40 +42,40 @@
 #include <tr_name_internal.h>
 
 /* Typedefs */
-typedef struct tr_mon_req TR_MON_REQ;
-typedef struct tr_mon_resp TR_MON_RESP;
+typedef struct mon_req MON_REQ;
+typedef struct mon_resp MON_RESP;
 
-typedef enum tr_mon_cmd TR_MON_CMD;
-typedef enum tr_mon_resp_code TR_MON_RESP_CODE;
+typedef enum mon_cmd MON_CMD;
+typedef enum mon_resp_code MON_RESP_CODE;
 
-typedef struct tr_mon_opt TR_MON_OPT;
-typedef enum tr_mon_opt_type TR_MON_OPT_TYPE;
+typedef struct mon_opt MON_OPT;
+typedef enum mon_opt_type MON_OPT_TYPE;
 
-typedef enum tr_mon_rc TR_MON_RC;
+typedef enum mon_rc MON_RC;
 
 
 /* Struct and enum definitions */
-enum tr_mon_rc {
-  TR_MON_SUCCESS=0,
-  TR_MON_ERROR, /* generic error */
-  TR_MON_BADARG, /* problem with the arguments */
-  TR_MON_NOMEM, /* out of memory */
-  TR_MON_NOPARSE, /* parsing failed */
+enum mon_rc {
+  MON_SUCCESS=0,
+  MON_ERROR, /* generic error */
+  MON_BADARG, /* problem with the arguments */
+  MON_NOMEM, /* out of memory */
+  MON_NOPARSE, /* parsing failed */
 };
 
-enum tr_mon_cmd {
+enum mon_cmd {
   MON_CMD_UNKNOWN=0,
   MON_CMD_RECONFIGURE,
   MON_CMD_SHOW
 };
 
 /* These should be explicitly numbered because they form part of the public API */
-enum tr_mon_resp_code {
+enum mon_resp_code {
   MON_RESP_SUCCESS=0,
   MON_RESP_ERROR=1, // generic error
 };
 
-enum tr_mon_opt_type {
+enum mon_opt_type {
   OPT_TYPE_UNKNOWN=0,
 
   // System information
@@ -92,51 +92,51 @@ enum tr_mon_opt_type {
   OPT_TYPE_SHOW_COMMUNITIES
 };
 
-struct tr_mon_opt {
-  TR_MON_OPT_TYPE type;
+struct mon_opt {
+  MON_OPT_TYPE type;
 };
 
-struct tr_mon_req {
-  TR_MON_CMD command;
+struct mon_req {
+  MON_CMD command;
   GArray *options;
 };
 
-struct tr_mon_resp {
-  TR_MON_REQ *req; // request this responds to
-  TR_MON_RESP_CODE code;
+struct mon_resp {
+  MON_REQ *req; // request this responds to
+  MON_RESP_CODE code;
   TR_NAME *message;
   json_t *payload;
 };
 
 /* Prototypes */
 /* tr_mon.c */
-const char *cmd_to_string(TR_MON_CMD cmd);
-TR_MON_CMD cmd_from_string(const char *s);
-const char *opt_type_to_string(TR_MON_OPT_TYPE opt_type);
-TR_MON_OPT_TYPE opt_type_from_string(const char *s);
+const char *mon_cmd_to_string(MON_CMD cmd);
+MON_CMD mon_cmd_from_string(const char *s);
+const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type);
+MON_OPT_TYPE mon_opt_type_from_string(const char *s);
 
-/* tr_mon_req.c */
-TR_MON_REQ *tr_mon_req_new(TALLOC_CTX *mem_ctx, TR_MON_CMD cmd);
-void tr_mon_req_free(TR_MON_REQ *req);
-TR_MON_RC tr_mon_req_add_option(TR_MON_REQ *req, TR_MON_OPT_TYPE opt_type);
-size_t tr_mon_req_opt_count(TR_MON_REQ *req);
-TR_MON_OPT *tr_mon_req_opt_index(TR_MON_REQ *req, size_t index);
+/* mon_req.c */
+MON_REQ *mon_req_new(TALLOC_CTX *mem_ctx, MON_CMD cmd);
+void mon_req_free(MON_REQ *req);
+MON_RC mon_req_add_option(MON_REQ *req, MON_OPT_TYPE opt_type);
+size_t mon_req_opt_count(MON_REQ *req);
+MON_OPT *mon_req_opt_index(MON_REQ *req, size_t index);
 
-/* tr_mon_req_encode.c */
-json_t *tr_mon_req_encode(TR_MON_REQ *req);
+/* mon_req_encode.c */
+json_t *mon_req_encode(MON_REQ *req);
 
-/* tr_mon_req_decode.c */
-TR_MON_REQ *tr_mon_req_decode(TALLOC_CTX *mem_ctx, const char *req_json);
+/* mon_req_decode.c */
+MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, const char *req_json);
 
-/* tr_mon_resp.c */
-TR_MON_RESP *tr_mon_resp_new(TALLOC_CTX *mem_ctx,
-                             TR_MON_REQ *req,
-                             TR_MON_RESP_CODE code,
-                             const char *msg,
-                             json_t *payload);
-void tr_mon_resp_free(TR_MON_RESP *resp);
+/* mon_resp.c */
+MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx,
+                          MON_REQ *req,
+                          MON_RESP_CODE code,
+                          const char *msg,
+                          json_t *payload);
+void mon_resp_free(MON_RESP *resp);
 
-/* tr_mon_resp_encode.c */
-json_t *tr_mon_resp_encode(TR_MON_RESP *resp);
+/* mon_resp_encode.c */
+json_t *mon_resp_encode(MON_RESP *resp);
 
-#endif //TRUST_ROUTER_TR_MON_REQ_H
+#endif //TRUST_ROUTER_MON_REQ_H

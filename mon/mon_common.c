@@ -37,14 +37,14 @@
 #include <gmodule.h>
 #include <string.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 // Monitoring common code
 
 /**
  * This method defines the command strings
  */
-const char *cmd_to_string(TR_MON_CMD cmd)
+const char *mon_cmd_to_string(MON_CMD cmd)
 {
   switch(cmd) {
     case MON_CMD_UNKNOWN:
@@ -59,14 +59,14 @@ const char *cmd_to_string(TR_MON_CMD cmd)
   return NULL;
 }
 
-// Helper macro for the cmd_from_string method
-#define return_if_matches(s, cmd)            \
-  do {                                       \
-    if (strcmp((s), cmd_to_string(cmd))==0)  \
-      return (cmd);                          \
+// Helper macro for the mon_cmd_from_string method
+#define return_if_matches(s, cmd)                \
+  do {                                           \
+    if (strcmp((s), mon_cmd_to_string(cmd))==0)  \
+      return (cmd);                              \
   } while(0)
 
-TR_MON_CMD cmd_from_string(const char *s)
+MON_CMD mon_cmd_from_string(const char *s)
 {
   return_if_matches(s, MON_CMD_RECONFIGURE);
   return_if_matches(s, MON_CMD_SHOW);
@@ -77,7 +77,7 @@ TR_MON_CMD cmd_from_string(const char *s)
 /**
  * This method defines the option type strings
  */
-const char *opt_type_to_string(TR_MON_OPT_TYPE opt_type)
+const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
 {
   switch(opt_type) {
     case OPT_TYPE_UNKNOWN:
@@ -107,14 +107,14 @@ const char *opt_type_to_string(TR_MON_OPT_TYPE opt_type)
   return NULL;
 }
 
-// Helper macro for the opt_type_from_string method
-#define return_if_matches(s, cmd)                 \
-  do {                                            \
-    if (strcmp((s), opt_type_to_string(cmd))==0)  \
-      return (cmd);                               \
+// Helper macro for the mon_opt_type_from_string method
+#define return_if_matches(s, cmd)                     \
+  do {                                                \
+    if (strcmp((s), mon_opt_type_to_string(cmd))==0)  \
+      return (cmd);                                   \
   } while(0)
 
-TR_MON_OPT_TYPE opt_type_from_string(const char *s)
+MON_OPT_TYPE mon_opt_type_from_string(const char *s)
 {
   return_if_matches(s, OPT_TYPE_SHOW_VERSION);
   return_if_matches(s, OPT_TYPE_SHOW_SERIAL);

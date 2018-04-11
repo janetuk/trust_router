@@ -35,7 +35,7 @@
 #include <talloc.h>
 #include <jansson.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 /* Helper for encoding. Adds a newly allocated JSON object to
  * jobj. If the allocation or setting fails, returns NULL after
@@ -62,7 +62,7 @@
  * @param resp response to encode
  * @return response as a newly allocated JSON object
  */
-json_t *tr_mon_resp_encode(TR_MON_RESP *resp)
+json_t *mon_resp_encode(MON_RESP *resp)
 {
   json_t *resp_json = NULL;
   json_t *jval = NULL;
@@ -79,7 +79,7 @@ json_t *tr_mon_resp_encode(TR_MON_RESP *resp)
 
   /* If we have a payload, add it */
   if (resp->payload) {
-    cmd_str = cmd_to_string(resp->req->command); // key for the response payload
+    cmd_str = mon_cmd_to_string(resp->req->command); // key for the response payload
     object_set_or_free_and_return(resp_json, jval, cmd_str, resp->payload);
   }
 

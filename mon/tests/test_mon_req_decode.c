@@ -8,14 +8,14 @@
 #include <string.h>
 #include <glib.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 /**
  * @return reconfigure command
  */
-static TR_MON_REQ *reconfigure()
+static MON_REQ *reconfigure()
 {
-  TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_RECONFIGURE);
+  MON_REQ *req = mon_req_new(NULL, MON_CMD_RECONFIGURE);
   assert(req);
   return req;
 }
@@ -23,9 +23,9 @@ static TR_MON_REQ *reconfigure()
 /**
  * @return show command with no options
  */
-static TR_MON_REQ *show_plain()
+static MON_REQ *show_plain()
 {
-  TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_SHOW);
+  MON_REQ *req = mon_req_new(NULL, MON_CMD_SHOW);
   assert(req);
   return req;
 }
@@ -34,13 +34,13 @@ static TR_MON_REQ *show_plain()
  * @param opts array of option types, terminated with OPT_TYPE_UNKNOWN
  * @return show command with the requested options, excluding the terminator
  */
-static TR_MON_REQ *show_options(const TR_MON_OPT_TYPE *opts)
+static MON_REQ *show_options(const MON_OPT_TYPE *opts)
 {
-  TR_MON_REQ *req = tr_mon_req_new(NULL, MON_CMD_SHOW);
+  MON_REQ *req = mon_req_new(NULL, MON_CMD_SHOW);
   assert(req);
 
   while (*opts != OPT_TYPE_UNKNOWN) {
-    assert(TR_MON_SUCCESS == tr_mon_req_add_option(req, *opts));
+    assert(MON_SUCCESS == mon_req_add_option(req, *opts));
     opts++;
   }
   return req;
@@ -49,9 +49,9 @@ static TR_MON_REQ *show_options(const TR_MON_OPT_TYPE *opts)
 /**
  * @return show command with every option
  */
-static TR_MON_REQ *show_all_options()
+static MON_REQ *show_all_options()
 {
-  TR_MON_OPT_TYPE opts[] = {
+  MON_OPT_TYPE opts[] = {
       OPT_TYPE_SHOW_SERIAL,
       OPT_TYPE_SHOW_VERSION,
       OPT_TYPE_SHOW_UPTIME,
@@ -80,28 +80,28 @@ static char *read_file(const char *filename)
   return s;
 }
 
-static int equal(TR_MON_REQ *r1, TR_MON_REQ *r2)
+static int equal(MON_REQ *r1, MON_REQ *r2)
 {
   size_t ii;
 
   if (r1->command != r2->command)
     return 0;
 
-  if (tr_mon_req_opt_count(r1) != tr_mon_req_opt_count(r2))
+  if (mon_req_opt_count(r1) != mon_req_opt_count(r2))
     return 0;
 
-  for (ii=0; ii < tr_mon_req_opt_count(r1); ii++) {
-    if (tr_mon_req_opt_index(r1, ii)->type != tr_mon_req_opt_index(r2, ii)->type)
+  for (ii=0; ii < mon_req_opt_count(r1); ii++) {
+    if (mon_req_opt_index(r1, ii)->type != mon_req_opt_index(r2, ii)->type)
       return 0;
   }
 
   return 1;
 }
 
-static int run_test(const char *filename, TR_MON_REQ *(generator)())
+static int run_test(const char *filename, MON_REQ *(generator)())
 {
-  TR_MON_REQ *req = NULL;
-  TR_MON_REQ *expected = NULL;
+  MON_REQ *req = NULL;
+  MON_REQ *expected = NULL;
   char *req_json_str = NULL;
 
   expected = generator();
@@ -110,13 +110,13 @@ static int run_test(const char *filename, TR_MON_REQ *(generator)())
   req_json_str = read_file(filename);
   assert(req_json_str);
 
-  req = tr_mon_req_decode(NULL, req_json_str);
+  req = mon_req_decode(NULL, req_json_str);
   assert(req);
   assert(equal(req, expected));
 
   free(req_json_str);
-  tr_mon_req_free(req);
-  tr_mon_req_free(expected);
+  mon_req_free(req);
+  mon_req_free(expected);
 
   return 1;
 }

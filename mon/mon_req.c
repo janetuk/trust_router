@@ -36,16 +36,16 @@
 #include <talloc.h>
 #include <gmodule.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 // Monitoring request message common code
 
 /**
  * Destructor used by talloc to ensure proper cleanup
  */
-static int tr_mon_req_destructor(void *object)
+static int mon_req_destructor(void *object)
 {
-  TR_MON_REQ *req = talloc_get_type_abort(object, TR_MON_REQ);
+  MON_REQ *req = talloc_get_type_abort(object, MON_REQ);
   if (req->options) {
     g_array_unref(req->options);
   }
@@ -59,13 +59,13 @@ static int tr_mon_req_destructor(void *object)
  * @param cmd command for the request
  * @return newly allocated request, or null on error
  */
-TR_MON_REQ *tr_mon_req_new(TALLOC_CTX *mem_ctx, TR_MON_CMD cmd)
+MON_REQ *mon_req_new(TALLOC_CTX *mem_ctx, MON_CMD cmd)
 {
-  TR_MON_REQ *req=talloc(mem_ctx, TR_MON_REQ);
+  MON_REQ *req=talloc(mem_ctx, MON_REQ);
   if (req) {
     req->command = cmd;
-    req->options = g_array_new(FALSE, FALSE, sizeof(TR_MON_OPT));
-    talloc_set_destructor((void *)req, tr_mon_req_destructor);
+    req->options = g_array_new(FALSE, FALSE, sizeof(MON_OPT));
+    talloc_set_destructor((void *)req, mon_req_destructor);
   }
   return req;
 }
@@ -75,40 +75,40 @@ TR_MON_REQ *tr_mon_req_new(TALLOC_CTX *mem_ctx, TR_MON_CMD cmd)
  *
  * @param req request to free, must not be null
  */
-void tr_mon_req_free(TR_MON_REQ *req)
+void mon_req_free(MON_REQ *req)
 {
   talloc_free(req);
 }
 
 /**
- * Add an option to a TR_MON_REQ
+ * Add an option to a MON_REQ
  * @param req request to operate on, not null
  * @param opt_type type of option
- * @return TR_MON_SUCCESS on success, error code on error
+ * @return MON_SUCCESS on success, error code on error
  */
-TR_MON_RC tr_mon_req_add_option(TR_MON_REQ *req, TR_MON_OPT_TYPE opt_type)
+MON_RC mon_req_add_option(MON_REQ *req, MON_OPT_TYPE opt_type)
 {
-  TR_MON_OPT new_opt; // not a pointer
+  MON_OPT new_opt; // not a pointer
 
   /* Validate parameters */
   if ((req == NULL) || (opt_type == OPT_TYPE_UNKNOWN)) {
-    return TR_MON_BADARG;
+    return MON_BADARG;
   }
 
   new_opt.type = opt_type;
 
   /* Add the new option to the list */
   g_array_append_val(req->options, new_opt);
-  return TR_MON_SUCCESS;
+  return MON_SUCCESS;
 }
 
-size_t tr_mon_req_opt_count(TR_MON_REQ *req)
+size_t mon_req_opt_count(MON_REQ *req)
 {
   return req->options->len;
 }
 
-TR_MON_OPT *tr_mon_req_opt_index(TR_MON_REQ *req, size_t index)
+MON_OPT *mon_req_opt_index(MON_REQ *req, size_t index)
 {
-  TR_MON_OPT *result = &g_array_index(req->options, TR_MON_OPT, index);
+  MON_OPT *result = &g_array_index(req->options, MON_OPT, index);
   return result;
 }

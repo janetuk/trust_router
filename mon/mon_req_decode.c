@@ -36,7 +36,7 @@
 #include <talloc.h>
 #include <jansson.h>
 
-#include <tr_mon.h>
+#include <mon_internal.h>
 
 // Monitoring request decoders
 
@@ -48,29 +48,29 @@
  *
  * @param opt_json JSON object reference
  * @param dest allocated memory for the result
- * @return TR_MON_SUCCESS on success, error on error
+ * @return MON_SUCCESS on success, error on error
  */
-static TR_MON_RC tr_mon_decode_one_opt(json_t *opt_json, TR_MON_OPT *dest)
+static MON_RC mon_decode_one_opt(json_t *opt_json, MON_OPT *dest)
 {
   json_t *jstr = NULL;
-  TR_MON_OPT_TYPE opt_type = OPT_TYPE_UNKNOWN;
+  MON_OPT_TYPE opt_type = OPT_TYPE_UNKNOWN;
 
   if ( (opt_json == NULL) || (dest == NULL))
-    return TR_MON_BADARG;
+    return MON_BADARG;
 
   if (! json_is_object(opt_json))
-    return TR_MON_NOPARSE;
+    return MON_NOPARSE;
 
   jstr = json_object_get(opt_json, "type");
   if ( (jstr == NULL) || (! json_is_string(jstr)) )
-    return TR_MON_NOPARSE;
+    return MON_NOPARSE;
 
-  opt_type = opt_type_from_string(json_string_value(jstr));
+  opt_type = mon_opt_type_from_string(json_string_value(jstr));
   if (opt_type == OPT_TYPE_UNKNOWN)
-    return TR_MON_NOPARSE;
+    return MON_NOPARSE;
 
   dest->type = opt_type;
-  return TR_MON_SUCCESS;
+  return MON_SUCCESS;
 }
 
 /**
@@ -80,33 +80,33 @@ static TR_MON_RC tr_mon_decode_one_opt(json_t *opt_json, TR_MON_OPT *dest)
  * [{option}, {option}, ...]
  *
  */
-static TR_MON_RC tr_mon_options_decode(json_t *opts_json, TR_MON_REQ *req)
+static MON_RC mon_options_decode(json_t *opts_json, MON_REQ *req)
 {
-  TR_MON_OPT opt; // not a pointer
+  MON_OPT opt; // not a pointer
   size_t n_opts=0;
   size_t ii=0;
 
   if ( (opts_json == NULL) || (req == NULL))
-    return TR_MON_BADARG;
+    return MON_BADARG;
 
   if (! json_is_array(opts_json))
-    return TR_MON_NOPARSE;
+    return MON_NOPARSE;
 
   n_opts = json_array_size(opts_json);
   for (ii=0; ii < n_opts; ii++) {
-    if (tr_mon_decode_one_opt(json_array_get(opts_json, ii),
-                              &opt) != TR_MON_SUCCESS) {
-      return TR_MON_NOPARSE;
+    if (mon_decode_one_opt(json_array_get(opts_json, ii),
+                           &opt) != MON_SUCCESS) {
+      return MON_NOPARSE;
     }
-    tr_mon_req_add_option(req, opt.type);
+    mon_req_add_option(req, opt.type);
   }
-  return TR_MON_SUCCESS;
+  return MON_SUCCESS;
 }
 
 /**
  * Parse JSON for a request
  */
-static json_t *tr_mon_req_parse(const char *input)
+static json_t *mon_req_parse(const char *input)
 {
   json_t *parsed_json = NULL;
   json_error_t json_error;
@@ -126,22 +126,22 @@ static json_t *tr_mon_req_parse(const char *input)
  *
  * (options are optional)
  *
- * Caller must free the return value with tr_mon_req_free().
+ * Caller must free the return value with MON_REQ_free().
  *
  * @param mem_ctx talloc context for the returned struct
  * @param req_json reference to JSON request object
  * @return decoded request struct or NULL on failure
  */
-TR_MON_REQ *tr_mon_req_decode(TALLOC_CTX *mem_ctx, const char *req_str)
+MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, const char *req_str)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
-  TR_MON_REQ *req = NULL;
+  MON_REQ *req = NULL;
   json_t *req_json = NULL;
   json_t *jval = NULL;
   json_t *opts_json = NULL;
-  TR_MON_CMD cmd = MON_CMD_UNKNOWN;
+  MON_CMD cmd = MON_CMD_UNKNOWN;
 
-  req_json = tr_mon_req_parse(req_str); // TODO: Check errors
+  req_json = mon_req_parse(req_str); // TODO: Check errors
 
   if (! json_is_object(req_json))
     goto cleanup;
@@ -151,19 +151,19 @@ TR_MON_REQ *tr_mon_req_decode(TALLOC_CTX *mem_ctx, const char *req_str)
   if (! json_is_string(jval))
     goto cleanup;
 
-  cmd = cmd_from_string(json_string_value(jval));
+  cmd = mon_cmd_from_string(json_string_value(jval));
   if (cmd == MON_CMD_UNKNOWN)
     goto cleanup;
 
   /* Command is good. Allocate the request in the tmp context */
-  req = tr_mon_req_new(tmp_ctx, cmd);
+  req = mon_req_new(tmp_ctx, cmd);
   if (req == NULL)
     goto cleanup;
 
   /* Parse options if we have any */
   opts_json = json_object_get(req_json, "options");
   if (opts_json) {
-    if (tr_mon_options_decode(opts_json, req) != TR_MON_SUCCESS) {
+    if (mon_options_decode(opts_json, req) != MON_SUCCESS) {
       req = NULL; // memory still in tmp_ctx, so it will be cleaned up
       goto cleanup;
     }
