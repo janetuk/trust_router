@@ -29,7 +29,7 @@ set(SOURCE_FILES
     common/tr_debug.c
     common/tr_dh.c
     common/tr_filter.c
-    common/tr_gss.c
+        common/tr_gss_names.c
     common/tr_idp.c
     common/tr_mq.c
     common/tr_msg.c
@@ -57,7 +57,7 @@ set(SOURCE_FILES
     include/tr_debug.h
     include/tr_event.h
     include/tr_filter.h
-    include/tr_gss.h
+        include/tr_gss_names.h
     include/tr_idp.h
     include/tr_mq.h
     include/tr_msg.h
@@ -91,7 +91,7 @@ set(SOURCE_FILES
     trp/trp_upd.c
     trp/trpc.c
     trp/trps.c include/tr_name_internal.h mon/mon_req.c mon/mon_req_encode.c mon/mon_req_decode.c
-        mon/mon_resp.c mon/mon_common.c mon/mon_resp_encode.c)
+        mon/mon_resp.c mon/mon_common.c mon/mon_resp_encode.c tr/tr_mon.c mon/mons.c include/tr_socket.h)
 
 # Does not actually build!
 add_executable(trust_router ${SOURCE_FILES})

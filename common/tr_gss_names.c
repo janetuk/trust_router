@@ -34,7 +34,7 @@
 
 #include <talloc.h>
 
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 
 static int tr_gss_names_destructor(void *obj)
 {
