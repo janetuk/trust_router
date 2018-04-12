@@ -88,7 +88,7 @@ int main(int argc, const char *argv[])
 
   printf("\nEncoding...\n");
 
-  printf("Result: \n%s\n\n", tr_msg_encode(msg));
+  printf("Result: \n%s\n\n", tr_msg_encode(NULL, msg));
 
   talloc_report_full(main_ctx, stdout);
 

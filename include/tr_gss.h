@@ -32,12 +32,15 @@
  *
  */
 
-#ifndef TRUST_ROUTER_TR_SOCKET_H
-#define TRUST_ROUTER_TR_SOCKET_H
+#ifndef TRUST_ROUTER_TR_GSS_H
+#define TRUST_ROUTER_TR_GSS_H
 
-#include <stdlib.h>
-#include <poll.h> // for nfds_t
+#include <tr_msg.h>
 
-nfds_t tr_sock_listen_all(unsigned int port, int *fd_out, nfds_t max_fd);
+typedef int (TR_GSS_AUTH_FN)(gss_name_t, gss_buffer_t, void *);
+typedef char *(TR_GSS_HANDLE_REQ_FN)(TALLOC_CTX *, const char *, void *);
 
-#endif //TRUST_ROUTER_TR_SOCKET_H
+void tr_gss_handle_connection(int conn, const char *acceptor_name, const char *acceptor_realm, TR_GSS_AUTH_FN auth_cb,
+                              void *auth_cookie, TR_GSS_HANDLE_REQ_FN req_cb, void *req_cookie);
+
+#endif //TRUST_ROUTER_TR_GSS_H

@@ -49,13 +49,15 @@
 #include <tr_debug.h>
 #include <tr_msg.h>
 #include <tr_socket.h>
+#include <tr_gss.h>
+#include <tr_event.h>
 
-static TID_RESP *tids_create_response (TIDS_INSTANCE *tids, TID_REQ *req) 
+static TID_RESP *tids_create_response(TALLOC_CTX *mem_ctx, TIDS_INSTANCE *tids, TID_REQ *req)
 {
   TID_RESP *resp=NULL;
   int success=0;
 
-  if (NULL == (resp = tid_resp_new(req))) {
+  if (NULL == (resp = tid_resp_new(mem_ctx))) {
     tr_crit("tids_create_response: Error allocating response structure.");
     return NULL;
   }
@@ -89,8 +91,7 @@ static int tids_auth_cb(gss_name_t clientName, gss_buffer_t displayName,
 			void *data)
 {
   struct tids_instance *inst = (struct tids_instance *) data;
-  TR_NAME name ={(char *) displayName->value,
-		 displayName->length};
+  TR_NAME name ={(char *) displayName->value, (int) displayName->length};
   int result=0;
 
   if (0!=inst->auth_handler(clientName, &name, inst->cookie)) {
@@ -101,83 +102,15 @@ static int tids_auth_cb(gss_name_t clientName, gss_buffer_t displayName,
   return result;
 }
 
-/* returns 0 on authorization success, 1 on failure, or -1 in case of error */
-static int tids_auth_connection (TIDS_INSTANCE *inst,
-				 int conn,
-                                 gss_ctx_id_t *gssctx)
-{
-  int rc = 0;
-  int auth, autherr = 0;
-  gss_buffer_desc nameBuffer = {0, NULL};
-  char *name = 0;
-  int nameLen = 0;
-
-  nameLen = asprintf(&name, "trustidentity@%s", inst->hostname);
-  nameBuffer.length = nameLen;
-  nameBuffer.value = name;
-
-  if (rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tids_auth_cb, inst)) {
-    tr_debug("tids_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.", rc);
-    free(name);
-    return -1;
-  }
-  free(name);
-  nameBuffer.value=NULL; nameBuffer.length=0;
-
-  if (rc = gsscon_authorize(*gssctx, &auth, &autherr)) {
-    tr_debug("tids_auth_connection: Error from gsscon_authorize, rc = %d, autherr = %d.", 
-	    rc, autherr);
-    return -1;
-  }
-
-  if (auth)
-    tr_debug("tids_auth_connection: Connection authenticated, conn = %d.", conn);
-  else
-    tr_debug("tids_auth_connection: Authentication failed, conn %d.", conn);
-
-  return !auth;
-}
-
-static int tids_read_request (TIDS_INSTANCE *tids, int conn, gss_ctx_id_t *gssctx, TR_MSG **mreq)
-{
-  int err;
-  char *buf;
-  size_t buflen = 0;
-
-  if (err = gsscon_read_encrypted_token(conn, *gssctx, &buf, &buflen)) {
-    if (buf)
-      free(buf);
-    return -1;
-  }
-
-  tr_debug("tids_read_request():Request Received, %u bytes.", (unsigned) buflen);
-
-  /* Parse request */
-  if (NULL == ((*mreq) = tr_msg_decode(buf, buflen))) {
-    tr_debug("tids_read_request():Error decoding request.");
-    free (buf);
-    return -1;
-  }
-
-  /* If this isn't a TID Request, just drop it. */
-  if (TID_REQUEST != (*mreq)->msg_type) {
-    tr_debug("tids_read_request(): Not a TID Request, dropped.");
-    return -1;
-  }
-
-  free (buf);
-  return buflen;
-}
-
-static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *resp) 
+static int tids_handle_request(TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
 {
   int rc=-1;
 
   /* Check that this is a valid TID Request.  If not, send an error return. */
-  if ((!tr_msg_get_req(mreq)) ||
-      (!tr_msg_get_req(mreq)->rp_realm) ||
-      (!tr_msg_get_req(mreq)->realm) ||
-      (!tr_msg_get_req(mreq)->comm)) {
+  if ((!req) ||
+      (!(req->rp_realm)) ||
+      (!(req->realm)) ||
+      (!(req->comm))) {
     tr_notice("tids_handle_request(): Not a valid TID Request.");
     resp->result = TID_ERROR;
     resp->err_msg = tr_new_name("Bad request format");
@@ -185,11 +118,11 @@ static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *res
   }
 
   tr_debug("tids_handle_request: adding self to req path.");
-  tid_req_add_path(tr_msg_get_req(mreq), tids->hostname, tids->tids_port);
+  tid_req_add_path(req, tids->hostname, tids->tids_port);
   
   /* Call the caller's request handler */
   /* TBD -- Handle different error returns/msgs */
-  if (0 > (rc = (*tids->req_handler)(tids, tr_msg_get_req(mreq), resp, tids->cookie))) {
+  if (0 > (rc = (*tids->req_handler)(tids, req, resp, tids->cookie))) {
     /* set-up an error response */
     tr_debug("tids_handle_request: req_handler returned error.");
     resp->result = TID_ERROR;
@@ -206,51 +139,103 @@ static int tids_handle_request (TIDS_INSTANCE *tids, TR_MSG *mreq, TID_RESP *res
   return rc;
 }
 
+/**
+ * Produces a JSON-encoded msg containing the TID response
+ *
+ * @param mem_ctx talloc context for the return value
+ * @param tids TIDS_INSTANCE handling the request
+ * @param req incoming request
+ * @param resp outgoing response
+ * @return JSON-encoded message containing the TID response
+ */
+static char *tids_encode_response(TALLOC_CTX *mem_ctx, TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
+{
+  TR_MSG mresp;
+  char *resp_buf = NULL;
+
+  /* Construct the response message */
+  mresp.msg_type = TID_RESPONSE;
+  tr_msg_set_resp(&mresp, resp);
+
+  /* Encode the message to JSON */
+  resp_buf = tr_msg_encode(mem_ctx, &mresp);
+  if (resp_buf == NULL) {
+    tr_err("tids_encode_response: Error encoding json response.");
+    return NULL;
+  }
+  tr_debug("tids_encode_response: Encoded response: %s", resp_buf);
+
+  /* Success */
+  return resp_buf;
+}
+
+/**
+ * Encode/send an error response
+ *
+ * Part of the public interface
+ *
+ * @param tids
+ * @param req
+ * @param err_msg
+ * @return
+ */
 int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_msg) {
   TID_RESP *resp = NULL;
   int rc = 0;
+
+  if ((!tids) || (!req) || (!err_msg)) {
+    tr_debug("tids_send_err_response: Invalid parameters.");
+    return -1;
+  }
 
   /* If we already sent a response, don't send another no matter what. */
   if (req->resp_sent)
     return 0;
 
-  if (NULL == (resp = tids_create_response(tids, req))) {
+  if (NULL == (resp = tids_create_response(req, tids, req))) {
     tr_crit("tids_send_err_response: Can't create response.");
     return -1;
   }
-  
+
   /* mark this as an error response, and include the error message */
   resp->result = TID_ERROR;
   resp->err_msg = tr_new_name((char *)err_msg);
   resp->error_path = req->path;
 
   rc = tids_send_response(tids, req, resp);
-  
+
   tid_resp_free(resp);
   return rc;
 }
 
+/**
+ * Encode/send a response
+ *
+ * Part of the public interface
+ *
+ * @param tids
+ * @param req
+ * @param resp
+ * @return
+ */
 int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
 {
   int err;
-  TR_MSG mresp;
   char *resp_buf;
 
-  if ((!tids) || (!req) || (!resp))
+  if ((!tids) || (!req) || (!resp)) {
     tr_debug("tids_send_response: Invalid parameters.");
+    return -1;
+  }
 
   /* Never send a second response if we already sent one. */
   if (req->resp_sent)
     return 0;
 
-  mresp.msg_type = TID_RESPONSE;
-  tr_msg_set_resp(&mresp, resp);
-
-  if (NULL == (resp_buf = tr_msg_encode(&mresp))) {
-
+  resp_buf = tids_encode_response(NULL, tids, req, resp);
+  if (resp_buf == NULL) {
     tr_err("tids_send_response: Error encoding json response.");
     tr_audit_req(req);
-
     return -1;
   }
 
@@ -261,12 +246,11 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
   tr_audit_resp(resp);
 
   /* Send the response over the connection */
-  if (err = gsscon_write_encrypted_token (req->conn, req->gssctx, resp_buf, 
-					  strlen(resp_buf) + 1)) {
+  err = gsscon_write_encrypted_token (req->conn, req->gssctx, resp_buf,
+                                            strlen(resp_buf) + 1);
+  if (err) {
     tr_notice("tids_send_response: Error sending response over connection.");
-
     tr_audit_req(req);
-
     return -1;
   }
 
@@ -278,69 +262,82 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
   return 0;
 }
 
-static void tids_handle_connection (TIDS_INSTANCE *tids, int conn)
+/**
+ * Callback to process a request and produce a response
+ *
+ * @param req_str JSON-encoded request
+ * @param data pointer to a TIDS_INSTANCE
+ * @return pointer to the response string or null to send no response
+ */
+static char *tids_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
 {
+  TIDS_INSTANCE *tids = talloc_get_type_abort(data, TIDS_INSTANCE);
   TR_MSG *mreq = NULL;
+  TID_REQ *req = NULL;
   TID_RESP *resp = NULL;
+  char *resp_str = NULL;
   int rc = 0;
-  gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
 
-  if (tids_auth_connection(tids, conn, &gssctx)) {
-    tr_notice("tids_handle_connection: Error authorizing TID Server connection.");
-    close(conn);
-    return;
+  mreq = tr_msg_decode(req_str, strlen(req_str)); // allocates memory on success!
+  if (mreq == NULL) {
+    tr_debug("tids_req_cb: Error decoding request.");
+    return NULL;
   }
 
-  tr_debug("tids_handle_connection: Connection authorized!");
+  /* If this isn't a TID Request, just drop it. */
+  if (mreq->msg_type != TID_REQUEST) {
+    tr_msg_free_decoded(mreq);
+    tr_debug("tids_req_cb: Not a TID request, dropped.");
+    return NULL;
+  }
 
-  while (1) {	/* continue until an error breaks us out */
+  /* Get a handle on the request itself. Don't free req - it belongs to mreq */
+  req = tr_msg_get_req(mreq);
 
-    if (0 > (rc = tids_read_request(tids, conn, &gssctx, &mreq))) {
-      tr_debug("tids_handle_connection: Error from tids_read_request(), rc = %d.", rc);
-      return;
-    } else if (0 == rc) {
-      continue;
-    }
+  /* Allocate a response structure and populate common fields. The resp is in req's talloc context,
+   * which will be cleaned up when mreq is freed. */
+  resp = tids_create_response(req, tids, req);
+  if (resp == NULL) {
+    /* If we were unable to create a response, we cannot reply. Log an
+     * error if we can, then drop the request. */
+    tr_msg_free_decoded(mreq);
+    tr_crit("tids_req_cb: Error creating response structure.");
+    return NULL;
+  }
 
-    /* Put connection information into the request structure */
-    tr_msg_get_req(mreq)->conn = conn;
-    tr_msg_get_req(mreq)->gssctx = gssctx;
+  /* Handle the request and fill in resp */
+  rc = tids_handle_request(tids, req, resp);
+  if (rc < 0) {
+    tr_debug("tids_req_cb: Error from tids_handle_request(), rc = %d.", rc);
+    /* Fall through, to send the response, either way */
+  }
 
-    /* Allocate a response structure and populate common fields */
-    if (NULL == (resp = tids_create_response (tids, tr_msg_get_req(mreq)))) {
-      tr_crit("tids_handle_connection: Error creating response structure.");
-      /* try to send an error */
-      tids_send_err_response(tids, tr_msg_get_req(mreq), "Error creating response.");
-      tr_msg_free_decoded(mreq);
-      return;
-    }
+  /* Convert the completed response into an encoded response */
+  resp_str = tids_encode_response(mem_ctx, tids, req, resp);
 
-    if (0 > (rc = tids_handle_request(tids, mreq, resp))) {
-      tr_debug("tids_handle_connection: Error from tids_handle_request(), rc = %d.", rc);
-      /* Fall through, to send the response, either way */
-    }
-
-    if (0 > (rc = tids_send_response(tids, tr_msg_get_req(mreq), resp))) {
-      tr_debug("tids_handle_connection: Error from tids_send_response(), rc = %d.", rc);
-      /* if we didn't already send a response, try to send a generic error. */
-      if (!tr_msg_get_req(mreq)->resp_sent)
-        tids_send_err_response(tids, tr_msg_get_req(mreq), "Error sending response.");
-      /* Fall through to free the response, either way. */
-    }
-    
-    tr_msg_free_decoded(mreq); /* takes resp with it */
-    return;
-  } 
+  /* Finished; free the request and return */
+  tr_msg_free_decoded(mreq); // this frees req and resp, too
+  return resp_str;
 }
 
-TIDS_INSTANCE *tids_create (void)
+TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
+{
+  return talloc_zero(mem_ctx, TIDS_INSTANCE);
+}
+
+/**
+ * Create a new TIDS instance
+ *
+ * Deprecated: exists for ABI compatibility, but tids_new() should be used instead
+ *
+ */
+TIDS_INSTANCE *tids_create(void)
 {
   return talloc_zero(NULL, TIDS_INSTANCE);
 }
-
 /* Get a listener for tids requests, returns its socket fd. Accept
  * connections with tids_accept() */
-int tids_get_listener(TIDS_INSTANCE *tids, 
+int tids_get_listener(TIDS_INSTANCE *tids,
                       TIDS_REQ_FUNC *req_handler,
                       tids_auth_func *auth_handler,
                       const char *hostname,
@@ -349,13 +346,13 @@ int tids_get_listener(TIDS_INSTANCE *tids,
                       int *fd_out,
                       size_t max_fd)
 {
-  size_t n_fd=0;
-  size_t ii=0;
+  nfds_t n_fd = 0;
+  nfds_t ii = 0;
 
   tids->tids_port = port;
-  n_fd=listen_on_all_addrs(port, fd_out, max_fd);
+  n_fd = tr_sock_listen_all(port, fd_out, max_fd);
 
-  if (n_fd<=0)
+  if (n_fd == 0)
     tr_err("tids_get_listener: Error opening port %d");
   else {
     /* opening port succeeded */
@@ -369,13 +366,13 @@ int tids_get_listener(TIDS_INSTANCE *tids,
           close(fd_out[ii]);
           fd_out[ii]=-1;
         }
-        n_fd=0;
+        n_fd = 0;
         break;
       }
     }
   }
 
-  if (n_fd>0) {
+  if (n_fd > 0) {
     /* store the caller's request handler & cookie */
     tids->req_handler = req_handler;
     tids->auth_handler = auth_handler;
@@ -383,7 +380,7 @@ int tids_get_listener(TIDS_INSTANCE *tids,
     tids->cookie = cookie;
   }
 
-  return n_fd;
+  return (int)n_fd;
 }
 
 /* Accept and process a connection on a port opened with tids_get_listener() */
@@ -404,7 +401,11 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
 
   if (pid == 0) {
     close(listen);
-    tids_handle_connection(tids, conn);
+    tr_gss_handle_connection(conn,
+                             "trustidentity", tids->hostname, /* acceptor name */
+                             tids_auth_cb, tids, /* auth callback and cookie */
+                             tids_req_cb, tids /* req callback and cookie */
+    );
     close(conn);
     exit(0); /* exit to kill forked child process */
   } else {
@@ -418,20 +419,19 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
 }
 
 /* Process tids requests forever. Should not return except on error. */
-#define MAX_SOCKETS 10
-int tids_start (TIDS_INSTANCE *tids, 
+int tids_start (TIDS_INSTANCE *tids,
                 TIDS_REQ_FUNC *req_handler,
                 tids_auth_func *auth_handler,
                 const char *hostname,
                 unsigned int port,
                 void *cookie)
 {
-  int fd[MAX_SOCKETS]={0};
-  size_t n_fd=0;
-  struct pollfd poll_fd[MAX_SOCKETS]={{0}};
+  int fd[TR_MAX_SOCKETS]={0};
+  nfds_t n_fd=0;
+  struct pollfd poll_fd[TR_MAX_SOCKETS]={{0}};
   int ii=0;
 
-  n_fd=tids_get_listener(tids, req_handler, auth_handler, hostname, port, cookie, fd, MAX_SOCKETS);
+  n_fd=tids_get_listener(tids, req_handler, auth_handler, hostname, port, cookie, fd, TR_MAX_SOCKETS);
   if (n_fd <= 0) {
     perror ("Error from tids_listen()");
     return 1;
@@ -475,7 +475,6 @@ int tids_start (TIDS_INSTANCE *tids,
 
   return 1;	/* should never get here, loops "forever" */
 }
-#undef MAX_SOCKETS
 
 void tids_destroy (TIDS_INSTANCE *tids)
 {

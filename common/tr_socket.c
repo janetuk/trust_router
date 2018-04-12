@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <poll.h> // for nfds_t
 
 #include <tr_debug.h>
 #include <tr_socket.h>
@@ -53,7 +54,7 @@
  * @param max_fd maximum number of file descriptors to write
  * @return number of file descriptors written into the output array
  */
-ssize_t listen_on_all_addrs(unsigned int port, int *fd_out, size_t max_fd)
+nfds_t tr_sock_listen_all(unsigned int port, int *fd_out, nfds_t max_fd)
 {
   int rc = 0;
   int conn = -1;
@@ -68,26 +69,26 @@ ssize_t listen_on_all_addrs(unsigned int port, int *fd_out, size_t max_fd)
       .ai_protocol=IPPROTO_TCP
   };
   char *port_str=NULL;
-  size_t n_opened=0;
+  nfds_t n_opened=0;
 
   port_str=talloc_asprintf(NULL, "%d", port);
   if (port_str==NULL) {
-    tr_err("listen_on_all_addrs: unable to allocate port");
-    return -1;
+    tr_err("tr_sock_listen_all: unable to allocate port");
+    return 0;
   }
 
   gai_retval = getaddrinfo(NULL, port_str, &hints, &ai_head);
   talloc_free(port_str);
   if (gai_retval != 0) {
-    tr_err("listen_on_all_addrs: getaddrinfo() failed (%s)", gai_strerror(gai_retval));
-    return -1;
+    tr_err("tr_sock_listen_all: getaddrinfo() failed (%s)", gai_strerror(gai_retval));
+    return 0;
   }
-  tr_debug("listen_on_all_addrs: got address info");
+  tr_debug("tr_sock_listen_all: got address info");
 
   /* TODO: listen on all ports - I don't recall what this means (jlr, 4/11/2018) */
   for (ai=ai_head,n_opened=0; (ai!=NULL)&&(n_opened<max_fd); ai=ai->ai_next) {
     if (0 > (conn = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol))) {
-      tr_debug("listen_on_all_addrs: unable to open socket");
+      tr_debug("tr_sock_listen_all: unable to open socket");
       continue;
     }
 
@@ -99,7 +100,7 @@ ssize_t listen_on_all_addrs(unsigned int port, int *fd_out, size_t max_fd)
       /* don't allow IPv4-mapped IPv6 addresses (per RFC4942, not sure
        * if still relevant) */
       if (0!=setsockopt(conn, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval))) {
-        tr_debug("listen_on_all_addrs: unable to set IPV6_V6ONLY, skipping interface");
+        tr_debug("tr_sock_listen_all: unable to set IPV6_V6ONLY, skipping interface");
         close(conn);
         continue;
       }
@@ -107,13 +108,13 @@ ssize_t listen_on_all_addrs(unsigned int port, int *fd_out, size_t max_fd)
 
     rc=bind(conn, ai->ai_addr, ai->ai_addrlen);
     if (rc<0) {
-      tr_debug("listen_on_all_addrs: unable to bind to socket");
+      tr_debug("tr_sock_listen_all: unable to bind to socket");
       close(conn);
       continue;
     }
 
     if (0>listen(conn, 512)) {
-      tr_debug("listen_on_all_addrs: unable to listen on bound socket");
+      tr_debug("tr_sock_listen_all: unable to listen on bound socket");
       close(conn);
       continue;
     }
@@ -124,14 +125,15 @@ ssize_t listen_on_all_addrs(unsigned int port, int *fd_out, size_t max_fd)
   freeaddrinfo(ai_head);
 
   if (n_opened==0) {
-    tr_debug("listen_on_all_addrs: no addresses available for listening.");
-    return -1;
+    tr_debug("tr_sock_listen_all: no addresses available for listening.");
+    return 0;
   }
 
-  tr_debug("listen_on_all_addrs: monitoring interface listening on port %d on %d socket%s",
+  tr_debug("tr_sock_listen_all: monitoring interface listening on port %d on %d socket%s",
            port,
            n_opened,
            (n_opened==1)?"":"s");
 
   return n_opened;
 }
+

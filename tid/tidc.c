@@ -157,7 +157,7 @@ int tidc_fwd_request(TIDC_INSTANCE *tidc,
 
 
   /* Encode the request into a json string */
-  if (!(req_buf = tr_msg_encode(msg))) {
+  if (!(req_buf = tr_msg_encode(NULL, msg))) {
     tr_err("tidc_fwd_request: Error encoding TID request.\n");
     goto error;
   }

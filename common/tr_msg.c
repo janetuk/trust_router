@@ -1144,10 +1144,11 @@ cleanup:
   return req;
 }
 
-char *tr_msg_encode(TR_MSG *msg) 
+char *tr_msg_encode(TALLOC_CTX *mem_ctx, TR_MSG *msg)
 {
   json_t *jmsg=NULL;
   json_t *jmsg_type=NULL;
+  char *encoded_tmp=NULL;
   char *encoded=NULL;
   TID_RESP *tidresp=NULL;
   TID_REQ *tidreq=NULL;
@@ -1192,9 +1193,14 @@ char *tr_msg_encode(TR_MSG *msg)
       return NULL;
     }
 
-  encoded=json_dumps(jmsg, 0);
+  /* We should perhaps use json_set_alloc_funcs to automatically use talloc, but for
+   * now, we'll encode to a malloc'ed buffer, then copy that to a talloc'ed buffer. */
+  encoded_tmp=json_dumps(jmsg, 0);                // malloc'ed version
+  json_decref(jmsg);                              // free the JSON structure
+  encoded = talloc_strdup(mem_ctx, encoded_tmp);  // get the talloc'ed version
+  free(encoded_tmp);                              // free the malloc'ed version
+
   tr_debug("tr_msg_encode: outgoing msg=%s", encoded);
-  json_decref(jmsg);
   return encoded;
 }
 

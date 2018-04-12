@@ -39,6 +39,7 @@
 #include <sys/time.h>
 #include <glib.h>
 #include <string.h>
+#include <poll.h> // for nfds_t
 
 #include <gsscon.h>
 #include <tr_comm.h>
@@ -46,7 +47,7 @@
 #include <tr_rp.h>
 #include <tr_name_internal.h>
 #include <trp_internal.h>
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
@@ -384,12 +385,12 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       int *fd_out,
                       size_t max_fd)
 {
-  size_t n_fd=0;
-  size_t ii=0;
+  nfds_t n_fd=0;
+  nfds_t ii=0;
 
-  n_fd=listen_on_all_addrs(port, fd_out, max_fd);
+  n_fd = tr_sock_listen_all(port, fd_out, max_fd);
 
-  if (n_fd==0)
+  if (n_fd == 0)
     tr_err("trps_get_listener: Error opening port %d.");
   else {
     /* opening port succeeded */
@@ -403,13 +404,13 @@ int trps_get_listener(TRPS_INSTANCE *trps,
           close(fd_out[ii]);
           fd_out[ii]=-1;
         }
-        n_fd=0;
+        n_fd = 0;
         break;
       }
     }
   }
 
-  if (n_fd>0) {
+  if (n_fd > 0) {
     /* store the caller's request handler & cookie */
     trps->msg_handler = msg_handler;
     trps->auth_handler = auth_handler;
@@ -418,7 +419,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
     trps->cookie = cookie;
   }
 
-  return n_fd;
+  return (int) n_fd;
 }
 
 TRP_RC trps_authorize_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
@@ -1747,7 +1748,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
         upd = (TRP_UPD *) g_ptr_array_index(updates, ii);
         /* now encode the update message */
         tr_msg_set_trp_upd(&msg, upd);
-        encoded = tr_msg_encode(&msg);
+        encoded = tr_msg_encode(NULL, &msg);
         if (encoded == NULL) {
           tr_err("trps_update_one_peer: error encoding update.");
           rc = TRP_ERROR;
@@ -1932,7 +1933,7 @@ TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_servicename)
   }
 
   tr_msg_set_trp_req(&msg, req);
-  encoded=tr_msg_encode(&msg);
+  encoded= tr_msg_encode(NULL, &msg);
   if (encoded==NULL) {
     tr_err("trps_wildcard_route_req: error encoding wildcard TRP request.");
     rc=TRP_ERROR;

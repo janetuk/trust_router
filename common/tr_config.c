@@ -41,7 +41,7 @@
 #include <tr_cfgwatch.h>
 #include <tr_comm.h>
 #include <tr_config.h>
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <tr_debug.h>
 #include <tr_filter.h>
 #include <trust_router/tr_constraint.h>

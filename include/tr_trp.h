@@ -44,6 +44,7 @@
 #include <tr_config.h>
 #include <tr_cfgwatch.h>
 #include <tr_event.h>
+#include <mon_internal.h>
 
 typedef struct tr_trps_events {
   struct event *trps_ev;
@@ -59,6 +60,7 @@ struct tr_instance {
   TR_CFG_MGR *cfg_mgr;
   TIDS_INSTANCE *tids;
   TRPS_INSTANCE *trps;
+  MONS_INSTANCE *mons;
   TR_CFGWATCH *cfgwatch;
   TR_TRPS_EVENTS *events;
 };

@@ -36,7 +36,7 @@
 #include <talloc.h>
 #include <assert.h>
 
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <trp_internal.h>
 #include <trp_ptable.h>
 

@@ -97,7 +97,7 @@ struct tids_instance {
   TIDS_REQ_FUNC *req_handler;
   tids_auth_func *auth_handler;
   void *cookie;
-  uint16_t tids_port;
+  unsigned int tids_port;
   TR_NAME *gss_name;		/* GSS name client used for authentication */
 };
 

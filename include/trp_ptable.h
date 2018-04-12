@@ -39,7 +39,7 @@
 #include <talloc.h>
 
 #include <tr_name_internal.h>
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <trust_router/trp.h>
 #include <tr_filter.h>
 

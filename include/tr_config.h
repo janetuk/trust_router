@@ -73,6 +73,7 @@ typedef struct tr_cfg_internal {
   unsigned int max_tree_depth;
   unsigned int tids_port;
   unsigned int trps_port;
+  unsigned int monitoring_port;
   const char *hostname;
   int log_threshold;
   int console_threshold;
