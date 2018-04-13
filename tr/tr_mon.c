@@ -158,12 +158,11 @@ int tr_mons_event_init(struct event_base *base,
   talloc_steal(mons, cookie);
 
   /* get a monitoring interface listener */
-  mons_ev->n_sock_fd = mons_get_listener(mons,
-                                         tr_mons_req_handler,
+  mons_ev->n_sock_fd = mons_get_listener(mons, tr_mons_req_handler,
                                          tr_mons_auth_handler,
+                                         cfg_mgr->active->internal->hostname,
                                          cfg_mgr->active->internal->monitoring_port,
-                                         (void *)cookie,
-                                         mons_ev->sock_fd,
+                                         (void *) cookie, mons_ev->sock_fd,
                                          TR_MAX_SOCKETS);
   if (mons_ev->n_sock_fd==0) {
     tr_crit("Error opening monitoring interface socket.");

@@ -98,13 +98,8 @@ static char *mons_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
  * @param max_fd
  * @return
  */
-int mons_get_listener(MONS_INSTANCE *mons,
-                      MONS_REQ_FUNC *req_handler,
-                      MONS_AUTH_FUNC *auth_handler,
-                      unsigned int port,
-                      void *cookie,
-                      int *fd_out,
-                      size_t max_fd)
+int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH_FUNC *auth_handler, const char *hostname,
+                      unsigned int port, void *cookie, int *fd_out, size_t max_fd)
 {
   size_t n_fd=0;
   size_t ii=0;
@@ -135,6 +130,7 @@ int mons_get_listener(MONS_INSTANCE *mons,
     /* store the caller's request handler & cookie */
     mons->req_handler = req_handler;
     mons->auth_handler = auth_handler;
+    mons->hostname = hostname;
     mons->cookie = cookie;
   }
 

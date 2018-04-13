@@ -101,8 +101,8 @@ static int tids_handle_request(TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp
       (!(req->realm)) ||
       (!(req->comm))) {
     tr_notice("tids_handle_request(): Not a valid TID Request.");
-    resp->result = TID_ERROR;
-    resp->err_msg = tr_new_name("Bad request format");
+    tid_resp_set_result(resp, TID_ERROR);
+    tid_resp_set_err_msg(resp, tr_new_name("Bad request format"));
     return -1;
   }
 
@@ -114,14 +114,13 @@ static int tids_handle_request(TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp
   if (0 > (rc = (*tids->req_handler)(tids, req, resp, tids->cookie))) {
     /* set-up an error response */
     tr_debug("tids_handle_request: req_handler returned error.");
-    resp->result = TID_ERROR;
-    if (!resp->err_msg)	/* Use msg set by handler, if any */
-      resp->err_msg = tr_new_name("Internal processing error");
-  }
-  else {
+    tid_resp_set_result(resp, TID_ERROR);
+    if (!tid_resp_get_err_msg(resp))	/* Use msg set by handler, if any */
+      tid_resp_set_err_msg(resp, tr_new_name("Internal processing error"));
+  } else {
     /* set-up a success response */
     tr_debug("tids_handle_request: req_handler returned success.");
-    resp->result = TID_SUCCESS;
+    tid_resp_set_result(resp, TID_SUCCESS);
     resp->err_msg = NULL;	/* No error msg on successful return */
   }
     
@@ -300,7 +299,7 @@ static char *tids_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
   }
 
   /* Convert the completed response into an encoded response */
-  resp_str = tids_encode_response(mem_ctx, NULL);
+  resp_str = tids_encode_response(mem_ctx, resp);
 
   /* Finished; free the request and return */
   tr_msg_free_decoded(mreq); // this frees req and resp, too

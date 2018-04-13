@@ -115,6 +115,7 @@ TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *new);
 #define tid_srvr_blk_add(head, new) ((head)=tid_srvr_blk_add_func((head),(new)))
 void tid_srvr_blk_set_path(TID_SRVR_BLK *block, TID_PATH *path);
 
+TID_RC tid_resp_cpy(TID_RESP *dst, TID_RESP *src);
 void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons);
 void tid_resp_set_error_path(TID_RESP *resp, json_t *ep);
 
