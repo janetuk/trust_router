@@ -37,10 +37,8 @@
 #include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
-#include <errno.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
-#include <netdb.h>
 #include <jansson.h>
 #include <talloc.h>
 #include <poll.h>
@@ -52,7 +50,14 @@
 #include <tr_gss.h>
 #include <tr_event.h>
 
-static TID_RESP *tids_create_response(TALLOC_CTX *mem_ctx, TIDS_INSTANCE *tids, TID_REQ *req)
+/**
+ * Create a response with minimal fields filled in
+ *
+ * @param mem_ctx talloc context for the return value
+ * @param req request to respond to
+ * @return new response structure allocated in the mem_ctx context
+ */
+static TID_RESP *tids_create_response(TALLOC_CTX *mem_ctx, TID_REQ *req)
 {
   TID_RESP *resp=NULL;
   int success=0;
@@ -127,12 +132,10 @@ static int tids_handle_request(TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp
  * Produces a JSON-encoded msg containing the TID response
  *
  * @param mem_ctx talloc context for the return value
- * @param tids TIDS_INSTANCE handling the request
- * @param req incoming request
  * @param resp outgoing response
  * @return JSON-encoded message containing the TID response
  */
-static char *tids_encode_response(TALLOC_CTX *mem_ctx, TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
+static char *tids_encode_response(TALLOC_CTX *mem_ctx, TID_RESP *resp)
 {
   TR_MSG mresp;
   char *resp_buf = NULL;
@@ -176,7 +179,7 @@ int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_m
   if (req->resp_sent)
     return 0;
 
-  if (NULL == (resp = tids_create_response(req, tids, req))) {
+  if (NULL == (resp = tids_create_response(req, req))) {
     tr_crit("tids_send_err_response: Can't create response.");
     return -1;
   }
@@ -197,7 +200,7 @@ int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_m
  *
  * Part of the public interface
  *
- * @param tids
+ * @param tids not actually used, but kept for ABI compatibility
  * @param req
  * @param resp
  * @return
@@ -216,7 +219,7 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
   if (req->resp_sent)
     return 0;
 
-  resp_buf = tids_encode_response(NULL, tids, req, resp);
+  resp_buf = tids_encode_response(NULL, NULL);
   if (resp_buf == NULL) {
     tr_err("tids_send_response: Error encoding json response.");
     tr_audit_req(req);
@@ -280,7 +283,7 @@ static char *tids_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
 
   /* Allocate a response structure and populate common fields. The resp is in req's talloc context,
    * which will be cleaned up when mreq is freed. */
-  resp = tids_create_response(req, tids, req);
+  resp = tids_create_response(req, req);
   if (resp == NULL) {
     /* If we were unable to create a response, we cannot reply. Log an
      * error if we can, then drop the request. */
@@ -297,7 +300,7 @@ static char *tids_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
   }
 
   /* Convert the completed response into an encoded response */
-  resp_str = tids_encode_response(mem_ctx, tids, req, resp);
+  resp_str = tids_encode_response(mem_ctx, NULL);
 
   /* Finished; free the request and return */
   tr_msg_free_decoded(mreq); // this frees req and resp, too
