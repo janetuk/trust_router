@@ -38,8 +38,9 @@ trp/trp_upd.c \
 common/tr_config.c \
 common/tr_mq.c
 
-mon_srcs =                      \
-    mon/mon_common.c                \
+mon_srcs =                   \
+    mon/mons.c               \
+    mon/mon_common.c         \
     mon/mon_req.c            \
     mon/mon_req_encode.c     \
     mon/mon_req_decode.c     \
@@ -78,9 +79,11 @@ tr/tr_event.c \
 tr/tr_cfgwatch.c \
 tr/tr_tid.c \
 tr/tr_trp.c \
+tr/tr_mon.c \
 common/tr_gss.c \
 $(tid_srcs) \
 $(trp_srcs) \
+$(mon_srcs) \
 $(common_srcs)
 
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads -pthread
@@ -212,7 +215,7 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_msg.h include/tr.h \
 	include/tr_idp.h include/tr_rp.h \
 	include/tr_comm.h include/tr_apc.h \
-	include/tr_tid.h include/tr_trp.h \
+	include/tr_tid.h include/tr_trp.h include/tr_mon.h \
 	include/tr_filter.h include/tr_gss_names.h \
 	include/tid_internal.h include/trp_internal.h \
 	include/tr_cfgwatch.h include/tr_event.h \

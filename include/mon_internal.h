@@ -40,8 +40,7 @@
 #include <stdint.h>
 #include <jansson.h>
 #include <gmodule.h>
-
-#include <tr.h>
+#include <trp_internal.h>
 #include <tr_gss_names.h>
 #include <tr_name_internal.h>
 #include <gssapi.h>

@@ -55,7 +55,10 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
   MONS_INSTANCE *mons = talloc(mem_ctx, MONS_INSTANCE);
 
   if (mons) {
+    mons->hostname = NULL;
     mons->port = 0;
+    mons->tids = NULL;
+    mons->trps = NULL;
     mons->req_handler = NULL;
     mons->auth_handler = NULL;
     mons->cookie = NULL;
@@ -66,6 +69,18 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
     }
   }
   return mons;
+}
+
+/**
+ * Callback to process a request and produce a response
+ *
+ * @param req_str JSON-encoded request
+ * @param data pointer to a MONS_INSTANCE
+ * @return pointer to the response string or null to send no response
+ */
+static char *mons_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
+{
+  return "This is a response.";
 }
 
 /**

@@ -37,6 +37,7 @@
 #include <tr_config.h>
 #include <tr_debug.h>
 #include <mon_internal.h>
+#include <tr_mon.h>
 
 /*
  * Cookie for the event handling callback
@@ -128,7 +129,10 @@ static int tr_mons_auth_handler(gss_name_t client_name, TR_NAME *gss_name, void 
  * @param mons_ev monitoring interface event instance
  * @return 0 on success, nonzero on failure.
  * */
-int tr_mon_event_init(struct event_base *base, MONS_INSTANCE *mons, TR_CFG_MGR *cfg_mgr, struct tr_socket_event *mons_ev)
+int tr_mons_event_init(struct event_base *base,
+                       MONS_INSTANCE *mons,
+                       TR_CFG_MGR *cfg_mgr,
+                       struct tr_socket_event *mons_ev)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_mons_event_cookie *cookie=NULL;
