@@ -42,6 +42,7 @@
 #include <mon_internal.h>
 #include <tr_socket.h>
 #include <sys/wait.h>
+#include <tr_gss.h>
 
 /**
  * Allocate a new MONS_INSTANCE
@@ -149,7 +150,11 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
 
   if (pid == 0) {
     close(listen);
-    mons_handle_connection(mons, conn);
+    tr_gss_handle_connection(conn,
+                             "trustmonitor", mons->hostname, /* acceptor name */
+                             mons->auth_handler, mons->cookie, /* auth callback and cookie */
+                             mons_req_cb, mons /* req callback and cookie */
+    );
     close(conn);
     exit(0); /* exit to kill forked child process */
   } else {

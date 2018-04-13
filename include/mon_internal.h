@@ -119,8 +119,11 @@ struct mon_resp {
 
 /* Monitoring server instance */
 struct mons_instance {
+  char *hostname;
   unsigned int port;
   TR_GSS_NAMES *authorized_gss_names;
+  TIDS_INSTANCE *tids;
+  TRPS_INSTANCE *trps;
   MONS_REQ_FUNC *req_handler;
   MONS_AUTH_FUNC *auth_handler;
   void *cookie;
@@ -161,5 +164,6 @@ json_t *mon_resp_encode(MON_RESP *resp);
 MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx);
 int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH_FUNC *auth_handler, unsigned int port,
                       void *cookie, int *fd_out, size_t max_fd);
+int mons_accept(MONS_INSTANCE *mons, int listen);
 
 #endif //TRUST_ROUTER_MON_REQ_H

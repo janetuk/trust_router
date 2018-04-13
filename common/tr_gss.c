@@ -41,9 +41,49 @@
 #include <gsscon.h>
 #include <tr_gss.h>
 
+/**
+ * tr_gss.c - GSS connection handler
+ *
+ * The chief entry point to this module is tr_gss_handle_connection(). This
+ * function accepts an incoming socket connection, runs the GSS authorization
+ * and authentication process, accepts a request, processes it, then sends
+ * the reply and returns without closing the connection.
+ *
+ * Callers need to provide two callbacks, each with a cookie for passing
+ * custom data to the callback.
+ *
+ *   * TR_GSS_AUTH_FN auth_cb: Authorization callback
+ *     - This callback is used during the GSS auth process to determine whether
+ *       a credential should be authorized to connect.
+ *
+ *   * TR_GSS_HANDLE_REQ_FN req_cb: Request handler callback
+ *     - After auth, this callback is passed the string form of the incoming request.
+ *       It should process the request and return a string form of the outgoing
+ *       response, if any.
+ */
+
+typedef struct tr_gss_cookie {
+  TR_GSS_AUTH_FN *auth_cb;
+  void *auth_cookie;
+} TR_GSS_COOKIE;
+
+static int tr_gss_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data)
+{
+  TR_GSS_COOKIE *cookie = talloc_get_type_abort(data, TR_GSS_COOKIE);
+  TR_NAME name ={(char *) displayName->value, (int) displayName->length};
+  int result=0;
+
+  if (cookie->auth_cb(clientName, &name, cookie->auth_cookie)) {
+    tr_debug("tr_gss_auth_cb: client '%.*s' denied authorization.", name.len, name.buf);
+    result=EACCES; /* denied */
+  }
+
+  return result;
+}
+
 
 /**
- * Callback to handle GSS authentication and authorization
+ * Handle GSS authentication and authorization
  *
  * @param conn connection file descriptor
  * @param acceptor_name name of acceptor to present to initiator
@@ -63,6 +103,7 @@ static int tr_gss_auth_connection(int conn,
   int rc = 0;
   int auth, autherr = 0;
   gss_buffer_desc nameBuffer = {0, NULL};
+  TR_GSS_COOKIE *cookie = NULL;
 
   nameBuffer.value = talloc_asprintf(NULL, "%s@%s", acceptor_name, acceptor_realm);
   if (nameBuffer.value == NULL) {
@@ -71,7 +112,16 @@ static int tr_gss_auth_connection(int conn,
   }
   nameBuffer.length = strlen(nameBuffer.value);
 
-  rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, auth_cb, auth_cookie);
+  /* Set up for the auth callback. There are two layers of callbacks here: we
+   * use our own, which handles gsscon interfacing and calls the auth_cb parameter
+   * to do the actual auth. Store the auth_cb information in a metacookie. */
+  cookie = talloc(NULL, TR_GSS_COOKIE);
+  cookie->auth_cb=auth_cb;
+  cookie->auth_cookie=auth_cookie;
+
+  /* Now call gsscon with *our* auth callback and cookie */
+  rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tr_gss_auth_cb, cookie);
+  talloc_free(cookie);
   talloc_free(nameBuffer.value);
   if (rc) {
     tr_debug("tr_gss_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.", rc);

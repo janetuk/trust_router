@@ -698,14 +698,14 @@ int tr_tids_event_init(struct event_base *base,
   talloc_steal(tids, cookie);
 
   /* get a tids listener */
-  tids_ev->n_sock_fd = tids_get_listener(tids,
-                                         tr_tids_req_handler,
-                                         tr_tids_gss_handler,
-                                         cfg_mgr->active->internal->hostname,
-                                         cfg_mgr->active->internal->tids_port,
-                                         (void *)cookie,
-                                         tids_ev->sock_fd,
-                                         TR_MAX_SOCKETS);
+  tids_ev->n_sock_fd = (int)tids_get_listener(tids,
+                                              tr_tids_req_handler,
+                                              tr_tids_gss_handler,
+                                              cfg_mgr->active->internal->hostname,
+                                              cfg_mgr->active->internal->tids_port,
+                                              (void *)cookie,
+                                              tids_ev->sock_fd,
+                                              TR_MAX_SOCKETS);
   if (tids_ev->n_sock_fd==0) {
     tr_crit("Error opening TID server socket.");
     retval=1;

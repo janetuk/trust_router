@@ -86,22 +86,6 @@ cleanup:
   return resp;
 }
 
-/* returns EACCES if authorization is denied */
-static int tids_auth_cb(gss_name_t clientName, gss_buffer_t displayName,
-			void *data)
-{
-  struct tids_instance *inst = (struct tids_instance *) data;
-  TR_NAME name ={(char *) displayName->value, (int) displayName->length};
-  int result=0;
-
-  if (0!=inst->auth_handler(clientName, &name, inst->cookie)) {
-    tr_debug("tids_auth_cb: client '%.*s' denied authorization.", name.len, name.buf);
-    result=EACCES; /* denied */
-  }
-
-  return result;
-}
-
 static int tids_handle_request(TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
 {
   int rc=-1;
@@ -337,14 +321,14 @@ TIDS_INSTANCE *tids_create(void)
 }
 /* Get a listener for tids requests, returns its socket fd. Accept
  * connections with tids_accept() */
-int tids_get_listener(TIDS_INSTANCE *tids,
-                      TIDS_REQ_FUNC *req_handler,
-                      tids_auth_func *auth_handler,
-                      const char *hostname,
-                      unsigned int port,
-                      void *cookie,
-                      int *fd_out,
-                      size_t max_fd)
+nfds_t tids_get_listener(TIDS_INSTANCE *tids,
+                         TIDS_REQ_FUNC *req_handler,
+                         tids_auth_func *auth_handler,
+                         const char *hostname,
+                         unsigned int port,
+                         void *cookie,
+                         int *fd_out,
+                         size_t max_fd)
 {
   nfds_t n_fd = 0;
   nfds_t ii = 0;
@@ -403,7 +387,7 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
     close(listen);
     tr_gss_handle_connection(conn,
                              "trustidentity", tids->hostname, /* acceptor name */
-                             tids_auth_cb, tids, /* auth callback and cookie */
+                             tids->auth_handler, tids->cookie, /* auth callback and cookie */
                              tids_req_cb, tids /* req callback and cookie */
     );
     close(conn);
@@ -431,7 +415,7 @@ int tids_start (TIDS_INSTANCE *tids,
   struct pollfd poll_fd[TR_MAX_SOCKETS]={{0}};
   int ii=0;
 
-  n_fd=tids_get_listener(tids, req_handler, auth_handler, hostname, port, cookie, fd, TR_MAX_SOCKETS);
+  n_fd = tids_get_listener(tids, req_handler, auth_handler, hostname, port, cookie, fd, TR_MAX_SOCKETS);
   if (n_fd <= 0) {
     perror ("Error from tids_listen()");
     return 1;
