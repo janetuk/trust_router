@@ -174,205 +174,6 @@ TR_CFG_RC tr_apply_new_config (TR_CFG_MGR *cfg_mgr)
   return TR_CFG_SUCCESS;
 }
 
-static TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jcfg)
-{
-  json_t *jint = NULL;
-  json_t *jmtd = NULL;
-  json_t *jtidsp = NULL;
-  json_t *jtrpsp = NULL;
-  json_t *jhname = NULL;
-  json_t *jlog = NULL;
-  json_t *jconthres = NULL;
-  json_t *jlogthres = NULL;
-  json_t *jcfgpoll = NULL;
-  json_t *jcfgsettle = NULL;
-  json_t *jroutesweep = NULL;
-  json_t *jrouteupdate = NULL;
-  json_t *jtidreq_timeout = NULL;
-  json_t *jtidresp_numer = NULL;
-  json_t *jtidresp_denom = NULL;
-  json_t *jrouteconnect = NULL;
-
-  if ((!trc) || (!jcfg))
-    return TR_CFG_BAD_PARAMS;
-
-  if (NULL == trc->internal) {
-    if (NULL == (trc->internal = talloc_zero(trc, TR_CFG_INTERNAL)))
-      return TR_CFG_NOMEM;
-  }
-
-  if (NULL != (jint = json_object_get(jcfg, "tr_internal"))) {
-    if (NULL != (jmtd = json_object_get(jint, "max_tree_depth"))) {
-      if (json_is_number(jmtd)) {
-        trc->internal->max_tree_depth = json_integer_value(jmtd);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, max_tree_depth is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* If not configured, use the default */
-      trc->internal->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
-    }
-    if (NULL != (jtidsp = json_object_get(jint, "tids_port"))) {
-      if (json_is_number(jtidsp)) {
-        trc->internal->tids_port = json_integer_value(jtidsp);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, tids_port is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* If not configured, use the default */
-      trc->internal->tids_port = TR_DEFAULT_TIDS_PORT;
-    }
-    if (NULL != (jtrpsp = json_object_get(jint, "trps_port"))) {
-      if (json_is_number(jtrpsp)) {
-        trc->internal->trps_port = json_integer_value(jtrpsp);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, trps_port is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* If not configured, use the default */
-      trc->internal->trps_port = TR_DEFAULT_TRPS_PORT;
-    }
-    if (NULL != (jhname = json_object_get(jint, "hostname"))) {
-      if (json_is_string(jhname)) {
-        trc->internal->hostname = talloc_strdup(trc->internal, json_string_value(jhname));
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, hostname is not a string.");
-        return TR_CFG_NOPARSE;
-      }
-    }
-    if (NULL != (jcfgpoll = json_object_get(jint, "cfg_poll_interval"))) {
-      if (json_is_number(jcfgpoll)) {
-        trc->internal->cfg_poll_interval = json_integer_value(jcfgpoll);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, cfg_poll_interval is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      trc->internal->cfg_poll_interval = TR_CFGWATCH_DEFAULT_POLL;
-    }
-
-    if (NULL != (jcfgsettle = json_object_get(jint, "cfg_settling_time"))) {
-      if (json_is_number(jcfgsettle)) {
-        trc->internal->cfg_settling_time = json_integer_value(jcfgsettle);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, cfg_settling_time is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      trc->internal->cfg_settling_time = TR_CFGWATCH_DEFAULT_SETTLE;
-    }
-
-    if (NULL != (jrouteconnect = json_object_get(jint, "trp_connect_interval"))) {
-      if (json_is_number(jrouteconnect)) {
-        trc->internal->trp_connect_interval = json_integer_value(jrouteconnect);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, trp_connect_interval is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* if not configured, use the default */
-      trc->internal->trp_connect_interval=TR_DEFAULT_TRP_CONNECT_INTERVAL;
-    }
-
-    if (NULL != (jroutesweep = json_object_get(jint, "trp_sweep_interval"))) {
-      if (json_is_number(jroutesweep)) {
-        trc->internal->trp_sweep_interval = json_integer_value(jroutesweep);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, trp_sweep_interval is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* if not configured, use the default */
-      trc->internal->trp_sweep_interval=TR_DEFAULT_TRP_SWEEP_INTERVAL;
-    }
-
-    if (NULL != (jrouteupdate = json_object_get(jint, "trp_update_interval"))) {
-      if (json_is_number(jrouteupdate)) {
-        trc->internal->trp_update_interval = json_integer_value(jrouteupdate);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, trp_update_interval is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* if not configured, use the default */
-      trc->internal->trp_update_interval=TR_DEFAULT_TRP_UPDATE_INTERVAL;
-    }
-
-    if (NULL != (jtidreq_timeout = json_object_get(jint, "tid_request_timeout"))) {
-      if (json_is_number(jtidreq_timeout)) {
-        trc->internal->tid_req_timeout = json_integer_value(jtidreq_timeout);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, tid_request_timeout is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* if not configured, use the default */
-      trc->internal->tid_req_timeout=TR_DEFAULT_TID_REQ_TIMEOUT;
-    }
-
-    if (NULL != (jtidresp_numer = json_object_get(jint, "tid_response_numerator"))) {
-      if (json_is_number(jtidresp_numer)) {
-        trc->internal->tid_resp_numer = json_integer_value(jtidresp_numer);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, tid_response_numerator is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* if not configured, use the default */
-      trc->internal->tid_resp_numer=TR_DEFAULT_TID_RESP_NUMER;
-    }
-
-    if (NULL != (jtidresp_denom = json_object_get(jint, "tid_response_denominator"))) {
-      if (json_is_number(jtidresp_denom)) {
-        trc->internal->tid_resp_denom = json_integer_value(jtidresp_denom);
-      } else {
-        tr_debug("tr_cfg_parse_internal: Parsing error, tid_response_denominator is not a number.");
-        return TR_CFG_NOPARSE;
-      }
-    } else {
-      /* if not configured, use the default */
-      trc->internal->tid_resp_denom=TR_DEFAULT_TID_RESP_DENOM;
-    }
-
-    if (NULL != (jlog = json_object_get(jint, "logging"))) {
-      if (NULL != (jlogthres = json_object_get(jlog, "log_threshold"))) {
-        if (json_is_string(jlogthres)) {
-          trc->internal->log_threshold = str2sev(json_string_value(jlogthres));
-        } else {
-          tr_debug("tr_cfg_parse_internal: Parsing error, log_threshold is not a string.");
-          return TR_CFG_NOPARSE;
-        }
-      } else {
-        /* If not configured, use the default */
-        trc->internal->log_threshold = TR_DEFAULT_LOG_THRESHOLD;
-      }
-
-      if (NULL != (jconthres = json_object_get(jlog, "console_threshold"))) {
-        if (json_is_string(jconthres)) {
-            trc->internal->console_threshold = str2sev(json_string_value(jconthres));
-        } else {
-          tr_debug("tr_cfg_parse_internal: Parsing error, console_threshold is not a string.");
-          return TR_CFG_NOPARSE;
-        }
-      } else {
-        /* If not configured, use the default */
-        trc->internal->console_threshold = TR_DEFAULT_CONSOLE_THRESHOLD;
-      }
-    } else {
-        /* If not configured, use the default */
-        trc->internal->console_threshold = TR_DEFAULT_CONSOLE_THRESHOLD;
-        trc->internal->log_threshold = TR_DEFAULT_LOG_THRESHOLD;
-    }
-
-    tr_debug("tr_cfg_parse_internal: Internal config parsed.");
-    return TR_CFG_SUCCESS;
-  }
-  return TR_CFG_SUCCESS;
-}
-
 static TR_CONSTRAINT *tr_cfg_parse_one_constraint(TALLOC_CTX *mem_ctx, char *ctype, json_t *jc, TR_CFG_RC *rc)
 {
   TR_CONSTRAINT *cons=NULL;
@@ -2062,12 +1863,17 @@ typedef TR_CFG_RC (TR_CFG_PARSE_FN)(TR_CFG *, json_t *);
  * Helper function to parse a collection of JSON structures using a generic parse function.
  *
  * @param cfg Config structure to receive results
- * @param jcfgs Pointer to an array of decoded JSON structures
- * @param n_jcfg Number of JSON structures in the array
  * @param parse_fn Function to apply
+ * @param n_jcfg Number of JSON structures in the array
+ * @param jcfgs Pointer to an array of decoded JSON structures
+ * @param key Key to extract from each jcfg before parsing, or NULL to use the object itself
  * @return TR_CFG_SUCCESS on success, _FAIL or an error code on failure
  */
-static TR_CFG_RC tr_cfg_parse_helper(TR_CFG *cfg, unsigned int n_jcfg, json_t **jcfgs, TR_CFG_PARSE_FN parse_fn)
+static TR_CFG_RC tr_cfg_parse_helper(TR_CFG *cfg,
+                                     TR_CFG_PARSE_FN parse_fn,
+                                     unsigned int n_jcfg,
+                                     json_t **jcfgs,
+                                     const char *key)
 {
   size_t ii=0;
   json_t *this_jcfg=NULL;
@@ -2077,7 +1883,15 @@ static TR_CFG_RC tr_cfg_parse_helper(TR_CFG *cfg, unsigned int n_jcfg, json_t **
     return TR_CFG_ERROR;
 
   for (ii=0; ii<n_jcfg; ii++) {
-    this_jcfg=jcfgs[ii];
+    if (key)
+      this_jcfg = json_object_get(jcfgs[ii], key);
+    else
+      this_jcfg = jcfgs[ii];
+
+    /* do not try to parse a missing jcfg */
+    if (this_jcfg == NULL)
+      continue;
+
     ret=parse_fn(cfg, this_jcfg);
     if (ret!=TR_CFG_SUCCESS)
       break;
@@ -2124,11 +1938,12 @@ TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, unsigned int n_files, char **file
   cfg_mgr->new->peers=trp_ptable_new(cfg_mgr); /* not sure why this isn't in cfg_mgr->new's context */
 
   /* now run through the parsers on the JSON */
-  if ((TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_internal))) ||
-      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_local_orgs))) ||
-      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_peer_orgs))) ||
-      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_default_servers))) ||
-      (TR_CFG_SUCCESS != (cfg_rc=tr_cfg_parse_helper(cfg_mgr->new, n_files, jcfgs, tr_cfg_parse_comms))))
+  if ((TR_CFG_SUCCESS != (cfg_rc= tr_cfg_parse_helper(cfg_mgr->new, tr_cfg_parse_internal, n_files, jcfgs, "tr_internal"))) ||
+      (TR_CFG_SUCCESS != (cfg_rc= tr_cfg_parse_helper(cfg_mgr->new, tr_cfg_parse_local_orgs, n_files, jcfgs, NULL))) ||
+      (TR_CFG_SUCCESS != (cfg_rc= tr_cfg_parse_helper(cfg_mgr->new, tr_cfg_parse_peer_orgs, n_files, jcfgs, NULL))) ||
+      (TR_CFG_SUCCESS != (cfg_rc= tr_cfg_parse_helper(cfg_mgr->new, tr_cfg_parse_default_servers, n_files, jcfgs,
+                                                      NULL))) ||
+      (TR_CFG_SUCCESS != (cfg_rc= tr_cfg_parse_helper(cfg_mgr->new, tr_cfg_parse_comms, n_files, jcfgs, NULL))))
     goto cleanup; /* cfg_rc was set above */
 
   /* make sure we got a complete, consistent configuration */

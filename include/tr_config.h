@@ -119,4 +119,7 @@ void tr_print_comm_rps(TR_COMM_TABLE *ctab, TR_COMM *comm);
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
 TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
 
+/* tr_config_internal.c */
+TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint);
+
 #endif

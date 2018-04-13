@@ -91,7 +91,7 @@ set(SOURCE_FILES
     trp/trp_upd.c
     trp/trpc.c
     trp/trps.c include/tr_name_internal.h mon/mon_req.c mon/mon_req_encode.c mon/mon_req_decode.c
-        mon/mon_resp.c mon/mon_common.c mon/mon_resp_encode.c tr/tr_mon.c mon/mons.c include/tr_socket.h common/tr_gss.c include/tr_gss.h)
+        mon/mon_resp.c mon/mon_common.c mon/mon_resp_encode.c tr/tr_mon.c mon/mons.c include/tr_socket.h common/tr_gss.c include/tr_gss.h common/tr_config_internal.c)
 
 # Does not actually build!
 add_executable(trust_router ${SOURCE_FILES})
