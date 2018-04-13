@@ -146,7 +146,7 @@ do {                         \
  */
 TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 {
-  json_t *jlog = NULL;
+  json_t *jtmp = NULL;
   const char *s = NULL;
 
   if ((!trc) || (!jint))
@@ -175,18 +175,24 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "tid_response_numerator",   &(trc->internal->tid_resp_numer)));
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "tid_response_denominator", &(trc->internal->tid_resp_denom)));
 
-  if (NULL != (jlog = json_object_get(jint, "logging"))) {
-    NOPARSE_UNLESS(tr_cfg_parse_string(jlog, "log_threshold", &s));
+  /* Parse the logging section */
+  if (NULL != (jtmp = json_object_get(jint, "logging"))) {
+    NOPARSE_UNLESS(tr_cfg_parse_string(jtmp, "log_threshold", &s));
     if (s) {
       trc->internal->log_threshold = str2sev(s);
       talloc_free((void *) s);
     }
 
-    NOPARSE_UNLESS(tr_cfg_parse_string(jlog, "console_threshold", &s));
+    NOPARSE_UNLESS(tr_cfg_parse_string(jtmp, "console_threshold", &s));
     if (s) {
       trc->internal->console_threshold = str2sev(s);
       talloc_free((void *) s);
     }
+  }
+
+  /* Parse the monitoring section */
+  if (NULL != (jtmp = json_object_get(jint, "monitoring"))) {
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "port", &(trc->internal->monitoring_port)));
   }
 
   tr_debug("tr_cfg_parse_internal: Internal config parsed.");
