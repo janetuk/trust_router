@@ -44,9 +44,10 @@
 
 #include <tr_apc.h>
 #include <tr_comm.h>
+#include <mon_internal.h>
+#include <trp_internal.h>
 #include <tr_msg.h>
 #include <tr_name_internal.h>
-#include <trp_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
 #include <tr_debug.h>
@@ -125,6 +126,32 @@ void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp)
 {
   msg->msg_rep = resp;
   msg->msg_type = TID_RESPONSE;
+}
+
+MON_REQ *tr_msg_get_mon_req(TR_MSG *msg)
+{
+  if (msg->msg_type == MON_REQUEST)
+    return (MON_REQ *)msg->msg_rep;
+  return NULL;
+}
+
+void tr_msg_set_mon_req(TR_MSG *msg, MON_REQ *req)
+{
+  msg->msg_rep = req;
+  msg->msg_type = MON_REQUEST;
+}
+
+MON_RESP *tr_msg_get_mon_resp(TR_MSG *msg)
+{
+  if (msg->msg_type == MON_RESPONSE)
+    return (MON_RESP *)msg->msg_rep;
+  return NULL;
+}
+
+void tr_msg_set_mon_resp(TR_MSG *msg, MON_RESP *resp)
+{
+  msg->msg_rep = resp;
+  msg->msg_type = MON_RESPONSE;
 }
 
 TRP_UPD *tr_msg_get_trp_upd(TR_MSG *msg)
@@ -1154,6 +1181,8 @@ char *tr_msg_encode(TALLOC_CTX *mem_ctx, TR_MSG *msg)
   TID_REQ *tidreq=NULL;
   TRP_UPD *trpupd=NULL;
   TRP_REQ *trpreq=NULL;
+  MON_REQ *monreq=NULL;
+  MON_RESP *monresp=NULL;
 
   /* TBD -- add error handling */
   jmsg = json_object();
@@ -1174,21 +1203,35 @@ char *tr_msg_encode(TALLOC_CTX *mem_ctx, TR_MSG *msg)
       json_object_set_new(jmsg, "msg_body", tr_msg_encode_tidresp(tidresp));
       break;
 
-    case TRP_UPDATE:
-      jmsg_type = json_string("trp_update");
-      json_object_set_new(jmsg, "msg_type", jmsg_type);
-      trpupd=tr_msg_get_trp_upd(msg);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_upd(trpupd));
-      break;
+      case TRP_UPDATE:
+        jmsg_type = json_string("trp_update");
+        json_object_set_new(jmsg, "msg_type", jmsg_type);
+        trpupd=tr_msg_get_trp_upd(msg);
+        json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_upd(trpupd));
+        break;
 
-    case TRP_REQUEST:
-      jmsg_type = json_string("trp_request");
-      json_object_set_new(jmsg, "msg_type", jmsg_type);
-      trpreq=tr_msg_get_trp_req(msg);
-      json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_req(trpreq));
-      break;
+      case TRP_REQUEST:
+        jmsg_type = json_string("trp_request");
+        json_object_set_new(jmsg, "msg_type", jmsg_type);
+        trpreq=tr_msg_get_trp_req(msg);
+        json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_req(trpreq));
+        break;
 
-    default:
+      case MON_REQUEST:
+        jmsg_type = json_string("mon_request");
+        json_object_set_new(jmsg, "msg_type", jmsg_type);
+        monreq=tr_msg_get_mon_req(msg);
+        json_object_set_new(jmsg, "msg_body", mon_req_encode(monreq));
+        break;
+
+      case MON_RESPONSE:
+        jmsg_type = json_string("mon_response");
+        json_object_set_new(jmsg, "msg_type", jmsg_type);
+        monresp=tr_msg_get_mon_resp(msg);
+        json_object_set_new(jmsg, "msg_body", mon_resp_encode(monresp));
+        break;
+
+      default:
       json_decref(jmsg);
       return NULL;
     }
@@ -1252,6 +1295,15 @@ TR_MSG *tr_msg_decode(const char *jbuf, size_t buflen)
     msg->msg_type = TRP_UPDATE;
     tr_msg_set_trp_req(msg, tr_msg_decode_trp_req(NULL, jbody)); /* null talloc context for now */
   }
+  else if (0 == strcmp(mtype, "mon_request")) {
+    msg->msg_type = MON_REQUEST;
+    tr_msg_set_mon_req(msg, mon_req_decode(NULL, jbody));
+  }
+  /* We do not currently handle monitoring responses */
+//  else if (0 == strcmp(mtype, "mon_response")) {
+//    msg->msg_type = MON_RESPONSE;
+//    tr_msg_set_mon_resp(msg, mon_resp_decode(NULL, jbody));
+//  }
   else {
     msg->msg_type = TR_UNKNOWN;
     msg->msg_rep = NULL;
@@ -1285,6 +1337,12 @@ void tr_msg_free_decoded(TR_MSG *msg)
         case TRP_REQUEST:
           trp_req_free(tr_msg_get_trp_req(msg));
         default:
+          break;
+        case MON_REQUEST:
+          mon_req_free(tr_msg_get_mon_req(msg));
+          break;
+        case MON_RESPONSE:
+          mon_resp_free(tr_msg_get_mon_resp(msg));
           break;
       }
     }

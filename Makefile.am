@@ -4,7 +4,7 @@ DISTCHECK_CONFIGURE_FLAGS = \
 bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/tests/tr_dh_test common/tests/mq_test \
               common/tests/thread_test trp/msgtst trp/test/rtbl_test trp/test/ptbl_test common/tests/cfg_test \
               common/tests/commtest common/tests/name_test common/tests/filt_test mon/tests/test_mon_req_encode \
-              mon/tests/test_mon_req_decode mon/tests/test_mon_resp_encode
+              mon/tests/test_mon_req_decode mon/tests/test_mon_resp_encode tr/trmon
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon 
@@ -41,6 +41,7 @@ common/tr_mq.c
 
 mon_srcs =                   \
     mon/mons.c               \
+    mon/monc.c               \
     mon/mon_common.c         \
     mon/mon_req.c            \
     mon/mon_req_encode.c     \
@@ -98,6 +99,15 @@ $(common_srcs)
 
 tr_trpc_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 tr_trpc_LDFLAGS = $(AM_LDFLAGS) -pthread
+
+tr_trmon_SOURCES = tr/trmon_main.c \
+common/tr_gss.c \
+$(tid_srcs) \
+$(trp_srcs) \
+$(mon_srcs) \
+$(common_srcs)
+tr_trmon_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
+tr_trmon_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 trp_msgtst_SOURCES = trp/msgtst.c \
 $(common_srcs) \
