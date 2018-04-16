@@ -77,7 +77,7 @@ void tr_msg_set_mon_resp(TR_MSG *msg, MON_RESP *resp);
 
 /* Encoders/Decoders */
 char *tr_msg_encode(TALLOC_CTX *mem_ctx, TR_MSG *msg);
-TR_MSG *tr_msg_decode(const char *jmsg, size_t len);
+TR_MSG *tr_msg_decode(TALLOC_CTX *mem_ctx, const char *jmsg, size_t len);
 void tr_msg_free_encoded(char *jmsg);
 void tr_msg_free_decoded(TR_MSG *msg);
 
