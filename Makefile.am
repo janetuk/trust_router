@@ -21,7 +21,8 @@ common_srcs = common/tr_name.c \
 	common/tr_idp.c \
 	common/tr_filter.c \
 	common/tr_gss_names.c \
-	common/tr_socket.c
+	common/tr_socket.c \
+	$(mon_srcs)
 
 tid_srcs = tid/tid_resp.c \
 tid/tid_req.c \
@@ -40,8 +41,6 @@ common/tr_config_internal.c \
 common/tr_mq.c
 
 mon_srcs =                   \
-    mon/mons.c               \
-    mon/monc.c               \
     mon/mon_common.c         \
     mon/mon_req.c            \
     mon/mon_req_encode.c     \
@@ -87,11 +86,12 @@ common/tr_gss.c \
 common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
-$(mon_srcs) \
-$(common_srcs)
+$(common_srcs) \
+mon/mons.c
 
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads -pthread
 tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
+
 tr_trpc_SOURCES =tr/trpc_main.c \
 tr/tr_trp.c \
 common/tr_gss.c \
@@ -108,8 +108,9 @@ common/tr_gss.c \
 common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
-$(mon_srcs) \
-$(common_srcs)
+$(common_srcs) \
+mon/monc.c
+
 tr_trmon_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
 tr_trmon_LDFLAGS = $(AM_LDFLAGS) -pthread
 
@@ -142,7 +143,6 @@ common/tr_gss.c \
 common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
-$(mon_srcs) \
 $(common_srcs)
 tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
 tid_example_tidc_LDFLAGS = $(AM_LDFLAGS) -pthread
