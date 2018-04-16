@@ -104,16 +104,16 @@ static MON_RC mon_options_decode(json_t *opts_json, MON_REQ *req)
 }
 
 /**
- * Parse JSON for a request
+ * Parse a JSON string into a request
  */
-//static json_t *mon_req_parse(const char *input)
-//{
-//  json_t *parsed_json = NULL;
-//  json_error_t json_error;
-//
-//  parsed_json = json_loads(input, JSON_REJECT_DUPLICATES, &json_error);
-//  return parsed_json;
-//}
+MON_REQ *mon_req_parse(TALLOC_CTX *mem_ctx, const char *input)
+{
+  json_t *parsed_json = NULL;
+  json_error_t json_error;
+
+  parsed_json = json_loads(input, JSON_REJECT_DUPLICATES, &json_error);
+  return mon_req_decode(mem_ctx, parsed_json);
+}
 
 /**
  * Decode a JSON request
@@ -132,15 +132,13 @@ static MON_RC mon_options_decode(json_t *opts_json, MON_REQ *req)
  * @param req_json reference to JSON request object
  * @return decoded request struct or NULL on failure
  */
-MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json) //const char *req_str)
+MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   MON_REQ *req = NULL;
   json_t *jval = NULL;
   json_t *opts_json = NULL;
   MON_CMD cmd = MON_CMD_UNKNOWN;
-
-  //req_json = mon_req_parse(req_str); // TODO: Check errors
 
   if (! json_is_object(req_json))
     goto cleanup;

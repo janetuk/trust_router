@@ -47,6 +47,7 @@ mon_srcs =                   \
     mon/mon_req_encode.c     \
     mon/mon_req_decode.c     \
     mon/mon_resp.c           \
+    mon/mon_resp_decode.c    \
     mon/mon_resp_encode.c
 
 check_PROGRAMS = common/t_constraint
@@ -83,6 +84,7 @@ tr/tr_tid.c \
 tr/tr_trp.c \
 tr/tr_mon.c \
 common/tr_gss.c \
+common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
 $(mon_srcs) \
@@ -93,6 +95,7 @@ tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 tr_trpc_SOURCES =tr/trpc_main.c \
 tr/tr_trp.c \
 common/tr_gss.c \
+common/tr_gss_client.c \
 $(trp_srcs) \
 $(tid_srcs) \
 $(common_srcs)
@@ -102,6 +105,7 @@ tr_trpc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tr_trmon_SOURCES = tr/trmon_main.c \
 common/tr_gss.c \
+common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
 $(mon_srcs) \
@@ -126,6 +130,7 @@ trp_test_rtbl_test_LDADD =  $(GLIB_LIBS)
 
 trp_test_ptbl_test_SOURCES = trp/test/ptbl_test.c \
 common/tr_gss.c \
+common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
 $(common_srcs)
@@ -134,14 +139,17 @@ trp_test_ptbl_test_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tidc_SOURCES = tid/example/tidc_main.c \
 common/tr_gss.c \
+common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
+$(mon_srcs) \
 $(common_srcs)
 tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
 tid_example_tidc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tids_SOURCES = tid/example/tids_main.c \
 common/tr_gss.c \
+common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
 $(common_srcs)
@@ -161,6 +169,7 @@ common_tests_mq_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 common_tests_cfg_test_SOURCES = common/tests/cfg_test.c \
 $(common_srcs) \
 common/tr_gss.c \
+common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs)
 common_tests_cfg_test_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
@@ -173,6 +182,7 @@ common/tests/thread_test.c
 common_tests_commtest_SOURCES = common/tests/commtest.c \
 $(common_srcs) \
 common/tr_gss.c \
+common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs)
 common_tests_commtest_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
@@ -183,6 +193,7 @@ common_tests_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 common_tests_name_test_SOURCES = common/tests/name_test.c \
               $(common_srcs) \
               common/tr_gss.c \
+              common/tr_gss_client.c \
               $(tid_srcs) \
               $(trp_srcs)
 common_tests_name_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
@@ -192,6 +203,7 @@ common_tests_name_test_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 common_tests_filt_test_SOURCES = common/tests/filt_test.c \
               $(common_srcs) \
               common/tr_gss.c \
+              common/tr_gss_client.c \
               $(tid_srcs) \
               $(trp_srcs)
 common_tests_filt_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)

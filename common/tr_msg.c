@@ -1297,10 +1297,10 @@ TR_MSG *tr_msg_decode(TALLOC_CTX *mem_ctx, const char *jbuf, size_t buflen)
     tr_msg_set_mon_req(msg, mon_req_decode(msg, jbody));
   }
   /* We do not currently handle monitoring responses */
-//  else if (0 == strcmp(mtype, "mon_response")) {
-//    msg->msg_type = MON_RESPONSE;
-//    tr_msg_set_mon_resp(msg, mon_resp_decode(NULL, jbody));
-//  }
+  else if (0 == strcmp(mtype, "mon_response")) {
+    msg->msg_type = MON_RESPONSE;
+    tr_msg_set_mon_resp(msg, mon_resp_decode(msg, jbody));
+  }
   else {
     msg->msg_type = TR_UNKNOWN;
     msg->msg_rep = NULL;

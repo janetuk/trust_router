@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2014-2018, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,79 +32,72 @@
  *
  */
 
-#include <stdio.h>
-#include <jansson.h>
+
 #include <talloc.h>
+#include <jansson.h>
 
-#include <trust_router/tr_dh.h>
 #include <mon_internal.h>
-#include <tr_msg.h>
-#include <gsscon.h>
-#include <tr_debug.h>
 
+// Monitoring response decoder
 
-MONC_INSTANCE *monc_new(TALLOC_CTX *mem_ctx)
-{
-  MONC_INSTANCE *monc=talloc(mem_ctx, MONC_INSTANCE);
-  if (monc!=NULL) {
-    monc->gssc = tr_gssc_instance_new(monc);
-    if (monc->gssc == NULL) {
-      talloc_free(monc);
-      return NULL;
-    }
-
-    monc->gssc->service_name = "trustmonitor";
-  }
-  return monc;
-}
-
-void monc_free(MONC_INSTANCE *monc)
-{
-  talloc_free(monc);
-}
-
-int monc_open_connection(MONC_INSTANCE *monc,
-                         const char *server,
-                         unsigned int port)
-{
-  return tr_gssc_open_connection(monc->gssc, server, port);
-}
-
-MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *req)
+/**
+ * Decode a JSON response
+ *
+ * Expected format:
+ * {
+ *   "code": 0,
+ *   "message": "success",
+ *   "payload": {
+ *     "serial": 12345,
+ *     ...
+ *   }
+ * }
+ *
+ * Caller must free the return value with MON_REQ_free().
+ *
+ * @param mem_ctx talloc context for the returned struct
+ * @param resp_json reference to JSON request object
+ * @return decoded request struct or NULL on failure
+ */
+MON_RESP *mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
-  TR_MSG *msg = NULL;
-  TR_MSG *resp_msg = NULL;
   MON_RESP *resp = NULL;
+  json_t *jcode = NULL;
+  json_t *jmessage = NULL;
+  json_t *jpayload = NULL;
 
-  /* Create and populate a msg structure */
-  if (!(msg = talloc_zero(tmp_ctx, TR_MSG)))
+  if (! json_is_object(resp_json))
     goto cleanup;
 
-  msg->msg_type = MON_REQUEST;
-  tr_msg_set_mon_req(msg, req);
-
-  resp_msg = tr_gssc_exchange_msgs(tmp_ctx, monc->gssc, msg);
-  if (resp_msg == NULL)
+  /* Get the response code, which is an integer */
+  jcode = json_object_get(resp_json, "code");
+  if (! json_is_integer(jcode))
     goto cleanup;
 
-  resp = tr_msg_get_mon_resp(resp_msg);
+  /* Get the response message, which is a string */
+  jmessage = json_object_get(resp_json, "message");
+  if (! json_is_string(jmessage))
+    goto cleanup;
 
-  /* if we got a response, steal it from resp_msg's context so we can return it */
-  if (resp)
-    talloc_steal(mem_ctx, resp);
+  /* Get the payload if we have one */
+  jpayload = json_object_get(resp_json, "payload");
+
+  /* Get a response in the tmp_ctx context. The payload may be null. */
+  resp = mon_resp_new(tmp_ctx,
+                      (MON_RESP_CODE) json_integer_value(jcode),
+                      json_string_value(jmessage),
+                      jpayload);
+  if (resp == NULL)
+    goto cleanup;
+
+  /* Success! Put the request in the caller's talloc context */
+  talloc_steal(mem_ctx, resp);
 
 cleanup:
   talloc_free(tmp_ctx);
+  if (resp_json)
+    json_decref(resp_json);
+
   return resp;
-}
-
-DH *monc_get_dh(MONC_INSTANCE *inst)
-{
-  return tr_gssc_get_dh(inst->gssc);
-}
-
-DH *monc_set_dh(MONC_INSTANCE *inst, DH *dh)
-{
-  return tr_gssc_set_dh(inst->gssc, dh);
 }

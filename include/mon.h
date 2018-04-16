@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,54 +32,30 @@
  *
  */
 
-#ifndef TR_MSG_H
-#define TR_MSG_H
 
-#include <jansson.h>
-#include <trust_router/tid.h>
-#include <trust_router/trp.h>
-#include <mon.h>
+#ifndef TRUST_ROUTER_MON_H
+#define TRUST_ROUTER_MON_H
 
-typedef struct tr_msg TR_MSG;
+#include <gssapi.h>
+#include <trust_router/tr_name.h>
 
-enum msg_type {
-  TR_UNKNOWN = 0,
-  TID_REQUEST,
-  TID_RESPONSE,
-  TRP_UPDATE,
-  TRP_REQUEST,
-  MON_REQUEST,
-  MON_RESPONSE
-};
+/* Typedefs */
+typedef struct mon_req MON_REQ;
+typedef struct mon_resp MON_RESP;
 
-/* Union of TR message types to hold message of any type. */
-struct tr_msg {
-  enum msg_type msg_type;
-  void *msg_rep;
-};
+typedef enum mon_cmd MON_CMD;
+typedef enum mon_resp_code MON_RESP_CODE;
 
-/* Accessors */
-enum msg_type tr_msg_get_msg_type(TR_MSG *msg);
-void tr_msg_set_msg_type(TR_MSG *msg, enum msg_type type);
-TID_REQ *tr_msg_get_req(TR_MSG *msg);
-void tr_msg_set_req(TR_MSG *msg, TID_REQ *req);
-TID_RESP *tr_msg_get_resp(TR_MSG *msg);
-void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp);
-TRP_UPD *tr_msg_get_trp_upd(TR_MSG *msg);
-void tr_msg_set_trp_upd(TR_MSG *msg, TRP_UPD *req);
-TRP_REQ *tr_msg_get_trp_req(TR_MSG *msg);
-void tr_msg_set_trp_req(TR_MSG *msg, TRP_REQ *req);
-MON_REQ *tr_msg_get_mon_req(TR_MSG *msg);
-void tr_msg_set_mon_req(TR_MSG *msg, MON_REQ *req);
-MON_RESP *tr_msg_get_mon_resp(TR_MSG *msg);
-void tr_msg_set_mon_resp(TR_MSG *msg, MON_RESP *resp);
+typedef struct mon_opt MON_OPT;
+typedef enum mon_opt_type MON_OPT_TYPE;
 
+typedef enum mon_rc MON_RC;
 
-/* Encoders/Decoders */
-char *tr_msg_encode(TALLOC_CTX *mem_ctx, TR_MSG *msg);
-TR_MSG *tr_msg_decode(TALLOC_CTX *mem_ctx, const char *jmsg, size_t len);
-void tr_msg_free_encoded(char *jmsg);
-void tr_msg_free_decoded(TR_MSG *msg);
+typedef struct mons_instance MONS_INSTANCE;
+typedef struct monc_instance MONC_INSTANCE;
 
+typedef int (MONS_REQ_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
+typedef int (MONS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
+typedef int (MONC_RESP_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
 
-#endif
+#endif //TRUST_ROUTER_MON_H

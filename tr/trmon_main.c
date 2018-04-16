@@ -64,53 +64,63 @@ static const struct argp_option cmdline_options[] = {
 struct cmdline_args {
   char *msg;
   char *server;
-  int port; /* optional */
+  unsigned int port; /* optional */
   int repeat; /* how many times to repeat, or -1 for infinite */
 };
 
 /* parser for individual options - fills in a struct cmdline_args */
 static error_t parse_option(int key, char *arg, struct argp_state *state)
 {
+  long tmp_l = 0;
+
   /* get a shorthand to the command line argument structure, part of state */
   struct cmdline_args *arguments=state->input;
 
   switch (key) {
-  case 'r':
-    if (arg==NULL)
-      arguments->repeat=-1;
-    else
-      arguments->repeat=strtol(arg, NULL, 10);
-    break;
-
-  case ARGP_KEY_ARG: /* handle argument (not option) */
-    switch (state->arg_num) {
-    case 0:
-      arguments->msg=arg;
+    case 'r':
+      if (arg==NULL)
+        arguments->repeat=-1;
+      else
+        tmp_l = strtol(arg, NULL, 10);
+      if ((errno == 0) && (tmp_l > 0) && (tmp_l < INT_MAX))
+        arguments->repeat = (int) tmp_l;
+      else
+        argp_usage(state);
       break;
 
-    case 1:
-      arguments->server=arg;
+    case ARGP_KEY_ARG: /* handle argument (not option) */
+      switch (state->arg_num) {
+        case 0:
+          arguments->msg=arg;
+          break;
+
+        case 1:
+          arguments->server=arg;
+          break;
+
+        case 2:
+          tmp_l = strtol(arg, NULL, 10);
+          if (errno || (tmp_l < 0) || (tmp_l > 65535)) /* max valid port */
+            argp_usage(state);
+
+          arguments->port=(unsigned int) tmp_l;
+          break;
+
+        default:
+          /* too many arguments */
+          argp_usage(state);
+      }
       break;
 
-    case 2:
-      arguments->port=strtol(arg, NULL, 10); /* optional */
+    case ARGP_KEY_END: /* no more arguments */
+      if (state->arg_num < 2) {
+        /* not enough arguments encountered */
+        argp_usage(state);
+      }
       break;
 
     default:
-      /* too many arguments */
-      argp_usage(state);
-    }
-    break;
-
-  case ARGP_KEY_END: /* no more arguments */
-    if (state->arg_num < 2) {
-      /* not enough arguments encountered */
-      argp_usage(state);
-    }
-    break;
-
-  default:
-    return ARGP_ERR_UNKNOWN;
+      return ARGP_ERR_UNKNOWN;
   }
 
   return 0; /* success */
@@ -120,15 +130,15 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
 /* assemble the argp parser */
 static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
-int main (int argc, 
-          char *argv[]) 
+int main(int argc, char *argv[])
 {
   TALLOC_CTX *main_ctx=talloc_new(NULL);
-  MONC_INSTANCE *monc=NULL;
+  MONC_INSTANCE *monc = NULL;
+  MON_REQ *req = NULL;
+  MON_RESP *resp = NULL;
+
   struct cmdline_args opts;
-  int rc;
-  int conn;
-  gss_ctx_id_t gssctx;
+  int retval=1; /* exit with an error status unless this gets set to zero */
 
   /* parse the command line*/
   /* set defaults */
@@ -150,29 +160,44 @@ int main (int argc,
   printf("TR Monitor:\nServer = %s, port = %i\n", opts.server, opts.port);
 
   /* Create a MON client instance & the client DH */
-  monc = monc_create();
-  if (NULL == (monc->client_dh = tr_create_dh_params(main_ctx, 0))) {
+  monc = monc_new(main_ctx);
+  if (monc == NULL) {
+    printf("Error allocating client instance.\n");
+    goto cleanup;
+  }
+
+
+  /* fill in the DH parameters */
+  monc_set_dh(monc, tr_create_dh_params(NULL, 0));
+  if (monc_get_dh(monc) == NULL) {
     printf("Error creating client DH params.\n");
-    return 1;
+    goto cleanup;
   }
 
   /* Set-up MON connection */
-  if (-1 == (conn = monc_open_connection(monc, opts.server, opts.port, &gssctx))) {
+  if (0 != monc_open_connection(monc, opts.server, opts.port)) {
     /* Handle error */
-    printf("Error in monc_open_connection.\n");
-    return 1;
+    printf("Error opening connection to %s:%d.\n", opts.server, opts.port);
+    goto cleanup;
   };
 
-  /* Send a MON request */
-  if (0 > (rc = monc_send_request(monc, conn, gssctx, NULL, NULL))) {
+  req = mon_req_new(main_ctx, MON_CMD_SHOW);
+
+  /* Send a MON request and get the response */
+  resp = monc_send_request(main_ctx, monc, req);
+
+  if (resp == NULL) {
     /* Handle error */
-    printf("Error in monc_send_request, rc = %d.\n", rc);
-    return 1;
+    printf("Error executing monitoring request.\n");
+    goto cleanup;
   }
 
+  /* success */
+  retval = 0;
+
   /* Clean-up the MON client instance, and exit */
-  monc_destroy(monc);
+cleanup:
   talloc_free(main_ctx);
-  return 0;
+  return retval;
 }
 

@@ -81,7 +81,7 @@ int main(int argc, const char *argv[])
   if (buflen>=MAX_MSG_LEN)
     printf("Warning: file may exceed maximum message length (%d bytes).\n", MAX_MSG_LEN);
 
-  msg=tr_msg_decode(buf, buflen);
+  msg= tr_msg_decode(NULL, buf, buflen);
 
 /*  if (rc==TRP_SUCCESS)
     trp_msg_print(msg);*/

@@ -40,11 +40,14 @@
 #include <stdint.h>
 #include <jansson.h>
 #include <gmodule.h>
+#include <gssapi.h>
+
 //#include <trp_internal.h>
 #include <tr_gss_names.h>
+#include <tr_gss_client.h>
 #include <tr_name_internal.h>
-#include <gssapi.h>
 #include <trust_router/tr_dh.h>
+#include <mon.h>
 
 /* Typedefs */
 typedef struct mon_req MON_REQ;
@@ -113,7 +116,6 @@ struct mon_req {
 };
 
 struct mon_resp {
-  MON_REQ *req; // request this responds to
   MON_RESP_CODE code;
   TR_NAME *message;
   json_t *payload;
@@ -131,9 +133,9 @@ struct mons_instance {
   void *cookie;
 };
 
-/* Monitoring client instance */
+/* Client instance */
 struct monc_instance {
-  DH *client_dh;
+  TR_GSSC_INSTANCE *gssc;
 };
 
 /* Prototypes */
@@ -155,17 +157,17 @@ json_t *mon_req_encode(MON_REQ *req);
 
 /* mon_req_decode.c */
 MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json);
+MON_REQ *mon_req_parse(TALLOC_CTX *mem_ctx, const char *input);
 
 /* mon_resp.c */
-MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx,
-                          MON_REQ *req,
-                          MON_RESP_CODE code,
-                          const char *msg,
-                          json_t *payload);
+MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx, MON_RESP_CODE code, const char *msg, json_t *payload);
 void mon_resp_free(MON_RESP *resp);
 
 /* mon_resp_encode.c */
 json_t *mon_resp_encode(MON_RESP *resp);
+
+/* mon_resp_decode.c */
+MON_RESP * mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json);
 
 /* mons.c */
 MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx);
@@ -174,14 +176,11 @@ int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH
 int mons_accept(MONS_INSTANCE *mons, int listen);
 
 /* monc.c */
-MONC_INSTANCE *monc_create(void);
-void monc_destroy(MONC_INSTANCE *monc);
-int monc_open_connection (MONC_INSTANCE *monc, const char *server, unsigned int port, gss_ctx_id_t *gssctx);
-int monc_send_request (MONC_INSTANCE *monc, int conn, gss_ctx_id_t gssctx, MONC_RESP_FUNC *resp_handler,
-                       void *cookie);
-int monc_fwd_request(MONC_INSTANCE *monc, int conn, gss_ctx_id_t gssctx, MON_REQ *mon_req,
-                     MONC_RESP_FUNC *resp_handler, void *cookie);
-DH * monc_get_dh(MONC_INSTANCE *inst);
+MONC_INSTANCE *monc_new(TALLOC_CTX *mem_ctx);
+void monc_free(MONC_INSTANCE *monc);
+DH *monc_get_dh(MONC_INSTANCE *inst);
 DH *monc_set_dh(MONC_INSTANCE *inst, DH *dh);
+int monc_open_connection(MONC_INSTANCE *monc, const char *server, unsigned int port);
+MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *req);
 
 #endif //TRUST_ROUTER_MON_REQ_H

@@ -264,7 +264,7 @@ static char *tids_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
   char *resp_str = NULL;
   int rc = 0;
 
-  mreq = tr_msg_decode(req_str, strlen(req_str)); // allocates memory on success!
+  mreq = tr_msg_decode(NULL, req_str, strlen(req_str)); // allocates memory on success!
   if (mreq == NULL) {
     tr_debug("tids_req_cb: Error decoding request.");
     return NULL;
