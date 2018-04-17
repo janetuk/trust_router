@@ -41,8 +41,8 @@
 #include <jansson.h>
 #include <gmodule.h>
 #include <gssapi.h>
-
-//#include <trp_internal.h>
+#include <trust_router/tid.h>
+#include <trp_internal.h>
 #include <tr_gss_names.h>
 #include <tr_gss_client.h>
 #include <tr_name_internal.h>
@@ -126,8 +126,8 @@ struct mons_instance {
   const char *hostname;
   unsigned int port;
   TR_GSS_NAMES *authorized_gss_names;
-  void *tids; // TODO sort out header file cycles and use typed pointers
-  void *trps; // TODO sort out header file cycles and use typed pointers
+  TIDS_INSTANCE *tids;
+  TRPS_INSTANCE *trps;
   MONS_REQ_FUNC *req_handler;
   MONS_AUTH_FUNC *auth_handler;
   void *cookie;

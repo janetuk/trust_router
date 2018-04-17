@@ -44,6 +44,8 @@
 #include <sys/wait.h>
 #include <tr_gss.h>
 
+#include "mons_handlers.h"
+
 /**
  * Allocate a new MONS_INSTANCE
  *
@@ -78,9 +80,30 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
  * @param data pointer to a MONS_INSTANCE
  * @return pointer to the response string or null to send no response
  */
-static char *mons_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
+static TR_MSG *mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, void *data)
 {
-  return "This is a response.";
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  //MONS_INSTANCE *mons = talloc_get_type_abort(data, MONS_INSTANCE);
+  MON_REQ *req = NULL;
+  TR_MSG *resp_msg = NULL; /* This is the response value */
+
+  /* Validate inputs */
+  if (req_msg == NULL)
+    goto cleanup;
+
+  req = tr_msg_get_mon_req(req_msg);
+  if (req == NULL) {
+    /* this is an internal error */
+    tr_err("mons_req_cb: Received incorrect message type (was %d, expected %d)",
+           tr_msg_get_msg_type(req_msg),
+           MON_REQUEST);
+    /* TODO send an error response */
+    goto cleanup;
+  }
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return resp_msg;
 }
 
 /**

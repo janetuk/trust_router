@@ -38,7 +38,7 @@
 #include <tr_msg.h>
 
 typedef int (TR_GSS_AUTH_FN)(gss_name_t, TR_NAME *, void *);
-typedef char *(TR_GSS_HANDLE_REQ_FN)(TALLOC_CTX *, const char *, void *);
+typedef TR_MSG *(TR_GSS_HANDLE_REQ_FN)(TALLOC_CTX *, TR_MSG *, void *);
 
 void tr_gss_handle_connection(int conn, const char *acceptor_name, const char *acceptor_realm, TR_GSS_AUTH_FN auth_cb,
                               void *auth_cookie, TR_GSS_HANDLE_REQ_FN req_cb, void *req_cookie);

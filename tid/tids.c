@@ -255,41 +255,45 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
  * @param data pointer to a TIDS_INSTANCE
  * @return pointer to the response string or null to send no response
  */
-static char *tids_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
+static TR_MSG *tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, void *data)
 {
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   TIDS_INSTANCE *tids = talloc_get_type_abort(data, TIDS_INSTANCE);
-  TR_MSG *mreq = NULL;
   TID_REQ *req = NULL;
   TID_RESP *resp = NULL;
-  char *resp_str = NULL;
+  TR_MSG *resp_msg = NULL; /* this is the return value */
   int rc = 0;
-
-  mreq = tr_msg_decode(NULL, req_str, strlen(req_str)); // allocates memory on success!
-  if (mreq == NULL) {
-    tr_debug("tids_req_cb: Error decoding request.");
-    return NULL;
-  }
 
   /* If this isn't a TID Request, just drop it. */
   if (mreq->msg_type != TID_REQUEST) {
-    tr_msg_free_decoded(mreq);
     tr_debug("tids_req_cb: Not a TID request, dropped.");
-    return NULL;
+    goto cleanup;
   }
 
   /* Get a handle on the request itself. Don't free req - it belongs to mreq */
   req = tr_msg_get_req(mreq);
 
-  /* Allocate a response structure and populate common fields. The resp is in req's talloc context,
-   * which will be cleaned up when mreq is freed. */
-  resp = tids_create_response(req, req);
+  /* Allocate a response message */
+  resp_msg = talloc(tmp_ctx, TR_MSG);
+  if (resp_msg == NULL) {
+    /* We cannot create a response message, so all we can really do is emit
+     * an error message and return. */
+    tr_crit("tids_req_cb: Error allocating response message.");
+    goto cleanup;
+  }
+
+  /* Allocate a response structure and populate common fields. Put it in the
+   * response message's talloc context. */
+  resp = tids_create_response(resp_msg, req);
   if (resp == NULL) {
     /* If we were unable to create a response, we cannot reply. Log an
      * error if we can, then drop the request. */
-    tr_msg_free_decoded(mreq);
     tr_crit("tids_req_cb: Error creating response structure.");
-    return NULL;
+    resp_msg = NULL; /* the contents are in tmp_ctx, so they will still be cleaned up */
+    goto cleanup;
   }
+  /* Now officially assign the response to the message. */
+  tr_msg_set_resp(resp_msg, resp);
 
   /* Handle the request and fill in resp */
   rc = tids_handle_request(tids, req, resp);
@@ -298,12 +302,12 @@ static char *tids_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
     /* Fall through, to send the response, either way */
   }
 
-  /* Convert the completed response into an encoded response */
-  resp_str = tids_encode_response(mem_ctx, resp);
+  /* put the response message in the caller's context */
+  talloc_steal(mem_ctx, resp_msg);
 
-  /* Finished; free the request and return */
-  tr_msg_free_decoded(mreq); // this frees req and resp, too
-  return resp_str;
+cleanup:
+  talloc_free(tmp_ctx);
+  return resp_msg;
 }
 
 TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
