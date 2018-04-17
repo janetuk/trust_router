@@ -40,6 +40,7 @@ common/tr_config.c \
 common/tr_config_internal.c \
 common/tr_mq.c
 
+# general monitoring message sources
 mon_srcs =                   \
     mon/mon_common.c         \
     mon/mon_req.c            \
@@ -48,6 +49,11 @@ mon_srcs =                   \
     mon/mon_resp.c           \
     mon/mon_resp_decode.c    \
     mon/mon_resp_encode.c
+
+# monitoring server sources
+mons_srcs = \
+    mon/mons.c \
+    mon/mons_handlers.c
 
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint
@@ -87,7 +93,7 @@ common/tr_gss_client.c \
 $(tid_srcs) \
 $(trp_srcs) \
 $(common_srcs) \
-mon/mons.c
+$(mons_srcs)
 
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads -pthread
 tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
