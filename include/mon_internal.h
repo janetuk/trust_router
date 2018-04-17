@@ -162,6 +162,8 @@ MON_REQ *mon_req_parse(TALLOC_CTX *mem_ctx, const char *input);
 /* mon_resp.c */
 MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx, MON_RESP_CODE code, const char *msg, json_t *payload);
 void mon_resp_free(MON_RESP *resp);
+int mon_resp_set_message(MON_RESP *resp, const char *new_msg);
+void mon_resp_set_payload(MON_RESP *resp, json_t *new_payload);
 
 /* mon_resp_encode.c */
 json_t *mon_resp_encode(MON_RESP *resp);

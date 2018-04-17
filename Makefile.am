@@ -53,7 +53,8 @@ mon_srcs =                   \
 # monitoring server sources
 mons_srcs = \
     mon/mons.c \
-    mon/mons_handlers.c
+    mon/mons_handlers.c \
+    mon/mons_handlers_show.c
 
 check_PROGRAMS = common/t_constraint
 TESTS = common/t_constraint

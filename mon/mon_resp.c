@@ -95,6 +95,45 @@ MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx, MON_RESP_CODE code, const char *msg,
 }
 
 /**
+ * Set or replace the response message
+ *
+ * Does not change the message if it fails
+ *
+ * @param resp
+ * @param new_msg
+ * @return 1 on success, 0 on error
+ */
+int mon_resp_set_message(MON_RESP *resp, const char *new_msg)
+{
+  TR_NAME *n = tr_new_name(new_msg);
+
+  if (n == NULL)
+    return 0; /* failed */
+
+  if (resp->message)
+    tr_free_name(resp->message);
+  resp->message = n;
+  return 1; /* succeeded */
+}
+
+/**
+ * Set or replace the payload
+ *
+ * Manages JSON reference counts
+ *
+ * @param resp
+ * @param new_payload
+ */
+void mon_resp_set_payload(MON_RESP *resp, json_t *new_payload)
+{
+  if (resp->payload)
+    json_decref(resp->payload);
+  resp->payload = new_payload;
+  if (resp->payload)
+    json_incref(new_payload);
+}
+
+/**
  * Free a monitoring response
  *
  * @param resp request to free, must not be null

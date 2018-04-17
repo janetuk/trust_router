@@ -34,14 +34,13 @@
 
 /* Handlers for monitoring requests */
 
+#include <tr_debug.h>
 #include <mon_internal.h>
-
 #include "mons_handlers.h"
 
 typedef MON_RESP *(MONS_HANDLER_FUNC)(TALLOC_CTX *, MONS_INSTANCE *, MON_REQ *);
 
 /* Prototypes for the dispatch table */
-static MON_RESP *mons_handle_show(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ *req);
 static MON_RESP *mons_handle_reconfigure(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ *req);
 
 
@@ -65,23 +64,22 @@ MON_RESP *mons_handle_request(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ 
 {
   struct dispatch_table_entry *entry = dispatch_table;
 
+  tr_debug("mons_handle_request: Handling a request");
+
   /* Find the handler */
   while ((entry->command != req->command) && (entry->command != MON_CMD_UNKNOWN)) {
     entry++;
   }
 
   /* See if we found a handler */
-  if (entry->command == MON_CMD_UNKNOWN)
+  if (entry->command == MON_CMD_UNKNOWN) {
+    tr_info("mons_handle_request: Unknown or unsupported monitoring request received");
     return NULL;
+  }
 
   /* Call the handler */
+  tr_debug("mons_handle_request: Calling handler for %s command", mon_cmd_to_string(entry->command));
   return entry->handler(mem_ctx, mons, req);
-}
-
-static MON_RESP *mons_handle_show(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ *req)
-{
-  MON_RESP *resp = mon_resp_new(mem_ctx, MON_RESP_SUCCESS, "success", NULL);
-  return resp;
 }
 
 static MON_RESP *mons_handle_reconfigure(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ *req)
