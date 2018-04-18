@@ -146,15 +146,17 @@ static void configure_signals(void)
 }
 
 /* TODO move this function */
-static json_t *tr_mon_handle_version(void *cookie)
+static MON_RC tr_mon_handle_version(void *cookie, json_t **result_ptr)
 {
-  return json_string(PACKAGE_VERSION);
+  *result_ptr = json_string(PACKAGE_VERSION);
+  return (*result_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
 }
 
-static json_t *tr_mon_handle_uptime(void *cookie)
+static MON_RC tr_mon_handle_uptime(void *cookie, json_t **result_ptr)
 {
   time_t *start_time = cookie;
-  return json_integer(time(NULL) - (*start_time));
+  *result_ptr = json_integer(time(NULL) - (*start_time));
+  return (*result_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
 }
 
 int main(int argc, char *argv[])

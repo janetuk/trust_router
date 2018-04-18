@@ -36,7 +36,7 @@
 #ifndef TRUST_ROUTER_MONS_HANDLERS_H
 #define TRUST_ROUTER_MONS_HANDLERS_H
 
-typedef json_t *(MONS_HANDLER_FUNC)(void *);
+typedef MON_RC (MONS_HANDLER_FUNC)(void *cookie, json_t **result_ptr);
 
 struct mons_dispatch_table_entry {
   MON_CMD command;
