@@ -38,6 +38,7 @@
 #include <tr_event.h>
 #include <tr_config.h>
 #include <mon_internal.h>
+#include <mons_handlers.h>
 
 int tr_mons_event_init(struct event_base *base,
                        MONS_INSTANCE *mons,

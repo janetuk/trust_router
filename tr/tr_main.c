@@ -38,6 +38,7 @@
 #include <event2/event.h>
 #include <talloc.h>
 #include <signal.h>
+#include <time.h>
 
 #include <tid_internal.h>
 #include <mon_internal.h>
@@ -144,6 +145,18 @@ static void configure_signals(void)
   pthread_sigmask(SIG_BLOCK, &signals, NULL);
 }
 
+/* TODO move this function */
+static json_t *tr_mon_handle_version(void *cookie)
+{
+  return json_string(PACKAGE_VERSION);
+}
+
+static json_t *tr_mon_handle_uptime(void *cookie)
+{
+  time_t *start_time = cookie;
+  return json_integer(time(NULL) - (*start_time));
+}
+
 int main(int argc, char *argv[])
 {
   TALLOC_CTX *main_ctx=NULL;
@@ -154,6 +167,8 @@ int main(int argc, char *argv[])
   struct tr_socket_event tids_ev = {0};
   struct tr_socket_event mon_ev = {0};
   struct event *cfgwatch_ev;
+
+  time_t start_time = time(NULL); /* TODO move this? */
 
   configure_signals();
 
@@ -211,6 +226,10 @@ int main(int argc, char *argv[])
   /* Monitor our tids/trps instances */
   tr->mons->tids = tr->tids;
   tr->mons->trps = tr->trps;
+
+  /* TODO do this more systematically */
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_VERSION, tr_mon_handle_version, NULL);
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_UPTIME, tr_mon_handle_uptime, &start_time);
 
   /***** process configuration *****/
   tr->cfgwatch=tr_cfgwatch_create(tr);

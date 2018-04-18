@@ -36,10 +36,17 @@
 #ifndef TRUST_ROUTER_MONS_HANDLERS_H
 #define TRUST_ROUTER_MONS_HANDLERS_H
 
+typedef json_t *(MONS_HANDLER_FUNC)(void *);
+
+struct mons_dispatch_table_entry {
+  MON_CMD command;
+  MON_OPT_TYPE opt_type;
+  MONS_HANDLER_FUNC *handler;
+  void *cookie;
+};
+
 /* mons_handlers.c */
 MON_RESP *mons_handle_request(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ *req);
-
-/* mons_handlers_show.c */
-MON_RESP *mons_handle_show(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ *req);
+MON_RC mons_register_handler(MONS_INSTANCE *mons, MON_CMD cmd, MON_OPT_TYPE opt_type, MONS_HANDLER_FUNC *f, void *cookie);
 
 #endif //TRUST_ROUTER_MONS_HANDLERS_H

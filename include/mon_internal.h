@@ -91,6 +91,7 @@ enum mon_resp_code {
 
 enum mon_opt_type {
   OPT_TYPE_UNKNOWN=0,
+  OPT_TYPE_ANY,
 
   // System information
   OPT_TYPE_SHOW_VERSION,
@@ -131,6 +132,7 @@ struct mons_instance {
   MONS_REQ_FUNC *req_handler;
   MONS_AUTH_FUNC *auth_handler;
   void *cookie;
+  GPtrArray *handlers;
 };
 
 /* Client instance */

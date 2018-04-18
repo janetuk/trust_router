@@ -112,3 +112,4 @@ MON_OPT *mon_req_opt_index(MON_REQ *req, size_t index)
   MON_OPT *result = &g_array_index(req->options, MON_OPT, index);
   return result;
 }
+

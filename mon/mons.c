@@ -46,6 +46,15 @@
 
 #include "mons_handlers.h"
 
+static int mons_destructor(void *object)
+{
+  MONS_INSTANCE *mons = talloc_get_type_abort(object, MONS_INSTANCE);
+  if (mons->handlers) {
+    g_ptr_array_unref(mons->handlers);
+  }
+  return 0;
+}
+
 /**
  * Allocate a new MONS_INSTANCE
  *
@@ -64,10 +73,20 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
     mons->req_handler = NULL;
     mons->auth_handler = NULL;
     mons->cookie = NULL;
+
+    /* Before any steps that may fail, install the destructor */
+    talloc_set_destructor((void *)mons, mons_destructor);
+
     mons->authorized_gss_names = tr_gss_names_new(mons);
     if (mons->authorized_gss_names == NULL) {
       talloc_free(mons);
-      mons = NULL;
+      return NULL;
+    }
+
+    mons->handlers = g_ptr_array_new();
+    if (mons->handlers == NULL) {
+      talloc_free(mons);
+      return NULL;
     }
   }
   return mons;

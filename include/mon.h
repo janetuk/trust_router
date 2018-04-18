@@ -54,6 +54,8 @@ typedef enum mon_rc MON_RC;
 typedef struct mons_instance MONS_INSTANCE;
 typedef struct monc_instance MONC_INSTANCE;
 
+typedef struct mons_dispatch_table_entry MONS_DISPATCH_TABLE_ENTRY;
+
 typedef int (MONS_REQ_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
 typedef int (MONS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 typedef int (MONC_RESP_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
