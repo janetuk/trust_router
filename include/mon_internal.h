@@ -134,6 +134,7 @@ struct mons_instance {
   MONS_AUTH_FUNC *auth_handler;
   void *cookie;
   GPtrArray *handlers;
+  GArray *pids; /* PIDs of active mons processes */
 };
 
 /* Client instance */

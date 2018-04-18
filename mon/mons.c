@@ -46,12 +46,17 @@
 
 #include "mons_handlers.h"
 
+static void mons_sweep_procs(MONS_INSTANCE *mons);
+
 static int mons_destructor(void *object)
 {
   MONS_INSTANCE *mons = talloc_get_type_abort(object, MONS_INSTANCE);
-  if (mons->handlers) {
+  if (mons->handlers)
     g_ptr_array_unref(mons->handlers);
-  }
+
+  if (mons->pids)
+    g_array_unref(mons->pids);
+
   return 0;
 }
 
@@ -85,6 +90,12 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
 
     mons->handlers = g_ptr_array_new();
     if (mons->handlers == NULL) {
+      talloc_free(mons);
+      return NULL;
+    }
+
+    mons->pids = g_array_new(FALSE, FALSE, sizeof(pid_t));
+    if (mons->pids == NULL) {
       talloc_free(mons);
       return NULL;
     }
@@ -233,12 +244,41 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
     );
     close(conn);
     exit(0); /* exit to kill forked child process */
-  } else {
-    close(conn);
   }
 
+  /* Only the parent process gets here */
+  close(conn);
+  g_array_append_val(mons->pids, pid);
+
   /* clean up any processes that have completed */
-  //while (waitpid(-1, 0, WNOHANG) > 0); TODO: only clean up our own pids
+  mons_sweep_procs(mons);
 
   return 0;
+}
+
+void mons_sweep_procs(MONS_INSTANCE *mons)
+{
+  guint ii;
+  pid_t pid;
+  int status;
+
+  /* loop backwards over the array so we can remove elements as we go */
+  for (ii=mons->pids->len; ii > 0; ii--) {
+    /* ii-1 is the current index */
+    pid = g_array_index(mons->pids, pid_t, ii-1);
+    if (waitpid(pid, &status, WNOHANG) > 0) {
+      /* the process exited */
+      tr_debug("mons_sweep_procs: monitoring process %d terminated.", pid);
+
+      g_array_remove_index_fast(mons->pids, ii-1); /* disturbs only indices >= ii-1 which we've already handled */
+      if (WIFEXITED(status)) {
+        if (WEXITSTATUS(status) == 0)
+          tr_debug("mons_sweep_procs: monitoring process %d succeeded.", pid);
+        else
+          tr_debug("mons_sweep_procs: monitoring process %d exited with status %d.", pid, WTERMSIG(status));
+      } else if (WIFSIGNALED(status)) {
+        tr_debug("mons_sweep_procs: monitoring process %d terminated by signal %d.", pid, WTERMSIG(status));
+      }
+    }
+  }
 }

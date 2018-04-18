@@ -444,15 +444,15 @@ void tids_sweep_procs(TIDS_INSTANCE *tids)
 
       g_array_remove_index_fast(tids->pids, ii-1); /* disturbs only indices >= ii-1 which we've already handled */
       if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
-        tr_debug("tids_sweep_procs: TID process succeeded");
+        tr_debug("tids_sweep_procs: TID process %d succeeded.", pid);
         tids->req_count++;
       } else {
         tids->error_count++;
 
         if (WIFEXITED(status)) {
-          tr_debug("tids_sweep_procs: TID process %d exited with status %d", pid, WTERMSIG(status));
+          tr_debug("tids_sweep_procs: TID process %d exited with status %d.", pid, WTERMSIG(status));
         } else if (WIFSIGNALED(status)) {
-          tr_debug("tids_sweep_procs: TID process %d terminated by signal %d", pid, WTERMSIG(status));
+          tr_debug("tids_sweep_procs: TID process %d terminated by signal %d.", pid, WTERMSIG(status));
         }
       }
     }
