@@ -14,6 +14,11 @@ include_directories(${GLIB_INCLUDE_DIRS})
 
 include_directories(include)
 
+# Fill these in so CLion doesn't complain. The real versions are set in the Makefile
+add_definitions(-DPACKAGE_VERSION="built-with-cmake"
+                -DPACKAGE_NAME="Moonshot Trust Router"
+                -DPACKAGE_BUGREPORT="bugs@painless-security.com")
+
 set(SOURCE_FILES
         common/tests/cfg_test.c
         common/tests/commtest.c
