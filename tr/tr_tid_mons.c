@@ -40,14 +40,39 @@
 #include <mon_internal.h>
 #include <mons_handlers.h>
 
+/**
+ * Get the count of completed TID requests
+ */
 static MON_RC handle_show_req_count(void *cookie, json_t **response_ptr)
 {
   TIDS_INSTANCE *tids = talloc_get_type_abort(cookie, TIDS_INSTANCE);
   *response_ptr = json_integer(tids->req_count);
-  return (*response_ptr) ? MON_NOMEM : MON_SUCCESS;
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
+static MON_RC handle_show_req_err_count(void *cookie, json_t **response_ptr)
+{
+  TIDS_INSTANCE *tids = talloc_get_type_abort(cookie, TIDS_INSTANCE);
+  *response_ptr = json_integer(tids->error_count);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
+static MON_RC handle_show_req_pending(void *cookie, json_t **response_ptr)
+{
+  TIDS_INSTANCE *tids = talloc_get_type_abort(cookie, TIDS_INSTANCE);
+  *response_ptr = json_integer(tids->pids->len);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
 }
 
 void tr_tid_register_mons_handlers(TIDS_INSTANCE *tids, MONS_INSTANCE *mons)
 {
-  mons_register_handler(mons, MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQ_COUNT, handle_show_req_count, tids);
+  mons_register_handler(mons,
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQ_COUNT,
+                        handle_show_req_count, tids);
+  mons_register_handler(mons,
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQ_ERR_COUNT,
+                        handle_show_req_err_count, tids);
+  mons_register_handler(mons,
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQ_PENDING,
+                        handle_show_req_pending, tids);
 }

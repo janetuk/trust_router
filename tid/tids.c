@@ -310,9 +310,26 @@ cleanup:
   return resp_msg;
 }
 
+static int tids_destructor(void *object)
+{
+  TIDS_INSTANCE *tids = talloc_get_type_abort(object, TIDS_INSTANCE);
+  if (tids->pids)
+    g_array_unref(tids->pids);
+  return 0;
+}
+
 TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
 {
-  return talloc_zero(mem_ctx, TIDS_INSTANCE);
+  TIDS_INSTANCE *tids = talloc_zero(mem_ctx, TIDS_INSTANCE);
+  if (tids) {
+    tids->pids = g_array_new(FALSE, FALSE, sizeof(pid_t));
+    if (tids->pids == NULL) {
+      talloc_free(tids);
+      return NULL;
+    }
+    talloc_set_destructor((void *)tids, tids_destructor);
+  }
+  return tids;
 }
 
 /**
@@ -323,8 +340,9 @@ TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
  */
 TIDS_INSTANCE *tids_create(void)
 {
-  return talloc_zero(NULL, TIDS_INSTANCE);
+  return tids_new(NULL);
 }
+
 /* Get a listener for tids requests, returns its socket fd. Accept
  * connections with tids_accept() */
 nfds_t tids_get_listener(TIDS_INSTANCE *tids,
@@ -389,8 +407,6 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
     return 1;
   }
 
-  tids->req_count++; /* increment this in both processes after forking */
-
   if (pid == 0) {
     close(listen);
     tr_gss_handle_connection(conn,
@@ -400,14 +416,47 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
     );
     close(conn);
     exit(0); /* exit to kill forked child process */
-  } else {
-    close(conn);
   }
 
-  /* clean up any processes that have completed  (TBD: move to main loop?) */
-  while (waitpid(-1, 0, WNOHANG) > 0);
+  /* Only the parent process gets here */
+  close(conn); /* connection belongs to the child */
+  g_array_append_val(tids->pids, pid); /* remember the PID of our child process */
+
+  /* clean up any processes that have completed */
+  tids_sweep_procs(tids);
 
   return 0;
+}
+
+void tids_sweep_procs(TIDS_INSTANCE *tids)
+{
+  guint ii;
+  pid_t pid;
+  int status;
+
+  /* loop backwards over the array so we can remove elements as we go */
+  for (ii=tids->pids->len; ii > 0; ii--) {
+    /* ii-1 is the current index */
+    pid = g_array_index(tids->pids, pid_t, ii-1);
+    if (waitpid(pid, &status, WNOHANG) > 0) {
+      /* the process exited */
+      tr_debug("tids_sweep_procs: TID process %d terminated.", pid);
+
+      g_array_remove_index_fast(tids->pids, ii-1); /* disturbs only indices >= ii-1 which we've already handled */
+      if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
+        tr_debug("tids_sweep_procs: TID process succeeded");
+        tids->req_count++;
+      } else {
+        tids->error_count++;
+
+        if (WIFEXITED(status)) {
+          tr_debug("tids_sweep_procs: TID process %d exited with status %d", pid, WTERMSIG(status));
+        } else if (WIFSIGNALED(status)) {
+          tr_debug("tids_sweep_procs: TID process %d terminated by signal %d", pid, WTERMSIG(status));
+        }
+      }
+    }
+  }
 }
 
 /* Process tids requests forever. Should not return except on error. */

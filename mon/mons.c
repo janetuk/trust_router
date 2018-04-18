@@ -238,7 +238,7 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
   }
 
   /* clean up any processes that have completed */
-  while (waitpid(-1, 0, WNOHANG) > 0);
+  //while (waitpid(-1, 0, WNOHANG) > 0); TODO: only clean up our own pids
 
   return 0;
 }

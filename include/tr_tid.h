@@ -42,10 +42,7 @@
 
 #define TR_TID_MAX_AAA_SERVERS 10
 
-int tr_tids_event_init(struct event_base *base,
-                       TIDS_INSTANCE *tids,
-                       TR_CFG_MGR *cfg_mgr,
-                       TRPS_INSTANCE *trps,
+int tr_tids_event_init(struct event_base *base, TIDS_INSTANCE *tids, TR_CFG_MGR *cfg_mgr, TRPS_INSTANCE *trps,
                        struct tr_socket_event *tids_ev);
 
 /* tr_tid_mons.c */

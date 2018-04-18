@@ -88,6 +88,7 @@ struct tidc_instance {
 
 struct tids_instance {
   int req_count;
+  int error_count;
   char *priv_key;
   char *ipaddr;
   const char *hostname;
@@ -96,6 +97,7 @@ struct tids_instance {
   void *cookie;
   unsigned int tids_port;
   TR_NAME *gss_name;		/* GSS name client used for authentication */
+  GArray *pids; /* PIDs of active tids processes */
 };
 
 /** Decrement a reference to #json when this tid_req is cleaned up. A
@@ -115,5 +117,7 @@ void tid_srvr_blk_set_path(TID_SRVR_BLK *block, TID_PATH *path);
 TID_RC tid_resp_cpy(TID_RESP *dst, TID_RESP *src);
 void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons);
 void tid_resp_set_error_path(TID_RESP *resp, json_t *ep);
+
+void tids_sweep_procs(TIDS_INSTANCE *tids);
 
 #endif
