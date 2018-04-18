@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,23 +32,22 @@
  *
  */
 
-#ifndef TR_TID_H
-#define TR_TID_H
+/* Monitoring handlers for trust router TID server */
 
-#include <trp_internal.h>
-#include <tr_event.h>
-#include <tr_config.h>
-#include <mon.h>
+#include <jansson.h>
+#include <tid_internal.h>
+#include <tr_tid.h>
+#include <mon_internal.h>
+#include <mons_handlers.h>
 
-#define TR_TID_MAX_AAA_SERVERS 10
+static MON_RC handle_show_req_count(void *cookie, json_t **response_ptr)
+{
+  TIDS_INSTANCE *tids = talloc_get_type_abort(cookie, TIDS_INSTANCE);
+  *response_ptr = json_integer(tids->req_count);
+  return (*response_ptr) ? MON_NOMEM : MON_SUCCESS;
+}
 
-int tr_tids_event_init(struct event_base *base,
-                       TIDS_INSTANCE *tids,
-                       TR_CFG_MGR *cfg_mgr,
-                       TRPS_INSTANCE *trps,
-                       struct tr_socket_event *tids_ev);
-
-/* tr_tid_mons.c */
-void tr_tid_register_mons_handlers(TIDS_INSTANCE *tids, MONS_INSTANCE *mons);
-
-#endif /* TR_TID_H */
+void tr_tid_register_mons_handlers(TIDS_INSTANCE *tids, MONS_INSTANCE *mons)
+{
+  mons_register_handler(mons, MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQ_COUNT, handle_show_req_count, tids);
+}

@@ -232,7 +232,8 @@ int main(int argc, char *argv[])
   /* TODO do this more systematically */
   mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_VERSION, tr_mon_handle_version, NULL);
   mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_UPTIME, tr_mon_handle_uptime, &start_time);
-
+  tr_tid_register_mons_handlers(tr->tids, tr->mons);
+  
   /***** process configuration *****/
   tr->cfgwatch=tr_cfgwatch_create(tr);
   if (tr->cfgwatch == NULL) {

@@ -389,6 +389,8 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
     return 1;
   }
 
+  tids->req_count++; /* increment this in both processes after forking */
+
   if (pid == 0) {
     close(listen);
     tr_gss_handle_connection(conn,

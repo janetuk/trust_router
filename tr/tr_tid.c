@@ -287,7 +287,6 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
 
   tr_debug("tr_tids_req_handler: Request received (conn = %d)! Realm = %s, Comm = %s", orig_req->conn, 
            orig_req->realm->buf, orig_req->comm->buf);
-  tids->req_count++;
 
   /* Duplicate the request, so we can modify and forward it */
   if (NULL == (fwd_req=tid_dup_req(orig_req))) {
