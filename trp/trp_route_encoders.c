@@ -81,6 +81,27 @@ char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
   return result;
 }
 
+/* helper */
+static json_t *expiry_to_json_string(TRP_ROUTE *route)
+{
+  struct timespec ts_zero = {0, 0};
+  char *s = NULL;
+  json_t *jstr = NULL;
+
+  if (tr_cmp_timespec(trp_route_get_expiry(route), &ts_zero) == 0) {
+    s = strdup("");
+  } else {
+    s = timespec_to_str(trp_route_get_expiry(route));
+  }
+
+  if (s) {
+    jstr = json_string(s);
+    free(s);
+  }
+
+  return jstr;
+}
+
 /* helper for below */
 #define OBJECT_SET_OR_FAIL(jobj, key, val)     \
 do {                                           \
@@ -93,34 +114,29 @@ do {                                           \
 json_t *trp_route_to_json(TRP_ROUTE *route)
 {
   json_t *route_json = NULL;
-  char *expires = NULL;
-  struct timespec ts_zero = {0, 0};
+  json_t *retval = NULL;
 
   route_json = json_object();
   if (route_json == NULL)
-    return NULL;
+    goto cleanup;
 
-  if (tr_cmp_timespec(trp_route_get_expiry(route), &ts_zero) == 0) {
-    expires = strdup("");
-  } else {
-    expires = timespec_to_str(route->expiry);
-    if (expires == NULL) {
-      json_decref(route_json);
-      return NULL;
-    }
-  }
+  OBJECT_SET_OR_FAIL(route_json, "community", tr_name_to_json_string(trp_route_get_comm(route)));
+  OBJECT_SET_OR_FAIL(route_json, "realm", tr_name_to_json_string(trp_route_get_realm(route)));
+  OBJECT_SET_OR_FAIL(route_json, "peer", tr_name_to_json_string(trp_route_get_peer(route)));
+  OBJECT_SET_OR_FAIL(route_json, "metric", json_integer(trp_route_get_metric(route)));
+  OBJECT_SET_OR_FAIL(route_json, "trust_router", tr_name_to_json_string(trp_route_get_trust_router(route)));
+  OBJECT_SET_OR_FAIL(route_json, "next_hop", tr_name_to_json_string(trp_route_get_next_hop(route)));
+  OBJECT_SET_OR_FAIL(route_json, "selected", json_boolean(trp_route_is_selected(route)));
+  OBJECT_SET_OR_FAIL(route_json, "local", json_boolean(trp_route_is_local(route)));
+  OBJECT_SET_OR_FAIL(route_json, "expires", expiry_to_json_string(route));
 
-  OBJECT_SET_OR_FAIL(route_json, "community", tr_name_to_json_string(route->comm));
-  OBJECT_SET_OR_FAIL(route_json, "realm", tr_name_to_json_string(route->realm));
-  OBJECT_SET_OR_FAIL(route_json, "peer", tr_name_to_json_string(route->peer));
-  OBJECT_SET_OR_FAIL(route_json, "metric", json_integer(route->metric));
-  OBJECT_SET_OR_FAIL(route_json, "trust_router", tr_name_to_json_string(route->trust_router));
-  OBJECT_SET_OR_FAIL(route_json, "next_hop", tr_name_to_json_string(route->next_hop));
-  OBJECT_SET_OR_FAIL(route_json, "selected", json_boolean(route->selected));
-  OBJECT_SET_OR_FAIL(route_json, "local", json_boolean(route->local));
-  OBJECT_SET_OR_FAIL(route_json, "expires", json_string(expires));
+  /* succeeded - set the return value and increment the reference count */
+  retval = route_json;
+  json_incref(retval);
+
 
 cleanup:
-  free(expires);
-  return route_json;
+  if (route_json)
+    json_decref(route_json);
+  return retval;
 }
