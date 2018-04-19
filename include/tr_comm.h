@@ -226,4 +226,11 @@ TR_NAME *tr_realm_dup_id(TR_REALM *realm);
 const char *tr_realm_role_to_str(TR_REALM_ROLE role);
 TR_REALM_ROLE tr_realm_role_from_str(const char *s);
 
+/* tr_comm_encoders.c */
+json_t *tr_comm_memb_to_json(TR_COMM_MEMB *memb);
+json_t *tr_comm_to_json(TR_COMM_TABLE *ctable, TR_COMM *comm);
+json_t *tr_comm_table_to_json(TR_COMM_TABLE *ctable);
+json_t *tr_comm_rp_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_id);
+json_t *tr_comm_idp_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_name);
+
 #endif

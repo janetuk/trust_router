@@ -85,5 +85,6 @@ void tr_rp_realm_incref(TR_RP_REALM *realm);
 void tr_rp_realm_decref(TR_RP_REALM *realm);
 
 char *tr_rp_realm_to_str(TALLOC_CTX *mem_ctx, TR_RP_REALM *rp);
+json_t *tr_rp_realm_to_json(TR_RP_REALM *rp);
 
 #endif

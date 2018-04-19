@@ -330,3 +330,8 @@ char *tr_rp_realm_to_str(TALLOC_CTX *mem_ctx, TR_RP_REALM *rp)
                          "RP realm: \"%.*s\"\n",
                          rp->realm_id->len, rp->realm_id->buf);
 }
+
+json_t *tr_rp_realm_to_json(TR_RP_REALM *rp)
+{
+  return tr_name_to_json_string(tr_rp_realm_get_id(rp));
+}
