@@ -44,6 +44,7 @@
 
 #include <tr_comm.h>
 #include <tr_rp.h>
+#include <tr_rp_client.h>
 #include <tr_idp.h>
 #include <trp_ptable.h>
 #include <trp_internal.h>
