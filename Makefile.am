@@ -24,6 +24,7 @@ common_srcs = common/tr_name.c \
 	common/tr_idp.c \
 	common/tr_idp_encoders.c \
 	common/tr_filter.c \
+	common/tr_filter_encoders.c \
 	common/tr_gss_names.c \
 	common/tr_socket.c \
 	$(mon_srcs)

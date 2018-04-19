@@ -112,6 +112,8 @@ json_t *trp_peer_to_json(TRP_PEER *peer)
                      last_attempt_to_json_string(peer));
   OBJECT_SET_OR_FAIL(peer_json, "allowed_credentials",
                      tr_gss_names_to_json_array(trp_peer_get_gss_names(peer)));
+  OBJECT_SET_OR_FAIL(peer_json, "filters",
+                     tr_filter_set_to_json(peer->filters));
 
   /* succeeded - set the return value and increment the reference count */
   retval = peer_json;

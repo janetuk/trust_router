@@ -65,7 +65,8 @@ static json_t *tr_rp_client_to_json(TR_RP_CLIENT *rp_client)
     goto cleanup;
 
   OBJECT_SET_OR_FAIL(client_json, "gss_names", tr_gss_names_to_json_array(rp_client->gss_names));
-
+  OBJECT_SET_OR_FAIL(client_json, "filters", tr_filter_set_to_json(rp_client->filters));
+  
   /* succeeded - set the return value and increment the reference count */
   retval = client_json;
   json_incref(retval);
@@ -102,6 +103,6 @@ cleanup:
 
   if (iter)
     tr_rp_client_iter_free(iter);
-  
+
   return retval;
 }
