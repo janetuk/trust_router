@@ -1146,7 +1146,7 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
     return TRP_ERROR;
   }
 
-  entry=trp_rtable_get_entries(trps->rtable, &n_entry); /* must talloc_free *entry */
+  entry= trp_rtable_get_entries(NULL, trps->rtable, &n_entry); /* must talloc_free *entry */
 
   /* loop over the entries */
   for (ii=0; ii<n_entry; ii++) {

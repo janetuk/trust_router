@@ -45,6 +45,7 @@
 
 typedef GHashTable TRP_RTABLE;
 
+/* trp_rtable.c */
 TRP_RTABLE *trp_rtable_new(void);
 void trp_rtable_free(TRP_RTABLE *rtbl);
 void trp_rtable_add(TRP_RTABLE *rtbl, TRP_ROUTE *entry); /* adds or updates */
@@ -53,7 +54,7 @@ void trp_rtable_clear(TRP_RTABLE *rtbl);
 size_t trp_rtable_size(TRP_RTABLE *rtbl);
 size_t trp_rtable_comm_size(TRP_RTABLE *rtbl, TR_NAME *comm);
 size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm);
-TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out);
+TRP_ROUTE **trp_rtable_get_entries(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, size_t *n_out);
 TR_NAME **trp_rtable_get_comms(TRP_RTABLE *rtbl, size_t *n_out);
 TRP_ROUTE **trp_rtable_get_comm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, size_t *n_out);
 TR_NAME **trp_rtable_get_comm_realms(TRP_RTABLE *rtbl, TR_NAME *comm, size_t *n_out);
@@ -62,7 +63,9 @@ TR_NAME **trp_rtable_get_comm_realm_peers(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NA
 TRP_ROUTE *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer);
 TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm);
 void trp_rtable_clear_triggered(TRP_RTABLE *rtbl);
-char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, const char *lineterm);
 
+/* trp_rtable_encoders.c */
+char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, const char *lineterm);
+json_t *trp_rtable_to_json(TRP_RTABLE *rtbl);
 
 #endif /* _TRP_RTABLE_H_ */

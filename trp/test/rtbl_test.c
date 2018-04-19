@@ -244,7 +244,7 @@ static void update_metric(TRP_RTABLE *table, unsigned int (*new_metric)(size_t, 
   TRP_ROUTE **entries=NULL;
   size_t n=0, ii=0,jj=0,kk=0;
 
-  entries=trp_rtable_get_entries(table, &n);
+  entries= trp_rtable_get_entries(NULL, table, &n);
   while (n--) {
     ii=get_index(trp_route_get_comm(entries[n])->buf, apc, n_apc);
     jj=get_index(trp_route_get_realm(entries[n])->buf, realm, n_realm);

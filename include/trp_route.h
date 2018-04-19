@@ -35,6 +35,7 @@
 
 #ifndef TRUST_ROUTER_TRP_ROUTE_H
 #define TRUST_ROUTER_TRP_ROUTE_H
+
 typedef struct trp_route {
   TR_NAME *comm;
   TR_NAME *realm;
@@ -51,6 +52,7 @@ typedef struct trp_route {
   int triggered;
 } TRP_ROUTE;
 
+/* trp_route.c */
 TRP_ROUTE *trp_route_new(TALLOC_CTX *mem_ctx);
 void trp_route_free(TRP_ROUTE *entry);
 void trp_route_set_comm(TRP_ROUTE *entry, TR_NAME *comm);
@@ -80,6 +82,9 @@ void trp_route_set_local(TRP_ROUTE *entry, int local);
 int trp_route_is_local(TRP_ROUTE *entry);
 void trp_route_set_triggered(TRP_ROUTE *entry, int trig);
 int trp_route_is_triggered(TRP_ROUTE *entry);
+
+/* trp_route_encoders.c */
 char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep);
+json_t *trp_route_to_json(TRP_ROUTE *route);
 
 #endif //TRUST_ROUTER_TRP_ROUTE_H

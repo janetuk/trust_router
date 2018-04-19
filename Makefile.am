@@ -32,9 +32,11 @@ tid/tidc.c
 trp_srcs = trp/trp_conn.c \
 trp/trps.c \
 trp/trpc.c \
-trp/trp_route.c \
 trp/trp_ptable.c \
+trp/trp_route.c \
+trp/trp_route_encoders.c \
 trp/trp_rtable.c \
+trp/trp_rtable_encoders.c \
 trp/trp_req.c \
 trp/trp_upd.c \
 common/tr_config.c \
@@ -89,6 +91,7 @@ tr/tr_cfgwatch.c \
 tr/tr_tid.c \
 tr/tr_tid_mons.c \
 tr/tr_trp.c \
+tr/tr_trp_mons.c \
 tr/tr_mon.c \
 common/tr_gss.c \
 common/tr_gss_client.c \
@@ -136,7 +139,9 @@ common/tr_gss_names.c \
 common/tr_debug.c \
 common/tr_util.c \
 trp/trp_route.c \
-trp/trp_rtable.c
+trp/trp_route_encoders.c \
+trp/trp_rtable.c \
+trp/trp_rtable_encoders.c
 trp_test_rtbl_test_LDADD =  $(GLIB_LIBS)
 
 trp_test_ptbl_test_SOURCES = trp/test/ptbl_test.c \

@@ -229,9 +229,9 @@ size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm)
 }
 
 /* Returns an array of pointers to TRP_ROUTE, length of array in n_out.
- * Caller must free the array (in the talloc NULL context), but must
+ * Caller must free the array (in the mem_ctx context), but must
  * not free its contents. */
-TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
+TRP_ROUTE **trp_rtable_get_entries(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, size_t *n_out)
 {
   TRP_ROUTE **ret=NULL;
   TR_NAME **comm=NULL;
@@ -244,7 +244,7 @@ TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
   if (*n_out==0)
     return NULL;
 
-  ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
+  ret=talloc_array(mem_ctx, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
     tr_crit("trp_rtable_get_entries: unable to allocate return array.");
     *n_out=0;
@@ -457,7 +457,7 @@ TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAM
 void trp_rtable_clear_triggered(TRP_RTABLE *rtbl)
 {
   size_t n_entries=0;
-  TRP_ROUTE **entries=trp_rtable_get_entries(rtbl, &n_entries);
+  TRP_ROUTE **entries= trp_rtable_get_entries(NULL, rtbl, &n_entries);
   size_t ii=0;
 
   if (entries!=NULL) {
@@ -465,85 +465,4 @@ void trp_rtable_clear_triggered(TRP_RTABLE *rtbl)
       trp_route_set_triggered(entries[ii], 0);
     talloc_free(entries);
   }
-}
-
-static int sort_tr_names_cmp(const void *a, const void *b)
-{
-  TR_NAME **n1=(TR_NAME **)a;
-  TR_NAME **n2=(TR_NAME **)b;
-  return tr_name_cmp(*n1, *n2);
-}
-
-static void sort_tr_names(TR_NAME **names, size_t n_names)
-{
-  qsort(names, n_names, sizeof(TR_NAME *), sort_tr_names_cmp);
-}
-
-char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, const char *lineterm)
-{
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TR_NAME **comms=NULL;
-  size_t n_comms=0;
-  TR_NAME **realms=NULL;
-  size_t n_realms=0;
-  TRP_ROUTE **entries=NULL;
-  size_t n_entries=0;
-  char **tbl_strings=NULL;
-  size_t ii_tbl=0; /* counts tbl_strings */
-  size_t tbl_size=0;
-  size_t len=0;
-  size_t ii=0, jj=0, kk=0;
-  char *p=NULL;
-  char *result=NULL;
-
-  if (lineterm==NULL)
-    lineterm="\n";
-
-  tbl_size=trp_rtable_size(rtbl);
-  if (tbl_size==0) {
-    result=talloc_strdup(mem_ctx, lineterm);
-    goto cleanup;
-  }
-
-  tbl_strings=talloc_array(tmp_ctx, char *, tbl_size);
-  if (tbl_strings==NULL) {
-    result=talloc_strdup(mem_ctx, "error");
-    goto cleanup;
-  }
-  
-  comms=trp_rtable_get_comms(rtbl, &n_comms);
-  talloc_steal(tmp_ctx, comms);
-  sort_tr_names(comms, n_comms);
-  ii_tbl=0;
-  len=0;
-  for (ii=0; ii<n_comms; ii++) {
-    realms=trp_rtable_get_comm_realms(rtbl, comms[ii], &n_realms);
-    talloc_steal(tmp_ctx, realms);
-    sort_tr_names(realms, n_realms);
-    for (jj=0; jj<n_realms; jj++) {
-      entries=trp_rtable_get_realm_entries(rtbl, comms[ii], realms[jj], &n_entries);
-      talloc_steal(tmp_ctx, entries);
-      for (kk=0; kk<n_entries; kk++) {
-        tbl_strings[ii_tbl]=trp_route_to_str(tmp_ctx, entries[kk], sep);
-        len+=strlen(tbl_strings[ii_tbl]);
-        ii_tbl++;
-      }
-      talloc_free(entries);
-    }
-    talloc_free(realms);
-  }
-  talloc_free(comms);
-
-  /* now combine all the strings */
-  len += tbl_size*strlen(lineterm); /* space for line terminations*/
-  len += 1; /* nul terminator */
-  result=(char *)talloc_size(tmp_ctx, len);
-  for (p=result,ii=0; ii < tbl_size; ii++) {
-    p+=sprintf(p, "%s%s", tbl_strings[ii], lineterm);
-  }
-  talloc_steal(mem_ctx, result);
-  
-cleanup:
-  talloc_free(tmp_ctx);
-  return result;
 }

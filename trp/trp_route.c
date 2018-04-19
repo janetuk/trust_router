@@ -45,7 +45,6 @@
 #include <tr_debug.h>
 #include <trust_router/trp.h>
 #include <trust_router/tid.h>
-#include <tr_util.h>
 
 
 /* Note: be careful mixing talloc with glib. */
@@ -249,40 +248,4 @@ void trp_route_set_triggered(TRP_ROUTE *entry, int trig)
 int trp_route_is_triggered(TRP_ROUTE *entry)
 {
   return entry->triggered;
-}
-
-/* Pretty print a route table entry to a newly allocated string. If sep is NULL,
- * returns comma+space separated string. */
-char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
-{
-  char *comm=tr_name_strdup(entry->comm);
-  char *realm=tr_name_strdup(entry->realm);
-  char *peer=tr_name_strdup(entry->peer);
-  char *trust_router=tr_name_strdup(entry->trust_router);
-  char *next_hop=tr_name_strdup(entry->next_hop);
-  char *expiry=timespec_to_str(entry->expiry);
-  char *result=NULL;
-
-  if (sep==NULL)
-    sep=", ";
-
-  result=talloc_asprintf(mem_ctx,
-                         "%s%s%s%s%s%s%u%s%s%s%s%s%u%s%u%s%s%s%u",
-                         comm, sep,
-                         realm, sep,
-                         peer, sep,
-                         entry->metric, sep,
-                         trust_router, sep,
-                         next_hop, sep,
-                         entry->selected, sep,
-                         entry->local, sep,
-                         expiry, sep,
-                         entry->triggered);
-  free(comm);
-  free(realm);
-  free(peer);
-  free(trust_router);
-  free(next_hop);
-  free(expiry);
-  return result;
 }
