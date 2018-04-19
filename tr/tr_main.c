@@ -167,6 +167,7 @@ int main(int argc, char *argv[])
   struct cmdline_args opts;
   struct event_base *ev_base;
   struct tr_socket_event tids_ev = {0};
+  struct event *tids_sweep_ev;
   struct tr_socket_event mon_ev = {0};
   struct event *cfgwatch_ev;
 
@@ -271,11 +272,7 @@ int main(int argc, char *argv[])
 
   /* install TID server events */
   tr_debug("Initializing TID server events.");
-  if (0 != tr_tids_event_init(ev_base,
-                              tr->tids,
-                              tr->cfg_mgr,
-                              tr->trps,
-                             &tids_ev)) {
+  if (0 != tr_tids_event_init(ev_base, tr->tids, tr->cfg_mgr, tr->trps, &tids_ev, &tids_sweep_ev)) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }

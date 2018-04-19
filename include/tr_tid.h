@@ -43,7 +43,7 @@
 #define TR_TID_MAX_AAA_SERVERS 10
 
 int tr_tids_event_init(struct event_base *base, TIDS_INSTANCE *tids, TR_CFG_MGR *cfg_mgr, TRPS_INSTANCE *trps,
-                       struct tr_socket_event *tids_ev);
+                       struct tr_socket_event *tids_ev, struct event **sweep_ev);
 
 /* tr_tid_mons.c */
 void tr_tid_register_mons_handlers(TIDS_INSTANCE *tids, MONS_INSTANCE *mons);

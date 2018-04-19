@@ -673,7 +673,7 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
 /* called when a connection to the TIDS port is received */
 static void tr_tids_event_cb(int listener, short event, void *arg)
 {
-  TIDS_INSTANCE *tids = (TIDS_INSTANCE *)arg;
+  TIDS_INSTANCE *tids = talloc_get_type_abort(arg, TIDS_INSTANCE);
 
   if (0==(event & EV_READ))
     tr_debug("tr_tids_event_cb: unexpected event on TIDS socket (event=0x%X)", event);
@@ -681,23 +681,38 @@ static void tr_tids_event_cb(int listener, short event, void *arg)
     tids_accept(tids, listener);
 }
 
-/* Configure the tids instance and set up its event handler.
+/* called when it's time to sweep for completed TID child processes */
+static void tr_tids_sweep_cb(int listener, short event, void *arg)
+{
+  TIDS_INSTANCE *tids = talloc_get_type_abort(arg, TIDS_INSTANCE);
+
+  if (0==(event & EV_TIMEOUT))
+    tr_debug("tr_tids_event_cb: unexpected event on TID process sweep timer (event=0x%X)", event);
+  else
+    tids_sweep_procs(tids);
+}
+
+/* Configure the tids instance and set up its event handlers.
  * Returns 0 on success, nonzero on failure. Fills in
  * *tids_event (which should be allocated by caller). */
-int tr_tids_event_init(struct event_base *base,
-                       TIDS_INSTANCE *tids,
-                       TR_CFG_MGR *cfg_mgr,
-                       TRPS_INSTANCE *trps,
-                       struct tr_socket_event *tids_ev)
+int tr_tids_event_init(struct event_base *base, TIDS_INSTANCE *tids, TR_CFG_MGR *cfg_mgr, TRPS_INSTANCE *trps,
+                       struct tr_socket_event *tids_ev, struct event **sweep_ev)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_tids_event_cookie *cookie=NULL;
+  struct timeval sweep_interval;
   int retval=0;
   int ii=0;
 
   if (tids_ev == NULL) {
     tr_debug("tr_tids_event_init: Null tids_ev.");
     retval=1;
+    goto cleanup;
+  }
+
+  if (sweep_ev == NULL) {
+    tr_debug("tr_tids_event_init: Null sweep_ev.");
+    retval = 1;
     goto cleanup;
   }
 
@@ -729,7 +744,7 @@ int tr_tids_event_init(struct event_base *base,
     goto cleanup;
   }
 
-  /* Set up events */
+  /* Set up listener events */
   for (ii=0; ii<tids_ev->n_sock_fd; ii++) {
     tids_ev->ev[ii]=event_new(base,
                               tids_ev->sock_fd[ii],
@@ -738,6 +753,12 @@ int tr_tids_event_init(struct event_base *base,
                               (void *)tids);
     event_add(tids_ev->ev[ii], NULL);
   }
+
+  /* Set up a periodic check for completed TID handler processes */
+  *sweep_ev = event_new(base, -1, EV_TIMEOUT|EV_PERSIST, tr_tids_sweep_cb, tids);
+  sweep_interval.tv_sec = 10;
+  sweep_interval.tv_usec = 0;
+  event_add(*sweep_ev, &sweep_interval);
 
 cleanup:
   talloc_free(tmp_ctx);

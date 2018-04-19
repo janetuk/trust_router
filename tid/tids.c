@@ -442,6 +442,17 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
   return 0;
 }
 
+/**
+ * Clean up any finished TID request processes
+ *
+ * This is called by the main process after forking each TID request. If you want to be
+ * sure finished processes are cleaned up promptly even during a lull in TID requests,
+ * this can be called from the main thread of the main process. It is not thread-safe,
+ * so should not be used from sub-threads. It should not be called by child processes -
+ * this would probably be harmless but ineffective.
+ *
+ * @param tids
+ */
 void tids_sweep_procs(TIDS_INSTANCE *tids)
 {
   guint ii;
