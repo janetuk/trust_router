@@ -39,8 +39,8 @@
 #include <tr_gss_names.h>
 #include <trp_route.h>
 #include <trp_internal.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
-
 
 /* Can't do the updates test because trps_select_updates_for_peer() is now static */
 #define VERIFY_UPDATES 0

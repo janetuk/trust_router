@@ -32,7 +32,10 @@ tid/tidc.c
 trp_srcs = trp/trp_conn.c \
 trp/trps.c \
 trp/trpc.c \
+trp/trp_peer.c \
+trp/trp_peer_encoders.c \
 trp/trp_ptable.c \
+trp/trp_ptable_encoders.c \
 trp/trp_route.c \
 trp/trp_route_encoders.c \
 trp/trp_rtable.c \
@@ -257,7 +260,7 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_filter.h include/tr_gss_names.h \
 	include/tid_internal.h include/trp_internal.h include/trp_route.h \
 	include/tr_cfgwatch.h include/tr_event.h \
-	include/tr_mq.h include/trp_ptable.h \
+	include/tr_mq.h include/trp_peer.h include/trp_ptable.h \
 	include/trp_rtable.h include/tr_util.h \
 	include/tr_name_internal.h include/tr_gss.h
 

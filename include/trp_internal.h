@@ -43,7 +43,9 @@
 #include <gsscon.h>
 #include <tr_mq.h>
 #include <tr_msg.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
+#include <trp_route.h>
 #include <trp_rtable.h>
 #include <tr_apc.h>
 #include <tr_comm.h>

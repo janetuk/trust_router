@@ -49,6 +49,7 @@
 #include <trp_route.h>
 #include <trp_internal.h>
 #include <tr_gss_names.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>

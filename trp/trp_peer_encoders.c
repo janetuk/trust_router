@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, JANET(UK)
+ * Copyright (c) 2016-2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,38 +32,16 @@
  *
  */
 
-#ifndef _TRP_PTABLE_H_
-#define _TRP_PTABLE_H_
-
-#include <time.h>
 #include <talloc.h>
-
-#include <tr_name_internal.h>
-#include <tr_gss_names.h>
-#include <trust_router/trp.h>
-#include <tr_filter.h>
 #include <trp_peer.h>
 
-typedef struct trp_ptable {
-  TRP_PEER *head; /* head of a peer table list */
-} TRP_PTABLE;
+char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep)
+{
+  if (sep==NULL)
+    sep=", ";
+  return talloc_asprintf(memctx,
+                         "%s:%u%s0x%04X",
+                         peer->server, peer->port, sep,
+                         peer->linkcost);
+}
 
-/* iterator for the peer table */
-typedef TRP_PEER *TRP_PTABLE_ITER;
-
-TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx);
-void trp_ptable_free(TRP_PTABLE *ptbl);
-TRP_RC trp_ptable_add(TRP_PTABLE *ptbl, TRP_PEER *newpeer);
-TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer);
-TRP_PEER *trp_ptable_find_gss_name(TRP_PTABLE *ptbl, TR_NAME *gssname);
-TRP_PEER *trp_ptable_find_servicename(TRP_PTABLE *ptbl, TR_NAME *servicename);
-
-TRP_PTABLE_ITER *trp_ptable_iter_new(TALLOC_CTX *mem_ctx);
-TRP_PEER *trp_ptable_iter_first(TRP_PTABLE_ITER *iter, TRP_PTABLE *ptbl);
-TRP_PEER *trp_ptable_iter_next(TRP_PTABLE_ITER *iter);
-void trp_ptable_iter_free(TRP_PTABLE_ITER *iter);
-
-/* trp_ptable_encoders.c */
-char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, const char *lineterm);
-
-#endif /* _TRP_PTABLE_H_ */
