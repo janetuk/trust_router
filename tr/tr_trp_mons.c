@@ -38,6 +38,7 @@
 #include <trp_internal.h>
 #include <tr_trp.h>
 #include <trp_rtable.h>
+#include <trp_ptable.h>
 #include <mon_internal.h>
 #include <mons_handlers.h>
 
@@ -49,9 +50,20 @@ static MON_RC handle_show_routes(void *cookie, json_t **response_ptr)
   return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
 }
 
+static MON_RC handle_show_peers(void *cookie, json_t **response_ptr)
+{
+  TRPS_INSTANCE *trps = talloc_get_type_abort(cookie, TRPS_INSTANCE);
+
+  *response_ptr = trp_ptable_to_json(trps->ptable);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
 void tr_trp_register_mons_handlers(TRPS_INSTANCE *trps, MONS_INSTANCE *mons)
 {
   mons_register_handler(mons,
                         MON_CMD_SHOW, OPT_TYPE_SHOW_ROUTES,
                         handle_show_routes, trps);
+  mons_register_handler(mons,
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_PEERS,
+                        handle_show_peers, trps);
 }

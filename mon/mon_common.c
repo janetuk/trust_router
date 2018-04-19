@@ -105,6 +105,9 @@ const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
     case OPT_TYPE_SHOW_ROUTES:
       return "routes";
 
+    case OPT_TYPE_SHOW_PEERS:
+      return "peers";
+
     case OPT_TYPE_SHOW_COMMUNITIES:
       return "communities";
   }
@@ -127,6 +130,7 @@ MON_OPT_TYPE mon_opt_type_from_string(const char *s)
   return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_ERR_COUNT);
   return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_PENDING);
   return_if_matches(s, OPT_TYPE_SHOW_ROUTES);
+  return_if_matches(s, OPT_TYPE_SHOW_PEERS);
   return_if_matches(s, OPT_TYPE_SHOW_COMMUNITIES);
   return OPT_TYPE_UNKNOWN;
 }

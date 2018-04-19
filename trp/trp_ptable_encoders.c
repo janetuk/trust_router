@@ -55,3 +55,16 @@ char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, c
   talloc_free(tmpctx); /* free detritus */
   return result;
 }
+
+json_t *trp_ptable_to_json(TRP_PTABLE *ptbl)
+{
+  TRP_PTABLE_ITER *iter = trp_ptable_iter_new(NULL);
+  json_t *ptbl_json = json_array();
+  TRP_PEER *peer = trp_ptable_iter_first(iter, ptbl);
+  while(peer) {
+    json_array_append_new(ptbl_json, trp_peer_to_json(peer));
+    peer = trp_ptable_iter_next(iter);
+  }
+  trp_ptable_iter_free(iter);
+  return ptbl_json;
+}
