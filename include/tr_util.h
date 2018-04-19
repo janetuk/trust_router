@@ -37,6 +37,10 @@
 
 #include <trust_router/tr_versioning.h>
 
+/* NB, tr_bin_to_hex() is also prototyped in trust_router/tr_dh.h */
+TR_EXPORT void tr_bin_to_hex(const unsigned char * bin, size_t binlen,
+                             char * hex_out, size_t hex_len);
 TR_EXPORT int tr_cmp_timespec(struct timespec *ts1, struct timespec *ts2);
+char *timespec_to_str(struct timespec *ts);
 
 #endif /* TR_UTIL_H */

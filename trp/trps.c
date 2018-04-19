@@ -46,6 +46,7 @@
 #include <tr_apc.h>
 #include <tr_rp.h>
 #include <tr_name_internal.h>
+#include <trp_route.h>
 #include <trp_internal.h>
 #include <tr_gss_names.h>
 #include <trp_ptable.h>
@@ -1169,26 +1170,6 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 
   talloc_free(entry);
   return TRP_SUCCESS;
-}
-
-
-static char *timespec_to_str(struct timespec *ts)
-{
-  struct tm tm;
-  char *s=NULL;
-
-  if (localtime_r(&(ts->tv_sec), &tm)==NULL)
-    return NULL;
-
-  s=malloc(40); /* long enough to contain strftime result */
-  if (s==NULL)
-    return NULL;
-
-  if (strftime(s, 40, "%F %T", &tm)==0) {
-    free(s);
-    return NULL;
-  }
-  return s;
 }
 
 

@@ -43,6 +43,7 @@
 #include <tr_event.h>
 #include <tr_debug.h>
 #include <gsscon.h>
+#include <trp_route.h>
 #include <trp_internal.h>
 #include <tr_config.h>
 #include <tr_mq.h>

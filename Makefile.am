@@ -32,6 +32,7 @@ tid/tidc.c
 trp_srcs = trp/trp_conn.c \
 trp/trps.c \
 trp/trpc.c \
+trp/trp_route.c \
 trp/trp_ptable.c \
 trp/trp_rtable.c \
 trp/trp_req.c \
@@ -133,6 +134,8 @@ trp_test_rtbl_test_SOURCES = trp/test/rtbl_test.c \
 common/tr_name.c \
 common/tr_gss_names.c \
 common/tr_debug.c \
+common/tr_util.c \
+trp/trp_route.c \
 trp/trp_rtable.c
 trp_test_rtbl_test_LDADD =  $(GLIB_LIBS)
 
@@ -247,7 +250,7 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_comm.h include/tr_apc.h \
 	include/tr_tid.h include/tr_trp.h include/tr_mon.h \
 	include/tr_filter.h include/tr_gss_names.h \
-	include/tid_internal.h include/trp_internal.h \
+	include/tid_internal.h include/trp_internal.h include/trp_route.h \
 	include/tr_cfgwatch.h include/tr_event.h \
 	include/tr_mq.h include/trp_ptable.h \
 	include/trp_rtable.h include/tr_util.h \

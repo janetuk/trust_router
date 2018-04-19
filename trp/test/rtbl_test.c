@@ -38,6 +38,7 @@
 #include <assert.h>
 
 #include <tr_name_internal.h>
+#include <trp_route.h>
 #include <trp_internal.h>
 #include <trp_rtable.h>
 
