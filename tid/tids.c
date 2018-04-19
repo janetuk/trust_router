@@ -449,33 +449,55 @@ void tids_sweep_procs(TIDS_INSTANCE *tids)
   char result[10] = {0};
   ssize_t result_len;
   int status;
+  int wait_rc;
 
   /* loop backwards over the array so we can remove elements as we go */
   for (ii=tids->pids->len; ii > 0; ii--) {
     /* ii-1 is the current index - get our own copy, we may destroy the list's copy */
     tp = g_array_index(tids->pids, struct tid_process, ii-1);
 
-    if (waitpid(tp.pid, &status, WNOHANG) == tp.pid) {
-      /* the process exited */
-      tr_debug("tids_sweep_procs: TID process %d terminated.", tp.pid);
+    wait_rc = waitpid(tp.pid, &status, WNOHANG);
+    if (wait_rc == 0)
+      continue; /* process still running */
 
-      g_array_remove_index_fast(tids->pids, ii-1); /* disturbs only indices >= ii-1 which we've already handled */
+    if (wait_rc < 0) {
+      /* invalid options will probably keep being invalid, report that condition */
+      if(errno == EINVAL)
+        tr_crit("tids_sweep_procs: waitpid called with invalid options");
 
+      /* If we got ECHILD, that means the PID was invalid; we'll assume the process was
+       * terminated and we missed it. For all other errors, move on
+       * to the next PID to check. */
+      if (errno != ECHILD)
+        continue;
+
+      tr_warning("tid_sweep_procs: TID process %d disappeared", tp.pid);
+    }
+
+    /* remove the item (we still have a copy of the data) */
+    g_array_remove_index_fast(tids->pids, ii-1); /* disturbs only indices >= ii-1 which we've already handled */
+
+    /* Report exit status unless we got ECHILD above or somehow waitpid returned the wrong pid */
+    if (wait_rc == tp.pid) {
       if (WIFEXITED(status)) {
         tr_debug("tids_sweep_procs: TID process %d exited with status %d.", tp.pid, WTERMSIG(status));
       } else if (WIFSIGNALED(status)) {
         tr_debug("tids_sweep_procs: TID process %d terminated by signal %d.", tp.pid, WTERMSIG(status));
       }
-      result_len = read(tp.read_fd, result, 10);
-      close(tp.read_fd);
+    } else if (wait_rc > 0) {
+      tr_err("tids_sweep_procs: waitpid returned pid %d, expected %d", wait_rc, tp.pid);
+    }
 
-      if ((result_len > 0) && (strcmp(result, "OK") == 0)) {
-          tids->req_count++;
-          tr_debug("tids_sweep_procs: TID process %d succeeded", tp.pid);
-      } else {
-        tids->error_count++;
-        tr_debug("tids_sweep_procs: TID process %d failed", tp.pid);
-      }
+    /* read the pipe - if the TID request worked, it will have written status before terminating */
+    result_len = read(tp.read_fd, result, sizeof(result)/sizeof(result[0]));
+    close(tp.read_fd);
+
+    if ((result_len > 0) && (strcmp(result, "OK") == 0)) {
+      tids->req_count++;
+      tr_debug("tids_sweep_procs: TID process %d succeeded", tp.pid);
+    } else {
+      tids->error_count++;
+      tr_debug("tids_sweep_procs: TID process %d failed", tp.pid);
     }
   }
 }
