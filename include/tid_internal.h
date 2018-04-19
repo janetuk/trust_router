@@ -86,6 +86,11 @@ struct tidc_instance {
   TR_GSSC_INSTANCE *gssc;
 };
 
+struct tid_process {
+  pid_t pid;
+  int read_fd;
+};
+
 struct tids_instance {
   int req_count;
   int error_count;

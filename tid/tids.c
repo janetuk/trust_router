@@ -322,7 +322,7 @@ TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
 {
   TIDS_INSTANCE *tids = talloc_zero(mem_ctx, TIDS_INSTANCE);
   if (tids) {
-    tids->pids = g_array_new(FALSE, FALSE, sizeof(pid_t));
+    tids->pids = g_array_new(FALSE, FALSE, sizeof(struct tid_process));
     if (tids->pids == NULL) {
       talloc_free(tids);
       return NULL;
@@ -396,11 +396,19 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
 {
   int conn=-1;
   int pid=-1;
+  int pipe_fd[2];
+  struct tid_process tp = {0};
 
   if (0 > (conn = accept(listen, NULL, NULL))) {
     perror("Error from TIDS Server accept()");
     return 1;
   }
+
+  if (0 > pipe(pipe_fd)) {
+    perror("Error on pipe()");
+    return 1;
+  }
+  /* pipe_fd[0] is for reading, pipe_fd[1] is for writing */
 
   if (0 > (pid = fork())) {
     perror("Error on fork()");
@@ -408,52 +416,65 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
   }
 
   if (pid == 0) {
+    close(pipe_fd[0]); /* child only writes */
     close(listen);
     tr_gss_handle_connection(conn,
                              "trustidentity", tids->hostname, /* acceptor name */
                              tids->auth_handler, tids->cookie, /* auth callback and cookie */
                              tids_req_cb, tids /* req callback and cookie */
     );
+    if (write(pipe_fd[1], "OK\0", 3) < 0)
+      tr_crit("tids_accept: child process unable to write to pipe");
+    close(pipe_fd[1]);
     close(conn);
     exit(0); /* exit to kill forked child process */
   }
 
   /* Only the parent process gets here */
+  close(pipe_fd[1]); /* parent only listens */
   close(conn); /* connection belongs to the child */
-  g_array_append_val(tids->pids, pid); /* remember the PID of our child process */
+  tp.pid = pid;
+  tp.read_fd = pipe_fd[0];
+  g_array_append_val(tids->pids, tp); /* remember the PID of our child process */
 
   /* clean up any processes that have completed */
   tids_sweep_procs(tids);
-
   return 0;
 }
 
 void tids_sweep_procs(TIDS_INSTANCE *tids)
 {
   guint ii;
-  pid_t pid;
+  struct tid_process tp = {0};
+  char result[10] = {0};
+  ssize_t result_len;
   int status;
 
   /* loop backwards over the array so we can remove elements as we go */
   for (ii=tids->pids->len; ii > 0; ii--) {
-    /* ii-1 is the current index */
-    pid = g_array_index(tids->pids, pid_t, ii-1);
-    if (waitpid(pid, &status, WNOHANG) > 0) {
+    /* ii-1 is the current index - get our own copy, we may destroy the list's copy */
+    tp = g_array_index(tids->pids, struct tid_process, ii-1);
+
+    if (waitpid(tp.pid, &status, WNOHANG) == tp.pid) {
       /* the process exited */
-      tr_debug("tids_sweep_procs: TID process %d terminated.", pid);
+      tr_debug("tids_sweep_procs: TID process %d terminated.", tp.pid);
 
       g_array_remove_index_fast(tids->pids, ii-1); /* disturbs only indices >= ii-1 which we've already handled */
-      if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
-        tr_debug("tids_sweep_procs: TID process %d succeeded.", pid);
-        tids->req_count++;
+
+      if (WIFEXITED(status)) {
+        tr_debug("tids_sweep_procs: TID process %d exited with status %d.", tp.pid, WTERMSIG(status));
+      } else if (WIFSIGNALED(status)) {
+        tr_debug("tids_sweep_procs: TID process %d terminated by signal %d.", tp.pid, WTERMSIG(status));
+      }
+      result_len = read(tp.read_fd, result, 10);
+      close(tp.read_fd);
+
+      if ((result_len > 0) && (strcmp(result, "OK") == 0)) {
+          tids->req_count++;
+          tr_debug("tids_sweep_procs: TID process %d succeeded", tp.pid);
       } else {
         tids->error_count++;
-
-        if (WIFEXITED(status)) {
-          tr_debug("tids_sweep_procs: TID process %d exited with status %d.", pid, WTERMSIG(status));
-        } else if (WIFSIGNALED(status)) {
-          tr_debug("tids_sweep_procs: TID process %d terminated by signal %d.", pid, WTERMSIG(status));
-        }
+        tr_debug("tids_sweep_procs: TID process %d failed", tp.pid);
       }
     }
   }
