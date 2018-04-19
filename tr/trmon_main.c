@@ -36,36 +36,40 @@
 #include <stdio.h>
 #include <talloc.h>
 #include <argp.h>
-#include <unistd.h>
 
 #include <mon_internal.h>
-#include <gsscon.h>
 #include <tr_debug.h>
-#include <trust_router/tr_dh.h>
 
 
 /* command-line option setup */
+static void print_version_info(void)
+{
+  printf("Moonshot TR Monitoring Client %s\n\n", PACKAGE_VERSION);
+}
+
 
 /* argp global parameters */
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - TR Monitoring Client";
-static const char arg_doc[]="<message> <server> [<port>]"; /* string describing arguments, if any */
+static const char doc[]=PACKAGE_NAME " - Moonshot TR Monitoring Client";
+static const char arg_doc[]="<server> <port> <command> [<option> ...]"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
-  { "repeat", 'r', "N", OPTION_ARG_OPTIONAL, "Repeat message until terminated, or N times." },
-  {NULL}
+    { "version", 'v', NULL, 0, "Print version information and exit" },
+    {NULL}
 };
 
+#define MAX_OPTIONS 20
 /* structure for communicating with option parser */
 struct cmdline_args {
-  char *msg;
   char *server;
-  unsigned int port; /* optional */
-  int repeat; /* how many times to repeat, or -1 for infinite */
+  unsigned int port;
+  MON_CMD command;
+  MON_OPT_TYPE options[MAX_OPTIONS];
+  unsigned int n_options;
 };
 
 /* parser for individual options - fills in a struct cmdline_args */
@@ -77,28 +81,18 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
   struct cmdline_args *arguments=state->input;
 
   switch (key) {
-    case 'r':
-      if (arg==NULL)
-        arguments->repeat=-1;
-      else
-        tmp_l = strtol(arg, NULL, 10);
-      if ((errno == 0) && (tmp_l > 0) && (tmp_l < INT_MAX))
-        arguments->repeat = (int) tmp_l;
-      else
-        argp_usage(state);
+    case 'v':
+      print_version_info();
+      exit(0);
       break;
 
     case ARGP_KEY_ARG: /* handle argument (not option) */
       switch (state->arg_num) {
         case 0:
-          arguments->msg=arg;
+          arguments->server = arg;
           break;
 
         case 1:
-          arguments->server=arg;
-          break;
-
-        case 2:
           tmp_l = strtol(arg, NULL, 10);
           if (errno || (tmp_l < 0) || (tmp_l > 65535)) /* max valid port */
             argp_usage(state);
@@ -106,14 +100,32 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
           arguments->port=(unsigned int) tmp_l;
           break;
 
+        case 2:
+          arguments->command=mon_cmd_from_string(arg);
+          if (arguments->command == MON_CMD_UNKNOWN) {
+            printf("\nUnknown command '%s'\n", arg);
+            argp_usage(state);
+          }
+          break;
+
         default:
-          /* too many arguments */
-          argp_usage(state);
+          if (arguments->n_options >= MAX_OPTIONS) {
+            printf("\nToo many command options given, limit is %d\n", MAX_OPTIONS);
+            argp_usage(state);
+          }
+
+          arguments->options[arguments->n_options] = mon_opt_type_from_string(arg);
+          if (arguments->options[arguments->n_options] == OPT_TYPE_UNKNOWN) {
+            printf("\nUnknown command option '%s'\n", arg);
+            argp_usage(state);
+          }
+          arguments->n_options++;
+          break;
       }
       break;
 
     case ARGP_KEY_END: /* no more arguments */
-      if (state->arg_num < 2) {
+      if (state->arg_num < 3) {
         /* not enough arguments encountered */
         argp_usage(state);
       }
@@ -136,16 +148,17 @@ int main(int argc, char *argv[])
   MONC_INSTANCE *monc = NULL;
   MON_REQ *req = NULL;
   MON_RESP *resp = NULL;
+  unsigned int ii;
 
   struct cmdline_args opts;
   int retval=1; /* exit with an error status unless this gets set to zero */
 
   /* parse the command line*/
   /* set defaults */
-  opts.msg=NULL;
-  opts.server=NULL;
-  opts.port=TRP_PORT;
-  opts.repeat=1;
+  opts.server = NULL;
+  opts.port = TRP_PORT;
+  opts.command = MON_CMD_UNKNOWN;
+  opts.n_options = 0;
 
   argp_parse(&argp, argc, argv, 0, 0, &opts);
 
@@ -155,9 +168,7 @@ int main(int argc, char *argv[])
   /* set logging levels */
   talloc_set_log_stderr();
   tr_log_threshold(LOG_CRIT);
-  tr_console_threshold(LOG_DEBUG);
-
-  printf("TR Monitor:\nServer = %s, port = %i\n", opts.server, opts.port);
+  tr_console_threshold(LOG_WARNING);
 
   /* Create a MON client instance & the client DH */
   monc = monc_new(main_ctx);
@@ -181,7 +192,9 @@ int main(int argc, char *argv[])
     goto cleanup;
   };
 
-  req = mon_req_new(main_ctx, MON_CMD_SHOW);
+  req = mon_req_new(main_ctx, opts.command);
+  for (ii=0; ii < opts.n_options; ii++)
+    mon_req_add_option(req, opts.options[ii]);
 
   /* Send a MON request and get the response */
   resp = monc_send_request(main_ctx, monc, req);
@@ -191,6 +204,10 @@ int main(int argc, char *argv[])
     printf("Error executing monitoring request.\n");
     goto cleanup;
   }
+
+  /* Print the JSON to stdout */
+  json_dumpf(mon_resp_encode(resp), stdout, JSON_INDENT(4) | JSON_SORT_KEYS);
+  printf("\n");
 
   /* success */
   retval = 0;
