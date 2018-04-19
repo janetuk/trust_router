@@ -38,7 +38,17 @@
 #include <tr_util.h>
 #include <tr_debug.h>
 
-/* helper */
+/**
+ * Convert TR_NAME n to a JSON string, returning the empty string if n is null
+ */
+static json_t *safe_name_to_json_string(TR_NAME *n)
+{
+  if (n)
+    return tr_name_to_json_string(n);
+  else
+    return json_string("");
+}
+
 static json_t *expiry_to_json_string(TR_COMM_MEMB *memb)
 {
   struct timespec ts_zero = {0, 0};
@@ -83,7 +93,15 @@ do {                                           \
     goto cleanup;                              \
 } while (0)
 
-json_t *tr_comm_memb_to_json(TR_COMM_MEMB *memb)
+#define ARRAY_APPEND_OR_FAIL(jary, val)        \
+do {                                           \
+  if (val)                                     \
+    json_array_append_new((jary),(val));       \
+  else                                         \
+    goto cleanup;                              \
+} while (0)
+
+static json_t *tr_comm_memb_to_json(TR_COMM_MEMB *memb)
 {
   json_t *memb_json = NULL;
   json_t *retval = NULL;
@@ -92,16 +110,20 @@ json_t *tr_comm_memb_to_json(TR_COMM_MEMB *memb)
   if (memb_json == NULL)
     goto cleanup;
 
-  OBJECT_SET_OR_FAIL(memb_json, "realm",
-                     tr_name_to_json_string(tr_comm_memb_get_realm_id(memb)));
-  OBJECT_SET_OR_FAIL(memb_json, "expires",
-                     expiry_to_json_string(memb));
-  OBJECT_SET_OR_FAIL(memb_json, "announce_interval",
-                     json_integer(tr_comm_memb_get_interval(memb)));
-  OBJECT_SET_OR_FAIL(memb_json, "times_expired",
-                     json_integer(tr_comm_memb_get_times_expired(memb)));
-  OBJECT_SET_OR_FAIL(memb_json, "provenance",
-                     provenance_to_json(memb));
+  if (tr_comm_memb_get_origin(memb) == NULL) {
+    OBJECT_SET_OR_FAIL(memb_json, "origin", json_string("file"));
+  } else {
+    OBJECT_SET_OR_FAIL(memb_json, "origin",
+                       safe_name_to_json_string(tr_comm_memb_get_origin(memb)));
+    OBJECT_SET_OR_FAIL(memb_json, "provenance",
+                       provenance_to_json(memb));
+    OBJECT_SET_OR_FAIL(memb_json, "expires",
+                       expiry_to_json_string(memb));
+    OBJECT_SET_OR_FAIL(memb_json, "announce_interval",
+                       json_integer(tr_comm_memb_get_interval(memb)));
+    OBJECT_SET_OR_FAIL(memb_json, "times_expired",
+                       json_integer(tr_comm_memb_get_times_expired(memb)));
+  }
 
   /* succeeded - set the return value and increment the reference count */
   retval = memb_json;
@@ -113,63 +135,88 @@ cleanup:
   return retval;
 }
 
-json_t *tr_comm_idp_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_name)
-{
-  json_t *jarray = json_array();
-  TR_COMM_ITER *iter = NULL;
-  TR_IDP_REALM *idp = NULL;
-  TR_COMM_MEMB *memb = NULL;
-
-  iter = tr_comm_iter_new(NULL);
-  idp = tr_idp_realm_iter_first(iter, ctable, comm_name);
-  while(idp) {
-    tr_debug("<<<<<<<<<<<<<<<<<<<<<<<<< GOT IDP REALM %s", tr_idp_realm_get_id(idp)->buf);
-    memb = tr_comm_table_find_idp_memb(ctable,
-                                       tr_idp_realm_get_id(idp),
-                                       comm_name);
-    tr_debug("<<<<<<<<<<<<<<<<<<<<<<<<< FOUND MEMB %p", memb);
-    json_array_append_new(jarray, tr_comm_memb_to_json(memb));
-    idp = tr_idp_realm_iter_next(iter);
-  }
-  tr_comm_iter_free(iter);
-
-  return jarray;
-}
-
-json_t *tr_comm_rp_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_id)
-{
-  json_t *jarray = json_array();
-  TR_COMM_ITER *iter = NULL;
-  TR_RP_REALM *rp = NULL;
-  TR_COMM_MEMB *memb = NULL;
-
-  iter = tr_comm_iter_new(NULL);
-  rp = tr_rp_realm_iter_first(iter, ctable, comm_id);
-  while(rp) {
-    tr_debug("<<<<<<<<<<<<<<<<<<<<<<<<< GOT RP REALM ");
-    memb = tr_comm_table_find_rp_memb(ctable,
-                                      tr_rp_realm_get_id(rp),
-                                      comm_id);
-    json_array_append_new(jarray, tr_comm_memb_to_json(memb));
-    rp = tr_rp_realm_iter_next(iter);
-  }
-  tr_comm_iter_free(iter);
-
-  return jarray;
-}
-
 /**
- * Convert TR_NAME n to a JSON string, returning the empty string if n is null
+ * Summarize the different reasons we believe a realm belongs to a community
  */
-static json_t *safe_name_to_json_string(TR_NAME *n)
+static json_t *tr_comm_memb_sources_to_json(TR_COMM_MEMB *first_memb)
 {
-  if (n)
-    return tr_name_to_json_string(n);
-  else
-    return json_string("");
+  json_t *jarray = NULL;
+  json_t *retval = NULL;
+  TR_COMM_ITER *iter = NULL;
+  TR_COMM_MEMB *memb = NULL;
+
+  jarray = json_array();
+  if (jarray == NULL)
+    goto cleanup;
+
+  iter = tr_comm_iter_new(NULL);
+  if (iter == NULL)
+    goto cleanup;
+
+  /* Iterate over all the memberships for this realm/comm pair that come from different origins */
+  memb = tr_comm_memb_iter_first(iter, first_memb);
+  while (memb) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_comm_memb_to_json(memb));
+    memb = tr_comm_memb_iter_next(iter);
+  }
+
+  /* success */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+  if (iter)
+    talloc_free(iter);
+  return retval;
 }
 
-json_t *tr_comm_to_json(TR_COMM_TABLE *ctable, TR_COMM *comm)
+static json_t *tr_comm_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_name, TR_REALM_ROLE role)
+{
+  json_t *jarray = json_array();
+  json_t *realm_json = NULL;
+  json_t *retval = NULL;
+  TR_COMM_ITER *iter = NULL;
+  TR_REALM *realm = NULL;
+  TR_COMM_MEMB *memb = NULL;
+
+  iter = tr_comm_iter_new(NULL);
+  realm = tr_realm_iter_first(iter, ctable, comm_name);
+  while(realm) {
+    if (realm->role == role) {
+      realm_json = json_object();
+      OBJECT_SET_OR_FAIL(realm_json, "realm",
+                         tr_name_to_json_string(tr_realm_get_id(realm)));
+      memb = tr_comm_table_find_idp_memb(ctable,
+                                         tr_realm_get_id(realm),
+                                         comm_name);
+      OBJECT_SET_OR_FAIL(realm_json, "sources",
+                         tr_comm_memb_sources_to_json(memb));
+      json_array_append_new(jarray, realm_json);
+      realm_json = NULL; /* so we don't free this twice during cleanup */
+    }
+    realm = tr_realm_iter_next(iter);
+  }
+
+  /* Success - increment the reference count so return value survives */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+
+  if (realm_json)
+    json_decref(realm_json);
+
+  if (iter)
+    tr_comm_iter_free(iter);
+
+  return retval;
+}
+
+static json_t *tr_comm_to_json(TR_COMM_TABLE *ctable, TR_COMM *comm)
 {
   json_t *comm_json = NULL;
   json_t *retval = NULL;
@@ -198,9 +245,9 @@ json_t *tr_comm_to_json(TR_COMM_TABLE *ctable, TR_COMM *comm)
                      safe_name_to_json_string(tr_comm_get_owner_contact(comm)));
 
   OBJECT_SET_OR_FAIL(comm_json, "idp_realms",
-                     tr_comm_idp_realms_to_json(ctable, tr_comm_get_id(comm)));
+                     tr_comm_realms_to_json(ctable, tr_comm_get_id(comm), TR_ROLE_IDP));
   OBJECT_SET_OR_FAIL(comm_json, "rp_realms",
-                     tr_comm_rp_realms_to_json(ctable, tr_comm_get_id(comm)));
+                     tr_comm_realms_to_json(ctable, tr_comm_get_id(comm), TR_ROLE_RP));
 
   /* succeeded - set the return value and increment the reference count */
   retval = comm_json;
