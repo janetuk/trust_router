@@ -106,7 +106,9 @@ enum mon_opt_type {
   // Dynamic trust router state
   OPT_TYPE_SHOW_ROUTES,
   OPT_TYPE_SHOW_PEERS,
-  OPT_TYPE_SHOW_COMMUNITIES
+  OPT_TYPE_SHOW_COMMUNITIES,
+  OPT_TYPE_SHOW_REALMS,
+  OPT_TYPE_SHOW_RP_CLIENTS
 };
 
 struct mon_opt {

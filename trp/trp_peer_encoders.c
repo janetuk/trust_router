@@ -100,18 +100,18 @@ json_t *trp_peer_to_json(TRP_PEER *peer)
   OBJECT_SET_OR_FAIL(peer_json, "server",
                      server_to_json_string(trp_peer_get_server(peer),
                                            trp_peer_get_port(peer)));
+  OBJECT_SET_OR_FAIL(peer_json, "servicename",
+                     tr_name_to_json_string(trp_peer_get_servicename(peer)));
   OBJECT_SET_OR_FAIL(peer_json, "linkcost",
                      json_integer(trp_peer_get_linkcost(peer)));
   OBJECT_SET_OR_FAIL(peer_json, "connected_to",
                      json_boolean(trp_peer_get_outgoing_status(peer) == PEER_CONNECTED));
   OBJECT_SET_OR_FAIL(peer_json, "connected_from",
                      json_boolean(trp_peer_get_incoming_status(peer) == PEER_CONNECTED));
-  OBJECT_SET_OR_FAIL(peer_json, "servicename",
-                     tr_name_to_json_string(trp_peer_get_servicename(peer)));
-  OBJECT_SET_OR_FAIL(peer_json, "allowed_credentials",
-                     gss_names_to_json_array(trp_peer_get_gss_names(peer)));
   OBJECT_SET_OR_FAIL(peer_json, "last_connection_attempt",
                      last_attempt_to_json_string(peer));
+  OBJECT_SET_OR_FAIL(peer_json, "allowed_credentials",
+                     gss_names_to_json_array(trp_peer_get_gss_names(peer)));
 
   /* succeeded - set the return value and increment the reference count */
   retval = peer_json;
