@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
 
   /* Register monitoring handlers */
   mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_VERSION, tr_handle_version, NULL);
-  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_SERIAL, tr_handle_show_cfg_serial, tr->cfg_mgr);
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_CONFIG_FILES, tr_handle_show_cfg_serial, tr->cfg_mgr);
   mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_UPTIME, tr_handle_uptime, &start_time);
   mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_RP_CLIENTS, tr_handle_show_rp_clients, tr->cfg_mgr);
   tr_tid_register_mons_handlers(tr->tids, tr->mons);

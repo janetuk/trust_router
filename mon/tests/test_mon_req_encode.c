@@ -107,7 +107,7 @@ int main(void)
   free(expected);
 
   // Test show with many options
-  opts[0] = OPT_TYPE_SHOW_SERIAL;
+  opts[0] = OPT_TYPE_SHOW_CONFIG_FILES;
   opts[1] = OPT_TYPE_SHOW_VERSION;
   opts[2] = OPT_TYPE_SHOW_UPTIME;
   opts[3] = OPT_TYPE_SHOW_TID_REQ_COUNT;

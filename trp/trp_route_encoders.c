@@ -88,15 +88,13 @@ static json_t *expiry_to_json_string(TRP_ROUTE *route)
   char *s = NULL;
   json_t *jstr = NULL;
 
-  if (tr_cmp_timespec(trp_route_get_expiry(route), &ts_zero) == 0) {
-    s = strdup("");
-  } else {
+  if (tr_cmp_timespec(trp_route_get_expiry(route), &ts_zero) > 0) {
     s = timespec_to_str(trp_route_get_expiry(route));
-  }
 
-  if (s) {
-    jstr = json_string(s);
-    free(s);
+    if (s) {
+      jstr = json_string(s);
+      free(s);
+    }
   }
 
   return jstr;
@@ -111,6 +109,12 @@ do {                                           \
     goto cleanup;                              \
 } while (0)
 
+#define OBJECT_SET_OR_SKIP(jobj, key, val)     \
+do {                                           \
+  if (val)                                     \
+    json_object_set_new((jobj),(key),(val));   \
+} while (0)
+
 json_t *trp_route_to_json(TRP_ROUTE *route)
 {
   json_t *route_json = NULL;
@@ -122,13 +126,15 @@ json_t *trp_route_to_json(TRP_ROUTE *route)
 
   OBJECT_SET_OR_FAIL(route_json, "community", tr_name_to_json_string(trp_route_get_comm(route)));
   OBJECT_SET_OR_FAIL(route_json, "realm", tr_name_to_json_string(trp_route_get_realm(route)));
-  OBJECT_SET_OR_FAIL(route_json, "peer", tr_name_to_json_string(trp_route_get_peer(route)));
+  if (trp_route_get_peer(route)->len > 0)
+    OBJECT_SET_OR_FAIL(route_json, "peer", tr_name_to_json_string(trp_route_get_peer(route)));
   OBJECT_SET_OR_FAIL(route_json, "metric", json_integer(trp_route_get_metric(route)));
   OBJECT_SET_OR_FAIL(route_json, "trust_router", tr_name_to_json_string(trp_route_get_trust_router(route)));
-  OBJECT_SET_OR_FAIL(route_json, "next_hop", tr_name_to_json_string(trp_route_get_next_hop(route)));
+  if (trp_route_get_next_hop(route)->len > 0)
+    OBJECT_SET_OR_FAIL(route_json, "next_hop", tr_name_to_json_string(trp_route_get_next_hop(route)));
   OBJECT_SET_OR_FAIL(route_json, "selected", json_boolean(trp_route_is_selected(route)));
   OBJECT_SET_OR_FAIL(route_json, "local", json_boolean(trp_route_is_local(route)));
-  OBJECT_SET_OR_FAIL(route_json, "expires", expiry_to_json_string(route));
+  OBJECT_SET_OR_SKIP(route_json, "expires", expiry_to_json_string(route));
 
   /* succeeded - set the return value and increment the reference count */
   retval = route_json;

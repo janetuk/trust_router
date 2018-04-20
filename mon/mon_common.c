@@ -87,8 +87,8 @@ const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
     case OPT_TYPE_SHOW_VERSION:
       return "version";
 
-    case OPT_TYPE_SHOW_SERIAL:
-      return "serial";
+    case OPT_TYPE_SHOW_CONFIG_FILES:
+      return "config_files";
 
     case OPT_TYPE_SHOW_UPTIME:
       return "uptime";
@@ -130,7 +130,7 @@ const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
 MON_OPT_TYPE mon_opt_type_from_string(const char *s)
 {
   return_if_matches(s, OPT_TYPE_SHOW_VERSION);
-  return_if_matches(s, OPT_TYPE_SHOW_SERIAL);
+  return_if_matches(s, OPT_TYPE_SHOW_CONFIG_FILES);
   return_if_matches(s, OPT_TYPE_SHOW_UPTIME);
   return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_COUNT);
   return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_ERR_COUNT);
