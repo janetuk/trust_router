@@ -54,23 +54,24 @@
 #endif
 
 
-TR_GSS_NAMES *tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR_CFG_RC *rc)
+TR_CFG_RC tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR_GSS_NAMES **gssn_out)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_GSS_NAMES *gn=NULL;
   json_t *jname=NULL;
-  int ii=0;
+  size_t ii=0;
   TR_NAME *name=NULL;
+  TR_CFG_RC rc = TR_CFG_ERROR;
 
-  if ((rc==NULL) || (jgss_names==NULL)) {
+  if (jgss_names==NULL) {
     tr_err("tr_cfg_parse_gss_names: Bad parameters.");
-    *rc=TR_CFG_BAD_PARAMS;
-
+    rc=TR_CFG_BAD_PARAMS;
+    goto cleanup;
   }
 
   if (!json_is_array(jgss_names)) {
     tr_err("tr_cfg_parse_gss_names: gss_names not an array.");
-    *rc=TR_CFG_NOPARSE;
+    rc=TR_CFG_NOPARSE;
     goto cleanup;
   }
 
@@ -79,33 +80,32 @@ TR_GSS_NAMES *tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR
     jname=json_array_get(jgss_names, ii);
     if (!json_is_string(jname)) {
       tr_err("tr_cfg_parse_gss_names: Encountered non-string gss name.");
-      *rc=TR_CFG_NOPARSE;
+      rc=TR_CFG_NOPARSE;
       goto cleanup;
     }
 
     name=tr_new_name(json_string_value(jname));
     if (name==NULL) {
       tr_err("tr_cfg_parse_gss_names: Out of memory allocating gss name.");
-      *rc=TR_CFG_NOMEM;
+      rc=TR_CFG_NOMEM;
       goto cleanup;
     }
 
     if (tr_gss_names_add(gn, name)!=0) {
       tr_free_name(name);
       tr_err("tr_cfg_parse_gss_names: Unable to add gss name to RP client.");
-      *rc=TR_CFG_ERROR;
+      rc=TR_CFG_ERROR;
       goto cleanup;
     }
   }
 
-  talloc_steal(mem_ctx, gn);
-  *rc=TR_CFG_SUCCESS;
+  *gssn_out = gn;
+  talloc_steal(mem_ctx, *gssn_out);
+  rc=TR_CFG_SUCCESS;
 
 cleanup:
   talloc_free(tmp_ctx);
-  if ((*rc!=TR_CFG_SUCCESS) && (gn!=NULL))
-    gn=NULL;
-  return gn;
+  return rc;
 }
 
 /* default filter accepts realm and *.realm */
@@ -306,7 +306,7 @@ static TR_RP_CLIENT *tr_cfg_parse_one_rp_client(TALLOC_CTX *mem_ctx, json_t *jre
     goto cleanup;
   }
 
-  client->gss_names=tr_cfg_parse_gss_names(client, json_object_get(jrealm, "gss_names"), &call_rc);
+  call_rc = tr_cfg_parse_gss_names(client, json_object_get(jrealm, "gss_names"), &(client->gss_names));
 
   if (call_rc!=TR_CFG_SUCCESS) {
     tr_err("tr_cfg_parse_one_rp_client: could not parse gss_names.");

@@ -215,7 +215,7 @@ static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
   else
     trp_peer_set_port(new_peer, json_integer_value(jport));
 
-  names=tr_cfg_parse_gss_names(tmp_ctx, jgss, &rc);
+  rc = tr_cfg_parse_gss_names(tmp_ctx, jgss, &names);
   if (rc!=TR_CFG_SUCCESS) {
     tr_err("tr_cfg_parse_one_peer_org: unable to parse gss names.");
     rc=TR_CFG_NOPARSE;

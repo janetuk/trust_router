@@ -35,6 +35,7 @@
 #include <talloc.h>
 
 #include <tr_gss_names.h>
+#include <tr_debug.h>
 
 static int tr_gss_names_destructor(void *obj)
 {
@@ -81,6 +82,36 @@ int tr_gss_names_add(TR_GSS_NAMES *gn, TR_NAME *new)
     return -1;
 }
 
+/**
+ * Create a duplicate GSS names struct
+ *
+ * @param mem_ctx
+ * @param orig
+ * @return
+ */
+TR_GSS_NAMES *tr_gss_names_dup(TALLOC_CTX *mem_ctx, TR_GSS_NAMES *orig)
+{
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  TR_GSS_NAMES *new = tr_gss_names_new(tmp_ctx);
+  TR_GSS_NAMES_ITER *iter = tr_gss_names_iter_new(tmp_ctx);
+  TR_NAME *this = NULL;
+
+  if ( !orig || !new || !iter ) {
+    talloc_free(tmp_ctx);
+    return NULL;
+  }
+  this = tr_gss_names_iter_first(iter, orig);
+  while (this) {
+    if (tr_gss_names_add(new, tr_dup_name(this)) != 0) {
+      talloc_free(tmp_ctx);
+      return NULL;
+    }
+    this = tr_gss_names_iter_next(iter);
+  }
+  /* success */
+  talloc_steal(mem_ctx, new);
+  return new;
+}
 int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name)
 {
   int ii=0;

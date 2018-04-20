@@ -96,13 +96,13 @@ static int tr_mons_auth_handler(gss_name_t client_name, TR_NAME *gss_name, void 
 {
   struct tr_mons_event_cookie *cookie=talloc_get_type_abort(cookie_in, struct tr_mons_event_cookie);
   MONS_INSTANCE *mons = cookie->mons;
-  TR_CFG_MGR *cfg_mgr = cookie->cfg_mgr;
 
-  if ((!client_name) || (!gss_name) || (!mons) || (!cfg_mgr)) {
+  if ((!client_name) || (!gss_name) || (!mons)) {
     tr_debug("tr_mons_gss_handler: Bad parameters.");
     return -1;
   }
 
+  tr_debug("tr_mons_gss_handler: %p", mons->authorized_gss_names);
   /* Ensure at least one client exists using this GSS name */
   if (! tr_gss_names_matches(mons->authorized_gss_names, gss_name)) {
     tr_info("tr_mons_gss_handler: Unauthorized request from %.*s", gss_name->len, gss_name->buf);
@@ -142,6 +142,12 @@ int tr_mons_event_init(struct event_base *base,
   if (mons_ev == NULL) {
     tr_debug("tr_mon_event_init: Null mons_ev.");
     retval=1;
+    goto cleanup;
+  }
+
+  if (cfg_mgr->active->internal->monitoring_port == 0) {
+    tr_notice("tr_mons_event_init: monitoring is disabled, not enabling events or opening sockets");
+    retval = 0;
     goto cleanup;
   }
 

@@ -52,6 +52,7 @@ typedef struct tr_gss_names_iter {
 TR_GSS_NAMES *tr_gss_names_new(TALLOC_CTX *mem_ctx);
 void tr_gss_names_free(TR_GSS_NAMES *gn);
 int tr_gss_names_add(TR_GSS_NAMES *gn, TR_NAME *new);
+TR_GSS_NAMES *tr_gss_names_dup(TALLOC_CTX *mem_ctx, TR_GSS_NAMES *orig);
 int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name);
 
 TR_GSS_NAMES_ITER *tr_gss_names_iter_new(TALLOC_CTX *mem_ctx);

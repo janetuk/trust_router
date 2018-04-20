@@ -876,6 +876,16 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   tr->tids->hostname = new_cfg->internal->hostname;
   tr->mons->hostname = new_cfg->internal->hostname;
 
+  /* Update the authorized monitoring gss names */
+  if (tr->mons->authorized_gss_names) {
+    tr_debug("tr_config_changed: freeing tr->mons->authorized_gss_names");
+    tr_gss_names_free(tr->mons->authorized_gss_names);
+  }
+  tr->mons->authorized_gss_names = tr_gss_names_dup(tr->mons, new_cfg->internal->monitoring_credentials);
+  if (tr->mons->authorized_gss_names == NULL) {
+    tr_err("tr_config_changed: Error configuring monitoring credentials");
+  }
+
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
   trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);

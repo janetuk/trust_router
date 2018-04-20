@@ -53,6 +53,7 @@
 #define TR_DEFAULT_MAX_TREE_DEPTH 12
 #define TR_DEFAULT_TRPS_PORT 12308
 #define TR_DEFAULT_TIDS_PORT 12309
+#define TR_DEFAULT_MONITORING_PORT 0 /* defaults to being turned off */
 #define TR_DEFAULT_LOG_THRESHOLD LOG_INFO
 #define TR_DEFAULT_CONSOLE_THRESHOLD LOG_NOTICE
 #define TR_DEFAULT_APC_EXPIRATION_INTERVAL 43200
@@ -89,6 +90,7 @@ typedef struct tr_cfg_internal {
   unsigned int tid_req_timeout;
   unsigned int tid_resp_numer; /* numerator of fraction of AAA servers to wait for in unshared mode */
   unsigned int tid_resp_denom; /* denominator of fraction of AAA servers to wait for in unshared mode */
+  TR_GSS_NAMES *monitoring_credentials;
 } TR_CFG_INTERNAL;
 
 /* record of files loaded for this configuration */
@@ -150,7 +152,7 @@ TR_APC *tr_cfg_parse_apcs(TALLOC_CTX *mem_ctx, json_t *japcs, TR_CFG_RC *rc);
 
 /* tr_config_rp_clients.c */
 TR_RP_CLIENT *tr_cfg_parse_rp_clients(TALLOC_CTX *mem_ctx, json_t *jrealms, TR_CFG_RC *rc);
-TR_GSS_NAMES *tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR_CFG_RC *rc);
+TR_CFG_RC tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR_GSS_NAMES **gssn_out);
 
 /* tr_config_encoders.c */
 json_t *tr_cfg_files_to_json_array(TR_CFG *cfg);
