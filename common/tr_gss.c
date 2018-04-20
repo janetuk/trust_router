@@ -73,6 +73,7 @@ static int tr_gss_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void 
   TR_NAME name ={(char *) displayName->value, (int) displayName->length};
   int result=0;
 
+  tr_debug("tr_gss_auth_cb: Calling auth handler for %.*s.", name.len, name.buf);
   if (cookie->auth_cb(clientName, &name, cookie->auth_cookie)) {
     tr_debug("tr_gss_auth_cb: client '%.*s' denied authorization.", name.len, name.buf);
     result=EACCES; /* denied */
@@ -86,16 +87,16 @@ static int tr_gss_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void 
  * Handle GSS authentication and authorization
  *
  * @param conn connection file descriptor
- * @param acceptor_name name of acceptor to present to initiator
- * @param acceptor_realm realm of acceptor to present to initiator
+ * @param acceptor_service name of acceptor to present to initiator
+ * @param acceptor_hostname hostname of acceptor to present to initiator
  * @param gssctx GSS context
  * @param auth_cb authorization callback
  * @param auth_cookie generic data to pass to the authorization callback
  * @return 0 on successful auth, 1 on disallowed auth, -1 on error
  */
 static int tr_gss_auth_connection(int conn,
-                                  const char *acceptor_name,
-                                  const char *acceptor_realm,
+                                  const char *acceptor_service,
+                                  const char *acceptor_hostname,
                                   gss_ctx_id_t *gssctx,
                                   TR_GSS_AUTH_FN auth_cb,
                                   void *auth_cookie)
@@ -105,7 +106,7 @@ static int tr_gss_auth_connection(int conn,
   gss_buffer_desc nameBuffer = {0, NULL};
   TR_GSS_COOKIE *cookie = NULL;
 
-  nameBuffer.value = talloc_asprintf(NULL, "%s@%s", acceptor_name, acceptor_realm);
+  nameBuffer.value = talloc_asprintf(NULL, "%s@%s", acceptor_service, acceptor_hostname);
   if (nameBuffer.value == NULL) {
     tr_err("tr_gss_auth_connection: Error allocating acceptor name.");
     return -1;
@@ -120,6 +121,8 @@ static int tr_gss_auth_connection(int conn,
   cookie->auth_cookie=auth_cookie;
 
   /* Now call gsscon with *our* auth callback and cookie */
+  tr_debug("tr_gss_auth_connection: Beginning passive authentication as %.*s",
+           nameBuffer.length, nameBuffer.value);
   rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tr_gss_auth_cb, cookie);
   talloc_free(cookie);
   talloc_free(nameBuffer.value);
@@ -128,6 +131,7 @@ static int tr_gss_auth_connection(int conn,
     return -1;
   }
 
+  tr_debug("tr_gss_auth_connection: Authentication succeeded, now authorizing.");
   rc = gsscon_authorize(*gssctx, &auth, &autherr);
   if (rc) {
     tr_debug("tr_gss_auth_connection: Error from gsscon_authorize, rc = %d, autherr = %d.",
@@ -203,16 +207,16 @@ static int tr_gss_write_resp(int conn, gss_ctx_id_t gssctx, const char *resp)
  * callback to get a response, sends that, then returns.
  *
  * @param conn connection file descriptor
- * @param acceptor_name acceptor name to present
- * @param acceptor_realm acceptor realm to present
+ * @param acceptor_service acceptor name to present
+ * @param acceptor_hostname acceptor hostname to present
  * @param auth_cb callback for authorization
  * @param auth_cookie cookie for the auth_cb
  * @param req_cb callback to handle the request and produce the response
  * @param req_cookie cookie for the req_cb
  */
 void tr_gss_handle_connection(int conn,
-                              const char *acceptor_name,
-                              const char *acceptor_realm,
+                              const char *acceptor_service,
+                              const char *acceptor_hostname,
                               TR_GSS_AUTH_FN auth_cb,
                               void *auth_cookie,
                               TR_GSS_HANDLE_REQ_FN req_cb,
@@ -226,9 +230,12 @@ void tr_gss_handle_connection(int conn,
   TR_MSG *resp_msg = NULL;
   char *resp_str = NULL;
 
+  tr_debug("tr_gss_handle_connection: Attempting to accept %s connection on fd %d.",
+           acceptor_service, conn);
+
   if (tr_gss_auth_connection(conn,
-                             acceptor_name,
-                             acceptor_realm,
+                             acceptor_service,
+                             acceptor_hostname,
                              &gssctx,
                              auth_cb,
                              auth_cookie)) {

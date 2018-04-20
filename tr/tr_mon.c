@@ -102,7 +102,6 @@ static int tr_mons_auth_handler(gss_name_t client_name, TR_NAME *gss_name, void 
     return -1;
   }
 
-  tr_debug("tr_mons_gss_handler: %p", mons->authorized_gss_names);
   /* Ensure at least one client exists using this GSS name */
   if (! tr_gss_names_matches(mons->authorized_gss_names, gss_name)) {
     tr_info("tr_mons_gss_handler: Unauthorized request from %.*s", gss_name->len, gss_name->buf);
