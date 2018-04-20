@@ -171,6 +171,21 @@ do {                         \
     return TR_CFG_NOPARSE;   \
 } while(0)
 
+static TR_CFG_RC tr_cfg_parse_monitoring(TR_CFG *trc, json_t *jmon)
+{
+  int enabled = 1; /* assume we are enabled unless we are told not to be */
+
+  NOPARSE_UNLESS(tr_cfg_parse_boolean(jmon, "enabled", &enabled));
+  if (enabled) {
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jmon, "port", &(trc->internal->monitoring_port)));
+    NOPARSE_UNLESS(tr_cfg_parse_gss_names(trc->internal,
+                                          json_object_get(jmon, "authorized_credentials"),
+                                          &(trc->internal->monitoring_credentials)));
+  }
+
+  return TR_CFG_SUCCESS;
+}
+
 /**
  * Parse internal configuration JSON
  *
@@ -226,7 +241,7 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   /* Parse the monitoring section */
   if (NULL != (jtmp = json_object_get(jint, "monitoring"))) {
-    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "port", &(trc->internal->monitoring_port)));
+    NOPARSE_UNLESS(tr_cfg_parse_monitoring(trc, jtmp));
   }
 
   tr_debug("tr_cfg_parse_internal: Internal config parsed.");
