@@ -41,6 +41,7 @@
 #include <syslog.h>
 #include <sys/time.h>
 #include <talloc.h>
+#include <gmodule.h>
 
 #include <tr_comm.h>
 #include <tr_rp.h>
@@ -61,6 +62,8 @@
 #define TR_DEFAULT_TID_REQ_TIMEOUT 5
 #define TR_DEFAULT_TID_RESP_NUMER 2
 #define TR_DEFAULT_TID_RESP_DENOM 3
+
+#define TR_CFG_INVALID_SERIAL -1
 
 typedef enum tr_cfg_rc {
   TR_CFG_SUCCESS = 0,	/* No error */
@@ -88,13 +91,20 @@ typedef struct tr_cfg_internal {
   unsigned int tid_resp_denom; /* denominator of fraction of AAA servers to wait for in unshared mode */
 } TR_CFG_INTERNAL;
 
+/* record of files loaded for this configuration */
+typedef struct tr_cfg_file {
+  const char *name;
+  json_int_t serial;
+} TR_CFG_FILE;
+
 typedef struct tr_cfg {
   TR_CFG_INTERNAL *internal;		/* internal trust router config */
   TR_RP_CLIENT *rp_clients;		/* locally associated RP Clients */
   TRP_PTABLE *peers; /* TRP peer table */
   TR_COMM_TABLE *ctable; /* communities/realms */
   TR_AAA_SERVER *default_servers;	/* default server list */
-  /* TBD -- Global Filters */
+
+  GArray *files; /* files loaded to make this configuration */
 } TR_CFG;
 
 typedef struct tr_cfg_mgr {
@@ -122,5 +132,8 @@ TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
 
 /* tr_config_internal.c */
 TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint);
+
+/* tr_config_encoders.c */
+json_t *tr_cfg_files_to_json_array(TR_CFG *cfg);
 
 #endif

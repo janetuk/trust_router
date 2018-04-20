@@ -125,6 +125,13 @@ void tr_print_comm_rps(TR_COMM_TABLE *ctab, TR_COMM *comm)
   talloc_free(tmp_ctx);
 }
 
+static int tr_cfg_destructor(void *object)
+{
+  TR_CFG *cfg = talloc_get_type_abort(object, TR_CFG);
+  if (cfg->files)
+    g_array_unref(cfg->files);
+  return 0;
+}
 TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx)
 {
   TR_CFG *cfg=talloc(mem_ctx, TR_CFG);
@@ -136,8 +143,14 @@ TR_CFG *tr_cfg_new(TALLOC_CTX *mem_ctx)
     cfg->ctable=tr_comm_table_new(cfg);
     if (cfg->ctable==NULL) {
       talloc_free(cfg);
-      cfg=NULL;
+      return NULL;
     }
+    cfg->files = g_array_new(FALSE, FALSE, sizeof(TR_CFG_FILE));
+    if (cfg->files == NULL) {
+      talloc_free(cfg);
+      return NULL;
+    }
+    talloc_set_destructor((void *)cfg, tr_cfg_destructor);
   }
   return cfg;
 }
@@ -1784,7 +1797,6 @@ static void tr_cfg_log_json_error(const char *label, json_error_t *rc)
 static json_t *tr_cfg_parse_one_config_file(const char *file_with_path)
 {
   json_t *jcfg=NULL;
-  json_t *jser=NULL;
   json_error_t rc;
 
   if (NULL==(jcfg=json_load_file(file_with_path, 
@@ -1795,16 +1807,20 @@ static json_t *tr_cfg_parse_one_config_file(const char *file_with_path)
     return NULL;
   }
 
-  // Look for serial number and log it if it exists (borrowed reference, so no need to free it later)
-  if (NULL!=(jser=json_object_get(jcfg, "serial_number"))) {
-    if (json_is_number(jser)) {
-      tr_notice("tr_parse_one_config_file: Attempting to load revision %" JSON_INTEGER_FORMAT " of '%s'.",
-                json_integer_value(jser),
-                file_with_path);
+  return jcfg;
+}
+
+/* extract serial number */
+static json_int_t get_cfg_serial(json_t *jcfg)
+{
+  json_t *jser=NULL;
+
+  if (NULL != (jser = json_object_get(jcfg, "serial_number"))) {
+    if (json_is_integer(jser)) {
+      return json_integer_value(jser);
     }
   }
-
-  return jcfg;
+  return TR_CFG_INVALID_SERIAL;
 }
 
 /**
@@ -1829,11 +1845,12 @@ static void tr_cfg_parse_free_jcfgs(unsigned int n_jcfgs, json_t **jcfgs)
  * @param cfg_files
  * @return
  */
-static json_t **tr_cfg_parse_config_files(TALLOC_CTX *mem_ctx, unsigned int n_files, char **files_with_paths)
+static json_t **tr_cfg_parse_config_files(TALLOC_CTX *mem_ctx, unsigned int n_files, GArray *files)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   unsigned int ii=0;
   json_t **jcfgs=NULL;
+  TR_CFG_FILE *this_file = NULL;
 
   /* first allocate the jcfgs */
   jcfgs=talloc_array(NULL, json_t *, n_files);
@@ -1842,14 +1859,28 @@ static json_t **tr_cfg_parse_config_files(TALLOC_CTX *mem_ctx, unsigned int n_fi
     goto cleanup;
   }
   for (ii=0; ii<n_files; ii++) {
-    jcfgs[ii]=tr_cfg_parse_one_config_file(files_with_paths[ii]);
+    this_file = &g_array_index(files, TR_CFG_FILE, ii);
+    jcfgs[ii]=tr_cfg_parse_one_config_file(this_file->name);
     if (jcfgs[ii]==NULL) {
-      tr_err("tr_parse_config: Error parsing JSON in %s", files_with_paths[ii]);
+      tr_err("tr_parse_config: Error parsing JSON in %s", this_file->name);
       tr_cfg_parse_free_jcfgs(ii, jcfgs); /* frees the JSON objects and the jcfgs array */
       jcfgs=NULL;
       goto cleanup;
     }
+
+    this_file->serial = get_cfg_serial(jcfgs[ii]);
+    if (this_file->serial != TR_CFG_INVALID_SERIAL) {
+      tr_notice("tr_parse_one_config_file: Attempting to load revision %"
+                    JSON_INTEGER_FORMAT
+                    " of '%s'.",
+                this_file->serial,
+                this_file->name);
+    } else {
+      tr_notice("tr_parse_one_config_file: Attempting to load '%s'.",
+                this_file->name);
+    }
   }
+
 cleanup:
   if (jcfgs)
     talloc_steal(mem_ctx, jcfgs); /* give this to the caller's context if we succeeded */
@@ -1899,9 +1930,20 @@ static TR_CFG_RC tr_cfg_parse_helper(TR_CFG *cfg,
   return ret;
 }
 
+static void add_files(TR_CFG *cfg, unsigned int n, char **filenames)
+{
+  TR_CFG_FILE frec = {0};
+
+  while ((n--) > 0) {
+    frec.name = talloc_strdup(cfg, filenames[n]);
+    frec.serial = TR_CFG_INVALID_SERIAL;
+
+    g_array_append_val(cfg->files, frec);
+  }
+}
 
 /**
- *  Reads configuration files in config_dir ("" or "./" will use the current directory).
+ *  Read a list of configuration files
  *
  * @param cfg_mgr Configuration manager
  * @param n_files Number of entries in cfg_files
@@ -1928,8 +1970,11 @@ TR_CFG_RC tr_parse_config(TR_CFG_MGR *cfg_mgr, unsigned int n_files, char **file
     goto cleanup;
   }
 
+  /* add the list of files to the config */
+  add_files(cfg_mgr->new, n_files, files_with_paths);
+
   /* first parse the json */
-  jcfgs=tr_cfg_parse_config_files(tmp_ctx, n_files, files_with_paths);
+  jcfgs=tr_cfg_parse_config_files(tmp_ctx, n_files, cfg_mgr->new->files);
   if (jcfgs==NULL) {
     cfg_rc=TR_CFG_NOPARSE;
     goto cleanup;
@@ -2006,7 +2051,7 @@ TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc)
 }
 
 static int is_cfg_file(const struct dirent *dent) {
-  int n;
+  size_t n;
 
   /* Only accept filenames ending in ".cfg" and starting with a character
    * other than an ASCII '.' */

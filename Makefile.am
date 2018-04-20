@@ -49,6 +49,7 @@ trp/trp_req.c \
 trp/trp_upd.c \
 common/tr_config.c \
 common/tr_config_internal.c \
+common/tr_config_encoders.c \
 common/tr_mq.c
 
 # general monitoring message sources

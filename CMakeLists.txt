@@ -96,7 +96,7 @@ set(SOURCE_FILES
     trp/trp_upd.c
     trp/trpc.c
     trp/trps.c include/tr_name_internal.h mon/mon_req.c mon/mon_req_encode.c mon/mon_req_decode.c
-        mon/mon_resp.c mon/mon_common.c mon/mon_resp_encode.c mon/mon_resp_decode.c tr/tr_mon.c mon/mons.c include/tr_socket.h common/tr_gss.c include/tr_gss.h common/tr_config_internal.c mon/mons_handlers.c include/mons_handlers.h tr/tr_tid_mons.c tr/tr_tid_mons.c trp/trp_route.c include/trp_route.h trp/trp_rtable_encoders.c trp/trp_route_encoders.c trp/trp_peer.c include/trp_peer.h trp/trp_peer_encoders.c trp/trp_ptable_encoders.c common/tr_idp_encoders.c common/tr_comm_encoders.c common/tr_rp_client.c include/tr_rp_client.h common/tr_rp_client_encoders.c common/tr_filter_encoders.c)
+        mon/mon_resp.c mon/mon_common.c mon/mon_resp_encode.c mon/mon_resp_decode.c tr/tr_mon.c mon/mons.c include/tr_socket.h common/tr_gss.c include/tr_gss.h common/tr_config_internal.c mon/mons_handlers.c include/mons_handlers.h tr/tr_tid_mons.c tr/tr_tid_mons.c trp/trp_route.c include/trp_route.h trp/trp_rtable_encoders.c trp/trp_route_encoders.c trp/trp_peer.c include/trp_peer.h trp/trp_peer_encoders.c trp/trp_ptable_encoders.c common/tr_idp_encoders.c common/tr_comm_encoders.c common/tr_rp_client.c include/tr_rp_client.h common/tr_rp_client_encoders.c common/tr_filter_encoders.c common/tr_config_encoders.c)
 
 # Does not actually build!
 add_executable(trust_router ${SOURCE_FILES})

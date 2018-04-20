@@ -167,6 +167,14 @@ static MON_RC tr_handle_show_rp_clients(void *cookie, json_t **response_ptr)
   return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
 }
 
+static MON_RC tr_handle_show_cfg_serial(void *cookie, json_t **response_ptr)
+{
+  TR_CFG_MGR *cfg_mgr = talloc_get_type_abort(cookie, TR_CFG_MGR);
+
+  *response_ptr = tr_cfg_files_to_json_array(cfg_mgr->active);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
 
 
 int main(int argc, char *argv[])
@@ -242,6 +250,7 @@ int main(int argc, char *argv[])
 
   /* Register monitoring handlers */
   mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_VERSION, tr_handle_version, NULL);
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_SERIAL, tr_handle_show_cfg_serial, tr->cfg_mgr);
   mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_UPTIME, tr_handle_uptime, &start_time);
   mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_RP_CLIENTS, tr_handle_show_rp_clients, tr->cfg_mgr);
   tr_tid_register_mons_handlers(tr->tids, tr->mons);
