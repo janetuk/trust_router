@@ -48,6 +48,7 @@
 #include <tr_mq.h>
 #include <tr_util.h>
 #include <tr_tid.h>
+#include <tr_comm.h>
 
 /* Structure to hold data for the tid response callback */
 typedef struct tr_resp_cookie {
@@ -183,7 +184,7 @@ static void *tr_tids_req_fwd_thread(void *arg)
   }
   /* cookie->resp should now contain our copy of the response */
   success=1;
-  tr_debug("tr_tids_req_fwd_thread: thread %d received response.");
+  tr_debug("tr_tids_req_fwd_thread: thread %d received response.", cookie->thread_id);
 
 cleanup:
   /* Notify parent thread of the response, if it's still listening. */
@@ -221,13 +222,70 @@ static TID_RC tr_tids_merge_resps(TID_RESP *r1, TID_RESP *r2)
   if ((r1->result!=TID_SUCCESS) || (r2->result!=TID_SUCCESS))
     return TID_ERROR;
 
-  if ((0!=tr_name_cmp(r1->rp_realm, r2->rp_realm)) ||
-      (0!=tr_name_cmp(r1->realm, r2->realm)) ||
-      (0!=tr_name_cmp(r1->comm, r2->comm)))
-    return TID_ERROR;
+  if ((0 == tr_name_cmp(r1->rp_realm, r2->rp_realm))
+      && (0 == tr_name_cmp(r1->realm, r2->realm))
+      && ( (0 == tr_name_cmp(r1->comm, r2->comm))
+           || (0 == tr_name_cmp(r1->comm, r2->orig_coi))
+           || (0 == tr_name_cmp(r1->orig_coi, r2->comm)))) {
 
-  tid_srvr_blk_add(r1->servers, tid_srvr_blk_dup(r1, r2->servers));
-  return TID_SUCCESS;
+    tid_srvr_blk_add(r1->servers, tid_srvr_blk_dup(r1, r2->servers));
+    return TID_SUCCESS;
+  }
+
+  return TID_ERROR;
+}
+
+enum map_coi_result {
+  MAP_COI_SUCCESS = 0,
+  MAP_COI_MAP_NOT_REQUIRED,
+  MAP_COI_ALREADY_MAPPED,
+  MAP_COI_NO_APC,
+  MAP_COI_INVALID_APC,
+  MAP_COI_UNKNOWN_COMM,
+  MAP_COI_ERROR
+};
+
+static enum map_coi_result map_coi(TR_COMM_TABLE *ctable, TID_REQ *req)
+{
+  TR_COMM *orig_comm;
+  TR_NAME *apc_name;
+  TR_COMM *apc;
+  TR_APC *apcs;
+
+  if (tid_req_get_orig_coi(req) != NULL)
+    return MAP_COI_ALREADY_MAPPED;
+
+  /* look up the community */
+  orig_comm = tr_comm_table_find_comm(ctable, tid_req_get_comm(req));
+  if (orig_comm == NULL)
+    return MAP_COI_UNKNOWN_COMM;
+
+  if (tr_comm_get_type(orig_comm) == TR_COMM_APC)
+    return MAP_COI_MAP_NOT_REQUIRED; /* it was already an APC, no mapping to do */
+
+  /* use first (only) APC. These are just APC names  */
+  apcs = tr_comm_get_apcs(orig_comm);
+  if ((!apcs) || (!tr_apc_get_id(apcs)))
+    return MAP_COI_NO_APC;
+
+  /* get our own copy of the APC name */
+  apc_name = tr_dup_name(tr_apc_get_id(apcs));
+  if (apc_name == NULL) {
+    tr_err("map_coi: Error allocating apc_name");
+    return MAP_COI_ERROR;
+  }
+
+  /* Check that the APC is configured */
+  apc = tr_comm_table_find_comm(ctable, apc_name);
+  if (apc == NULL) {
+    tr_free_name(apc_name);
+    return MAP_COI_INVALID_APC;
+  }
+
+  tid_req_set_orig_coi(req, tid_req_get_comm(req)); /* was null, so no need to free anything */
+  tid_req_set_comm(req, apc_name); /* original contents will be freed via orig_coi */
+
+  return MAP_COI_SUCCESS; /* successfully mapped */
 }
 
 static int tr_tids_req_handler(TIDS_INSTANCE *tids,
@@ -245,7 +303,6 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   TID_RESP *aaa_resp[TR_TID_MAX_AAA_SERVERS]={NULL};
   TR_RP_CLIENT *rp_client=NULL;
   TR_RP_CLIENT_ITER *rpc_iter=NULL;
-  TR_NAME *apc = NULL;
   TID_REQ *fwd_req = NULL;
   TR_COMM *cfg_comm = NULL;
   TR_COMM *cfg_apc = NULL;
@@ -285,6 +342,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   }
   talloc_steal(tmp_ctx, fwd_req);
 
+  /* cfg_comm is now the community (APC or CoI) of the incoming request */
   if (NULL == (cfg_comm=tr_comm_table_find_comm(cfg_mgr->active->ctable, orig_req->comm))) {
     tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", orig_req->comm->buf);
     tids_send_err_response(tids, orig_req, "Unknown community");
@@ -349,60 +407,73 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
 
   /* Check that the rp_realm is a member of the community in the request */
   if (NULL == tr_comm_find_rp(cfg_mgr->active->ctable, cfg_comm, orig_req->rp_realm)) {
-    tr_notice("tr_tids_req_handler: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "RP COI membership error");
+    tr_notice("tr_tids_req_handler: RP Realm (%s) not member of community (%s).",
+              orig_req->rp_realm->buf, orig_req->comm->buf);
+    tids_send_err_response(tids, orig_req, "RP community membership error");
     retval=-1;
     goto cleanup;
   }
 
-  /* Map the comm in the request from a COI to an APC, if needed */
-  if (TR_COMM_COI == cfg_comm->type) {
-    if (orig_req->orig_coi!=NULL) {
-      tr_notice("tr_tids_req_handler: community %s is COI but COI to APC mapping already occurred. Dropping request.",
-               orig_req->comm->buf);
+  switch(map_coi(cfg_mgr->active->ctable, fwd_req)) {
+    case MAP_COI_MAP_NOT_REQUIRED:
+      cfg_apc = cfg_comm;
+      break;
+
+    case MAP_COI_SUCCESS:
+      cfg_apc = tr_comm_table_find_comm(cfg_mgr->active->ctable, tid_req_get_comm(fwd_req));
+      tr_debug("tr_tids_req_handler: Community %.*s is a COI, mapping to APC %.*s.",
+               tid_req_get_orig_coi(fwd_req)->len, tid_req_get_orig_coi(fwd_req)->buf,
+               tr_comm_get_id(cfg_apc)->len, tr_comm_get_id(cfg_apc)->buf);
+      break;
+
+    case MAP_COI_ALREADY_MAPPED:
+      tr_notice("tr_tids_req_handler: community %.*s is COI but COI to APC mapping already occurred. Dropping request.",
+                tid_req_get_comm(orig_req)->len, tid_req_get_comm(orig_req)->buf);
       tids_send_err_response(tids, orig_req, "Second COI to APC mapping would result, permitted only once.");
-      retval=-1;
+      retval = -1;
       goto cleanup;
-    }
-    
-    tr_debug("tr_tids_req_handler: Community was a COI, switching.");
-    /* TBD -- In theory there can be more than one?  How would that work? */
-    if ((!cfg_comm->apcs) || (!cfg_comm->apcs->id)) {
-      tr_notice("No valid APC for COI %s.", orig_req->comm->buf);
+
+    case MAP_COI_NO_APC:
+      tr_notice("No valid APC for COI %.*s.",
+                tid_req_get_comm(orig_req)->len, tid_req_get_comm(orig_req)->buf);
       tids_send_err_response(tids, orig_req, "No valid APC for community");
-      retval=-1;
+      retval = -1;
       goto cleanup;
-    }
-    apc = tr_dup_name(cfg_comm->apcs->id);
 
-    /* Check that the APC is configured */
-    if (NULL == (cfg_apc = tr_comm_table_find_comm(cfg_mgr->active->ctable, apc))) {
-      tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", apc->buf);
+    case MAP_COI_INVALID_APC:
+      tr_notice("tr_tids_req_hander: Request for unknown APC.");
       tids_send_err_response(tids, orig_req, "Unknown APC");
-      retval=-1;
+      retval = -1;
       goto cleanup;
-    }
 
-    fwd_req->comm = apc;
-    fwd_req->orig_coi = orig_req->comm;
-
-    /* Check that rp_realm is a  member of this APC */
-    if (NULL == (tr_comm_find_rp(cfg_mgr->active->ctable, cfg_apc, orig_req->rp_realm))) {
-      tr_notice("tr_tids_req_hander: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
-      tids_send_err_response(tids, orig_req, "RP APC membership error");
-      retval=-1;
+    default:
+      tr_notice("tr_tids_req_hander: Unexpected error mapping COI to APC.");
+      retval = -1;
       goto cleanup;
-    }
   }
 
-  /* Look up the route for this community/realm. */
+  /* cfg_comm is now the original community, and cfg_apc is the APC it belongs to. These
+   * may both be the same. If not, check that rp_realm is a  member of the mapped APC */
+  if ((cfg_apc != cfg_comm)
+      && (NULL == tr_comm_find_rp(cfg_mgr->active->ctable,
+                                  cfg_apc,
+                                  tid_req_get_rp_realm(fwd_req)))) {
+    tr_notice("tr_tids_req_hander: RP Realm (%.*s) not member of mapped APC (%.*s).",
+              tid_req_get_rp_realm(fwd_req)->len, tid_req_get_rp_realm(fwd_req)->buf,
+              tr_comm_get_id(cfg_apc)->len, tr_comm_get_id(cfg_apc)->buf);
+    tids_send_err_response(tids, orig_req, "RP community membership error");
+    retval=-1;
+    goto cleanup;
+  }
+
+  /* Look up the route for forwarding request's community/realm. */
   tr_debug("tr_tids_req_handler: looking up route.");
-  route=trps_get_selected_route(trps, orig_req->comm, orig_req->realm);
+  route=trps_get_selected_route(trps, fwd_req->comm, fwd_req->realm);
   if (route==NULL) {
     /* No route. Use default AAA servers if we have them. */
-    tr_debug("tr_tids_req_handler: No route for realm %s, defaulting.", orig_req->realm->buf);
+    tr_debug("tr_tids_req_handler: No route for realm %s, defaulting.", fwd_req->realm->buf);
     if (NULL == (aaa_servers = tr_default_server_lookup(cfg_mgr->active->default_servers,
-                                                        orig_req->comm))) {
+                                                        fwd_req->comm))) {
       tr_notice("tr_tids_req_handler: No default AAA servers, discarded.");
       tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
       retval = -1;
@@ -410,13 +481,13 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     }
     idp_shared = 0;
   } else {
-    /* Found a route. Determine the AAA servers or next hop address. */
+    /* Found a route. Determine the AAA servers or next hop address for the request we are forwarding. */
     tr_debug("tr_tids_req_handler: found route.");
     if (trp_route_is_local(route)) {
       tr_debug("tr_tids_req_handler: route is local.");
       aaa_servers = tr_idp_aaa_server_lookup(cfg_mgr->active->ctable->idp_realms,
-                                             orig_req->realm,
-                                             orig_req->comm,
+                                             fwd_req->realm,
+                                             fwd_req->comm,
                                              &idp_shared);
     } else {
       tr_debug("tr_tids_req_handler: route not local.");
@@ -424,22 +495,23 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       idp_shared = 0;
     }
 
-    /* Since we aren't defaulting, check idp coi and apc membership */
-    if (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_comm, fwd_req->realm))) {
-      tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of community (%s).", orig_req->realm->buf, orig_req->comm->buf);
+    /* Since we aren't defaulting, check idp coi and apc membership of the original request */
+    if (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_comm, orig_req->realm))) {
+      tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of community (%s).", orig_req->realm->buf, cfg_comm->id->buf);
       tids_send_err_response(tids, orig_req, "IDP community membership error");
       retval=-1;
       goto cleanup;
     }
-    if ( cfg_apc && (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_apc, fwd_req->realm)))) {
-      tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of APC (%s).", orig_req->realm->buf, orig_req->comm->buf);
+    if ( cfg_apc && (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_apc, orig_req->realm)))) {
+      tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of APC (%s).", orig_req->realm->buf, cfg_apc->id->buf);
       tids_send_err_response(tids, orig_req, "IDP APC membership error");
       retval=-1;
       goto cleanup;
     }
   }
 
-  /* Make sure we came through with a AAA server. If not, we can't handle the request. */
+  /* Make sure we came through with a AAA server. If not, we can't handle the request.
+   * Report using the original request, not translated values. */
   if (NULL == aaa_servers) {
     tr_notice("tr_tids_req_handler: no route or AAA server for realm (%s) in community (%s).",
               orig_req->realm->buf, orig_req->comm->buf);
@@ -450,12 +522,12 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
 
   /* send a TID request to the AAA server(s), and get the answer(s) */
   tr_debug("tr_tids_req_handler: sending TID request(s).");
-  if (cfg_apc)
-    expiration_interval = cfg_apc->expiration_interval;
-  else expiration_interval = cfg_comm->expiration_interval;
+  /* Use the smaller of the APC's expiration interval and the expiration interval of the incoming request */
+  expiration_interval = cfg_apc->expiration_interval;
   if (fwd_req->expiration_interval)
     fwd_req->expiration_interval =  (expiration_interval < fwd_req->expiration_interval) ? expiration_interval : fwd_req->expiration_interval;
-  else fwd_req->expiration_interval = expiration_interval;
+  else
+    fwd_req->expiration_interval = expiration_interval;
 
   /* Set up message queue for replies from req forwarding threads */
   mq=tr_mq_new(tmp_ctx);
