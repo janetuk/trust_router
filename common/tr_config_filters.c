@@ -98,6 +98,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   TR_FILTER *filt = NULL;
+  TR_FLINE *fline = NULL;
   json_t *jfaction = NULL;
   json_t *jfline = NULL;
   json_t *jfspecs = NULL;
@@ -125,13 +126,6 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
   }
   tr_filter_set_type(filt, ftype);
 
-  /* make sure we have space to represent the filter */
-  if (json_array_size(jfilt) > TR_MAX_FILTER_LINES) {
-    tr_err("tr_cfg_parse_one_filter: Filter has too many lines, maximum of %d.", TR_MAX_FILTER_LINES);
-    *rc = TR_CFG_NOPARSE;
-    goto cleanup;
-  }
-
   /* For each entry in the filter... */
   json_array_foreach(jfilt, i, jfline) {
     if ((NULL == (jfaction = json_object_get(jfline, "action"))) ||
@@ -155,16 +149,17 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       goto cleanup;
     }
 
-    if (NULL == (filt->lines[i] = tr_fline_new(filt))) {
+    fline = tr_fline_new(tmp_ctx);
+    if (fline == NULL) {
       tr_debug("tr_cfg_parse_one_filter: Out of memory allocating filter line %d.", i + 1);
       *rc = TR_CFG_NOMEM;
       goto cleanup;
     }
 
     if (!strcmp(json_string_value(jfaction), "accept")) {
-      filt->lines[i]->action = TR_FILTER_ACTION_ACCEPT;
+      fline->action = TR_FILTER_ACTION_ACCEPT;
     } else if (!strcmp(json_string_value(jfaction), "reject")) {
-      filt->lines[i]->action = TR_FILTER_ACTION_REJECT;
+      fline->action = TR_FILTER_ACTION_REJECT;
     } else {
       tr_debug("tr_cfg_parse_one_filter: Error parsing filter action, unknown action' %s'.",
                json_string_value(jfaction));
@@ -184,7 +179,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
         goto cleanup;
       } else if (json_array_size(jrc) > 0) {
         /* ok we actually have entries to process */
-        if (NULL == (filt->lines[i]->realm_cons = tr_cfg_parse_one_constraint(filt->lines[i], "realm", jrc, rc))) {
+        if (NULL == (fline->realm_cons = tr_cfg_parse_one_constraint(fline, "realm", jrc, rc))) {
           tr_debug("tr_cfg_parse_one_filter: Error parsing realm constraint");
           *rc = TR_CFG_NOPARSE;
           goto cleanup;
@@ -203,7 +198,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
         *rc = TR_CFG_NOPARSE;
         goto cleanup;
       } else if (json_array_size(jdc) > 0) {
-        if (NULL == (filt->lines[i]->domain_cons = tr_cfg_parse_one_constraint(filt->lines[i], "domain", jdc, rc))) {
+        if (NULL == (fline->domain_cons = tr_cfg_parse_one_constraint(fline, "domain", jdc, rc))) {
           tr_debug("tr_cfg_parse_one_filter: Error parsing domain constraint");
           *rc = TR_CFG_NOPARSE;
           goto cleanup;
@@ -239,14 +234,14 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       }
 
       /* allocate the filter spec */
-      if (NULL == (filt->lines[i]->specs[j] = tr_fspec_new(filt->lines[i]))) {
+      if (NULL == (fline->specs[j] = tr_fspec_new(fline))) {
         tr_debug("tr_cfg_parse_one_filter: Out of memory.");
         *rc = TR_CFG_NOMEM;
         goto cleanup;
       }
 
       /* fill in the field */
-      if (NULL == (filt->lines[i]->specs[j]->field = tr_new_name(json_string_value(jfield)))) {
+      if (NULL == (fline->specs[j]->field = tr_new_name(json_string_value(jfield)))) {
         tr_debug("tr_cfg_parse_one_filter: Out of memory.");
         *rc = TR_CFG_NOMEM;
         goto cleanup;
@@ -259,7 +254,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
           *rc = TR_CFG_NOMEM;
           goto cleanup;
         }
-        tr_fspec_add_match(filt->lines[i]->specs[j], name);
+        tr_fspec_add_match(fline->specs[j], name);
       } else {
         /* jmatch is an array (we checked earlier) */
         json_array_foreach(jmatch, k, this_jmatch) {
@@ -268,18 +263,25 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
             *rc = TR_CFG_NOMEM;
             goto cleanup;
           }
-          tr_fspec_add_match(filt->lines[i]->specs[j], name);
+          tr_fspec_add_match(fline->specs[j], name);
         }
       }
-      if (!tr_filter_validate_spec_field(ftype, filt->lines[i]->specs[j])){
+      if (!tr_filter_validate_spec_field(ftype, fline->specs[j])){
         tr_debug("tr_cfg_parse_one_filter: Invalid filter field \"%.*s\" for %s filter, spec %d, filter %d.",
-                 filt->lines[i]->specs[j]->field->len,
-                 filt->lines[i]->specs[j]->field->buf,
+                 fline->specs[j]->field->len,
+                 fline->specs[j]->field->buf,
                  tr_filter_type_to_string(filt->type),
                  i, j);
         *rc = TR_CFG_ERROR;
         goto cleanup;
       }
+    }
+
+    if (NULL == tr_filter_add_line(filt, fline)) {
+      tr_debug("tr_cfg_parse_one_filter: Error adding line %d for %s filter",
+               i+1, tr_filter_type_to_string(filt->type));
+      *rc = TR_CFG_NOMEM;
+      goto cleanup;
     }
   }
 

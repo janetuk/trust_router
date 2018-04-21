@@ -113,6 +113,7 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_FILTER *filt=NULL;
+  TR_FLINE *fline = NULL;
   TR_FILTER_SET *filt_set=NULL;
   TR_CONSTRAINT *cons=NULL;
   TR_NAME *name=NULL;
@@ -147,16 +148,17 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     goto cleanup;
   }
   tr_filter_set_type(filt, TR_FILTER_TYPE_TID_INBOUND);
-  filt->lines[0]=tr_fline_new(filt);
-  if (filt->lines[0]==NULL) {
+
+  fline = tr_fline_new(tmp_ctx);
+  if (fline==NULL) {
     tr_debug("tr_cfg_default_filters: could not allocate filter line.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
 
-  filt->lines[0]->action=TR_FILTER_ACTION_ACCEPT;
-  filt->lines[0]->specs[0]=tr_fspec_new(filt->lines[0]);
-  filt->lines[0]->specs[0]->field=n_rp_realm_1;
+  fline->action=TR_FILTER_ACTION_ACCEPT;
+  fline->specs[0]=tr_fspec_new(fline);
+  fline->specs[0]->field=n_rp_realm_1;
   n_rp_realm_1=NULL; /* we don't own this name any more */
 
   name=tr_dup_name(realm);
@@ -165,12 +167,12 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  tr_fspec_add_match(filt->lines[0]->specs[0], name);
+  tr_fspec_add_match(fline->specs[0], name);
   name=NULL; /* we no longer own the name */
 
   /* now do the wildcard name */
-  filt->lines[0]->specs[1]=tr_fspec_new(filt->lines[0]);
-  filt->lines[0]->specs[1]->field=n_rp_realm_2;
+  fline->specs[1]=tr_fspec_new(fline);
+  fline->specs[1]->field=n_rp_realm_2;
   n_rp_realm_2=NULL; /* we don't own this name any more */
 
   if (NULL==(name=tr_name_cat(n_prefix, realm))) {
@@ -179,11 +181,11 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     goto cleanup;
   }
 
-  tr_fspec_add_match(filt->lines[0]->specs[1], name);
+  tr_fspec_add_match(fline->specs[1], name);
   name=NULL; /* we no longer own the name */
 
   /* domain constraint */
-  if (NULL==(cons=tr_constraint_new(filt->lines[0]))) {
+  if (NULL==(cons=tr_constraint_new(fline))) {
     tr_debug("tr_cfg_default_filters: could not allocate domain constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
@@ -206,11 +208,11 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
   }
   cons->matches[1]=name;
   name=NULL;
-  filt->lines[0]->domain_cons=cons;
+  fline->domain_cons=cons;
 
 
   /* realm constraint */
-  if (NULL==(cons=tr_constraint_new(filt->lines[0]))) {
+  if (NULL==(cons=tr_constraint_new(fline))) {
     tr_debug("tr_cfg_default_filters: could not allocate realm constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
@@ -233,7 +235,14 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
   }
   cons->matches[1]=name;
   name=NULL;
-  filt->lines[0]->realm_cons=cons;
+  fline->realm_cons=cons;
+
+  /* put the fline in the filter */
+  if (NULL == tr_filter_add_line(filt, fline)) {
+    tr_debug("tr_cfg_default_filters: could not add line to filter.");
+    *rc = TR_CFG_NOMEM;
+    goto cleanup;
+  }
 
   /* put the filter in a set */
   filt_set=tr_filter_set_new(tmp_ctx);

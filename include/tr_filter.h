@@ -37,14 +37,13 @@
 
 #include <talloc.h>
 #include <jansson.h>
+#include <glib.h>
 
 #include <tr_name_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tid.h>
 #include <trust_router/trp.h>
 
-#define TR_MAX_FILTERS  5
-#define TR_MAX_FILTER_LINES 8
 #define TR_MAX_FILTER_SPECS 8
 #define TR_MAX_FILTER_SPEC_MATCHES 64
 
@@ -81,9 +80,13 @@ typedef struct tr_fline {
 
 typedef struct tr_filter {
   TR_FILTER_TYPE type;
-  TR_FLINE *lines[TR_MAX_FILTER_LINES];
+  GPtrArray *lines;
 } TR_FILTER;
 
+typedef struct tr_filter_iter {
+  TR_FILTER *filter;
+  guint ii;
+} TR_FILTER_ITER;
 
 typedef struct tr_filter_set TR_FILTER_SET;
 struct tr_filter_set {
@@ -109,12 +112,11 @@ int tr_filter_set_add(TR_FILTER_SET *set, TR_FILTER *new);
 TR_FILTER *tr_filter_set_get(TR_FILTER_SET *set, TR_FILTER_TYPE type);
 
 TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx);
-
 void tr_filter_free(TR_FILTER *filt);
 
 void tr_filter_set_type(TR_FILTER *filt, TR_FILTER_TYPE type);
-
 TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt);
+TR_FLINE *tr_filter_add_line(TR_FILTER *filt, TR_FLINE *line);
 
 TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx);
 
@@ -128,6 +130,10 @@ void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
 
 int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *target);
 
+TR_FILTER_ITER *tr_filter_iter_new(TALLOC_CTX *mem_ctx);
+void tr_filter_iter_free(TR_FILTER_ITER *iter);
+TR_FLINE *tr_filter_iter_first(TR_FILTER_ITER *iter, TR_FILTER *filter);
+TR_FLINE *tr_filter_iter_next(TR_FILTER_ITER *iter);
 
 /*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
 int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);

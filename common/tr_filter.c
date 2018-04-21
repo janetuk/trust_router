@@ -408,34 +408,34 @@ int tr_filter_apply(TR_FILTER_TARGET *target,
                     TR_CONSTRAINT_SET **constraints,
                     TR_FILTER_ACTION *out_action)
 {
-  unsigned int ii=0, jj=0;
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  TR_FILTER_ITER *filt_iter = tr_filter_iter_new(tmp_ctx);
+  TR_FLINE *this_fline = NULL;
+  unsigned int jj=0;
   int retval=TR_FILTER_NO_MATCH;
 
   /* Default action is reject */
   *out_action = TR_FILTER_ACTION_REJECT;
 
   /* Validate filter */
-  if ((filt==NULL) || (filt->type==TR_FILTER_TYPE_UNKNOWN))
+  if ((filt_iter == NULL) || (filt==NULL) || (filt->type==TR_FILTER_TYPE_UNKNOWN)) {
+    talloc_free(tmp_ctx);
     return TR_FILTER_NO_MATCH;
+  }
 
   /* Step through filter lines looking for a match. If a line matches, retval
    * will be set to TR_FILTER_MATCH, so stop then. */
-  for (ii=0, retval=TR_FILTER_NO_MATCH;
-       ii<TR_MAX_FILTER_LINES;
-       ii++) {
-    /* skip empty lines (these shouldn't really happen) */
-    if (filt->lines[ii]==NULL)
-      continue;
-
+  this_fline = tr_filter_iter_first(filt_iter, filt);
+  while(this_fline) {
     /* Assume we are going to succeed. If any specs fail to match, we'll set
      * this to TR_FILTER_NO_MATCH. */
     retval=TR_FILTER_MATCH;
     for (jj=0; jj<TR_MAX_FILTER_SPECS; jj++) {
       /* skip empty specs (these shouldn't really happen either) */
-      if (filt->lines[ii]->specs[jj]==NULL)
+      if (this_fline->specs[jj]==NULL)
         continue;
 
-      if (!tr_fspec_matches(filt->lines[ii]->specs[jj], filt->type, target)) {
+      if (!tr_fspec_matches(this_fline->specs[jj], filt->type, target)) {
         retval=TR_FILTER_NO_MATCH; /* set this in case this is the last filter line */
         break; /* give up on this filter line */
       }
@@ -447,11 +447,11 @@ int tr_filter_apply(TR_FILTER_TARGET *target,
 
   if (retval==TR_FILTER_MATCH) {
     /* Matched line ii. Grab its action and constraints. */
-    *out_action = filt->lines[ii]->action;
+    *out_action = this_fline->action;
     if (constraints!=NULL) {
       /* if either constraint is missing, these are no-ops */
-      tr_constraint_add_to_set(constraints, filt->lines[ii]->realm_cons);
-      tr_constraint_add_to_set(constraints, filt->lines[ii]->domain_cons);
+      tr_constraint_add_to_set(constraints, this_fline->realm_cons);
+      tr_constraint_add_to_set(constraints, this_fline->domain_cons);
     }
   }
 
@@ -576,12 +576,14 @@ TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
 TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx)
 {
   TR_FILTER *f = talloc(mem_ctx, TR_FILTER);
-  int ii = 0;
 
   if (f != NULL) {
     f->type = TR_FILTER_TYPE_UNKNOWN;
-    for (ii = 0; ii < TR_MAX_FILTER_LINES; ii++)
-      f->lines[ii] = NULL;
+    f->lines = g_ptr_array_new();
+    if (f->lines == NULL) {
+      talloc_free(f);
+      return NULL;
+    }
   }
   return f;
 }
@@ -602,6 +604,65 @@ TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt)
 }
 
 /**
+ * Add a TR_FLINE to a filter
+ *
+ * Steals the line into its context on success
+ *
+ * @param filt
+ * @param line
+ * @return line, or null on failure
+ */
+TR_FLINE *tr_filter_add_line(TR_FILTER *filt, TR_FLINE *line)
+{
+  guint old_len = filt->lines->len;
+  g_ptr_array_add(filt->lines, line);
+  talloc_steal(filt, line); /* take this no matter what */
+  if (old_len == filt->lines->len)
+    return NULL; /* failed to add */
+  return line;
+}
+
+/**
+ * Iterator for TR_FLINES in a TR_FILTER
+ *
+ * @param mem_ctx
+ * @return
+ */
+TR_FILTER_ITER *tr_filter_iter_new(TALLOC_CTX *mem_ctx)
+{
+  TR_FILTER_ITER *iter = talloc(mem_ctx, TR_FILTER_ITER);
+  if (iter) {
+    iter->filter = NULL;
+  }
+  return iter;
+}
+
+void tr_filter_iter_free(TR_FILTER_ITER *iter)
+{
+  talloc_free(iter);
+}
+
+TR_FLINE *tr_filter_iter_next(TR_FILTER_ITER *iter)
+{
+  if (!iter)
+    return NULL;
+
+  if (iter->ii < iter->filter->lines->len)
+    return g_ptr_array_index(iter->filter->lines, iter->ii++);
+  return NULL;
+}
+
+TR_FLINE *tr_filter_iter_first(TR_FILTER_ITER *iter, TR_FILTER *filter)
+{
+  if (!iter || !filter)
+    return NULL;
+
+  iter->filter = filter;
+  iter->ii = 0;
+  return tr_filter_iter_next(iter);
+}
+
+/**
  * Check that a filter is valid, i.e., can be processed.
  *
  * @param filt Filter to verify
@@ -609,10 +670,15 @@ TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt)
  */
 int tr_filter_validate(TR_FILTER *filt)
 {
-  size_t ii=0, jj=0, kk=0;
-
-  if (!filt)
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  size_t jj=0, kk=0;
+  TR_FILTER_ITER *filt_iter = tr_filter_iter_new(tmp_ctx);
+  TR_FLINE *this_fline = NULL;
+  
+  if (!filt) {
+    talloc_free(tmp_ctx);
     return 0;
+  }
 
   /* check that we recognize the type */
   switch(filt->type) {
@@ -622,41 +688,48 @@ int tr_filter_validate(TR_FILTER *filt)
       break;
 
     default:
+      talloc_free(tmp_ctx);
       return 0; /* if we get here, either TR_FILTER_TYPE_UNKNOWN or an invalid value was found */
   }
-  for (ii=0; ii<TR_MAX_FILTER_LINES; ii++) {
-    if (filt->lines[ii]==NULL)
-      continue; /* an empty filter line is valid */
-
+  
+  this_fline = tr_filter_iter_first(filt_iter, filt);
+  while(this_fline) {
     /* check that we recognize the action */
-    switch(filt->lines[ii]->action) {
+    switch(this_fline->action) {
       case TR_FILTER_ACTION_ACCEPT:
       case TR_FILTER_ACTION_REJECT:
         break;
 
       default:
         /* if we get here, either TR_FILTER_ACTION_UNKNOWN or an invalid value was found */
+        talloc_free(tmp_ctx);
         return 0;
     }
 
     for (jj=0; jj<TR_MAX_FILTER_SPECS; jj++) {
-      if (filt->lines[ii]->specs[jj]==NULL)
+      if (this_fline->specs[jj]==NULL)
         continue; /* an empty filter spec is valid */
 
-      if (!tr_filter_validate_spec_field(filt->type, filt->lines[ii]->specs[jj]))
+      if (!tr_filter_validate_spec_field(filt->type, this_fline->specs[jj])) {
+        talloc_free(tmp_ctx);
         return 0;
+      }
 
       /* check that at least one match is non-null */
       for (kk=0; kk<TR_MAX_FILTER_SPEC_MATCHES; kk++) {
-        if (filt->lines[ii]->specs[jj]->match[kk]!=NULL)
+        if (this_fline->specs[jj]->match[kk]!=NULL)
           break;
       }
-      if (kk==TR_MAX_FILTER_SPEC_MATCHES)
+      if (kk==TR_MAX_FILTER_SPEC_MATCHES) {
+        talloc_free(tmp_ctx);
         return 0;
+      }
     }
+    this_fline = tr_filter_iter_next(filt_iter);
   }
 
   /* We ran the gauntlet. Success! */
+  talloc_free(tmp_ctx);
   return 1;
 }
 

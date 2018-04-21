@@ -145,6 +145,33 @@ cleanup:
   return retval;
 }
 
+static json_t *tr_flines_to_json_array(TR_FILTER *filt)
+{
+  json_t *jarray = json_array();
+  json_t *retval = NULL;
+  TR_FILTER_ITER *iter = tr_filter_iter_new(NULL);
+  TR_FLINE *this_fline = NULL;
+
+  if ((jarray == NULL) || (iter == NULL))
+    goto cleanup;
+
+  this_fline = tr_filter_iter_first(iter, filt);
+  while(this_fline) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_fline_to_json(this_fline));
+    this_fline = tr_filter_iter_next(iter);
+  }
+  /* success */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+  if (iter)
+    tr_filter_iter_free(iter);
+
+  return retval;
+}
 json_t *tr_filter_set_to_json(TR_FILTER_SET *filter_set)
 {
   json_t *fset_json = NULL;
@@ -166,9 +193,7 @@ json_t *tr_filter_set_to_json(TR_FILTER_SET *filter_set)
     filt = tr_filter_set_get(filter_set, *filt_type);
     if (filt) {
       OBJECT_SET_OR_FAIL(fset_json, tr_filter_type_to_string(*filt_type),
-                         items_to_json_array((void **)filt->lines,
-                                             (ITEM_ENCODER_FUNC *) tr_fline_to_json,
-                                             TR_MAX_FILTER_LINES));
+                         tr_flines_to_json_array(filt));
     }
   }
 
