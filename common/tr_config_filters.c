@@ -99,6 +99,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   TR_FILTER *filt = NULL;
   TR_FLINE *fline = NULL;
+  TR_FSPEC *fspec = NULL;
   json_t *jfaction = NULL;
   json_t *jfline = NULL;
   json_t *jfspecs = NULL;
@@ -139,12 +140,6 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
         (!json_is_array(jfspecs)) ||
         (0 == json_array_size(jfspecs))) {
       tr_debug("tr_cfg_parse_one_filter: Error parsing filter specs.");
-      *rc = TR_CFG_NOPARSE;
-      goto cleanup;
-    }
-
-    if (TR_MAX_FILTER_SPECS < json_array_size(jfspecs)) {
-      tr_debug("tr_cfg_parse_one_filter: Filter has too many specs, maximimum of %d.", TR_MAX_FILTER_SPECS);
       *rc = TR_CFG_NOPARSE;
       goto cleanup;
     }
@@ -234,14 +229,14 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       }
 
       /* allocate the filter spec */
-      if (NULL == (fline->specs[j] = tr_fspec_new(fline))) {
+      if (NULL == (fspec = tr_fspec_new(fline))) {
         tr_debug("tr_cfg_parse_one_filter: Out of memory.");
         *rc = TR_CFG_NOMEM;
         goto cleanup;
       }
 
       /* fill in the field */
-      if (NULL == (fline->specs[j]->field = tr_new_name(json_string_value(jfield)))) {
+      if (NULL == (fspec->field = tr_new_name(json_string_value(jfield)))) {
         tr_debug("tr_cfg_parse_one_filter: Out of memory.");
         *rc = TR_CFG_NOMEM;
         goto cleanup;
@@ -254,7 +249,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
           *rc = TR_CFG_NOMEM;
           goto cleanup;
         }
-        tr_fspec_add_match(fline->specs[j], name);
+        tr_fspec_add_match(fspec, name);
       } else {
         /* jmatch is an array (we checked earlier) */
         json_array_foreach(jmatch, k, this_jmatch) {
@@ -263,23 +258,28 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
             *rc = TR_CFG_NOMEM;
             goto cleanup;
           }
-          tr_fspec_add_match(fline->specs[j], name);
+          tr_fspec_add_match(fspec, name);
         }
       }
-      if (!tr_filter_validate_spec_field(ftype, fline->specs[j])){
+      if (!tr_filter_validate_spec_field(ftype, fspec)){
         tr_debug("tr_cfg_parse_one_filter: Invalid filter field \"%.*s\" for %s filter, spec %d, filter %d.",
-                 fline->specs[j]->field->len,
-                 fline->specs[j]->field->buf,
+                 fspec->field->len,
+                 fspec->field->buf,
                  tr_filter_type_to_string(filt->type),
                  i, j);
         *rc = TR_CFG_ERROR;
         goto cleanup;
       }
+
+      if(tr_fline_add_spec(fline, fspec) == NULL) {
+        tr_debug("tr_cfg_parse_one_filter: Unable to add spec %d to line %d of %s filter.",
+                 j, i, tr_filter_type_to_string(filt->type));
+      }
     }
 
     if (NULL == tr_filter_add_line(filt, fline)) {
       tr_debug("tr_cfg_parse_one_filter: Error adding line %d for %s filter",
-               i+1, tr_filter_type_to_string(filt->type));
+               i, tr_filter_type_to_string(filt->type));
       *rc = TR_CFG_NOMEM;
       goto cleanup;
     }

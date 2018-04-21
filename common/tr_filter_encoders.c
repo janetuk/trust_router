@@ -133,6 +133,34 @@ cleanup:
   return retval;
 }
 
+static json_t *tr_fspecs_to_json_array(TR_FLINE *fline)
+{
+  json_t *jarray = json_array();
+  json_t *retval = NULL;
+  TR_FLINE_ITER *iter = tr_fline_iter_new(NULL);
+  TR_FSPEC *this_fspec = NULL;
+
+  if ((jarray == NULL) || (iter == NULL))
+    goto cleanup;
+
+  this_fspec = tr_fline_iter_first(iter, fline);
+  while(this_fspec) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_fspec_to_json(this_fspec));
+    this_fspec = tr_fline_iter_next(iter);
+  }
+  /* success */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+  if (iter)
+    tr_fline_iter_free(iter);
+
+  return retval;
+}
+
 static json_t *tr_fline_to_json(TR_FLINE *fline)
 {
   json_t *fline_json = NULL;
@@ -145,9 +173,7 @@ static json_t *tr_fline_to_json(TR_FLINE *fline)
   OBJECT_SET_OR_FAIL(fline_json, "action",
                      json_string( (fline->action == TR_FILTER_ACTION_ACCEPT) ? "accept" : "reject"));
   OBJECT_SET_OR_FAIL(fline_json, "specs",
-                     items_to_json_array((void **)fline->specs,
-                                         (ITEM_ENCODER_FUNC *) tr_fspec_to_json,
-                                         TR_MAX_FILTER_SPECS));
+                     tr_fspecs_to_json_array(fline));
   if (fline->realm_cons) {
     OBJECT_SET_OR_FAIL(fline_json, "realm_constraints",
                        items_to_json_array((void **) fline->realm_cons->matches,

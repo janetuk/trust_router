@@ -114,6 +114,7 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_FILTER *filt=NULL;
   TR_FLINE *fline = NULL;
+  TR_FSPEC *fspec = NULL;
   TR_FILTER_SET *filt_set=NULL;
   TR_CONSTRAINT *cons=NULL;
   TR_NAME *name=NULL;
@@ -157,8 +158,9 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
   }
 
   fline->action=TR_FILTER_ACTION_ACCEPT;
-  fline->specs[0]=tr_fspec_new(fline);
-  fline->specs[0]->field=n_rp_realm_1;
+  
+  fspec=tr_fspec_new(tmp_ctx);
+  fspec->field=n_rp_realm_1;
   n_rp_realm_1=NULL; /* we don't own this name any more */
 
   name=tr_dup_name(realm);
@@ -167,12 +169,18 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  tr_fspec_add_match(fline->specs[0], name);
+  tr_fspec_add_match(fspec, name);
   name=NULL; /* we no longer own the name */
 
+  if (tr_fline_add_spec(fline, fspec) == NULL) {
+    tr_debug("tr_cfg_default_filters: could not add first spec to filter line");
+    *rc = TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
   /* now do the wildcard name */
-  fline->specs[1]=tr_fspec_new(fline);
-  fline->specs[1]->field=n_rp_realm_2;
+  fspec=tr_fspec_new(tmp_ctx);
+  fspec->field=n_rp_realm_2;
   n_rp_realm_2=NULL; /* we don't own this name any more */
 
   if (NULL==(name=tr_name_cat(n_prefix, realm))) {
@@ -181,8 +189,14 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     goto cleanup;
   }
 
-  tr_fspec_add_match(fline->specs[1], name);
+  tr_fspec_add_match(fspec, name);
   name=NULL; /* we no longer own the name */
+
+  if (tr_fline_add_spec(fline, fspec) == NULL) {
+    tr_debug("tr_cfg_default_filters: could not add second spec to filter line");
+    *rc = TR_CFG_NOMEM;
+    goto cleanup;
+  }
 
   /* domain constraint */
   if (NULL==(cons=tr_constraint_new(fline))) {

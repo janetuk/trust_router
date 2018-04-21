@@ -44,8 +44,6 @@
 #include <trust_router/tid.h>
 #include <trust_router/trp.h>
 
-#define TR_MAX_FILTER_SPECS 8
-
 /* Filter actions */
 typedef enum tr_filter_action {
   TR_FILTER_ACTION_REJECT = 0,
@@ -77,10 +75,15 @@ typedef struct tr_fspec_iter {
 
 typedef struct tr_fline {
   TR_FILTER_ACTION action;
-  TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
+  GPtrArray *specs;
   TR_CONSTRAINT *realm_cons;
   TR_CONSTRAINT *domain_cons;
 } TR_FLINE;
+
+typedef struct tr_fline_iter {
+  TR_FLINE *fline;
+  guint ii;
+} TR_FLINE_ITER;
 
 typedef struct tr_filter {
   TR_FILTER_TYPE type;
@@ -123,13 +126,11 @@ TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt);
 TR_FLINE *tr_filter_add_line(TR_FILTER *filt, TR_FLINE *line);
 
 TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx);
-
 void tr_fline_free(TR_FLINE *fline);
+TR_FSPEC *tr_fline_add_spec(TR_FLINE *fline, TR_FSPEC *spec);
 
 TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx);
-
 void tr_fspec_free(TR_FSPEC *fspec);
-
 TR_NAME *tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
 
 int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *target);
@@ -138,6 +139,11 @@ TR_FILTER_ITER *tr_filter_iter_new(TALLOC_CTX *mem_ctx);
 void tr_filter_iter_free(TR_FILTER_ITER *iter);
 TR_FLINE *tr_filter_iter_first(TR_FILTER_ITER *iter, TR_FILTER *filter);
 TR_FLINE *tr_filter_iter_next(TR_FILTER_ITER *iter);
+
+TR_FLINE_ITER *tr_fline_iter_new(TALLOC_CTX *mem_ctx);
+void tr_fline_iter_free(TR_FLINE_ITER *iter);
+TR_FSPEC * tr_fline_iter_first(TR_FLINE_ITER *iter, TR_FLINE *fline);
+TR_FSPEC * tr_fline_iter_next(TR_FLINE_ITER *iter);
 
 TR_FSPEC_ITER *tr_fspec_iter_new(TALLOC_CTX *mem_ctx);
 void tr_fspec_iter_free(TR_FSPEC_ITER *iter);
