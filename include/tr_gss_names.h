@@ -36,17 +36,17 @@
 #define __TR_GSS_H__
 
 #include <talloc.h>
+#include <glib.h>
+
 #include <tr_name_internal.h>
 
-#define TR_MAX_GSS_NAMES 5
-
 typedef struct tr_gss_names {
-  TR_NAME *names[TR_MAX_GSS_NAMES];
+  GPtrArray *names;
 } TR_GSS_NAMES;
 
 typedef struct tr_gss_names_iter {
   TR_GSS_NAMES *gn;
-  int ii; /* which entry did we last output? */
+  guint ii;
 } TR_GSS_NAMES_ITER;
 
 TR_GSS_NAMES *tr_gss_names_new(TALLOC_CTX *mem_ctx);

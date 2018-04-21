@@ -33,6 +33,7 @@
  */
 
 #include <talloc.h>
+#include <glib.h>
 
 #include <tr_gss_names.h>
 #include <tr_debug.h>
@@ -40,22 +41,20 @@
 static int tr_gss_names_destructor(void *obj)
 {
   TR_GSS_NAMES *gss_names=talloc_get_type_abort(obj, TR_GSS_NAMES);
-  int ii=0;
-
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if (gss_names->names[ii]!=NULL)
-      tr_free_name(gss_names->names[ii]);
-  }
+  if (gss_names->names)
+    g_ptr_array_unref(gss_names->names);
   return 0;
 }
 TR_GSS_NAMES *tr_gss_names_new(TALLOC_CTX *mem_ctx)
 {
   TR_GSS_NAMES *gn=talloc(mem_ctx, TR_GSS_NAMES);
-  int ii=0;
 
-  if (gn!=NULL) {
-    for (ii=0; ii<TR_MAX_GSS_NAMES; ii++)
-      gn->names[ii]=NULL;
+  if (gn != NULL) {
+    gn->names = g_ptr_array_new_with_free_func((GDestroyNotify) tr_free_name);
+    if (gn->names == NULL) {
+      talloc_free(gn);
+      return NULL;
+    }
     talloc_set_destructor((void *)gn, tr_gss_names_destructor);
   }
   return gn;
@@ -69,17 +68,9 @@ void tr_gss_names_free(TR_GSS_NAMES *gn)
 /* returns 0 on success */
 int tr_gss_names_add(TR_GSS_NAMES *gn, TR_NAME *new)
 {
-  int ii=0;
-
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if (gn->names[ii]==NULL)
-      break;
-  }
-  if (ii!=TR_MAX_GSS_NAMES) {
-    gn->names[ii]=new;
-    return 0;
-  } else
-    return -1;
+  guint old_len = gn->names->len;
+  g_ptr_array_add(gn->names, new);
+  return (gn->names->len == old_len); /* nonzero if the add failed */
 }
 
 /**
@@ -112,19 +103,21 @@ TR_GSS_NAMES *tr_gss_names_dup(TALLOC_CTX *mem_ctx, TR_GSS_NAMES *orig)
   talloc_steal(mem_ctx, new);
   return new;
 }
+
+static gboolean names_equal_helper(gconstpointer a, gconstpointer b)
+{
+  return (tr_name_cmp(a, b) == 0);
+}
+
 int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name)
 {
-  int ii=0;
-
   if (!gn)
     return 0;
 
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if ((gn->names[ii]!=NULL) &&
-        (0==tr_name_cmp(gn->names[ii], name)))
-      return 1;
-  }
-  return 0;
+  return(TRUE == g_ptr_array_find_with_equal_func(gn->names,
+                                                  name,
+                                                  names_equal_helper,
+                                                  NULL));
 }
 
 /* iterators */
@@ -141,19 +134,14 @@ TR_GSS_NAMES_ITER *tr_gss_names_iter_new(TALLOC_CTX *mem_ctx)
 TR_NAME *tr_gss_names_iter_first(TR_GSS_NAMES_ITER *iter, TR_GSS_NAMES *gn)
 {
   iter->gn=gn;
-  iter->ii=-1;
+  iter->ii=0;
   return tr_gss_names_iter_next(iter);
 }
 
 TR_NAME *tr_gss_names_iter_next(TR_GSS_NAMES_ITER *iter)
 {
-  for (iter->ii++;
-       (iter->ii < TR_MAX_GSS_NAMES) && (iter->gn->names[iter->ii]==NULL);
-       iter->ii++) { }
-
-  if (iter->ii<TR_MAX_GSS_NAMES)
-    return iter->gn->names[iter->ii];
-  
+  if (iter->ii < iter->gn->names->len)
+    return g_ptr_array_index(iter->gn->names, iter->ii++);
   return NULL;
 }
 
