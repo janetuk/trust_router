@@ -81,6 +81,34 @@ cleanup:
   return retval;
 }
 
+static json_t *tr_matches_to_json_array(TR_FSPEC *fspec)
+{
+  json_t *jarray = json_array();
+  json_t *retval = NULL;
+  TR_FSPEC_ITER *iter = tr_fspec_iter_new(NULL);
+  TR_NAME *this_match = NULL;
+
+  if ((jarray == NULL) || (iter == NULL))
+    goto cleanup;
+
+  this_match = tr_fspec_iter_first(iter, fspec);
+  while(this_match) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_name_to_json_string(this_match));
+    this_match = tr_fspec_iter_next(iter);
+  }
+  /* success */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+  if (iter)
+    tr_fspec_iter_free(iter);
+
+  return retval;
+}
+
 static json_t *tr_fspec_to_json(TR_FSPEC *fspec)
 {
   json_t *fspec_json = NULL;
@@ -93,9 +121,7 @@ static json_t *tr_fspec_to_json(TR_FSPEC *fspec)
   OBJECT_SET_OR_FAIL(fspec_json, "field",
                      tr_name_to_json_string(fspec->field));
   OBJECT_SET_OR_FAIL(fspec_json, "matches",
-                     items_to_json_array((void **)fspec->match,
-                                         (ITEM_ENCODER_FUNC *) tr_name_to_json_string,
-                                         TR_MAX_FILTER_SPEC_MATCHES));
+                     tr_matches_to_json_array(fspec));
 
   /* succeeded - set the return value and increment the reference count */
   retval = fspec_json;

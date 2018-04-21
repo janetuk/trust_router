@@ -45,7 +45,6 @@
 #include <trust_router/trp.h>
 
 #define TR_MAX_FILTER_SPECS 8
-#define TR_MAX_FILTER_SPEC_MATCHES 64
 
 /* Filter actions */
 typedef enum tr_filter_action {
@@ -68,8 +67,13 @@ typedef enum {
 
 typedef struct tr_fspec {
   TR_NAME *field;
-  TR_NAME *match[TR_MAX_FILTER_SPEC_MATCHES];
+  GPtrArray *match;
 } TR_FSPEC;
+
+typedef struct tr_fspec_iter {
+  TR_FSPEC *fspec;
+  guint ii;
+} TR_FSPEC_ITER;
 
 typedef struct tr_fline {
   TR_FILTER_ACTION action;
@@ -126,7 +130,7 @@ TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx);
 
 void tr_fspec_free(TR_FSPEC *fspec);
 
-void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
+TR_NAME *tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
 
 int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *target);
 
@@ -134,6 +138,11 @@ TR_FILTER_ITER *tr_filter_iter_new(TALLOC_CTX *mem_ctx);
 void tr_filter_iter_free(TR_FILTER_ITER *iter);
 TR_FLINE *tr_filter_iter_first(TR_FILTER_ITER *iter, TR_FILTER *filter);
 TR_FLINE *tr_filter_iter_next(TR_FILTER_ITER *iter);
+
+TR_FSPEC_ITER *tr_fspec_iter_new(TALLOC_CTX *mem_ctx);
+void tr_fspec_iter_free(TR_FSPEC_ITER *iter);
+TR_NAME *tr_fspec_iter_first(TR_FSPEC_ITER *iter, TR_FSPEC *fspec);
+TR_NAME *tr_fspec_iter_next(TR_FSPEC_ITER *iter);
 
 /*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
 int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);

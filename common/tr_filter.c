@@ -466,42 +466,41 @@ void tr_fspec_free(TR_FSPEC *fspec)
 static int tr_fspec_destructor(void *obj)
 {
   TR_FSPEC *fspec = talloc_get_type_abort(obj, TR_FSPEC);
-  size_t ii;
 
   if (fspec->field != NULL)
     tr_free_name(fspec->field);
-  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
-    if (fspec->match[ii] != NULL)
-      tr_free_name(fspec->match[ii]);
-  }
+
+  if (fspec->match)
+    g_ptr_array_unref(fspec->match);
+
   return 0;
 }
 
 TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx)
 {
   TR_FSPEC *fspec = talloc(mem_ctx, TR_FSPEC);
-  size_t ii=0;
 
   if (fspec != NULL) {
     fspec->field = NULL;
-    for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++)
-      fspec->match[ii] = NULL;
-
+    fspec->match = g_ptr_array_new_with_free_func((GDestroyNotify) tr_free_name);
+    if (fspec->match == NULL) {
+      talloc_free(fspec);
+      return NULL;
+    }
     talloc_set_destructor((void *)fspec, tr_fspec_destructor);
   }
   return fspec;
 }
 
-void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match)
+TR_NAME *tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match)
 {
-  size_t ii;
-  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
-    if (fspec->match[ii]==NULL) {
-      fspec->match[ii]=match;
-      break;
-    }
-  }
-  /* TODO: handle case that adding the match failed */
+  guint old_len = fspec->match->len;
+  g_ptr_array_add(fspec->match, match);
+
+  if (fspec->match->len == old_len)
+    return NULL; /* failed to add */
+
+  return match;
 }
 
 /* returns 1 if the spec matches */
@@ -511,7 +510,7 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *ta
   TR_NAME *name=NULL;
   int retval=0;
 
-  size_t ii=0;
+  guint ii=0;
 
   if (fspec==NULL)
     return 0;
@@ -529,18 +528,17 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *ta
   if (name==NULL)
     return 0; /* if there's no value, there's no match */
 
-  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
-    if (fspec->match[ii]!=NULL) {
-      if (tr_name_prefix_wildcard_match(name, fspec->match[ii])) {
-        retval=1;
-        tr_debug("tr_fspec_matches: Field %.*s value \"%.*s\" matches \"%.*s\" for %s filter.",
-                 fspec->field->len, fspec->field->buf,
-                 name->len, name->buf,
-                 fspec->match[ii]->len, fspec->match[ii]->buf,
-                 tr_filter_type_to_string(ftype));
-        break;
-      }
-    }
+  if (g_ptr_array_find_with_equal_func(fspec->match,
+                                       name,
+                                       (GEqualFunc) tr_name_prefix_wildcard_match,
+                                       &ii)) {
+    retval=1;
+    tr_debug("tr_fspec_matches: Field %.*s value \"%.*s\" matches \"%.*s\" for %s filter.",
+             fspec->field->len, fspec->field->buf,
+             name->len, name->buf,
+             ((TR_NAME *)g_ptr_array_index(fspec->match,ii))->len,
+             ((TR_NAME *)g_ptr_array_index(fspec->match,ii))->buf,
+             tr_filter_type_to_string(ftype));
   }
 
   if (!retval) {
@@ -573,6 +571,13 @@ TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
   return fl;
 }
 
+static int tr_filter_destructor(void *object)
+{
+  TR_FILTER *filt = talloc_get_type_abort(object, TR_FILTER);
+  if (filt->lines)
+    g_ptr_array_unref(filt->lines);
+  return 0;
+}
 TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx)
 {
   TR_FILTER *f = talloc(mem_ctx, TR_FILTER);
@@ -584,6 +589,7 @@ TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx)
       talloc_free(f);
       return NULL;
     }
+    talloc_set_destructor((void *)f, tr_filter_destructor);
   }
   return f;
 }
@@ -616,9 +622,11 @@ TR_FLINE *tr_filter_add_line(TR_FILTER *filt, TR_FLINE *line)
 {
   guint old_len = filt->lines->len;
   g_ptr_array_add(filt->lines, line);
-  talloc_steal(filt, line); /* take this no matter what */
+
   if (old_len == filt->lines->len)
     return NULL; /* failed to add */
+
+  talloc_steal(filt, line);
   return line;
 }
 
@@ -662,6 +670,40 @@ TR_FLINE *tr_filter_iter_first(TR_FILTER_ITER *iter, TR_FILTER *filter)
   return tr_filter_iter_next(iter);
 }
 
+TR_FSPEC_ITER *tr_fspec_iter_new(TALLOC_CTX *mem_ctx)
+{
+  TR_FSPEC_ITER *iter = talloc(mem_ctx, TR_FSPEC_ITER);
+  if (iter) {
+    iter->fspec = NULL;
+  }
+  return iter;
+}
+
+void tr_fspec_iter_free(TR_FSPEC_ITER *iter)
+{
+  talloc_free(iter);
+}
+
+TR_NAME *tr_fspec_iter_first(TR_FSPEC_ITER *iter, TR_FSPEC *fspec)
+{
+  if (!iter || !fspec)
+    return NULL;
+
+  iter->fspec = fspec;
+  iter->ii = 0;
+  return tr_fspec_iter_next(iter);
+}
+
+TR_NAME *tr_fspec_iter_next(TR_FSPEC_ITER *iter)
+{
+  if (!iter)
+    return NULL;
+
+  if (iter->ii < iter->fspec->match->len)
+    return g_ptr_array_index(iter->fspec->match, iter->ii++);
+  return NULL;
+}
+
 /**
  * Check that a filter is valid, i.e., can be processed.
  *
@@ -671,7 +713,7 @@ TR_FLINE *tr_filter_iter_first(TR_FILTER_ITER *iter, TR_FILTER *filter)
 int tr_filter_validate(TR_FILTER *filt)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
-  size_t jj=0, kk=0;
+  size_t jj=0;
   TR_FILTER_ITER *filt_iter = tr_filter_iter_new(tmp_ctx);
   TR_FLINE *this_fline = NULL;
   
@@ -715,12 +757,8 @@ int tr_filter_validate(TR_FILTER *filt)
         return 0;
       }
 
-      /* check that at least one match is non-null */
-      for (kk=0; kk<TR_MAX_FILTER_SPEC_MATCHES; kk++) {
-        if (this_fline->specs[jj]->match[kk]!=NULL)
-          break;
-      }
-      if (kk==TR_MAX_FILTER_SPEC_MATCHES) {
+      /* check that at least one match is defined*/
+      if (this_fline->specs[jj]->match->len == 0) {
         talloc_free(tmp_ctx);
         return 0;
       }
