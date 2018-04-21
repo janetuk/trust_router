@@ -45,9 +45,9 @@
 #include <jansson.h>
 
 /** Prototypes */
-json_t *tr_name_to_json_string(TR_NAME *src);
-int tr_name_cmp_str(TR_NAME *one, const char *two_str);
-int tr_name_prefix_wildcard_match(TR_NAME *str, TR_NAME *wc_str);
+json_t *tr_name_to_json_string(const TR_NAME *src);
+int tr_name_cmp_str(const TR_NAME *one, const char *two_str);
+int tr_name_prefix_wildcard_match(const TR_NAME *str, const TR_NAME *wc_str);
 
 #define TR_NAME_INTERNAL_H
 
