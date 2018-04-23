@@ -27,6 +27,7 @@ common_srcs = common/tr_name.c \
 	common/tr_filter_encoders.c \
 	common/tr_gss_names.c \
 	common/tr_socket.c \
+	common/tr_list.c \
 	$(mon_srcs)
 
 tid_srcs = tid/tid_resp.c \

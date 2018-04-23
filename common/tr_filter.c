@@ -595,25 +595,17 @@ TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
   return fl;
 }
 
-static int tr_filter_destructor(void *object)
-{
-  TR_FILTER *filt = talloc_get_type_abort(object, TR_FILTER);
-  if (filt->lines)
-    g_ptr_array_unref(filt->lines);
-  return 0;
-}
 TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx)
 {
   TR_FILTER *f = talloc(mem_ctx, TR_FILTER);
 
   if (f != NULL) {
     f->type = TR_FILTER_TYPE_UNKNOWN;
-    f->lines = g_ptr_array_new();
+    f->lines = tr_list_new(f);
     if (f->lines == NULL) {
       talloc_free(f);
       return NULL;
     }
-    talloc_set_destructor((void *)f, tr_filter_destructor);
   }
   return f;
 }
@@ -631,67 +623,6 @@ void tr_filter_set_type(TR_FILTER *filt, TR_FILTER_TYPE type)
 TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt)
 {
   return filt->type;
-}
-
-/**
- * Add a TR_FLINE to a filter
- *
- * Steals the line into its context on success
- *
- * @param filt
- * @param line
- * @return line, or null on failure
- */
-TR_FLINE *tr_filter_add_line(TR_FILTER *filt, TR_FLINE *line)
-{
-  guint old_len = filt->lines->len;
-  g_ptr_array_add(filt->lines, line);
-
-  if (old_len == filt->lines->len)
-    return NULL; /* failed to add */
-
-  talloc_steal(filt, line);
-  return line;
-}
-
-/**
- * Iterator for TR_FLINES in a TR_FILTER
- *
- * @param mem_ctx
- * @return
- */
-TR_FILTER_ITER *tr_filter_iter_new(TALLOC_CTX *mem_ctx)
-{
-  TR_FILTER_ITER *iter = talloc(mem_ctx, TR_FILTER_ITER);
-  if (iter) {
-    iter->filter = NULL;
-  }
-  return iter;
-}
-
-void tr_filter_iter_free(TR_FILTER_ITER *iter)
-{
-  talloc_free(iter);
-}
-
-TR_FLINE *tr_filter_iter_first(TR_FILTER_ITER *iter, TR_FILTER *filter)
-{
-  if (!iter || !filter)
-    return NULL;
-
-  iter->filter = filter;
-  iter->ii = 0;
-  return tr_filter_iter_next(iter);
-}
-
-TR_FLINE *tr_filter_iter_next(TR_FILTER_ITER *iter)
-{
-  if (!iter)
-    return NULL;
-
-  if (iter->ii < iter->filter->lines->len)
-    return g_ptr_array_index(iter->filter->lines, iter->ii++);
-  return NULL;
 }
 
 TR_FLINE_ITER *tr_fline_iter_new(TALLOC_CTX *mem_ctx)
