@@ -71,15 +71,10 @@ typedef struct tr_fspec {
 
 typedef struct tr_fline {
   TR_FILTER_ACTION action;
-  GPtrArray *specs;
+  TR_LIST *specs;
   TR_CONSTRAINT *realm_cons;
   TR_CONSTRAINT *domain_cons;
 } TR_FLINE;
-
-typedef struct tr_fline_iter {
-  TR_FLINE *fline;
-  guint ii;
-} TR_FLINE_ITER;
 
 typedef struct tr_filter {
   TR_FILTER_TYPE type;
@@ -134,11 +129,6 @@ typedef TR_LIST_ITER TR_FILTER_ITER;
 #define tr_filter_iter_next(ITER) ((TR_FLINE *) tr_list_iter_next(ITER))
 #define tr_filter_add_line(FILT, LINE) ((TR_FLINE *) tr_list_add((FILT)->lines, (LINE), 1))
 
-TR_FLINE_ITER *tr_fline_iter_new(TALLOC_CTX *mem_ctx);
-void tr_fline_iter_free(TR_FLINE_ITER *iter);
-TR_FSPEC * tr_fline_iter_first(TR_FLINE_ITER *iter, TR_FLINE *fline);
-TR_FSPEC * tr_fline_iter_next(TR_FLINE_ITER *iter);
-
 /* Iterator for TR_FSPEC matches */
 typedef TR_LIST_ITER TR_FSPEC_ITER;
 #define tr_fspec_iter_new(CTX) (tr_list_iter_new(CTX))
@@ -146,6 +136,14 @@ typedef TR_LIST_ITER TR_FSPEC_ITER;
 #define tr_fspec_iter_first(ITER, SPEC) (tr_list_iter_first((ITER), (SPEC)->match))
 #define tr_fspec_iter_next(ITER) (tr_list_iter_next(ITER))
 #define tr_fspec_add_match(SPEC, MATCH) ((TR_NAME *) tr_list_add((SPEC)->match, (MATCH), 0))
+
+/* Iterator for TR_FLINE matches */
+typedef TR_LIST_ITER TR_FLINE_ITER;
+#define tr_fline_iter_new(CTX) (tr_list_iter_new(CTX))
+#define tr_fline_iter_free(ITER) (tr_list_iter_free(ITER))
+#define tr_fline_iter_first(ITER, LINE) (tr_list_iter_first((ITER), (LINE)->specs))
+#define tr_fline_iter_next(ITER) (tr_list_iter_next(ITER))
+#define tr_fline_add_spec(LINE, SPEC) ((TR_NAME *) tr_list_add((LINE)->specs, (SPEC), 1))
 
 /*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
 int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);

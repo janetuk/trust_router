@@ -564,26 +564,6 @@ void tr_fline_free(TR_FLINE *fline)
   talloc_free(fline);
 }
 
-TR_FSPEC *tr_fline_add_spec(TR_FLINE *fline, TR_FSPEC *spec)
-{
-  guint old_len = fline->specs->len;
-  g_ptr_array_add(fline->specs, spec);
-
-  if (old_len == fline->specs->len)
-    return NULL; /* failed to add */
-
-  talloc_steal(fline, spec);
-  return spec;
-}
-
-static int tr_fline_destructor(void *object)
-{
-  TR_FLINE *fline = talloc_get_type_abort(object, TR_FLINE);
-  if (fline->specs)
-    g_ptr_array_unref(fline->specs);
-  return 0;
-}
-
 TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
 {
   TR_FLINE *fl = talloc(mem_ctx, TR_FLINE);
@@ -592,12 +572,11 @@ TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
     fl->action = TR_FILTER_ACTION_UNKNOWN;
     fl->realm_cons = NULL;
     fl->domain_cons = NULL;
-    fl->specs = g_ptr_array_new();
+    fl->specs = tr_list_new(fl);
     if (fl->specs == NULL) {
       talloc_free(fl);
       return NULL;
     }
-    talloc_set_destructor((void *)fl, tr_fline_destructor);
   }
   return fl;
 }
@@ -630,40 +609,6 @@ void tr_filter_set_type(TR_FILTER *filt, TR_FILTER_TYPE type)
 TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt)
 {
   return filt->type;
-}
-
-TR_FLINE_ITER *tr_fline_iter_new(TALLOC_CTX *mem_ctx)
-{
-  TR_FLINE_ITER *iter = talloc(mem_ctx, TR_FLINE_ITER);
-  if (iter) {
-    iter->fline = NULL;
-  }
-  return iter;
-}
-
-void tr_fline_iter_free(TR_FLINE_ITER *iter)
-{
-  talloc_free(iter);
-}
-
-TR_FSPEC * tr_fline_iter_first(TR_FLINE_ITER *iter, TR_FLINE *fline)
-{
-  if (!iter || !fline || !(fline->specs))
-    return NULL;
-
-  iter->fline = fline;
-  iter->ii = 0;
-  return tr_fline_iter_next(iter);
-}
-
-TR_FSPEC * tr_fline_iter_next(TR_FLINE_ITER *iter)
-{
-  if (!iter)
-    return NULL;
-
-  if (iter->ii < iter->fline->specs->len)
-    return g_ptr_array_index(iter->fline->specs, iter->ii++);
-  return NULL;
 }
 
 /**
