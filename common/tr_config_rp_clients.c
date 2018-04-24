@@ -44,7 +44,7 @@
 #include <tr_gss_names.h>
 #include <tr_debug.h>
 #include <tr_filter.h>
-#include <trust_router/tr_constraint.h>
+#include <tr_constraint_internal.h>
 #include <tr_idp.h>
 #include <tr.h>
 #include <trust_router/trp.h>
@@ -213,14 +213,22 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  cons->matches[0]=name;
+  if (NULL == tr_constraint_add_match(cons, name)) {
+    tr_debug("tr_cfg_default_filters: could not add realm name for domain constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=tr_name_cat(n_prefix, realm);
   if (name==NULL) {
     tr_debug("tr_cfg_default_filters: could not allocate wildcard realm name for domain constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  cons->matches[1]=name;
+  if (NULL == tr_constraint_add_match(cons, name)) {
+    tr_debug("tr_cfg_default_filters: could not add wildcard realm name for domain constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=NULL;
   fline->domain_cons=cons;
 
@@ -240,14 +248,22 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  cons->matches[0]=name;
+  if (NULL == tr_constraint_add_match(cons, name)) {
+    tr_debug("tr_cfg_default_filters: could not add realm name for realm constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=tr_name_cat(n_prefix, realm);
   if (name==NULL) {
     tr_debug("tr_cfg_default_filters: could not allocate wildcard realm name for realm constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  cons->matches[1]=name;
+  if (NULL == tr_constraint_add_match(cons, name)) {
+    tr_debug("tr_cfg_default_filters: could not add wildcard realm name for realm constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=NULL;
   fline->realm_cons=cons;
 

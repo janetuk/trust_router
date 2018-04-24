@@ -121,7 +121,7 @@ TR_NAME *tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
 
 int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *target);
 
-/* Iterator for TR_FILTER.lines */
+/* Iterator for TR_FILTER lines */
 typedef TR_LIST_ITER TR_FILTER_ITER;
 #define tr_filter_iter_new(CTX) (tr_list_iter_new(CTX))
 #define tr_filter_iter_free(ITER) (tr_list_iter_free(ITER))
@@ -137,7 +137,7 @@ typedef TR_LIST_ITER TR_FSPEC_ITER;
 #define tr_fspec_iter_next(ITER) (tr_list_iter_next(ITER))
 #define tr_fspec_add_match(SPEC, MATCH) ((TR_NAME *) tr_list_add((SPEC)->match, (MATCH), 0))
 
-/* Iterator for TR_FLINE matches */
+/* Iterator for TR_FLINE specs */
 typedef TR_LIST_ITER TR_FLINE_ITER;
 #define tr_fline_iter_new(CTX) (tr_list_iter_new(CTX))
 #define tr_fline_iter_free(ITER) (tr_list_iter_free(ITER))

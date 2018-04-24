@@ -36,6 +36,7 @@
 #include <jansson.h>
 
 #include <tr_filter.h>
+#include <tr_constraint_internal.h>
 
 /* helper for below */
 #define OBJECT_SET_OR_FAIL(jobj, key, val)     \
@@ -57,44 +58,41 @@ do {                                           \
 
 typedef json_t *(ITEM_ENCODER_FUNC)(void *);
 
-static json_t *items_to_json_array(void *items[], ITEM_ENCODER_FUNC *item_encoder, size_t max_items)
+enum type_to_array {
+  TYPE_TO_ARRAY_FSPEC,
+  TYPE_TO_ARRAY_CONSTRAINT
+};
+static json_t *tr_names_to_json_array(void *obj, enum type_to_array type)
 {
-  size_t ii;
   json_t *jarray = json_array();
   json_t *retval = NULL;
+  TR_FSPEC_ITER fspec_iter = {0};
+  TR_CONSTRAINT_ITER cons_iter = {0};
+  TR_NAME *this_match = NULL;
 
   if (jarray == NULL)
     goto cleanup;
 
-  for (ii=0; ii<max_items; ii++) {
-    if (items[ii] != NULL)
-      ARRAY_APPEND_OR_FAIL(jarray, item_encoder(items[ii]));
+  switch(type) {
+    case TYPE_TO_ARRAY_FSPEC:
+      this_match = tr_fspec_iter_first(&fspec_iter, (TR_FSPEC *)obj);
+      break;
+
+    case TYPE_TO_ARRAY_CONSTRAINT:
+      this_match = tr_constraint_iter_first(&cons_iter, (TR_CONSTRAINT *)obj);
+      break;
   }
-  /* success */
-  retval = jarray;
-  json_incref(retval);
-
-cleanup:
-  if (jarray)
-    json_decref(jarray);
-
-  return retval;
-}
-
-static json_t *tr_matches_to_json_array(TR_FSPEC *fspec)
-{
-  json_t *jarray = json_array();
-  json_t *retval = NULL;
-  TR_FSPEC_ITER *iter = tr_fspec_iter_new(NULL);
-  TR_NAME *this_match = NULL;
-
-  if ((jarray == NULL) || (iter == NULL))
-    goto cleanup;
-
-  this_match = tr_fspec_iter_first(iter, fspec);
   while(this_match) {
     ARRAY_APPEND_OR_FAIL(jarray, tr_name_to_json_string(this_match));
-    this_match = tr_fspec_iter_next(iter);
+    switch(type) {
+      case TYPE_TO_ARRAY_FSPEC:
+        this_match = tr_fspec_iter_next(&fspec_iter);
+        break;
+
+      case TYPE_TO_ARRAY_CONSTRAINT:
+        this_match = tr_constraint_iter_next(&cons_iter);
+        break;
+    }
   }
   /* success */
   retval = jarray;
@@ -103,8 +101,6 @@ static json_t *tr_matches_to_json_array(TR_FSPEC *fspec)
 cleanup:
   if (jarray)
     json_decref(jarray);
-  if (iter)
-    tr_fspec_iter_free(iter);
 
   return retval;
 }
@@ -121,7 +117,7 @@ static json_t *tr_fspec_to_json(TR_FSPEC *fspec)
   OBJECT_SET_OR_FAIL(fspec_json, "field",
                      tr_name_to_json_string(fspec->field));
   OBJECT_SET_OR_FAIL(fspec_json, "matches",
-                     tr_matches_to_json_array(fspec));
+                     tr_names_to_json_array(fspec, TYPE_TO_ARRAY_FSPEC));
 
   /* succeeded - set the return value and increment the reference count */
   retval = fspec_json;
@@ -176,15 +172,11 @@ static json_t *tr_fline_to_json(TR_FLINE *fline)
                      tr_fspecs_to_json_array(fline));
   if (fline->realm_cons) {
     OBJECT_SET_OR_FAIL(fline_json, "realm_constraints",
-                       items_to_json_array((void **) fline->realm_cons->matches,
-                                           (ITEM_ENCODER_FUNC *) tr_name_to_json_string,
-                                           TR_MAX_CONST_MATCHES));
+                       tr_names_to_json_array(fline->realm_cons, TYPE_TO_ARRAY_CONSTRAINT));
   }
   if (fline->domain_cons) {
     OBJECT_SET_OR_FAIL(fline_json, "domain_constraints",
-                       items_to_json_array((void **) fline->domain_cons->matches,
-                                           (ITEM_ENCODER_FUNC *) tr_name_to_json_string,
-                                           TR_MAX_CONST_MATCHES));
+                       tr_names_to_json_array(fline->domain_cons, TYPE_TO_ARRAY_CONSTRAINT));
   }
 
   /* succeeded - set the return value and increment the reference count */

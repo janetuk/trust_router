@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,24 +32,32 @@
  *
  */
 
-#ifndef TR_CONSTRAINT_H
-#define TR_CONSTRAINT_H
 
-#include <trust_router/tr_name.h>
-#include <trust_router/tid.h>
+#ifndef TRUST_ROUTER_TR_CONSTRAINT_INTERNAL_H
+#define TRUST_ROUTER_TR_CONSTRAINT_INTERNAL_H
 
-typedef struct tr_constraint TR_CONSTRAINT;
+#include <talloc.h>
 
-void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
-int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
-TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
-                                                      TR_CONSTRAINT_SET *orig,
-                                                      const char * constraint_type);
-TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_intersect(TID_REQ *request,
-                                                         TR_CONSTRAINT_SET *input);
-int TR_EXPORT tr_constraint_set_get_match_strings(TID_REQ *,
-                                                  TR_CONSTRAINT_SET *,
-                                                  const char * constraint_type,
-                                                  tr_const_string **output,
-                                                  size_t *output_len);
-#endif
+#include <tr_list.h>
+#include <tr_name_internal.h>
+#include <trust_router/tr_constraint.h>
+
+
+struct tr_constraint {
+  TR_NAME *type;
+  TR_LIST *matches;
+};
+
+TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
+void tr_constraint_free(TR_CONSTRAINT *cons);
+TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons);
+
+/* Iterator for TR_CONS matches */
+typedef TR_LIST_ITER TR_CONSTRAINT_ITER;
+#define tr_constraint_iter_new(CTX) (tr_list_iter_new(CTX))
+#define tr_constraint_iter_free(ITER) (tr_list_iter_free(ITER))
+#define tr_constraint_iter_first(ITER, CONS) ((TR_NAME *) tr_list_iter_first((ITER), (CONS)->matches))
+#define tr_constraint_iter_next(ITER) ((TR_NAME *) tr_list_iter_next(ITER))
+#define tr_constraint_add_match(CONS, MATCH) ((TR_NAME *) tr_list_add((CONS)->matches, (MATCH), 0))
+
+#endif //TRUST_ROUTER_TR_CONSTRAINT_INTERNAL_H

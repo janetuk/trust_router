@@ -37,6 +37,7 @@
 #include <jansson.h>
 #include <talloc.h>
 
+#include <tr_constraint_internal.h>
 #include <tr_cfgwatch.h>
 #include <tr_debug.h>
 
@@ -44,15 +45,19 @@
 #include "jansson_iterators.h"
 #endif
 
-static TR_CONSTRAINT *tr_cfg_parse_one_constraint(TALLOC_CTX *mem_ctx, char *ctype, json_t *jc, TR_CFG_RC *rc)
+static TR_CONSTRAINT *tr_cfg_parse_one_constraint(TALLOC_CTX *mem_ctx, const char *ctype, json_t *jc, TR_CFG_RC *rc)
 {
   TR_CONSTRAINT *cons=NULL;
-  int i=0;
+  size_t i=0;
 
-  if ((!ctype) || (!jc) || (!rc) ||
+  if (!rc) {
+    tr_err("tr_cfg_parse_one_constraint: rc is null, cannot process constraint.");
+    return NULL;
+  }
+
+  if ((!ctype) || (!jc) ||
       (!json_is_array(jc)) ||
       (0 >= json_array_size(jc)) ||
-      (TR_MAX_CONST_MATCHES < json_array_size(jc)) ||
       (!json_is_string(json_array_get(jc, 0)))) {
     tr_err("tr_cfg_parse_one_constraint: config error.");
     *rc=TR_CFG_NOPARSE;
@@ -73,9 +78,8 @@ static TR_CONSTRAINT *tr_cfg_parse_one_constraint(TALLOC_CTX *mem_ctx, char *cty
   }
 
   for (i=0; i < json_array_size(jc); i++) {
-    cons->matches[i]=tr_new_name(json_string_value(json_array_get(jc, i)));
-    if (cons->matches[i]==NULL) {
-      tr_err("tr_cfg_parse_one_constraint: Out of memory (match %d).", i+1);
+    if (NULL == tr_constraint_add_match(cons, tr_new_name(json_string_value(json_array_get(jc, i))))) {
+      tr_err("tr_cfg_parse_one_constraint: Out of memory (match %d).", i);
       *rc=TR_CFG_NOMEM;
       tr_constraint_free(cons);
       return NULL;
@@ -160,11 +164,6 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
         tr_err("tr_cfg_parse_one_filter: cannot parse realm_constraints, not an array.");
         *rc = TR_CFG_NOPARSE;
         goto cleanup;
-      } else if (json_array_size(jrc) > TR_MAX_CONST_MATCHES) {
-        tr_err("tr_cfg_parse_one_filter: realm_constraints has too many entries, maximum of %d.",
-               TR_MAX_CONST_MATCHES);
-        *rc = TR_CFG_NOPARSE;
-        goto cleanup;
       } else if (json_array_size(jrc) > 0) {
         /* ok we actually have entries to process */
         if (NULL == (fline->realm_cons = tr_cfg_parse_one_constraint(fline, "realm", jrc, rc))) {
@@ -178,11 +177,6 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
     if (NULL != (jdc = json_object_get(jfline, "domain_constraints"))) {
       if (!json_is_array(jdc)) {
         tr_err("tr_cfg_parse_one_filter: cannot parse domain_constraints, not an array.");
-        *rc = TR_CFG_NOPARSE;
-        goto cleanup;
-      } else if (json_array_size(jdc) > TR_MAX_CONST_MATCHES) {
-        tr_err("tr_cfg_parse_one_filter: domain_constraints has too many entries, maximum of %d.",
-               TR_MAX_CONST_MATCHES);
         *rc = TR_CFG_NOPARSE;
         goto cleanup;
       } else if (json_array_size(jdc) > 0) {
