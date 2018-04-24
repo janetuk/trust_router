@@ -412,7 +412,8 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   /* We get here whether or not a filter matched. If tr_filter_apply() doesn't match, it returns
    * a default action of reject, so we don't have to check why we exited the loop. */
   if (oaction != TR_FILTER_ACTION_ACCEPT) {
-    tr_notice("tr_tids_req_handler: Incoming TID request rejected by filter for GSS name", orig_req->rp_realm->buf);
+    tr_notice("tr_tids_req_handler: Incoming TID request rejected by RP client filter for GSS name %.*s",
+              tids->gss_name->len, tids->gss_name->buf);
     tid_resp_set_err_msg(resp, tr_new_name("Incoming TID request filter error"));
     retval = -1;
     goto cleanup;
