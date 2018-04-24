@@ -35,19 +35,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <jansson.h>
-#include <dirent.h>
 #include <talloc.h>
 
 #include <tr_cfgwatch.h>
-#include <tr_comm.h>
-#include <tr_config.h>
-#include <tr_gss_names.h>
 #include <tr_debug.h>
-#include <tr_filter.h>
-#include <trust_router/tr_constraint.h>
-#include <tr_idp.h>
-#include <tr.h>
-#include <trust_router/trp.h>
 
 #if JANSSON_VERSION_HEX < 0x020500
 #include "jansson_iterators.h"
@@ -146,17 +137,19 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
 
     fline = tr_fline_new(tmp_ctx);
     if (fline == NULL) {
-      tr_debug("tr_cfg_parse_one_filter: Out of memory allocating filter line %d.", i + 1);
+      tr_debug("tr_cfg_parse_one_filter: Out of memory allocating filter line %d.", i);
       *rc = TR_CFG_NOMEM;
       goto cleanup;
     }
-
     if (!strcmp(json_string_value(jfaction), "accept")) {
       fline->action = TR_FILTER_ACTION_ACCEPT;
+      tr_debug("tr_cfg_parse_one_filter: Filter action is 'accept'");
+
     } else if (!strcmp(json_string_value(jfaction), "reject")) {
       fline->action = TR_FILTER_ACTION_REJECT;
+      tr_debug("tr_cfg_parse_one_filter: Filter action is 'reject'");
     } else {
-      tr_debug("tr_cfg_parse_one_filter: Error parsing filter action, unknown action' %s'.",
+      tr_debug("tr_cfg_parse_one_filter: Error parsing filter action, unknown action '%s'.",
                json_string_value(jfaction));
       *rc = TR_CFG_NOPARSE;
       goto cleanup;
@@ -202,6 +195,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
     }
 
     /*For each filter spec within the filter line... */
+    tr_debug("tr_cfg_parse_one_filter: Filter line has %d spec(s)", json_array_size(jfspecs));
     json_array_foreach(jfspecs, j, this_jfspec) {
       if ((NULL == (jfield = json_object_get(this_jfspec, "field"))) ||
           (!json_is_string(jfield))) {
@@ -261,7 +255,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
           tr_fspec_add_match(fspec, name);
         }
       }
-      if (!tr_filter_validate_spec_field(ftype, fspec)){
+      if (!tr_filter_validate_spec_field(ftype, fspec)) {
         tr_debug("tr_cfg_parse_one_filter: Invalid filter field \"%.*s\" for %s filter, spec %d, filter %d.",
                  fspec->field->len,
                  fspec->field->buf,
@@ -271,7 +265,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
         goto cleanup;
       }
 
-      if(tr_fline_add_spec(fline, fspec) == NULL) {
+      if (tr_fline_add_spec(fline, fspec) == NULL) {
         tr_debug("tr_cfg_parse_one_filter: Unable to add spec %d to line %d of %s filter.",
                  j, i, tr_filter_type_to_string(filt->type));
       }
@@ -283,6 +277,7 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
       *rc = TR_CFG_NOMEM;
       goto cleanup;
     }
+    tr_debug("tr_cfg_parse_one_filter: Added line %d to %s filter", i, tr_filter_type_to_string(filt->type));
   }
 
   /* check that the filter is valid */
@@ -343,9 +338,13 @@ TR_FILTER_SET *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_CFG_
     /* finally, parse the filter */
     tr_debug("tr_cfg_parse_filters: Found %s filter.", filt_label);
     filt = tr_cfg_parse_one_filter(tmp_ctx, jfilt, filt_type, rc);
-    tr_filter_set_add(filt_set, filt);
     if (*rc != TR_CFG_SUCCESS) {
       tr_debug("tr_cfg_parse_filters: Error parsing %s filter.", filt_label);
+      *rc = TR_CFG_NOPARSE;
+      goto cleanup;
+    }
+    if (tr_filter_set_add(filt_set, filt) != 0) {
+      tr_debug("tr_cfg_parse_filters: Error adding %s filter to filter set.", filt_label);
       *rc = TR_CFG_NOPARSE;
       goto cleanup;
     }

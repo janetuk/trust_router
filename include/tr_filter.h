@@ -66,13 +66,8 @@ typedef enum {
 
 typedef struct tr_fspec {
   TR_NAME *field;
-  GPtrArray *match;
+  TR_LIST *match;
 } TR_FSPEC;
-
-typedef struct tr_fspec_iter {
-  TR_FSPEC *fspec;
-  guint ii;
-} TR_FSPEC_ITER;
 
 typedef struct tr_fline {
   TR_FILTER_ACTION action;
@@ -135,19 +130,22 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *ta
 typedef TR_LIST_ITER TR_FILTER_ITER;
 #define tr_filter_iter_new(CTX) (tr_list_iter_new(CTX))
 #define tr_filter_iter_free(ITER) (tr_list_iter_free(ITER))
-#define tr_filter_iter_first(ITER, FILT) (tr_list_iter_first((ITER), (FILT)->lines))
-#define tr_filter_iter_next(ITER) (tr_list_iter_next(ITER))
-#define tr_filter_add_line(FILT, LINE) ((TR_FLINE *) tr_list_add((FILT)->lines, (LINE)))
+#define tr_filter_iter_first(ITER, FILT) ((TR_FLINE *) tr_list_iter_first((ITER), (FILT)->lines))
+#define tr_filter_iter_next(ITER) ((TR_FLINE *) tr_list_iter_next(ITER))
+#define tr_filter_add_line(FILT, LINE) ((TR_FLINE *) tr_list_add((FILT)->lines, (LINE), 1))
 
 TR_FLINE_ITER *tr_fline_iter_new(TALLOC_CTX *mem_ctx);
 void tr_fline_iter_free(TR_FLINE_ITER *iter);
 TR_FSPEC * tr_fline_iter_first(TR_FLINE_ITER *iter, TR_FLINE *fline);
 TR_FSPEC * tr_fline_iter_next(TR_FLINE_ITER *iter);
 
-TR_FSPEC_ITER *tr_fspec_iter_new(TALLOC_CTX *mem_ctx);
-void tr_fspec_iter_free(TR_FSPEC_ITER *iter);
-TR_NAME *tr_fspec_iter_first(TR_FSPEC_ITER *iter, TR_FSPEC *fspec);
-TR_NAME *tr_fspec_iter_next(TR_FSPEC_ITER *iter);
+/* Iterator for TR_FSPEC matches */
+typedef TR_LIST_ITER TR_FSPEC_ITER;
+#define tr_fspec_iter_new(CTX) (tr_list_iter_new(CTX))
+#define tr_fspec_iter_free(ITER) (tr_list_iter_free(ITER))
+#define tr_fspec_iter_first(ITER, SPEC) (tr_list_iter_first((ITER), (SPEC)->match))
+#define tr_fspec_iter_next(ITER) (tr_list_iter_next(ITER))
+#define tr_fspec_add_match(SPEC, MATCH) ((TR_NAME *) tr_list_add((SPEC)->match, (MATCH), 0))
 
 /*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
 int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);

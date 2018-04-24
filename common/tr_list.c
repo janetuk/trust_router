@@ -65,7 +65,20 @@ void tr_list_free(TR_LIST *list)
   talloc_free(list);
 }
 
-void *tr_list_add(TR_LIST *list, void *item)
+/**
+ * Add an item to the list
+ *
+ * If steal != 0, performs a talloc_steal() to put the new item in the
+ * list's context. If steal == 0, does not do this - in that case, you'll
+ * need to be sure that the memory is cleaned up through some other means.
+ * (This allows the list to represent non-talloc'ed items.)
+ *
+ * @param list list to add an item to
+ * @param item pointer to the item to add
+ * @param steal if non-zero, the item will be added to the list's context with talloc_steal()
+ * @return pointer to the added item or null if there was an error
+ */
+void *tr_list_add(TR_LIST *list, void *item, int steal)
 {
   guint old_len = (*list)->len;
   g_ptr_array_add((*list), item);
@@ -73,7 +86,27 @@ void *tr_list_add(TR_LIST *list, void *item)
   if ((*list)->len == old_len)
     return NULL; /* failed to add */
 
+  if (steal)
+    talloc_steal(list, item);
+
   return item;
+}
+
+size_t tr_list_length(TR_LIST *list)
+{
+  return (size_t) (*list)->len;
+}
+
+/**
+ * Call func(item, cookie) on each item in the list.
+ *
+ * @param list list to iterate over
+ * @param func function, takes two void pointer arguments, first is the item, second the cookie
+ * @param cookie
+ */
+void tr_list_foreach(TR_LIST *list, TR_LIST_FOREACH_FUNC *func, void *cookie)
+{
+  g_ptr_array_foreach((*list), func, cookie);
 }
 
 TR_LIST_ITER *tr_list_iter_new(TALLOC_CTX *mem_ctx)
@@ -107,9 +140,4 @@ void *tr_list_iter_next(TR_LIST_ITER *iter)
   if (iter->index < (*(iter->list))->len)
     return g_ptr_array_index(*(iter->list), iter->index++);
   return NULL;
-}
-
-void tr_list_foreach(TR_LIST *list, void (*function)(void *, void *), void *cookie)
-{
-  g_ptr_array_foreach((*list), function, cookie);
 }

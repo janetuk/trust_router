@@ -40,19 +40,23 @@
 
 typedef GPtrArray *TR_LIST;
 
+typedef void (TR_LIST_FOREACH_FUNC)(void *item, void *cookie);
+
 typedef struct tr_list_iter{
   TR_LIST *list;
   guint index;
 } TR_LIST_ITER;
 
 TR_LIST *tr_list_new(TALLOC_CTX *mem_ctx);
-void *tr_list_add(TR_LIST *list, void *item);
 void tr_list_free(TR_LIST *list);
+void *tr_list_add(TR_LIST *list, void *item, int steal);
+void *tr_list_index(TR_LIST *list, size_t index);
+size_t tr_list_length(TR_LIST *list);
 
 TR_LIST_ITER *tr_list_iter_new(TALLOC_CTX *mem_ctx);
 void tr_list_iter_free(TR_LIST_ITER *iter);
 void *tr_list_iter_first(TR_LIST_ITER *iter, TR_LIST *list);
 void *tr_list_iter_next(TR_LIST_ITER *iter);
-void tr_list_foreach(TR_LIST *list, void (*function)(void *item, void *cookie), void *cookie);
+void tr_list_foreach(TR_LIST *list, TR_LIST_FOREACH_FUNC *func, void *cookie);
 
 #endif //TRUST_ROUTER_TR_LIST_H
