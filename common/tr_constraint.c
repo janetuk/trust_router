@@ -88,6 +88,17 @@ void tr_constraint_free(TR_CONSTRAINT *cons)
   talloc_free(cons);
 }
 
+/**
+ * Helper for tr_constraint_dup - duplicates a TR_NAME and adds it as a TR_CONSTRAINT match
+ *
+ * No return value. If this succeeds, it will have added a new entry to the TR_CONSTRAINT
+ * match list. Check the length of that - you won't be able to tell whether the allocation
+ * of the duplicate TR_NAME or the addition to the list failed, but either of those is probably
+ * due to a memory allocation failure, in which case the system is probably crashing anyway.
+ *
+ * @param item void pointer to a TR_NAME to add as a match
+ * @param cookie void pointer to a TR_CONSTRAINT to add the match to
+ */
 static void cons_dup_helper(void *item, void *cookie)
 {
   TR_CONSTRAINT *new_cons = talloc_get_type_abort(cookie, TR_CONSTRAINT);
@@ -98,6 +109,13 @@ static void cons_dup_helper(void *item, void *cookie)
       tr_free_name(new_name);
   }
 }
+/**
+ * Duplicate a TR_CONSTRAINT
+ *
+ * @param mem_ctx talloc context for the result
+ * @param cons TR_CONSTRAINT to duplicate
+ * @return pointer to the new TR_CONSTRAINT, or NULL on error
+ */
 TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
