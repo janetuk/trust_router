@@ -81,13 +81,15 @@ static const char arg_doc[]=""; /* string describing arguments, if any */
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
     { "config-dir", 'c', "DIR", 0, "Specify configuration file location (default is current directory)"},
-    { "version", 'v', NULL, 0, "Print version information and exit"},
+    { "version", 1, NULL, 0, "Print version information and exit"},
+    { "validate-config", 'v', NULL, 0, "Validate configuration files and exit"},
     { NULL }
 };
 
 /* structure for communicating with option parser */
 struct cmdline_args {
     int version_requested;
+    int validate_config_and_exit;
     char *config_dir;
 };
 
@@ -106,8 +108,12 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
       arguments->config_dir=arg;
       break;
 
-    case 'v':
+    case 1:
       arguments->version_requested=1;
+      break;
+
+    case 'v':
+      arguments->validate_config_and_exit=1;
       break;
 
     default:
@@ -171,6 +177,7 @@ int main(int argc, char *argv[])
   /***** parse command-line arguments *****/
   /* set defaults */
   opts.version_requested=0;
+  opts.validate_config_and_exit=0;
   opts.config_dir=".";
 
   /* parse the command line*/
@@ -219,6 +226,11 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  /***** Exit here if we are just validating our configuration *****/
+  if (opts.validate_config_and_exit) {
+    printf("Valid configuration found in %s.\n", opts.config_dir);
+    return 0;
+  }
   /***** Set up the event loop *****/
   ev_base=tr_event_loop_init(); /* Set up the event loop */
   if (ev_base==NULL) {
