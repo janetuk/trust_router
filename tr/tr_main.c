@@ -81,8 +81,8 @@ static const char arg_doc[]=""; /* string describing arguments, if any */
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
     { "config-dir", 'c', "DIR", 0, "Specify configuration file location (default is current directory)"},
+    { "config-validate", 'C', NULL, 0, "Validate configuration files and exit"},
     { "version", 1, NULL, 0, "Print version information and exit"},
-    { "validate-config", 'v', NULL, 0, "Validate configuration files and exit"},
     { NULL }
 };
 
@@ -112,7 +112,7 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
       arguments->version_requested=1;
       break;
 
-    case 'v':
+    case 'C':
       arguments->validate_config_and_exit=1;
       break;
 
