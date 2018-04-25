@@ -58,11 +58,18 @@ do {                                           \
 
 typedef json_t *(ITEM_ENCODER_FUNC)(void *);
 
-enum type_to_array {
-  TYPE_TO_ARRAY_FSPEC,
-  TYPE_TO_ARRAY_CONSTRAINT
+enum array_type {
+  ARRAY_TYPE_FSPEC,
+  ARRAY_TYPE_CONSTRAINT
 };
-static json_t *tr_names_to_json_array(void *obj, enum type_to_array type)
+/**
+ * Make an array of matches from a TR_FSPEC or TR_CONSTRAINT
+ *
+ * @param obj
+ * @param type
+ * @return
+ */
+static json_t *tr_names_to_json_array(void *obj, enum array_type type)
 {
   json_t *jarray = json_array();
   json_t *retval = NULL;
@@ -74,22 +81,22 @@ static json_t *tr_names_to_json_array(void *obj, enum type_to_array type)
     goto cleanup;
 
   switch(type) {
-    case TYPE_TO_ARRAY_FSPEC:
+    case ARRAY_TYPE_FSPEC:
       this_match = tr_fspec_iter_first(&fspec_iter, (TR_FSPEC *)obj);
       break;
 
-    case TYPE_TO_ARRAY_CONSTRAINT:
+    case ARRAY_TYPE_CONSTRAINT:
       this_match = tr_constraint_iter_first(&cons_iter, (TR_CONSTRAINT *)obj);
       break;
   }
   while(this_match) {
     ARRAY_APPEND_OR_FAIL(jarray, tr_name_to_json_string(this_match));
     switch(type) {
-      case TYPE_TO_ARRAY_FSPEC:
+      case ARRAY_TYPE_FSPEC:
         this_match = tr_fspec_iter_next(&fspec_iter);
         break;
 
-      case TYPE_TO_ARRAY_CONSTRAINT:
+      case ARRAY_TYPE_CONSTRAINT:
         this_match = tr_constraint_iter_next(&cons_iter);
         break;
     }
@@ -117,7 +124,7 @@ static json_t *tr_fspec_to_json(TR_FSPEC *fspec)
   OBJECT_SET_OR_FAIL(fspec_json, "field",
                      tr_name_to_json_string(fspec->field));
   OBJECT_SET_OR_FAIL(fspec_json, "matches",
-                     tr_names_to_json_array(fspec, TYPE_TO_ARRAY_FSPEC));
+                     tr_names_to_json_array(fspec, ARRAY_TYPE_FSPEC));
 
   /* succeeded - set the return value and increment the reference count */
   retval = fspec_json;
@@ -139,10 +146,10 @@ static json_t *tr_fspecs_to_json_array(TR_FLINE *fline)
   if ((jarray == NULL) || (iter == NULL))
     goto cleanup;
 
-  this_fspec = tr_fline_iter_first(iter, fline);
-  while(this_fspec) {
+  for (this_fspec = tr_fline_iter_first(iter, fline);
+       this_fspec != NULL;
+       this_fspec = tr_fline_iter_next(iter)) {
     ARRAY_APPEND_OR_FAIL(jarray, tr_fspec_to_json(this_fspec));
-    this_fspec = tr_fline_iter_next(iter);
   }
   /* success */
   retval = jarray;
@@ -172,11 +179,11 @@ static json_t *tr_fline_to_json(TR_FLINE *fline)
                      tr_fspecs_to_json_array(fline));
   if (fline->realm_cons) {
     OBJECT_SET_OR_FAIL(fline_json, "realm_constraints",
-                       tr_names_to_json_array(fline->realm_cons, TYPE_TO_ARRAY_CONSTRAINT));
+                       tr_names_to_json_array(fline->realm_cons, ARRAY_TYPE_CONSTRAINT));
   }
   if (fline->domain_cons) {
     OBJECT_SET_OR_FAIL(fline_json, "domain_constraints",
-                       tr_names_to_json_array(fline->domain_cons, TYPE_TO_ARRAY_CONSTRAINT));
+                       tr_names_to_json_array(fline->domain_cons, ARRAY_TYPE_CONSTRAINT));
   }
 
   /* succeeded - set the return value and increment the reference count */
@@ -199,10 +206,10 @@ static json_t *tr_flines_to_json_array(TR_FILTER *filt)
   if ((jarray == NULL) || (iter == NULL))
     goto cleanup;
 
-  this_fline = tr_filter_iter_first(iter, filt);
-  while(this_fline) {
+  for(this_fline = tr_filter_iter_first(iter, filt);
+      this_fline != NULL;
+      this_fline = tr_filter_iter_next(iter)) {
     ARRAY_APPEND_OR_FAIL(jarray, tr_fline_to_json(this_fline));
-    this_fline = tr_filter_iter_next(iter);
   }
   /* success */
   retval = jarray;

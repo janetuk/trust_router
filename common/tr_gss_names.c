@@ -91,13 +91,13 @@ TR_GSS_NAMES *tr_gss_names_dup(TALLOC_CTX *mem_ctx, TR_GSS_NAMES *orig)
     talloc_free(tmp_ctx);
     return NULL;
   }
-  this = tr_gss_names_iter_first(iter, orig);
-  while (this) {
+  for (this = tr_gss_names_iter_first(iter, orig);
+       this != NULL;
+       this = tr_gss_names_iter_next(iter)) {
     if (tr_gss_names_add(new, tr_dup_name(this)) != 0) {
       talloc_free(tmp_ctx);
       return NULL;
     }
-    this = tr_gss_names_iter_next(iter);
   }
   /* success */
   talloc_steal(mem_ctx, new);

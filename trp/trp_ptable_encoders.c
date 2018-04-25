@@ -60,10 +60,12 @@ json_t *trp_ptable_to_json(TRP_PTABLE *ptbl)
 {
   TRP_PTABLE_ITER *iter = trp_ptable_iter_new(NULL);
   json_t *ptbl_json = json_array();
-  TRP_PEER *peer = trp_ptable_iter_first(iter, ptbl);
-  while(peer) {
+  TRP_PEER *peer = NULL;
+
+  for (trp_ptable_iter_first(iter, ptbl);
+       peer != NULL;
+       peer = trp_ptable_iter_next(iter)) {
     json_array_append_new(ptbl_json, trp_peer_to_json(peer));
-    peer = trp_ptable_iter_next(iter);
   }
   trp_ptable_iter_free(iter);
   return ptbl_json;

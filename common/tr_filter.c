@@ -426,24 +426,24 @@ int tr_filter_apply(TR_FILTER_TARGET *target,
 
   /* Step through filter lines looking for a match. If a line matches, retval
    * will be set to TR_FILTER_MATCH, so stop then. */
-  this_fline = tr_filter_iter_first(filt_iter, filt);
-  while(this_fline) {
+  for (this_fline = tr_filter_iter_first(filt_iter, filt);
+       this_fline != NULL;
+       this_fline = tr_filter_iter_next(filt_iter)) {
     /* Assume we are going to succeed. If any specs fail to match, we'll set
      * this to TR_FILTER_NO_MATCH. */
     retval=TR_FILTER_MATCH;
-    this_fspec = tr_fline_iter_first(fline_iter, this_fline);
-    while(this_fspec) {
+    for (this_fspec = tr_fline_iter_first(fline_iter, this_fline);
+         this_fspec != NULL;
+         this_fspec = tr_fline_iter_next(fline_iter)) {
       if (!tr_fspec_matches(this_fspec, filt->type, target)) {
         retval=TR_FILTER_NO_MATCH; /* set this in case this is the last filter line */
         break; /* give up on this filter line */
       }
-    this_fspec = tr_fline_iter_next(fline_iter);
     }
 
     if (retval==TR_FILTER_MATCH)
       break;
 
-    this_fline = tr_filter_iter_next(filt_iter);
   }
 
   if (retval==TR_FILTER_MATCH) {
@@ -642,8 +642,9 @@ int tr_filter_validate(TR_FILTER *filt)
       return 0; /* if we get here, either TR_FILTER_TYPE_UNKNOWN or an invalid value was found */
   }
   
-  this_fline = tr_filter_iter_first(filt_iter, filt);
-  while(this_fline) {
+  for (this_fline = tr_filter_iter_first(filt_iter, filt);
+       this_fline != NULL;
+       this_fline = tr_filter_iter_next(filt_iter)) {
     /* check that we recognize the action */
     switch(this_fline->action) {
       case TR_FILTER_ACTION_ACCEPT:
@@ -656,8 +657,9 @@ int tr_filter_validate(TR_FILTER *filt)
         return 0;
     }
 
-    this_fspec = tr_fline_iter_first(fline_iter, this_fline);
-    while(this_fspec) {
+    for (this_fspec = tr_fline_iter_first(fline_iter, this_fline);
+         this_fspec != NULL;
+         this_fspec = tr_fline_iter_next(fline_iter)) {
       if (!tr_filter_validate_spec_field(filt->type, this_fspec)) {
         talloc_free(tmp_ctx);
         return 0;
@@ -668,9 +670,7 @@ int tr_filter_validate(TR_FILTER *filt)
         talloc_free(tmp_ctx);
         return 0;
       }
-      this_fspec = tr_fline_iter_next(fline_iter);
     }
-    this_fline = tr_filter_iter_next(filt_iter);
   }
 
   /* We ran the gauntlet. Success! */
