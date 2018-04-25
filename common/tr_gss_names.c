@@ -38,19 +38,29 @@
 #include <tr_gss_names.h>
 #include <tr_debug.h>
 
+/**
+ * Helper for tr_gss_names_destructor - calls tr_free_name on its first argument
+ *
+ * @param item void pointer to a TR_NAME
+ * @param cookie ignored
+ */
+static void gss_names_destruct_helper(void *item, void *cookie)
+{
+  TR_NAME *name = (TR_NAME *) item;
+  tr_free_name(name);
+}
 static int tr_gss_names_destructor(void *obj)
 {
   TR_GSS_NAMES *gss_names=talloc_get_type_abort(obj, TR_GSS_NAMES);
   if (gss_names->names)
-    g_ptr_array_unref(gss_names->names);
+    tr_list_foreach(gss_names->names, gss_names_destruct_helper, NULL);
   return 0;
 }
 TR_GSS_NAMES *tr_gss_names_new(TALLOC_CTX *mem_ctx)
 {
-  TR_GSS_NAMES *gn=talloc(mem_ctx, TR_GSS_NAMES);
-
+  TR_GSS_NAMES *gn = talloc(mem_ctx, TR_GSS_NAMES);
   if (gn != NULL) {
-    gn->names = g_ptr_array_new_with_free_func((GDestroyNotify) tr_free_name);
+    gn->names = tr_list_new(gn);
     if (gn->names == NULL) {
       talloc_free(gn);
       return NULL;
@@ -68,9 +78,7 @@ void tr_gss_names_free(TR_GSS_NAMES *gn)
 /* returns 0 on success */
 int tr_gss_names_add(TR_GSS_NAMES *gn, TR_NAME *new)
 {
-  guint old_len = gn->names->len;
-  g_ptr_array_add(gn->names, new);
-  return (gn->names->len == old_len); /* nonzero if the add failed */
+  return (NULL == tr_list_add(gn->names, new, 0)); /* nonzero if the add failed */
 }
 
 /**
@@ -104,50 +112,21 @@ TR_GSS_NAMES *tr_gss_names_dup(TALLOC_CTX *mem_ctx, TR_GSS_NAMES *orig)
   return new;
 }
 
-static gboolean names_equal_helper(gconstpointer a, gconstpointer b)
-{
-  return (tr_name_cmp(a, b) == 0);
-}
-
 int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name)
 {
-  if (!gn)
+  TR_GSS_NAMES_ITER iter={0};
+  TR_NAME *this = NULL;
+
+  if ((!gn) || (!name))
     return 0;
 
-  return(TRUE == g_ptr_array_find_with_equal_func(gn->names,
-                                                  name,
-                                                  names_equal_helper,
-                                                  NULL));
-}
-
-/* iterators */
-TR_GSS_NAMES_ITER *tr_gss_names_iter_new(TALLOC_CTX *mem_ctx)
-{
-  TR_GSS_NAMES_ITER *iter=talloc(mem_ctx, TR_GSS_NAMES_ITER);
-  if (iter!=NULL) {
-    iter->gn=NULL;
-    iter->ii=0;
+  for (this = tr_gss_names_iter_first(&iter, gn);
+      this != NULL;
+      this = tr_gss_names_iter_next(&iter)) {
+    if (tr_name_cmp(name, this) == 0)
+      return 1;
   }
-  return iter;
-}
-
-TR_NAME *tr_gss_names_iter_first(TR_GSS_NAMES_ITER *iter, TR_GSS_NAMES *gn)
-{
-  iter->gn=gn;
-  iter->ii=0;
-  return tr_gss_names_iter_next(iter);
-}
-
-TR_NAME *tr_gss_names_iter_next(TR_GSS_NAMES_ITER *iter)
-{
-  if (iter->ii < iter->gn->names->len)
-    return g_ptr_array_index(iter->gn->names, iter->ii++);
-  return NULL;
-}
-
-void tr_gss_names_iter_free(TR_GSS_NAMES_ITER *iter)
-{
-  talloc_free(iter);
+  return 0;
 }
 
 json_t *tr_gss_names_to_json_array(TR_GSS_NAMES *gss_names)

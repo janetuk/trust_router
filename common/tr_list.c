@@ -92,11 +92,6 @@ void *tr_list_add(TR_LIST *list, void *item, int steal)
   return item;
 }
 
-size_t tr_list_length(TR_LIST *list)
-{
-  return (size_t) (*list)->len;
-}
-
 /**
  * Call func(item, cookie) on each item in the list.
  *

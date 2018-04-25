@@ -47,11 +47,12 @@ typedef struct tr_list_iter{
   guint index;
 } TR_LIST_ITER;
 
+#define tr_list_index(LIST, INDEX) (g_ptr_array_index(*(LIST),(INDEX)))
+#define tr_list_length(LIST) ((size_t)((*(LIST))->len))
+
 TR_LIST *tr_list_new(TALLOC_CTX *mem_ctx);
 void tr_list_free(TR_LIST *list);
 void *tr_list_add(TR_LIST *list, void *item, int steal);
-void *tr_list_index(TR_LIST *list, size_t index);
-size_t tr_list_length(TR_LIST *list);
 
 TR_LIST_ITER *tr_list_iter_new(TALLOC_CTX *mem_ctx);
 void tr_list_iter_free(TR_LIST_ITER *iter);
