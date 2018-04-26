@@ -64,15 +64,13 @@ static json_t *last_attempt_to_json_string(TRP_PEER *peer)
   char *s = NULL;
   json_t *jstr = NULL;
 
-  if (tr_cmp_timespec(trp_peer_get_last_conn_attempt(peer), &ts_zero) == 0) {
-    s = strdup("");
-  } else {
+  if (tr_cmp_timespec(trp_peer_get_last_conn_attempt(peer), &ts_zero) > 0) {
     s = timespec_to_str(trp_peer_get_last_conn_attempt(peer));
-  }
 
-  if (s) {
-    jstr = json_string(s);
-    free(s);
+    if (s) {
+      jstr = json_string(s);
+      free(s);
+    }
   }
 
   return jstr;
