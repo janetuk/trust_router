@@ -155,6 +155,7 @@ void tr_comm_memb_set_interval(TR_COMM_MEMB *memb, unsigned int interval);
 unsigned int tr_comm_memb_get_interval(TR_COMM_MEMB *memb);
 void tr_comm_memb_set_expiry(TR_COMM_MEMB *memb, struct timespec *time);
 struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb);
+struct timespec *tr_comm_memb_get_expiry_realtime(TR_COMM_MEMB *memb, struct timespec *result);
 int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime);
 void tr_comm_memb_set_triggered(TR_COMM_MEMB *memb, int trig);
 int tr_comm_memb_is_triggered(TR_COMM_MEMB *memb);

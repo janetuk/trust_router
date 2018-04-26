@@ -45,6 +45,7 @@
 #include <tr_debug.h>
 #include <trust_router/trp.h>
 #include <trust_router/tid.h>
+#include <tr_util.h>
 
 
 /* Note: be careful mixing talloc with glib. */
@@ -223,6 +224,18 @@ void trp_route_set_expiry(TRP_ROUTE *entry, struct timespec *exp)
 struct timespec *trp_route_get_expiry(TRP_ROUTE *entry)
 {
   return entry->expiry;
+}
+
+/**
+ * Get the expiration according to the realtime clock
+ *
+ * @param entry
+ * @param result space to store the result
+ * @return pointer to the result, or null on error
+ */
+struct timespec *trp_route_get_expiry_realtime(TRP_ROUTE *entry, struct timespec *result)
+{
+  return tr_clock_convert(TRP_CLOCK, entry->expiry, CLOCK_REALTIME, result);
 }
 
 void trp_route_set_local(TRP_ROUTE *entry, int local)

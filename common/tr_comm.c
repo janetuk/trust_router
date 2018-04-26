@@ -40,9 +40,10 @@
 #include <tr_rp.h>
 #include <tr_idp.h>
 #include <tr_name_internal.h>
+#include <trp_internal.h>
 #include <tr_comm.h>
 #include <tr_debug.h>
-
+#include <tr_util.h>
 
 static int tr_comm_destructor(void *obj)
 {
@@ -1015,6 +1016,18 @@ void tr_comm_memb_set_expiry(TR_COMM_MEMB *memb, struct timespec *time)
 struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb)
 {
   return memb->expiry;
+}
+
+/**
+ * Get the expiration according to the realtime clock
+ *
+ * @param memb
+ * @param result space to store the result
+ * @return pointer to the result, or null on error
+ */
+struct timespec *tr_comm_memb_get_expiry_realtime(TR_COMM_MEMB *memb, struct timespec *result)
+{
+  return tr_clock_convert(TRP_CLOCK, memb->expiry, CLOCK_REALTIME, result);
 }
 
 int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime)
