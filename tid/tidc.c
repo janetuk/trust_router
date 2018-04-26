@@ -41,6 +41,7 @@
 #include <tr_msg.h>
 #include <gsscon.h>
 #include <tr_debug.h>
+#include <tr_rand_id.h>
 
 
 int tmp_len = 32;
@@ -104,6 +105,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
 		       void *cookie)
 {
   TID_REQ *tid_req = NULL;
+  char *request_id = NULL;
   int rc;
 
   /* Create and populate a TID req structure */
@@ -122,6 +124,17 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
 
   tid_req->tidc_dh = tr_dh_dup(tidc->client_dh);
 
+  /* generate an ID */
+  request_id = tr_random_id(NULL);
+  if (request_id) {
+    if (tid_req->request_id = tr_new_name(request_id))
+      tr_debug("tidc_send_request: Created TID request ID: %s", request_id);
+    else
+      tr_debug("tidc_send_request: Unable to set request ID, proceeding without one");
+    talloc_free(request_id);
+  } else
+    tr_debug("tidc_send_request: Failed to generate a TID request ID, proceeding without one");
+
   rc = tidc_fwd_request(tidc, tid_req, resp_handler, cookie);
   goto cleanup;
  error:
@@ -133,7 +146,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
 
 int tidc_fwd_request(TIDC_INSTANCE *tidc,
                      TID_REQ *tid_req,
-		     TIDC_RESP_FUNC *resp_handler,
+                     TIDC_RESP_FUNC *resp_handler,
                      void *cookie)
 {
   char *req_buf = NULL;
@@ -141,6 +154,7 @@ int tidc_fwd_request(TIDC_INSTANCE *tidc,
   size_t resp_buflen = 0;
   TR_MSG *msg = NULL;
   TR_MSG *resp_msg = NULL;
+  TID_RESP *tid_resp = NULL;
   int err;
   int rc = 0;
 
@@ -191,9 +205,25 @@ int tidc_fwd_request(TIDC_INSTANCE *tidc,
   }
 
   /* TBD -- Check if this is actually a valid response */
-  if (TID_RESPONSE != tr_msg_get_msg_type(resp_msg)) {
+  tid_resp = tr_msg_get_resp(resp_msg);
+  if (tid_resp == NULL) {
     tr_err( "tidc_fwd_request: Error, no response in the response!\n");
     goto error;
+  }
+
+  /* Check whether the request IDs matched and warn if not. Do nothing if we don't get
+   * an ID on the return - it is not mandatory to preserve that field. */
+  if (tid_req->request_id) {
+    if ((tid_resp->request_id)
+        && (tr_name_cmp(tid_resp->request_id, tid_req->request_id) != 0)) {
+      /* Requests present but do not match */
+      tr_warning("tidc_fwd_request: Sent request ID %.*s, received response for %.*s",
+                 tid_req->request_id->len, tid_req->request_id->buf,
+                 tid_resp->request_id->len, tid_resp->request_id->buf);
+    }
+  } else if (tid_resp->request_id) {
+    tr_warning("tidc_fwd_request: Sent request without ID, received response for %.*s",
+               tid_resp->request_id->len, tid_resp->request_id->buf);
   }
 
   if (resp_handler) {
