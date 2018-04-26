@@ -37,7 +37,9 @@
 
 #include <stdlib.h>
 #include <poll.h> // for nfds_t
+#include <sys/socket.h>
 
 nfds_t tr_sock_listen_all(unsigned int port, int *fd_out, nfds_t max_fd);
+int tr_sock_accept(int sock);
 
 #endif //TRUST_ROUTER_TR_SOCKET_H

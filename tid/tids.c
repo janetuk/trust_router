@@ -399,8 +399,8 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
   int pipe_fd[2];
   struct tid_process tp = {0};
 
-  if (0 > (conn = accept(listen, NULL, NULL))) {
-    perror("Error from TIDS Server accept()");
+  if (0 > (conn = tr_sock_accept(listen))) {
+    tr_err("tids_accept: Error accepting connection");
     return 1;
   }
 
