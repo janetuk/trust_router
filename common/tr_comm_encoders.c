@@ -179,9 +179,14 @@ static json_t *tr_comm_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_name,
       realm_json = json_object();
       OBJECT_SET_OR_FAIL(realm_json, "realm",
                          tr_name_to_json_string(tr_realm_get_id(realm)));
-      memb = tr_comm_table_find_idp_memb(ctable,
-                                         tr_realm_get_id(realm),
-                                         comm_name);
+      memb = tr_comm_table_find_memb(ctable,
+                                     tr_realm_get_id(realm),
+                                     comm_name);
+      if (memb == NULL) {
+        /* This should not happen - there must be a matching membership if we
+         * believed the realm was in the community in the first place! */
+        goto cleanup;
+      }
       OBJECT_SET_OR_FAIL(realm_json, "sources",
                          tr_comm_memb_sources_to_json(memb));
       json_array_append_new(jarray, realm_json);
