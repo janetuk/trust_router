@@ -269,6 +269,9 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
    * connect fails */
   if (trpc==NULL) {
     tr_warning("trps_send_msg: skipping message queued for missing TRP client entry.");
+  } else if (trpc->shutting_down) {
+    tr_debug("trps_send_msg: skipping message because TRP client is shutting down.");
+    rc = TRP_SUCCESS; /* it's ok that this didn't get sent, the connection will be gone in a moment */
   } else {
     mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND, TR_MQ_PRIO_NORMAL);
     msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
