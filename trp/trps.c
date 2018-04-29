@@ -1520,7 +1520,11 @@ cleanup:
 }
 
 /* construct an update with all the inforecs for comm/realm/role to be sent to peer */
-static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, TR_COMM *comm, TR_REALM *realm)
+static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx,
+                                 TRPS_INSTANCE *trps,
+                                 TR_NAME *peer_label,
+                                 TR_COMM *comm,
+                                 TR_REALM *realm)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_UPD *upd=trp_upd_new(tmp_ctx);
@@ -1586,7 +1590,7 @@ cleanup:
 static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx,
                                                 GPtrArray *updates,
                                                 TRPS_INSTANCE *trps,
-                                                TR_NAME *peer_gssname,
+                                                TR_NAME *peer_label,
                                                 int triggered)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
@@ -1626,7 +1630,7 @@ static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx,
       tr_debug("trps_select_comm_updates_for_peer: adding realm %.*s",
                tr_realm_get_id(realm)->len,
                tr_realm_get_id(realm)->buf);
-      upd=trps_comm_update(mem_ctx, trps, peer_gssname, comm, realm);
+      upd=trps_comm_update(mem_ctx, trps, peer_label, comm, realm);
       if (upd!=NULL)
         g_ptr_array_add(updates, upd);
     }
