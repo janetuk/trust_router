@@ -1055,12 +1055,13 @@ static TRP_RC trps_validate_request(TRPS_INSTANCE *trps, TRP_REQ *req)
 
 /* choose the best route to comm/realm, optionally excluding routes to a particular peer */
 static TRP_ROUTE *trps_find_best_route(TRPS_INSTANCE *trps,
-                                        TR_NAME *comm,
-                                        TR_NAME *realm,
-                                        TR_NAME *exclude_peer)
+                                       TR_NAME *comm,
+                                       TR_NAME *realm,
+                                       TR_NAME *exclude_peer_label)
 {
   TRP_ROUTE **entry=NULL;
   TRP_ROUTE *best=NULL;
+  TRP_PEER *route_peer = NULL;
   size_t n_entry=0;
   unsigned int kk=0;
   unsigned int kk_min=0;
@@ -1069,13 +1070,31 @@ static TRP_ROUTE *trps_find_best_route(TRPS_INSTANCE *trps,
   entry=trp_rtable_get_realm_entries(trps->rtable, comm, realm, &n_entry);
   for (kk=0; kk<n_entry; kk++) {
     if (trp_route_get_metric(entry[kk]) < min_metric) {
-      if ((exclude_peer==NULL) || (0!=tr_name_cmp(trp_route_get_peer(entry[kk]),
-                                                  exclude_peer))) {
-        kk_min=kk;
-        min_metric=trp_route_get_metric(entry[kk]);
-      } 
+      if (exclude_peer_label != NULL) {
+        if (!trp_route_is_local(entry[kk])) {
+          /* route is not local, check the peer label */
+          route_peer = trp_ptable_find_gss_name(trps->ptable,
+                                                trp_route_get_peer(entry[kk]));
+          if (route_peer == NULL) {
+            tr_err("trps_find_best_route: unknown peer GSS name (%.*s) for route %d to %.*s/%.*s",
+                   trp_route_get_peer(entry[kk])->len, trp_route_get_peer(entry[kk])->buf,
+                   kk,
+                   realm->len, realm->buf,
+                   comm->len, comm->buf);
+            continue; /* unknown peer, skip the route */
+          }
+          if (0 == tr_name_cmp(exclude_peer_label, trp_peer_get_label(route_peer))) {
+            /* we're excluding this peer - skip the route */
+            continue;
+          }
+        }
+      }
+      /* if we get here, we're not excluding the route */
+      kk_min = kk;
+      min_metric = trp_route_get_metric(entry[kk]);
     }
   }
+
   if (trp_metric_is_finite(min_metric))
     best=entry[kk_min];
   
@@ -1377,8 +1396,13 @@ static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, T
       /* the selected entry goes through the peer we're reporting to, choose an alternate */
       tr_debug("trps_select_realm_update: matched, finding alternate route");
       route=trps_find_best_route(trps, comm, realm, peer_label);
-      if ((route==NULL) || (!trp_metric_is_finite(trp_route_get_metric(route))))
+      if ((route==NULL) || (!trp_metric_is_finite(trp_route_get_metric(route)))) {
+        tr_debug("trps_select_realm_update: no route to %.*s/%.*s suitable to advertise to %.*s",
+                 realm->len, realm->buf,
+                 comm->len, comm->buf,
+                 peer_label->len, peer_label->buf);
         return NULL; /* don't advertise a nonexistent or retracted route */
+      }
     }
   }
   return route;
