@@ -656,36 +656,51 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
 static TRP_RC trps_handle_inforec_route(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC *rec)
 {
   TRP_ROUTE *route=NULL;
+  TR_COMM *comm = NULL;
   unsigned int feas=0;
 
   /* determine feasibility */
   feas=trps_check_feasibility(trps, trp_upd_get_realm(upd), trp_upd_get_comm(upd), rec);
   tr_debug("trps_handle_update: record feasibility=%d", feas);
 
-  /* do we have an existing route? */
-  route=trps_get_route(trps,
-                       trp_upd_get_comm(upd),
-                       trp_upd_get_realm(upd),
-                       trp_upd_get_peer(upd));
-  if (route!=NULL) {
-    /* there was a route table entry already */
-    tr_debug("trps_handle_updates: route entry already exists.");
-    if (feas) {
-      /* Update is feasible. Accept it. */
-      trps_accept_update(trps, upd, rec);
-    } else {
-      /* Update is infeasible. Ignore it unless the trust router has changed. */
-      if (0!=tr_name_cmp(trp_route_get_trust_router(route),
-                         trp_inforec_get_trust_router(rec))) {
-        /* the trust router associated with the route has changed, treat update as a retraction */
-        trps_retract_route(trps, route);
-      }
-    }
+  /* verify that the community is an APC */
+  comm = tr_comm_table_find_comm(trps->ctable, trp_upd_get_comm(upd));
+  if (comm == NULL) {
+    /* We don't know this community. Reject the route. */
+    tr_debug("trps_handle_updates: community %.*s unknown, ignoring route for %.*s",
+             trp_upd_get_comm(upd)->len, trp_upd_get_comm(upd)->buf,
+             trp_upd_get_realm(upd)->len, trp_upd_get_realm(upd)->buf);
+  } else if (tr_comm_get_type(comm) != TR_COMM_APC) {
+    /* The community in a route request *must* be an APC. This was not - ignore it. */
+    tr_debug("trps_handle_updates: community %.*s is not an APC, ignoring route for %.*s",
+             trp_upd_get_comm(upd)->len, trp_upd_get_comm(upd)->buf,
+             trp_upd_get_realm(upd)->len, trp_upd_get_realm(upd)->buf);
   } else {
-    /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
-    tr_debug("trps_handle_update: no route entry exists yet.");
-    if (feas && trp_metric_is_finite(trp_inforec_get_metric(rec)))
-      trps_accept_update(trps, upd, rec);
+    /* do we have an existing route? */
+    route=trps_get_route(trps,
+                         trp_upd_get_comm(upd),
+                         trp_upd_get_realm(upd),
+                         trp_upd_get_peer(upd));
+    if (route!=NULL) {
+      /* there was a route table entry already */
+      tr_debug("trps_handle_updates: route entry already exists.");
+      if (feas) {
+        /* Update is feasible. Accept it. */
+        trps_accept_update(trps, upd, rec);
+      } else {
+        /* Update is infeasible. Ignore it unless the trust router has changed. */
+        if (0!=tr_name_cmp(trp_route_get_trust_router(route),
+                           trp_inforec_get_trust_router(rec))) {
+          /* the trust router associated with the route has changed, treat update as a retraction */
+          trps_retract_route(trps, route);
+        }
+      }
+    } else {
+      /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
+      tr_debug("trps_handle_update: no route entry exists yet.");
+      if (feas && trp_metric_is_finite(trp_inforec_get_metric(rec)))
+        trps_accept_update(trps, upd, rec);
+    }
   }
 
   return TRP_SUCCESS;
@@ -771,7 +786,7 @@ cleanup:
   return comm;
 }
 
-static TR_RP_REALM *trps_create_new_rp_realm(TALLOC_CTX *mem_ctx, TR_NAME *realm_id, TRP_INFOREC *rec)
+static TR_RP_REALM *trps_create_new_rp_realm(TALLOC_CTX *mem_ctx, TR_NAME *comm, TR_NAME *realm_id, TRP_INFOREC *rec)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_RP_REALM *rp=tr_rp_realm_new(tmp_ctx);
@@ -794,11 +809,15 @@ cleanup:
   return rp;
 }
 
-static TR_IDP_REALM *trps_create_new_idp_realm(TALLOC_CTX *mem_ctx, TR_NAME *realm_id, TRP_INFOREC *rec)
+static TR_IDP_REALM *trps_create_new_idp_realm(TALLOC_CTX *mem_ctx,
+                                               TR_NAME *comm_id,
+                                               TR_NAME *realm_id,
+                                               TRP_INFOREC *rec)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_IDP_REALM *idp=tr_idp_realm_new(tmp_ctx);
-  
+  TR_APC *realm_apcs = NULL;
+
   if (idp==NULL) {
     tr_debug("trps_create_new_idp_realm: unable to allocate new realm.");
     goto cleanup;
@@ -810,14 +829,52 @@ static TR_IDP_REALM *trps_create_new_idp_realm(TALLOC_CTX *mem_ctx, TR_NAME *rea
     idp=NULL;
     goto cleanup;
   }
-  if (trp_inforec_get_apcs(rec)!=NULL) {
-    tr_idp_realm_set_apcs(idp, tr_apc_dup(tmp_ctx, trp_inforec_get_apcs(rec)));
-    if (tr_idp_realm_get_apcs(idp)==NULL) {
-      tr_debug("trps_create_new_idp_realm: unable to allocate APC list.");
-      idp=NULL;
+
+  /* Set the APCs. If the community is a CoI, copy its APCs. If it is an APC, then
+   * that community itself is the APC for the realm. */
+  if (trp_inforec_get_comm_type(rec) == TR_COMM_APC) {
+    /* the community is an APC for this realm */
+    realm_apcs = tr_apc_new(tmp_ctx);
+    if (realm_apcs == NULL) {
+      tr_debug("trps_create_new_idp_realm: unable to allocate new APC list.");
+      idp = NULL;
+      goto cleanup;
+    }
+
+    tr_apc_set_id(realm_apcs, tr_dup_name(comm_id));
+    if (tr_apc_get_id(realm_apcs) == NULL) {
+      tr_debug("trps_create_new_idp_realm: unable to allocate new APC name.");
+      idp = NULL;
+      goto cleanup;
+    }
+  } else {
+    /* the community is not an APC for this realm */
+    realm_apcs = trp_inforec_get_apcs(rec);
+    if (realm_apcs == NULL) {
+      tr_debug("trps_create_new_idp_realm: no APCs for realm %.*s/%.*s, cannot add.",
+               realm_id->len, realm_id->buf,
+               comm_id->len, comm_id->buf);
+      idp = NULL;
+      goto cleanup;
+    }
+
+    /* we have APCs, make our own copy */
+    realm_apcs = tr_apc_dup(tmp_ctx, realm_apcs);
+    if (realm_apcs == NULL) {
+      tr_debug("trps_create_new_idp_realm: unable to duplicate APC list.");
+      idp = NULL;
       goto cleanup;
     }
   }
+
+  /* Whether the community is an APC or CoI, the APCs for the realm are in realm_apcs */
+  tr_idp_realm_set_apcs(idp, realm_apcs); /* takes realm_apcs out of tmp_ctx on success */
+  if (tr_idp_realm_get_apcs(idp) == NULL) {
+    tr_debug("trps_create_new_idp_realm: unable to set APC list for new realm.");
+    idp=NULL;
+    goto cleanup;
+  }
+
   idp->origin=TR_REALM_DISCOVERED;
   
   talloc_steal(mem_ctx, idp);
@@ -867,7 +924,11 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
         tr_debug("trps_handle_inforec_comm: unable to create new community.");
         goto cleanup;
       }
-      tr_comm_table_add_comm(trps->ctable, comm);
+      if (tr_comm_table_add_comm(trps->ctable, comm) != 0)
+      {
+        tr_debug("trps_handle_inforec_comm: unable to add community to community table.");
+        goto cleanup;
+      }
     }
     /* TODO: see if other comm data match the new inforec and update or complain */
 
@@ -881,7 +942,7 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
       if (rp_realm==NULL) {
         tr_debug("trps_handle_inforec_comm: unknown RP realm %.*s in inforec, creating it.",
                  realm_id->len, realm_id->buf);
-        rp_realm=trps_create_new_rp_realm(tmp_ctx, realm_id, rec);
+        rp_realm= trps_create_new_rp_realm(tmp_ctx, tr_comm_get_id(comm), realm_id, rec);
         if (rp_realm==NULL) {
           tr_debug("trps_handle_inforec_comm: unable to create new RP realm.");
           /* we may leave an unused community in the table, but it will only last until
@@ -902,7 +963,7 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
       if (idp_realm==NULL) {
         tr_debug("trps_handle_inforec_comm: unknown IDP realm %.*s in inforec, creating it.",
                  realm_id->len, realm_id->buf);
-        idp_realm=trps_create_new_idp_realm(tmp_ctx, realm_id, rec);
+        idp_realm= trps_create_new_idp_realm(tmp_ctx, tr_comm_get_id(comm), realm_id, rec);
         if (idp_realm==NULL) {
           tr_debug("trps_handle_inforec_comm: unable to create new IDP realm.");
           /* we may leave an unused community in the table, but it will only last until

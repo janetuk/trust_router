@@ -1365,11 +1365,24 @@ TR_COMM *tr_comm_table_find_comm(TR_COMM_TABLE *ctab, TR_NAME *comm_id)
   return tr_comm_lookup(ctab->comms, comm_id);
 }
 
-void tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new)
+/**
+ * Add a community to the table.
+ *
+ * Does not allow duplicate community ids.
+ *
+ * @param ctab
+ * @param new
+ * @return 0 on success, -1 on failure
+ */
+int tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new)
 {
+  if (tr_comm_table_find_comm(ctab, tr_comm_get_id(new)) != NULL)
+    return -1;
+
   tr_comm_add(ctab->comms, new);
   if (ctab->comms!=NULL)
     talloc_steal(ctab, ctab->comms); /* make sure it's in the right context */
+  return 0;
 }
 
 void tr_comm_table_remove_comm(TR_COMM_TABLE *ctab, TR_COMM *comm)
