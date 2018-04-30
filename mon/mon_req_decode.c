@@ -126,7 +126,7 @@ MON_REQ *mon_req_parse(TALLOC_CTX *mem_ctx, const char *input)
  *
  * (options are optional)
  *
- * Caller must free the return value with MON_REQ_free().
+ * Caller must free the return value with mon_req_free().
  *
  * @param mem_ctx talloc context for the returned struct
  * @param req_json reference to JSON request object
@@ -171,8 +171,6 @@ MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json)
 
 cleanup:
   talloc_free(tmp_ctx);
-  if (req_json)
-    json_decref(req_json);
 
   return req;
 }

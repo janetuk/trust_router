@@ -79,6 +79,7 @@ json_t *mon_resp_encode(MON_RESP *resp)
   /* If we have a payload, add it */
   if (resp->payload) {
     object_set_or_free_and_return(resp_json, jval, "payload", resp->payload);
+    json_incref(resp->payload); /* we just created a second reference to the payload */
   }
 
   return resp_json;
