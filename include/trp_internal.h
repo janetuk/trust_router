@@ -209,7 +209,7 @@ TRP_CONNECTION_STATUS trpc_get_status(TRPC_INSTANCE *trpc);
 TR_MQ *trpc_get_mq(TRPC_INSTANCE *trpc);
 void trpc_set_mq(TRPC_INSTANCE *trpc, TR_MQ *mq);
 void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
-TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc);
+TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc, struct timespec *ts_abort);
 void trpc_mq_clear(TRPC_INSTANCE *trpc);
 void trpc_master_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
 TR_MQ_MSG *trpc_master_mq_pop(TRPC_INSTANCE *trpc);

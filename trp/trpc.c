@@ -190,9 +190,9 @@ void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg)
   tr_mq_add(trpc->mq, msg);
 }
 
-TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc)
+TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc, struct timespec *ts_abort)
 {
-  return tr_mq_pop(trpc->mq, 0);
+  return tr_mq_pop(trpc->mq, ts_abort);
 }
 
 void trpc_mq_clear(TRPC_INSTANCE *trpc)
