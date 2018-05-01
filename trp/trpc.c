@@ -59,7 +59,6 @@ TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
     trpc->server=NULL;
     trpc->port=0;
     trpc->conn=NULL;
-    trpc->shutting_down = 0;
     trpc->mq=tr_mq_new(trpc);
     if (trpc->mq==NULL) {
       talloc_free(trpc);

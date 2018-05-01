@@ -573,6 +573,10 @@ struct trpc_thread_data {
  * a TR_MQMSG_ABORT message is received on trpc->mq, the thread sends a
  * TR_MQMSG_TRPC_DISCONNECTED message to the trps thread, then cleans up and
  * terminates.
+ *
+ * The trps may continue queueing messages for this client even when the
+ * connection is down. To prevent the queue from growing endlessly, this thread
+ * should clear its queue after failed connection attempts.
  */
 static void *tr_trpc_thread(void *arg)
 {
@@ -596,6 +600,7 @@ static void *tr_trpc_thread(void *arg)
     tr_notice("tr_trpc_thread: failed to initiate connection to %s:%d.",
               trpc_get_server(trpc),
               trpc_get_port(trpc));
+    trpc_mq_clear(trpc); /* clear the queue even though we did not connect */
   } else {
     /* Retrieve the GSS name used by the peer for authentication */
     peer_gssname=trp_connection_get_peer(trpc_get_conn(trpc));

@@ -142,7 +142,6 @@ struct trpc_instance {
   unsigned int port;
   TRP_CONNECTION *conn;
   TR_MQ *mq; /* msgs from master to trpc */
-  int shutting_down; /* 0 unless the TRPC is in the shutdown process */
 };
 
 /* TRP Server Instance Data */

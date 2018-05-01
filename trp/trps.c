@@ -265,13 +265,13 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
 
   /* get the connection for this peer */
   trpc=trps_find_trpc(trps, peer);
-  /* instead, let's let that happen and then clear the queue when an attempt to
-   * connect fails */
+  /* The peer connection (trpc) usually exists even if the connection is down.
+   * We will queue messages even if the connection is down. To prevent this from
+   * endlessly increasing the size of the queue, the trpc handler needs to clear
+   * its queue periodically, even if it is unable to send the messages
+   */
   if (trpc==NULL) {
     tr_warning("trps_send_msg: skipping message queued for missing TRP client entry.");
-  } else if (trpc->shutting_down) {
-    tr_debug("trps_send_msg: skipping message because TRP client is shutting down.");
-    rc = TRP_SUCCESS; /* it's ok that this didn't get sent, the connection will be gone in a moment */
   } else {
     mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND, TR_MQ_PRIO_NORMAL);
     msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
