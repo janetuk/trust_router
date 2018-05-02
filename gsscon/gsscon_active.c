@@ -73,7 +73,6 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
   struct sockaddr_in saddr;
   char *port=NULL;
   gss_name_t serviceName = NULL;
-  gss_name_t clientName = NULL;
   gss_cred_id_t clientCredentials = GSS_C_NO_CREDENTIAL;
   gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
   OM_uint32 actualFlags = 0;
@@ -129,7 +128,7 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
   if (fd >= 0) { close (fd); }
 
   if (!err) {
-    majorStatus = gss_acquire_cred (&minorStatus, clientName, GSS_C_INDEFINITE, GSS_C_NO_OID_SET, 
+    majorStatus = gss_acquire_cred (&minorStatus, GSS_C_NO_NAME, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
                                     GSS_C_INITIATE, &clientCredentials, NULL, NULL); 
     if (majorStatus != GSS_S_COMPLETE) { 
       gsscon_print_gss_errors ("gss_acquire_cred", majorStatus, minorStatus);
@@ -283,7 +282,6 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
 
   if (inputTokenBuffer) { free (inputTokenBuffer); }
   if (serviceName     ) { gss_release_name (&minorStatus, &serviceName); }
-  if (clientName      ) { gss_release_name (&minorStatus, &clientName); }
   if (ai_head         ) { freeaddrinfo(ai_head); }
 
   if (clientCredentials != GSS_C_NO_CREDENTIAL) { 
