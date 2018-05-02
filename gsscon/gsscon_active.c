@@ -83,6 +83,7 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
   gss_buffer_desc nameBuffer;
   gss_buffer_t inputTokenPtr = GSS_C_NO_BUFFER;
   char *name;
+  int len = 0;
 
   if (!inServiceName) { err = EINVAL; }
   if (!outGSSContext) { err = EINVAL; }
@@ -185,16 +186,27 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
    */
     
   if (!err) {
-    nameBuffer.length = asprintf(&name, "%s@%s", inServiceName, inHost);
-    nameBuffer.value = name;
+    len = asprintf(&name, "%s@%s", inServiceName, inHost);
+    if (len < 0) {
+      /* asprintf failed, pick an error to return... */
+      err = GSS_S_BAD_NAME;
+    } else {
+      nameBuffer.length = (size_t) len;
+      nameBuffer.value = name;
 
-    majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName); 
-    if (majorStatus != GSS_S_COMPLETE) { 
-      gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
-      err = minorStatus ? minorStatus : majorStatus; 
+      majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName);
+      if (majorStatus != GSS_S_COMPLETE) {
+        gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
+        err = minorStatus ? minorStatus : majorStatus;
+      }
+
+      /* free the input name and null pointers to avoid reuse */
+      free(name);
+      name = NULL;
+      nameBuffer.value = NULL;
     }
   }
-    
+
   /* 
    * The main authentication loop:
    *
