@@ -371,7 +371,9 @@ TRP_ROUTE **trp_rtable_get_comm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, size_t 
 
 /* Get all entries in an comm/realm. Returns an array of pointers in NULL talloc context.
  * Caller must free this list with talloc_free, but must not free the entries in the
- * list.. */
+ * list.
+ *
+ * If *n_out is 0, then no memory is allocated and NULL is returned. */
 TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm, size_t *n_out)
 {
   size_t ii=0;
@@ -380,16 +382,23 @@ TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAM
 
   tr_debug("trp_rtable_get_realm_entries: entered.");
   peer=trp_rtable_get_comm_realm_peers(rtbl, comm, realm, n_out);
+  if ((peer == NULL) || (*n_out == 0)) {
+    *n_out = 0; /* May be redundant. That's ok, compilers are smart. */
+    goto cleanup;
+  }
+
   ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
     tr_crit("trp_rtable_get_realm_entries: could not allocate return array.");
-    talloc_free(peer);
     n_out=0;
-    return NULL;
+    goto cleanup;
   }
   for (ii=0; ii<*n_out; ii++)
     ret[ii]=trp_rtable_get_entry(rtbl, comm, realm, peer[ii]);
-  talloc_free(peer);
+
+cleanup:
+  if (peer)
+    talloc_free(peer);
   return ret;
 }
 
