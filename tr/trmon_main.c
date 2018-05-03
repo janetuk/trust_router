@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
   }
 
   /* Print the JSON to stdout */
-  json_dumpf(mon_resp_encode(resp), stdout, JSON_INDENT(4) | JSON_SORT_KEYS);
+  json_dumpf(mon_resp_encode(resp), stdout, JSON_INDENT(4));
   printf("\n");
 
   /* success */
