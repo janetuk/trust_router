@@ -408,34 +408,34 @@ int tr_filter_apply(TR_FILTER_TARGET *target,
                     TR_CONSTRAINT_SET **constraints,
                     TR_FILTER_ACTION *out_action)
 {
-  unsigned int ii=0, jj=0;
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  TR_FILTER_ITER *filt_iter = tr_filter_iter_new(tmp_ctx);
+  TR_FLINE *this_fline = NULL;
+  TR_FLINE_ITER *fline_iter = tr_fline_iter_new(tmp_ctx);
+  TR_FSPEC *this_fspec = NULL;
   int retval=TR_FILTER_NO_MATCH;
 
   /* Default action is reject */
   *out_action = TR_FILTER_ACTION_REJECT;
 
   /* Validate filter */
-  if ((filt==NULL) || (filt->type==TR_FILTER_TYPE_UNKNOWN))
+  if ((filt_iter == NULL) || (fline_iter == NULL) || (filt==NULL) || (filt->type==TR_FILTER_TYPE_UNKNOWN)) {
+    talloc_free(tmp_ctx);
     return TR_FILTER_NO_MATCH;
+  }
 
   /* Step through filter lines looking for a match. If a line matches, retval
    * will be set to TR_FILTER_MATCH, so stop then. */
-  for (ii=0, retval=TR_FILTER_NO_MATCH;
-       ii<TR_MAX_FILTER_LINES;
-       ii++) {
-    /* skip empty lines (these shouldn't really happen) */
-    if (filt->lines[ii]==NULL)
-      continue;
-
+  for (this_fline = tr_filter_iter_first(filt_iter, filt);
+       this_fline != NULL;
+       this_fline = tr_filter_iter_next(filt_iter)) {
     /* Assume we are going to succeed. If any specs fail to match, we'll set
      * this to TR_FILTER_NO_MATCH. */
     retval=TR_FILTER_MATCH;
-    for (jj=0; jj<TR_MAX_FILTER_SPECS; jj++) {
-      /* skip empty specs (these shouldn't really happen either) */
-      if (filt->lines[ii]->specs[jj]==NULL)
-        continue;
-
-      if (!tr_fspec_matches(filt->lines[ii]->specs[jj], filt->type, target)) {
+    for (this_fspec = tr_fline_iter_first(fline_iter, this_fline);
+         this_fspec != NULL;
+         this_fspec = tr_fline_iter_next(fline_iter)) {
+      if (!tr_fspec_matches(this_fspec, filt->type, target)) {
         retval=TR_FILTER_NO_MATCH; /* set this in case this is the last filter line */
         break; /* give up on this filter line */
       }
@@ -443,15 +443,16 @@ int tr_filter_apply(TR_FILTER_TARGET *target,
 
     if (retval==TR_FILTER_MATCH)
       break;
+
   }
 
   if (retval==TR_FILTER_MATCH) {
     /* Matched line ii. Grab its action and constraints. */
-    *out_action = filt->lines[ii]->action;
+    *out_action = this_fline->action;
     if (constraints!=NULL) {
       /* if either constraint is missing, these are no-ops */
-      tr_constraint_add_to_set(constraints, filt->lines[ii]->realm_cons);
-      tr_constraint_add_to_set(constraints, filt->lines[ii]->domain_cons);
+      tr_constraint_add_to_set(constraints, this_fline->realm_cons);
+      tr_constraint_add_to_set(constraints, this_fline->domain_cons);
     }
   }
 
@@ -463,55 +464,65 @@ void tr_fspec_free(TR_FSPEC *fspec)
   talloc_free(fspec);
 }
 
+/**
+ * Helper for tr_fspec_destructor - calls tr_free_name on its first argument
+ *
+ * @param item void pointer to a TR_NAME
+ * @param cookie ignored
+ */
+static void fspec_destruct_helper(void *item, void *cookie)
+{
+  TR_NAME *name = (TR_NAME *) item;
+  tr_free_name(name);
+}
 static int tr_fspec_destructor(void *obj)
 {
   TR_FSPEC *fspec = talloc_get_type_abort(obj, TR_FSPEC);
-  size_t ii;
 
   if (fspec->field != NULL)
     tr_free_name(fspec->field);
-  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
-    if (fspec->match[ii] != NULL)
-      tr_free_name(fspec->match[ii]);
-  }
+
+  if (fspec->match)
+    tr_list_foreach(fspec->match, fspec_destruct_helper, NULL);
+
   return 0;
 }
 
 TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx)
 {
   TR_FSPEC *fspec = talloc(mem_ctx, TR_FSPEC);
-  size_t ii=0;
 
   if (fspec != NULL) {
     fspec->field = NULL;
-    for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++)
-      fspec->match[ii] = NULL;
-
+    fspec->match = tr_list_new(fspec);
+    if (fspec->match == NULL) {
+      talloc_free(fspec);
+      return NULL;
+    }
     talloc_set_destructor((void *)fspec, tr_fspec_destructor);
   }
   return fspec;
 }
 
-void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match)
+/* Helper function and cookie structure for finding a match. The helper is called
+ * for every item in the match list, even after a match is found. If a match is found,
+ * match should be pointed to the matching item. If this is not NULL, do not change it
+ * because a match has already been found. */
+struct fspec_match_cookie { TR_NAME *name; TR_NAME *match;};
+static void fspec_match_helper(void *item, void *data)
 {
-  size_t ii;
-  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
-    if (fspec->match[ii]==NULL) {
-      fspec->match[ii]=match;
-      break;
-    }
+  TR_NAME *this_name = (TR_NAME *) item;
+  struct fspec_match_cookie *cookie = (struct fspec_match_cookie *) data;
+  if (cookie->match == NULL) {
+    if (tr_name_prefix_wildcard_match(cookie->name, this_name))
+      cookie->match = this_name;
   }
-  /* TODO: handle case that adding the match failed */
 }
-
 /* returns 1 if the spec matches */
 int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *target)
 {
   struct tr_filter_field_entry *field=NULL;
-  TR_NAME *name=NULL;
-  int retval=0;
-
-  size_t ii=0;
+  struct fspec_match_cookie cookie = {0};
 
   if (fspec==NULL)
     return 0;
@@ -525,32 +536,27 @@ int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *ta
     return 0;
   }
 
-  name=field->get(target);
-  if (name==NULL)
+  cookie.name = field->get(target);
+  if (cookie.name==NULL)
     return 0; /* if there's no value, there's no match */
 
-  for (ii=0; ii<TR_MAX_FILTER_SPEC_MATCHES; ii++) {
-    if (fspec->match[ii]!=NULL) {
-      if (tr_name_prefix_wildcard_match(name, fspec->match[ii])) {
-        retval=1;
-        tr_debug("tr_fspec_matches: Field %.*s value \"%.*s\" matches \"%.*s\" for %s filter.",
-                 fspec->field->len, fspec->field->buf,
-                 name->len, name->buf,
-                 fspec->match[ii]->len, fspec->match[ii]->buf,
-                 tr_filter_type_to_string(ftype));
-        break;
-      }
-    }
-  }
-
-  if (!retval) {
+  cookie.match = NULL;
+  tr_list_foreach(fspec->match,
+                  fspec_match_helper,
+                  &cookie);
+  if (cookie.match) {
+    tr_debug("tr_fspec_matches: Field %.*s value \"%.*s\" matches \"%.*s\" for %s filter.",
+             fspec->field->len, fspec->field->buf,
+             cookie.name->len, cookie.name->buf,
+             cookie.match->len, cookie.match->buf,
+             tr_filter_type_to_string(ftype));
+  } else {
         tr_debug("tr_fspec_matches: Field %.*s value \"%.*s\" does not match for %s filter.",
                  fspec->field->len, fspec->field->buf,
-                 name->len, name->buf,
+                 cookie.name->len, cookie.name->buf,
                  tr_filter_type_to_string(ftype));
   }
-  tr_free_name(name);
-  return retval;
+  return (cookie.match != NULL);
 }
 
 void tr_fline_free(TR_FLINE *fline)
@@ -561,14 +567,16 @@ void tr_fline_free(TR_FLINE *fline)
 TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
 {
   TR_FLINE *fl = talloc(mem_ctx, TR_FLINE);
-  int ii = 0;
 
   if (fl != NULL) {
     fl->action = TR_FILTER_ACTION_UNKNOWN;
     fl->realm_cons = NULL;
     fl->domain_cons = NULL;
-    for (ii = 0; ii < TR_MAX_FILTER_SPECS; ii++)
-      fl->specs[ii] = NULL;
+    fl->specs = tr_list_new(fl);
+    if (fl->specs == NULL) {
+      talloc_free(fl);
+      return NULL;
+    }
   }
   return fl;
 }
@@ -576,12 +584,14 @@ TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx)
 TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx)
 {
   TR_FILTER *f = talloc(mem_ctx, TR_FILTER);
-  int ii = 0;
 
   if (f != NULL) {
     f->type = TR_FILTER_TYPE_UNKNOWN;
-    for (ii = 0; ii < TR_MAX_FILTER_LINES; ii++)
-      f->lines[ii] = NULL;
+    f->lines = tr_list_new(f);
+    if (f->lines == NULL) {
+      talloc_free(f);
+      return NULL;
+    }
   }
   return f;
 }
@@ -609,10 +619,16 @@ TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt)
  */
 int tr_filter_validate(TR_FILTER *filt)
 {
-  size_t ii=0, jj=0, kk=0;
-
-  if (!filt)
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  TR_FILTER_ITER *filt_iter = tr_filter_iter_new(tmp_ctx);
+  TR_FLINE *this_fline = NULL;
+  TR_FLINE_ITER *fline_iter = tr_fline_iter_new(tmp_ctx);
+  TR_FSPEC *this_fspec = NULL;
+  
+  if ((!filt) || (!filt_iter) || (!fline_iter)) {
+    talloc_free(tmp_ctx);
     return 0;
+  }
 
   /* check that we recognize the type */
   switch(filt->type) {
@@ -622,41 +638,43 @@ int tr_filter_validate(TR_FILTER *filt)
       break;
 
     default:
+      talloc_free(tmp_ctx);
       return 0; /* if we get here, either TR_FILTER_TYPE_UNKNOWN or an invalid value was found */
   }
-  for (ii=0; ii<TR_MAX_FILTER_LINES; ii++) {
-    if (filt->lines[ii]==NULL)
-      continue; /* an empty filter line is valid */
-
+  
+  for (this_fline = tr_filter_iter_first(filt_iter, filt);
+       this_fline != NULL;
+       this_fline = tr_filter_iter_next(filt_iter)) {
     /* check that we recognize the action */
-    switch(filt->lines[ii]->action) {
+    switch(this_fline->action) {
       case TR_FILTER_ACTION_ACCEPT:
       case TR_FILTER_ACTION_REJECT:
         break;
 
       default:
         /* if we get here, either TR_FILTER_ACTION_UNKNOWN or an invalid value was found */
+        talloc_free(tmp_ctx);
         return 0;
     }
 
-    for (jj=0; jj<TR_MAX_FILTER_SPECS; jj++) {
-      if (filt->lines[ii]->specs[jj]==NULL)
-        continue; /* an empty filter spec is valid */
-
-      if (!tr_filter_validate_spec_field(filt->type, filt->lines[ii]->specs[jj]))
+    for (this_fspec = tr_fline_iter_first(fline_iter, this_fline);
+         this_fspec != NULL;
+         this_fspec = tr_fline_iter_next(fline_iter)) {
+      if (!tr_filter_validate_spec_field(filt->type, this_fspec)) {
+        talloc_free(tmp_ctx);
         return 0;
-
-      /* check that at least one match is non-null */
-      for (kk=0; kk<TR_MAX_FILTER_SPEC_MATCHES; kk++) {
-        if (filt->lines[ii]->specs[jj]->match[kk]!=NULL)
-          break;
       }
-      if (kk==TR_MAX_FILTER_SPEC_MATCHES)
+
+      /* check that at least one match is defined*/
+      if (tr_list_length(this_fspec->match) == 0) {
+        talloc_free(tmp_ctx);
         return 0;
+      }
     }
   }
 
   /* We ran the gauntlet. Success! */
+  talloc_free(tmp_ctx);
   return 1;
 }
 

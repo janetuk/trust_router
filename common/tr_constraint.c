@@ -38,35 +38,46 @@
 #include <assert.h>
 #include <talloc.h>
 
-#include <trust_router/tr_constraint.h>
 #include <tr_filter.h>
 #include <tid_internal.h>
 #include <tr_debug.h>
+#include <tr_constraint_internal.h>
 
-
+/**
+ * Helper for tr_constraint_destructor - calls tr_free_name on its first argument
+ *
+ * @param item void pointer to a TR_NAME
+ * @param cookie ignored
+ */
+static void constraint_destruct_helper(void *item, void *cookie)
+{
+  TR_NAME *name = (TR_NAME *) item;
+  tr_free_name(name);
+}
 static int tr_constraint_destructor(void *obj)
 {
   TR_CONSTRAINT *cons = talloc_get_type_abort(obj, TR_CONSTRAINT);
-  int ii = 0;
 
-  if (cons->type != NULL)
+  if (cons->type)
     tr_free_name(cons->type);
-  for (ii = 0; ii < TR_MAX_CONST_MATCHES; ii++) {
-    if (cons->matches[ii] != NULL)
-      tr_free_name(cons->matches[ii]);
-  }
+
+  if (cons->matches)
+    tr_list_foreach(cons->matches, constraint_destruct_helper, NULL);
+
   return 0;
 }
 
 TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx)
 {
   TR_CONSTRAINT *cons = talloc(mem_ctx, TR_CONSTRAINT);
-  int ii = 0;
 
   if (cons != NULL) {
     cons->type = NULL;
-    for (ii = 0; ii < TR_MAX_CONST_MATCHES; ii++)
-      cons->matches[ii] = NULL;
+    cons->matches = tr_list_new(cons);
+    if (cons->matches == NULL) {
+      talloc_free(cons);
+      return NULL;
+    }
     talloc_set_destructor((void *) cons, tr_constraint_destructor);
   }
   return cons;
@@ -77,25 +88,63 @@ void tr_constraint_free(TR_CONSTRAINT *cons)
   talloc_free(cons);
 }
 
+/**
+ * Helper for tr_constraint_dup - duplicates a TR_NAME and adds it as a TR_CONSTRAINT match
+ *
+ * No return value. If this succeeds, it will have added a new entry to the TR_CONSTRAINT
+ * match list. Check the length of that - you won't be able to tell whether the allocation
+ * of the duplicate TR_NAME or the addition to the list failed, but either of those is probably
+ * due to a memory allocation failure, in which case the system is probably crashing anyway.
+ *
+ * @param item void pointer to a TR_NAME to add as a match
+ * @param cookie void pointer to a TR_CONSTRAINT to add the match to
+ */
+static void cons_dup_helper(void *item, void *cookie)
+{
+  TR_CONSTRAINT *new_cons = talloc_get_type_abort(cookie, TR_CONSTRAINT);
+  TR_NAME *new_name = tr_dup_name((TR_NAME *) item);
+  if (new_name) {
+    /* check that new_name is added, free if it fails */
+    if (tr_constraint_add_match(new_cons, new_name) == NULL)
+      tr_free_name(new_name);
+  }
+}
+/**
+ * Duplicate a TR_CONSTRAINT
+ *
+ * @param mem_ctx talloc context for the result
+ * @param cons TR_CONSTRAINT to duplicate
+ * @return pointer to the new TR_CONSTRAINT, or NULL on error
+ */
 TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons)
 {
-  TALLOC_CTX *tmp_ctx = NULL;
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   TR_CONSTRAINT *new = NULL;
-  int ii = 0;
 
   if (cons == NULL)
-    return NULL;
+    goto cleanup;
 
-  tmp_ctx = talloc_new(NULL);
   new = tr_constraint_new(tmp_ctx);
+  if (new == NULL)
+    goto cleanup;
 
-  if (new != NULL) {
-    new->type = tr_dup_name(cons->type);
-    for (ii = 0; ii < TR_MAX_CONST_MATCHES; ii++)
-      new->matches[ii] = tr_dup_name(cons->matches[ii]);
-    talloc_steal(mem_ctx, new);
+  new->type = tr_dup_name(cons->type);
+  if (new->type == NULL) {
+    new = NULL;
+    goto cleanup;
   }
 
+  tr_list_foreach(cons->matches, cons_dup_helper, new); /* copies matches to new->matches */
+  /* check that we were successful - if we were, then the lists will be the same length */
+  if (tr_list_length(new->matches) != tr_list_length(cons->matches)) {
+    new = NULL;
+    goto cleanup; /* at least one dup or add failed */
+  }
+
+  /* success */
+  talloc_steal(mem_ctx, new);
+
+cleanup:
   talloc_free(tmp_ctx);
   return new;
 }
@@ -165,7 +214,8 @@ void tr_constraint_add_to_set(TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
 {
   json_t *jcons = NULL;
   json_t *jmatches = NULL;
-  int i = 0;
+  TR_NAME *this_match = NULL;
+  TR_CONSTRAINT_ITER iter = {0};
 
   if ((!cset) || (!cons))
     return;
@@ -178,8 +228,11 @@ void tr_constraint_add_to_set(TR_CONSTRAINT_SET **cset, TR_CONSTRAINT *cons)
   jmatches = json_array();
   jcons = json_object();
 
-  for (i = 0; ((i < TR_MAX_CONST_MATCHES) && (NULL != cons->matches[i])); i++) {
-    json_array_append_new(jmatches, json_string(cons->matches[i]->buf));
+  for (this_match = tr_constraint_iter_first(&iter, cons);
+       this_match != NULL;
+       this_match = tr_constraint_iter_next(&iter))
+  {
+    json_array_append_new(jmatches, tr_name_to_json_string(this_match));
   }
 
   json_object_set_new(jcons, cons->type->buf, jmatches);
@@ -226,7 +279,6 @@ int tr_constraint_set_validate(TR_CONSTRAINT_SET *cset) {
   return 1;
 }
 
-
 /**
  * Create a new constraint set containing all constraints from #orig
  * with constraint_type #constraint_type and no others.  This constraint set is
@@ -244,7 +296,8 @@ TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
     tr_debug ("tr_constraint_set_filter: not a valid constraint set\n");
     return NULL;
   }
-  assert (new_cs = json_array());
+  new_cs = json_array();
+  assert(new_cs);
   json_array_foreach(orig_cset, index, set_member) {
     if (json_object_get(set_member, constraint_type))
       json_array_append(new_cs, set_member);
@@ -350,12 +403,14 @@ TR_CONSTRAINT_SET *tr_constraint_set_intersect(TID_REQ *request,
     domain = constraint_intersect_internal(input, "domain");
     realm = constraint_intersect_internal(input, "realm");
   }
-  assert(result = json_object());
+  result = json_object();
+  assert(result);
   if (domain)
     json_object_set_new(result, "domain", domain);
   if (realm)
     json_object_set_new(result, "realm", realm);
-  assert(result_array = json_array());
+  result_array = json_array();
+  assert(result_array);
   json_array_append_new(result_array, result);
   tid_req_cleanup_json(request, result_array);
   return (TR_CONSTRAINT_SET *) result_array;

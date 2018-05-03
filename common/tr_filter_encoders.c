@@ -36,6 +36,7 @@
 #include <jansson.h>
 
 #include <tr_filter.h>
+#include <tr_constraint_internal.h>
 
 /* helper for below */
 #define OBJECT_SET_OR_FAIL(jobj, key, val)     \
@@ -57,18 +58,48 @@ do {                                           \
 
 typedef json_t *(ITEM_ENCODER_FUNC)(void *);
 
-static json_t *items_to_json_array(void *items[], ITEM_ENCODER_FUNC *item_encoder, size_t max_items)
+enum array_type {
+  ARRAY_TYPE_FSPEC,
+  ARRAY_TYPE_CONSTRAINT
+};
+/**
+ * Make an array of matches from a TR_FSPEC or TR_CONSTRAINT
+ *
+ * @param obj
+ * @param type
+ * @return
+ */
+static json_t *tr_names_to_json_array(void *obj, enum array_type type)
 {
-  size_t ii;
   json_t *jarray = json_array();
   json_t *retval = NULL;
+  TR_FSPEC_ITER fspec_iter = {0};
+  TR_CONSTRAINT_ITER cons_iter = {0};
+  TR_NAME *this_match = NULL;
 
   if (jarray == NULL)
     goto cleanup;
 
-  for (ii=0; ii<max_items; ii++) {
-    if (items[ii] != NULL)
-      ARRAY_APPEND_OR_FAIL(jarray, item_encoder(items[ii]));
+  switch(type) {
+    case ARRAY_TYPE_FSPEC:
+      this_match = tr_fspec_iter_first(&fspec_iter, (TR_FSPEC *)obj);
+      break;
+
+    case ARRAY_TYPE_CONSTRAINT:
+      this_match = tr_constraint_iter_first(&cons_iter, (TR_CONSTRAINT *)obj);
+      break;
+  }
+  while(this_match) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_name_to_json_string(this_match));
+    switch(type) {
+      case ARRAY_TYPE_FSPEC:
+        this_match = tr_fspec_iter_next(&fspec_iter);
+        break;
+
+      case ARRAY_TYPE_CONSTRAINT:
+        this_match = tr_constraint_iter_next(&cons_iter);
+        break;
+    }
   }
   /* success */
   retval = jarray;
@@ -93,9 +124,7 @@ static json_t *tr_fspec_to_json(TR_FSPEC *fspec)
   OBJECT_SET_OR_FAIL(fspec_json, "field",
                      tr_name_to_json_string(fspec->field));
   OBJECT_SET_OR_FAIL(fspec_json, "matches",
-                     items_to_json_array((void **)fspec->match,
-                                         (ITEM_ENCODER_FUNC *) tr_name_to_json_string,
-                                         TR_MAX_FILTER_SPEC_MATCHES));
+                     tr_names_to_json_array(fspec, ARRAY_TYPE_FSPEC));
 
   /* succeeded - set the return value and increment the reference count */
   retval = fspec_json;
@@ -104,6 +133,34 @@ static json_t *tr_fspec_to_json(TR_FSPEC *fspec)
 cleanup:
   if (fspec_json)
     json_decref(fspec_json);
+  return retval;
+}
+
+static json_t *tr_fspecs_to_json_array(TR_FLINE *fline)
+{
+  json_t *jarray = json_array();
+  json_t *retval = NULL;
+  TR_FLINE_ITER *iter = tr_fline_iter_new(NULL);
+  TR_FSPEC *this_fspec = NULL;
+
+  if ((jarray == NULL) || (iter == NULL))
+    goto cleanup;
+
+  for (this_fspec = tr_fline_iter_first(iter, fline);
+       this_fspec != NULL;
+       this_fspec = tr_fline_iter_next(iter)) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_fspec_to_json(this_fspec));
+  }
+  /* success */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+  if (iter)
+    tr_fline_iter_free(iter);
+
   return retval;
 }
 
@@ -119,20 +176,14 @@ static json_t *tr_fline_to_json(TR_FLINE *fline)
   OBJECT_SET_OR_FAIL(fline_json, "action",
                      json_string( (fline->action == TR_FILTER_ACTION_ACCEPT) ? "accept" : "reject"));
   OBJECT_SET_OR_FAIL(fline_json, "specs",
-                     items_to_json_array((void **)fline->specs,
-                                         (ITEM_ENCODER_FUNC *) tr_fspec_to_json,
-                                         TR_MAX_FILTER_SPECS));
+                     tr_fspecs_to_json_array(fline));
   if (fline->realm_cons) {
     OBJECT_SET_OR_FAIL(fline_json, "realm_constraints",
-                       items_to_json_array((void **) fline->realm_cons->matches,
-                                           (ITEM_ENCODER_FUNC *) tr_name_to_json_string,
-                                           TR_MAX_CONST_MATCHES));
+                       tr_names_to_json_array(fline->realm_cons, ARRAY_TYPE_CONSTRAINT));
   }
   if (fline->domain_cons) {
     OBJECT_SET_OR_FAIL(fline_json, "domain_constraints",
-                       items_to_json_array((void **) fline->domain_cons->matches,
-                                           (ITEM_ENCODER_FUNC *) tr_name_to_json_string,
-                                           TR_MAX_CONST_MATCHES));
+                       tr_names_to_json_array(fline->domain_cons, ARRAY_TYPE_CONSTRAINT));
   }
 
   /* succeeded - set the return value and increment the reference count */
@@ -145,6 +196,33 @@ cleanup:
   return retval;
 }
 
+static json_t *tr_flines_to_json_array(TR_FILTER *filt)
+{
+  json_t *jarray = json_array();
+  json_t *retval = NULL;
+  TR_FILTER_ITER *iter = tr_filter_iter_new(NULL);
+  TR_FLINE *this_fline = NULL;
+
+  if ((jarray == NULL) || (iter == NULL))
+    goto cleanup;
+
+  for(this_fline = tr_filter_iter_first(iter, filt);
+      this_fline != NULL;
+      this_fline = tr_filter_iter_next(iter)) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_fline_to_json(this_fline));
+  }
+  /* success */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+  if (iter)
+    tr_filter_iter_free(iter);
+
+  return retval;
+}
 json_t *tr_filter_set_to_json(TR_FILTER_SET *filter_set)
 {
   json_t *fset_json = NULL;
@@ -166,9 +244,7 @@ json_t *tr_filter_set_to_json(TR_FILTER_SET *filter_set)
     filt = tr_filter_set_get(filter_set, *filt_type);
     if (filt) {
       OBJECT_SET_OR_FAIL(fset_json, tr_filter_type_to_string(*filt_type),
-                         items_to_json_array((void **)filt->lines,
-                                             (ITEM_ENCODER_FUNC *) tr_fline_to_json,
-                                             TR_MAX_FILTER_LINES));
+                         tr_flines_to_json_array(filt));
     }
   }
 

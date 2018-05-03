@@ -148,10 +148,10 @@ static json_t *tr_apcs_to_json(TR_APC *apcs)
   if ((jarray == NULL) || (iter == NULL))
     goto cleanup;
 
-  apc = tr_apc_iter_first(iter, apcs);
-  while (apc) {
+  for (apc = tr_apc_iter_first(iter, apcs);
+       apc != NULL;
+       apc = tr_apc_iter_next(iter)) {
     ARRAY_APPEND_OR_FAIL(jarray, tr_name_to_json_string(tr_apc_get_id(apc)));
-    apc = tr_apc_iter_next(iter);
   }
 
   /* success */
@@ -192,10 +192,10 @@ static json_t *tr_aaa_servers_to_json(TR_AAA_SERVER *aaas)
   if ((jarray == NULL) || (iter == NULL))
     goto cleanup;
 
-  aaa = tr_aaa_server_iter_first(iter, aaas);
-  while (aaa) {
+  for (aaa = tr_aaa_server_iter_first(iter, aaas);
+       aaa != NULL;
+       aaa = tr_aaa_server_iter_next(iter)) {
     ARRAY_APPEND_OR_FAIL(jarray, tr_aaa_server_to_json(aaa));
-    aaa = tr_aaa_server_iter_next(iter);
   }
 
   /* success */

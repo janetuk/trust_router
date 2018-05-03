@@ -143,10 +143,10 @@ static json_t *tr_comm_memb_sources_to_json(TR_COMM_MEMB *first_memb)
     goto cleanup;
 
   /* Iterate over all the memberships for this realm/comm pair that come from different origins */
-  memb = tr_comm_memb_iter_first(iter, first_memb);
-  while (memb) {
+  for (memb = tr_comm_memb_iter_first(iter, first_memb);
+       memb != NULL;
+       memb = tr_comm_memb_iter_next(iter)) {
     ARRAY_APPEND_OR_FAIL(jarray, tr_comm_memb_to_json(memb));
-    memb = tr_comm_memb_iter_next(iter);
   }
 
   /* success */
@@ -171,10 +171,12 @@ static json_t *tr_comm_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_name,
   TR_COMM_MEMB *memb = NULL;
 
   iter = tr_comm_iter_new(NULL);
-  realm = tr_realm_iter_first(iter, ctable, comm_name);
+  realm = NULL;
 
   /* Do not display the full realm json here, only the name and info relevant to the community listing */
-  while(realm) {
+  for (realm = tr_realm_iter_first(iter, ctable, comm_name);
+       realm != NULL;
+       realm = tr_realm_iter_next(iter)) {
     if (realm->role == role) {
       realm_json = json_object();
       OBJECT_SET_OR_FAIL(realm_json, "realm",
@@ -192,7 +194,6 @@ static json_t *tr_comm_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_name,
       json_array_append_new(jarray, realm_json);
       realm_json = NULL; /* so we don't free this twice during cleanup */
     }
-    realm = tr_realm_iter_next(iter);
   }
 
   /* Success - increment the reference count so return value survives */
@@ -275,15 +276,15 @@ json_t *tr_comm_table_to_json(TR_COMM_TABLE *ctable)
     goto cleanup;
 
   /* Iterate over communities in the table */
-  comm = tr_comm_table_iter_first(iter, ctable);
-  while (comm) {
+  for (comm = tr_comm_table_iter_first(iter, ctable);
+       comm != NULL;
+       comm = tr_comm_table_iter_next(iter)) {
     comm_json = tr_comm_to_json(ctable, comm);
 
     if (comm_json == NULL)
       goto cleanup;
 
     json_array_append_new(ctable_json, comm_json);
-    comm = tr_comm_table_iter_next(iter);
   }
 
   /* succeeded - set the return value and increment the reference count */

@@ -35,23 +35,10 @@
 #ifndef TR_CONSTRAINT_H
 #define TR_CONSTRAINT_H
 
-#include <talloc.h>
-
 #include <trust_router/tr_name.h>
 #include <trust_router/tid.h>
 
-
-#define TR_MAX_CONST_MATCHES 24
-
-
-typedef struct tr_constraint {
-    TR_NAME *type;
-    TR_NAME *matches[TR_MAX_CONST_MATCHES];
-} TR_CONSTRAINT;
-
-TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
-void tr_constraint_free(TR_CONSTRAINT *cons);
-TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons);
+typedef struct tr_constraint TR_CONSTRAINT;
 
 void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
 int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
@@ -65,6 +52,4 @@ int TR_EXPORT tr_constraint_set_get_match_strings(TID_REQ *,
                                                   const char * constraint_type,
                                                   tr_const_string **output,
                                                   size_t *output_len);
-
-
 #endif

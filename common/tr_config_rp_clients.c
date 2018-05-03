@@ -44,7 +44,7 @@
 #include <tr_gss_names.h>
 #include <tr_debug.h>
 #include <tr_filter.h>
-#include <trust_router/tr_constraint.h>
+#include <tr_constraint_internal.h>
 #include <tr_idp.h>
 #include <tr.h>
 #include <trust_router/trp.h>
@@ -113,6 +113,8 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_FILTER *filt=NULL;
+  TR_FLINE *fline = NULL;
+  TR_FSPEC *fspec = NULL;
   TR_FILTER_SET *filt_set=NULL;
   TR_CONSTRAINT *cons=NULL;
   TR_NAME *name=NULL;
@@ -147,16 +149,18 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     goto cleanup;
   }
   tr_filter_set_type(filt, TR_FILTER_TYPE_TID_INBOUND);
-  filt->lines[0]=tr_fline_new(filt);
-  if (filt->lines[0]==NULL) {
+
+  fline = tr_fline_new(tmp_ctx);
+  if (fline==NULL) {
     tr_debug("tr_cfg_default_filters: could not allocate filter line.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
 
-  filt->lines[0]->action=TR_FILTER_ACTION_ACCEPT;
-  filt->lines[0]->specs[0]=tr_fspec_new(filt->lines[0]);
-  filt->lines[0]->specs[0]->field=n_rp_realm_1;
+  fline->action=TR_FILTER_ACTION_ACCEPT;
+  
+  fspec=tr_fspec_new(tmp_ctx);
+  fspec->field=n_rp_realm_1;
   n_rp_realm_1=NULL; /* we don't own this name any more */
 
   name=tr_dup_name(realm);
@@ -165,12 +169,18 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  tr_fspec_add_match(filt->lines[0]->specs[0], name);
+  tr_fspec_add_match(fspec, name);
   name=NULL; /* we no longer own the name */
 
+  if (tr_fline_add_spec(fline, fspec) == NULL) {
+    tr_debug("tr_cfg_default_filters: could not add first spec to filter line");
+    *rc = TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
   /* now do the wildcard name */
-  filt->lines[0]->specs[1]=tr_fspec_new(filt->lines[0]);
-  filt->lines[0]->specs[1]->field=n_rp_realm_2;
+  fspec=tr_fspec_new(tmp_ctx);
+  fspec->field=n_rp_realm_2;
   n_rp_realm_2=NULL; /* we don't own this name any more */
 
   if (NULL==(name=tr_name_cat(n_prefix, realm))) {
@@ -179,11 +189,17 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     goto cleanup;
   }
 
-  tr_fspec_add_match(filt->lines[0]->specs[1], name);
+  tr_fspec_add_match(fspec, name);
   name=NULL; /* we no longer own the name */
 
+  if (tr_fline_add_spec(fline, fspec) == NULL) {
+    tr_debug("tr_cfg_default_filters: could not add second spec to filter line");
+    *rc = TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
   /* domain constraint */
-  if (NULL==(cons=tr_constraint_new(filt->lines[0]))) {
+  if (NULL==(cons=tr_constraint_new(fline))) {
     tr_debug("tr_cfg_default_filters: could not allocate domain constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
@@ -197,20 +213,28 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  cons->matches[0]=name;
+  if (NULL == tr_constraint_add_match(cons, name)) {
+    tr_debug("tr_cfg_default_filters: could not add realm name for domain constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=tr_name_cat(n_prefix, realm);
   if (name==NULL) {
     tr_debug("tr_cfg_default_filters: could not allocate wildcard realm name for domain constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  cons->matches[1]=name;
+  if (NULL == tr_constraint_add_match(cons, name)) {
+    tr_debug("tr_cfg_default_filters: could not add wildcard realm name for domain constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=NULL;
-  filt->lines[0]->domain_cons=cons;
+  fline->domain_cons=cons;
 
 
   /* realm constraint */
-  if (NULL==(cons=tr_constraint_new(filt->lines[0]))) {
+  if (NULL==(cons=tr_constraint_new(fline))) {
     tr_debug("tr_cfg_default_filters: could not allocate realm constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
@@ -224,16 +248,31 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  cons->matches[0]=name;
+  if (NULL == tr_constraint_add_match(cons, name)) {
+    tr_debug("tr_cfg_default_filters: could not add realm name for realm constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=tr_name_cat(n_prefix, realm);
   if (name==NULL) {
     tr_debug("tr_cfg_default_filters: could not allocate wildcard realm name for realm constraint.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  cons->matches[1]=name;
+  if (NULL == tr_constraint_add_match(cons, name)) {
+    tr_debug("tr_cfg_default_filters: could not add wildcard realm name for realm constraint.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=NULL;
-  filt->lines[0]->realm_cons=cons;
+  fline->realm_cons=cons;
+
+  /* put the fline in the filter */
+  if (NULL == tr_filter_add_line(filt, fline)) {
+    tr_debug("tr_cfg_default_filters: could not add line to filter.");
+    *rc = TR_CFG_NOMEM;
+    goto cleanup;
+  }
 
   /* put the filter in a set */
   filt_set=tr_filter_set_new(tmp_ctx);
