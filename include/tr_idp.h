@@ -101,6 +101,6 @@ TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME 
 
 /* tr_idp_encoders.c */
 char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp);
-json_t *tr_idp_realm_to_json(TR_IDP_REALM *idp);
+json_t *tr_idp_realms_to_json(TR_IDP_REALM *idp);
 
 #endif

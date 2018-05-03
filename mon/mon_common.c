@@ -110,6 +110,12 @@ const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
 
     case OPT_TYPE_SHOW_COMMUNITIES:
       return "communities";
+
+    case OPT_TYPE_SHOW_REALMS:
+      return "realms";
+
+    case OPT_TYPE_SHOW_RP_CLIENTS:
+      return "rp_clients";
   }
   return NULL;
 }
@@ -132,6 +138,8 @@ MON_OPT_TYPE mon_opt_type_from_string(const char *s)
   return_if_matches(s, OPT_TYPE_SHOW_ROUTES);
   return_if_matches(s, OPT_TYPE_SHOW_PEERS);
   return_if_matches(s, OPT_TYPE_SHOW_COMMUNITIES);
+  return_if_matches(s, OPT_TYPE_SHOW_REALMS);
+  return_if_matches(s, OPT_TYPE_SHOW_RP_CLIENTS);
   return OPT_TYPE_UNKNOWN;
 }
 #undef return_if_matches

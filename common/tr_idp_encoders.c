@@ -34,6 +34,7 @@
 
 #include <talloc.h>
 #include <time.h>
+#include <jansson.h>
 
 #include <tr_name_internal.h>
 #include <tr_idp.h>
@@ -119,3 +120,147 @@ char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp)
   return result;
 }
 
+
+/* helper for below */
+#define OBJECT_SET_OR_FAIL(jobj, key, val)     \
+do {                                           \
+  if (val)                                     \
+    json_object_set_new((jobj),(key),(val));   \
+  else                                         \
+    goto cleanup;                              \
+} while (0)
+
+#define ARRAY_APPEND_OR_FAIL(jary, val)        \
+do {                                           \
+  if (val)                                     \
+    json_array_append_new((jary),(val));       \
+  else                                         \
+    goto cleanup;                              \
+} while (0)
+
+static json_t *tr_apcs_to_json(TR_APC *apcs)
+{
+  json_t *jarray = json_array();
+  json_t *retval = NULL;
+  TR_APC_ITER *iter = tr_apc_iter_new(NULL);
+  TR_APC *apc = NULL;
+
+  if ((jarray == NULL) || (iter == NULL))
+    goto cleanup;
+
+  apc = tr_apc_iter_first(iter, apcs);
+  while (apc) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_name_to_json_string(tr_apc_get_id(apc)));
+    apc = tr_apc_iter_next(iter);
+  }
+
+  /* success */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+
+  return retval;
+}
+
+static json_t *tr_aaa_server_to_json(TR_AAA_SERVER *aaa)
+{
+  char *hostname = tr_name_strdup(aaa->hostname);
+  char *s = NULL;
+  json_t *jstr = NULL;
+
+  if (hostname == NULL)
+    return NULL;
+
+  s = talloc_asprintf(NULL, "%s:%d", hostname, TID_PORT);
+  if (s) {
+    jstr = json_string(s);
+    talloc_free(s);
+  }
+  return jstr;
+}
+
+static json_t *tr_aaa_servers_to_json(TR_AAA_SERVER *aaas)
+{
+  json_t *jarray = json_array();
+  json_t *retval = NULL;
+  TR_AAA_SERVER_ITER *iter = tr_aaa_server_iter_new(NULL);
+  TR_AAA_SERVER *aaa = NULL;
+
+  if ((jarray == NULL) || (iter == NULL))
+    goto cleanup;
+
+  aaa = tr_aaa_server_iter_first(iter, aaas);
+  while (aaa) {
+    ARRAY_APPEND_OR_FAIL(jarray, tr_aaa_server_to_json(aaa));
+    aaa = tr_aaa_server_iter_next(iter);
+  }
+
+  /* success */
+  retval = jarray;
+  json_incref(retval);
+
+cleanup:
+  if (jarray)
+    json_decref(jarray);
+
+  return retval;
+}
+
+static json_t *tr_idp_realm_to_json(TR_IDP_REALM *idp)
+{
+  json_t *idp_json = json_object();
+  json_t *retval = NULL;
+
+  if (idp_json == NULL)
+    goto cleanup;
+
+
+  /* success */
+  retval = idp_json;
+  json_incref(retval);
+
+  OBJECT_SET_OR_FAIL(idp_json, "realm",
+                     tr_name_to_json_string(tr_idp_realm_get_id(idp)));
+  OBJECT_SET_OR_FAIL(idp_json, "discovered",
+                     json_boolean(idp->origin == TR_REALM_DISCOVERED));
+  OBJECT_SET_OR_FAIL(idp_json, "apcs",
+                     tr_apcs_to_json(tr_idp_realm_get_apcs(idp)));
+  OBJECT_SET_OR_FAIL(idp_json, "aaa_servers",
+                     tr_aaa_servers_to_json(idp->aaa_servers));
+  OBJECT_SET_OR_FAIL(idp_json, "shared_config",
+                     json_boolean(idp->shared_config));
+cleanup:
+  if (idp_json)
+    json_decref(idp_json);
+
+  return retval;
+}
+
+json_t *tr_idp_realms_to_json(TR_IDP_REALM *idps)
+{
+  {
+    json_t *jarray = json_array();
+    json_t *retval = NULL;
+    TR_IDP_REALM *this = NULL;
+
+    if (jarray == NULL)
+      goto cleanup;
+
+    for (this=idps; this != NULL; this=this->next)
+      ARRAY_APPEND_OR_FAIL(jarray, tr_idp_realm_to_json(this));
+
+    /* success */
+    retval = jarray;
+    json_incref(retval);
+
+  cleanup:
+    if (jarray)
+      json_decref(jarray);
+
+    return retval;
+  }
+
+}

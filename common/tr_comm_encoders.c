@@ -183,6 +183,8 @@ static json_t *tr_comm_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_name,
 
   iter = tr_comm_iter_new(NULL);
   realm = tr_realm_iter_first(iter, ctable, comm_name);
+
+  /* Do not display the full realm json here, only the name and info relevant to the community listing */
   while(realm) {
     if (realm->role == role) {
       realm_json = json_object();
