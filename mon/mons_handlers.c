@@ -49,7 +49,14 @@ static void request_helper(void *element, void *data);
 struct request_helper_data {
   MON_CMD command;
   MON_OPT_TYPE opt_type;
-  json_t *payload;
+  json_t *payload; /* json object to add responses to */
+  GArray *results;
+};
+
+struct handler_result {
+  MON_OPT_TYPE opt_type; /* what opt type set this? */
+  MON_RC rc;             /* what was its result code? */
+  json_t *json_data;        /* what data, if any, is it returning? */
 };
 
 /**
@@ -63,7 +70,7 @@ MON_RESP *mons_handle_request(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ 
 {
   MON_RESP *resp = NULL;
   json_t *payload = NULL;
-  struct request_helper_data cookie;
+  struct request_helper_data cookie = {0};
   size_t ii = 0;
 
   tr_debug("mons_handle_request: Handling a request");
@@ -71,7 +78,7 @@ MON_RESP *mons_handle_request(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ 
   /* Start off by allocating our response with a generic error message */
   resp = mon_resp_new(mem_ctx,
                       MON_RESP_ERROR,
-                      "Error processing show request",
+                      "error processing request",
                       NULL);
   if (resp == NULL) {
     /* we can't respond, just return */
@@ -88,7 +95,7 @@ MON_RESP *mons_handle_request(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ 
 
   /* Now call handlers */
   cookie.command = req->command;
-  cookie.payload = payload; /* borrowed reference */
+  cookie.results = g_array_new(FALSE, TRUE, sizeof(struct handler_result));
 
   if (mon_req_opt_count(req) == 0) {
     /* call every handler that matches the command */
@@ -103,23 +110,51 @@ MON_RESP *mons_handle_request(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ 
     }
   }
 
-  /* If we get here, then we successfully processed the request. Return a successful reply. */
-  if (mon_resp_set_message(resp, "success") == 0) {
-    /* Failed to set the response message to success - fail ironically */
-    tr_crit("mons_handle_request: Error setting response message to 'success'.");
-    goto cleanup;
+  /* We now have an array of results in cookie.results. If any of these failed, return an error. */
+  tr_debug("mons_handle_request: Examining %d handler results", cookie.results->len);
+  resp->code = MON_RESP_SUCCESS; /* tentatively set this to success */
+  for (ii=0; ii < cookie.results->len; ii++) {
+    struct handler_result *this = &g_array_index(cookie.results, struct handler_result, ii);
+    if (this->rc != MON_SUCCESS) {
+      tr_debug("mons_handle_request: Result %d was an error.", ii);
+      resp->code = MON_RESP_ERROR;
+    }
+
+    /* add the JSON response even if there was an error */
+    if (this->json_data) {
+      tr_debug("mons_handle_request: Result %d returned JSON data.", ii);
+      json_object_set_new(payload, mon_opt_type_to_string(this->opt_type), this->json_data);
+    }
+  }
+
+  if (resp->code == MON_RESP_SUCCESS) {
+    if (mon_resp_set_message(resp, "success") == 0) {
+      /* Failed to set the response message to success - fail ironically, don't send
+       * an inconsistent response. */
+      tr_crit("mons_handle_request: Error setting response message to 'success'.");
+      goto cleanup;
+    }
+  } else {
+    /* Failed - send a response indicating that the overall command succeeded */
+    if (mon_resp_set_message(resp, "request processed but an error occurred") == 0) {
+      tr_crit("mons_handle_request: Error setting response message after a handler error.");
+      goto cleanup;
+    }
   }
 
   /* Attach the accumulated payload to the response */
-  if (json_object_size(payload) > 0)
+  if (json_object_size(payload) > 0) {
+    tr_debug("mons_handle_request: Attaching payload to response.");
     mon_resp_set_payload(resp, payload);
+  }
 
-  resp->code = MON_RESP_SUCCESS; /* at last... */
   tr_debug("mons_handle_request: Successfully processed request.");
 
 cleanup:
   if (payload)
     json_decref(payload);
+  if (cookie.results)
+    g_array_free(cookie.results, TRUE);
   return resp;
 }
 
@@ -213,11 +248,12 @@ static void request_helper(void *element, void *data)
 {
   MONS_DISPATCH_TABLE_ENTRY *entry = talloc_get_type_abort(element, MONS_DISPATCH_TABLE_ENTRY);
   struct request_helper_data *helper_data = data;
+  struct handler_result result = {0};
 
   if (dispatch_entry_matches(entry, helper_data->command, helper_data->opt_type)) {
-    json_object_set(helper_data->payload,
-                    mon_opt_type_to_string(entry->opt_type),
-                    entry->handler(entry->cookie));
+    result.rc = entry->handler(entry->cookie, &(result.json_data));
+    result.opt_type = entry->opt_type;
+    g_array_append_val(helper_data->results, result);
   }
 }
 

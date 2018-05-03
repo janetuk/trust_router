@@ -100,6 +100,7 @@ enum mon_opt_type {
   // System statistics
   OPT_TYPE_SHOW_UPTIME,
   OPT_TYPE_SHOW_TID_REQ_COUNT,
+  OPT_TYPE_SHOW_TID_REQ_ERR_COUNT,
   OPT_TYPE_SHOW_TID_REQ_PENDING,
 
   // Dynamic trust router state
@@ -133,6 +134,7 @@ struct mons_instance {
   MONS_AUTH_FUNC *auth_handler;
   void *cookie;
   GPtrArray *handlers;
+  GArray *pids; /* PIDs of active mons processes */
 };
 
 /* Client instance */

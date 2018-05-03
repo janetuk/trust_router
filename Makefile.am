@@ -86,6 +86,7 @@ tr/tr.c \
 tr/tr_event.c \
 tr/tr_cfgwatch.c \
 tr/tr_tid.c \
+tr/tr_tid_mons.c \
 tr/tr_trp.c \
 tr/tr_mon.c \
 common/tr_gss.c \

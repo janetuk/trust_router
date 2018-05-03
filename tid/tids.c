@@ -310,9 +310,26 @@ cleanup:
   return resp_msg;
 }
 
+static int tids_destructor(void *object)
+{
+  TIDS_INSTANCE *tids = talloc_get_type_abort(object, TIDS_INSTANCE);
+  if (tids->pids)
+    g_array_unref(tids->pids);
+  return 0;
+}
+
 TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
 {
-  return talloc_zero(mem_ctx, TIDS_INSTANCE);
+  TIDS_INSTANCE *tids = talloc_zero(mem_ctx, TIDS_INSTANCE);
+  if (tids) {
+    tids->pids = g_array_new(FALSE, FALSE, sizeof(struct tid_process));
+    if (tids->pids == NULL) {
+      talloc_free(tids);
+      return NULL;
+    }
+    talloc_set_destructor((void *)tids, tids_destructor);
+  }
+  return tids;
 }
 
 /**
@@ -323,8 +340,9 @@ TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
  */
 TIDS_INSTANCE *tids_create(void)
 {
-  return talloc_zero(NULL, TIDS_INSTANCE);
+  return tids_new(NULL);
 }
+
 /* Get a listener for tids requests, returns its socket fd. Accept
  * connections with tids_accept() */
 nfds_t tids_get_listener(TIDS_INSTANCE *tids,
@@ -378,11 +396,19 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
 {
   int conn=-1;
   int pid=-1;
+  int pipe_fd[2];
+  struct tid_process tp = {0};
 
   if (0 > (conn = accept(listen, NULL, NULL))) {
     perror("Error from TIDS Server accept()");
     return 1;
   }
+
+  if (0 > pipe(pipe_fd)) {
+    perror("Error on pipe()");
+    return 1;
+  }
+  /* pipe_fd[0] is for reading, pipe_fd[1] is for writing */
 
   if (0 > (pid = fork())) {
     perror("Error on fork()");
@@ -390,22 +416,101 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
   }
 
   if (pid == 0) {
+    close(pipe_fd[0]); /* child only writes */
     close(listen);
     tr_gss_handle_connection(conn,
                              "trustidentity", tids->hostname, /* acceptor name */
                              tids->auth_handler, tids->cookie, /* auth callback and cookie */
                              tids_req_cb, tids /* req callback and cookie */
     );
+    if (write(pipe_fd[1], "OK\0", 3) < 0)
+      tr_crit("tids_accept: child process unable to write to pipe");
+    close(pipe_fd[1]);
     close(conn);
     exit(0); /* exit to kill forked child process */
-  } else {
-    close(conn);
   }
 
-  /* clean up any processes that have completed  (TBD: move to main loop?) */
-  while (waitpid(-1, 0, WNOHANG) > 0);
+  /* Only the parent process gets here */
+  close(pipe_fd[1]); /* parent only listens */
+  close(conn); /* connection belongs to the child */
+  tp.pid = pid;
+  tp.read_fd = pipe_fd[0];
+  g_array_append_val(tids->pids, tp); /* remember the PID of our child process */
 
+  /* clean up any processes that have completed */
+  tids_sweep_procs(tids);
   return 0;
+}
+
+/**
+ * Clean up any finished TID request processes
+ *
+ * This is called by the main process after forking each TID request. If you want to be
+ * sure finished processes are cleaned up promptly even during a lull in TID requests,
+ * this can be called from the main thread of the main process. It is not thread-safe,
+ * so should not be used from sub-threads. It should not be called by child processes -
+ * this would probably be harmless but ineffective.
+ *
+ * @param tids
+ */
+void tids_sweep_procs(TIDS_INSTANCE *tids)
+{
+  guint ii;
+  struct tid_process tp = {0};
+  char result[10] = {0};
+  ssize_t result_len;
+  int status;
+  int wait_rc;
+
+  /* loop backwards over the array so we can remove elements as we go */
+  for (ii=tids->pids->len; ii > 0; ii--) {
+    /* ii-1 is the current index - get our own copy, we may destroy the list's copy */
+    tp = g_array_index(tids->pids, struct tid_process, ii-1);
+
+    wait_rc = waitpid(tp.pid, &status, WNOHANG);
+    if (wait_rc == 0)
+      continue; /* process still running */
+
+    if (wait_rc < 0) {
+      /* invalid options will probably keep being invalid, report that condition */
+      if(errno == EINVAL)
+        tr_crit("tids_sweep_procs: waitpid called with invalid options");
+
+      /* If we got ECHILD, that means the PID was invalid; we'll assume the process was
+       * terminated and we missed it. For all other errors, move on
+       * to the next PID to check. */
+      if (errno != ECHILD)
+        continue;
+
+      tr_warning("tid_sweep_procs: TID process %d disappeared", tp.pid);
+    }
+
+    /* remove the item (we still have a copy of the data) */
+    g_array_remove_index_fast(tids->pids, ii-1); /* disturbs only indices >= ii-1 which we've already handled */
+
+    /* Report exit status unless we got ECHILD above or somehow waitpid returned the wrong pid */
+    if (wait_rc == tp.pid) {
+      if (WIFEXITED(status)) {
+        tr_debug("tids_sweep_procs: TID process %d exited with status %d.", tp.pid, WTERMSIG(status));
+      } else if (WIFSIGNALED(status)) {
+        tr_debug("tids_sweep_procs: TID process %d terminated by signal %d.", tp.pid, WTERMSIG(status));
+      }
+    } else if (wait_rc > 0) {
+      tr_err("tids_sweep_procs: waitpid returned pid %d, expected %d", wait_rc, tp.pid);
+    }
+
+    /* read the pipe - if the TID request worked, it will have written status before terminating */
+    result_len = read(tp.read_fd, result, sizeof(result)/sizeof(result[0]));
+    close(tp.read_fd);
+
+    if ((result_len > 0) && (strcmp(result, "OK") == 0)) {
+      tids->req_count++;
+      tr_debug("tids_sweep_procs: TID process %d succeeded", tp.pid);
+    } else {
+      tids->error_count++;
+      tr_debug("tids_sweep_procs: TID process %d failed", tp.pid);
+    }
+  }
 }
 
 /* Process tids requests forever. Should not return except on error. */
