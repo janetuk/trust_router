@@ -81,6 +81,7 @@ const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
 {
   switch(opt_type) {
     case OPT_TYPE_UNKNOWN:
+    case OPT_TYPE_ANY:
       return NULL;
 
     case OPT_TYPE_SHOW_VERSION:

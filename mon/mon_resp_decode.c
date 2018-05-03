@@ -34,82 +34,70 @@
 
 
 #include <talloc.h>
-#include <gmodule.h>
+#include <jansson.h>
 
 #include <mon_internal.h>
 
-// Monitoring request message common code
+// Monitoring response decoder
 
 /**
- * Destructor used by talloc to ensure proper cleanup
- */
-static int mon_req_destructor(void *object)
-{
-  MON_REQ *req = talloc_get_type_abort(object, MON_REQ);
-  if (req->options) {
-    g_array_unref(req->options);
-  }
-  return 0;
-}
-
-/**
- * Allocate a new monitoring request
+ * Decode a JSON response
  *
- * @param mem_ctx talloc context for the new request
- * @param cmd command for the request
- * @return newly allocated request, or null on error
- */
-MON_REQ *mon_req_new(TALLOC_CTX *mem_ctx, MON_CMD cmd)
-{
-  MON_REQ *req=talloc(mem_ctx, MON_REQ);
-  if (req) {
-    req->command = cmd;
-    req->options = g_array_new(FALSE, FALSE, sizeof(MON_OPT));
-    talloc_set_destructor((void *)req, mon_req_destructor);
-  }
-  return req;
-}
-
-/**
- * Free a monitoring request
+ * Expected format:
+ * {
+ *   "code": 0,
+ *   "message": "success",
+ *   "payload": {
+ *     "serial": 12345,
+ *     ...
+ *   }
+ * }
  *
- * @param req request to free, must not be null
+ * Caller must free the return value with MON_REQ_free().
+ *
+ * @param mem_ctx talloc context for the returned struct
+ * @param resp_json reference to JSON request object
+ * @return decoded request struct or NULL on failure
  */
-void mon_req_free(MON_REQ *req)
+MON_RESP *mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json)
 {
-  talloc_free(req);
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  MON_RESP *resp = NULL;
+  json_t *jcode = NULL;
+  json_t *jmessage = NULL;
+  json_t *jpayload = NULL;
+
+  if (! json_is_object(resp_json))
+    goto cleanup;
+
+  /* Get the response code, which is an integer */
+  jcode = json_object_get(resp_json, "code");
+  if (! json_is_integer(jcode))
+    goto cleanup;
+
+  /* Get the response message, which is a string */
+  jmessage = json_object_get(resp_json, "message");
+  if (! json_is_string(jmessage))
+    goto cleanup;
+
+  /* Get the payload if we have one */
+  jpayload = json_object_get(resp_json, "payload");
+
+  /* Get a response in the tmp_ctx context. The payload may be null. */
+  resp = mon_resp_new(tmp_ctx,
+                      (MON_RESP_CODE) json_integer_value(jcode),
+                      json_string_value(jmessage),
+                      jpayload);
+  if (resp == NULL)
+    goto cleanup;
+
+  /* Success! Put the request in the caller's talloc context */
+  talloc_steal(mem_ctx, resp);
+
+cleanup:
+  talloc_free(tmp_ctx);
+  if (resp_json)
+    json_decref(resp_json);
+
+  return resp;
 }
-
-/**
- * Add an option to a MON_REQ
- * @param req request to operate on, not null
- * @param opt_type type of option
- * @return MON_SUCCESS on success, error code on error
- */
-MON_RC mon_req_add_option(MON_REQ *req, MON_OPT_TYPE opt_type)
-{
-  MON_OPT new_opt; // not a pointer
-
-  /* Validate parameters */
-  if ((req == NULL) || (opt_type == OPT_TYPE_UNKNOWN)) {
-    return MON_BADARG;
-  }
-
-  new_opt.type = opt_type;
-
-  /* Add the new option to the list */
-  g_array_append_val(req->options, new_opt);
-  return MON_SUCCESS;
-}
-
-size_t mon_req_opt_count(MON_REQ *req)
-{
-  return req->options->len;
-}
-
-MON_OPT *mon_req_opt_index(MON_REQ *req, size_t index)
-{
-  MON_OPT *result = &g_array_index(req->options, MON_OPT, index);
-  return result;
-}
-

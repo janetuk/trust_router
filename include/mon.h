@@ -32,17 +32,32 @@
  *
  */
 
-#ifndef TR_MON_H
-#define TR_MON_H
 
-#include <tr_event.h>
-#include <tr_config.h>
-#include <mon_internal.h>
-#include <mons_handlers.h>
+#ifndef TRUST_ROUTER_MON_H
+#define TRUST_ROUTER_MON_H
 
-int tr_mons_event_init(struct event_base *base,
-                       MONS_INSTANCE *mons,
-                       TR_CFG_MGR *cfg_mgr,
-                       struct tr_socket_event *mons_ev);
+#include <gssapi.h>
+#include <trust_router/tr_name.h>
 
-#endif /* TR_MON_H */
+/* Typedefs */
+typedef struct mon_req MON_REQ;
+typedef struct mon_resp MON_RESP;
+
+typedef enum mon_cmd MON_CMD;
+typedef enum mon_resp_code MON_RESP_CODE;
+
+typedef struct mon_opt MON_OPT;
+typedef enum mon_opt_type MON_OPT_TYPE;
+
+typedef enum mon_rc MON_RC;
+
+typedef struct mons_instance MONS_INSTANCE;
+typedef struct monc_instance MONC_INSTANCE;
+
+typedef struct mons_dispatch_table_entry MONS_DISPATCH_TABLE_ENTRY;
+
+typedef int (MONS_REQ_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
+typedef int (MONS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
+typedef int (MONC_RESP_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
+
+#endif //TRUST_ROUTER_MON_H

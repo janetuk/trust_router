@@ -336,7 +336,7 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   tr_debug("trps_read_message: message received, %u bytes.", (unsigned) buflen);
   tr_debug("trps_read_message: %.*s", buflen, buf);
 
-  *msg=tr_msg_decode(buf, buflen);
+  *msg= tr_msg_decode(NULL, buf, buflen);
   free(buf);
   if (*msg==NULL)
     return TRP_NOPARSE;

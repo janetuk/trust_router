@@ -32,17 +32,21 @@
  *
  */
 
-#ifndef TR_MON_H
-#define TR_MON_H
 
-#include <tr_event.h>
-#include <tr_config.h>
-#include <mon_internal.h>
-#include <mons_handlers.h>
+#ifndef TRUST_ROUTER_MONS_HANDLERS_H
+#define TRUST_ROUTER_MONS_HANDLERS_H
 
-int tr_mons_event_init(struct event_base *base,
-                       MONS_INSTANCE *mons,
-                       TR_CFG_MGR *cfg_mgr,
-                       struct tr_socket_event *mons_ev);
+typedef json_t *(MONS_HANDLER_FUNC)(void *);
 
-#endif /* TR_MON_H */
+struct mons_dispatch_table_entry {
+  MON_CMD command;
+  MON_OPT_TYPE opt_type;
+  MONS_HANDLER_FUNC *handler;
+  void *cookie;
+};
+
+/* mons_handlers.c */
+MON_RESP *mons_handle_request(TALLOC_CTX *mem_ctx, MONS_INSTANCE *mons, MON_REQ *req);
+MON_RC mons_register_handler(MONS_INSTANCE *mons, MON_CMD cmd, MON_OPT_TYPE opt_type, MONS_HANDLER_FUNC *f, void *cookie);
+
+#endif //TRUST_ROUTER_MONS_HANDLERS_H

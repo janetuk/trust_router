@@ -65,11 +65,7 @@ static int mon_resp_destructor(void *object)
  * Makes its own copy of the message, so caller can dispose of
  * that after allocating the response.
  *
- * Steals the reference to the payload JSON object. Does not modify the
- * object. Caller should not modify it after allocating the response or
- * undefined behavior will result. If allocation fails, the stolen reference
- * will be released --- if you need to keep a reference, use incref before
- * calling this.
+ * Increments the reference count of the payload if it is not null.
  *
  * @param mem_ctx talloc context for allocation
  * @param req MON_REQ this response corresponds to
@@ -78,18 +74,17 @@ static int mon_resp_destructor(void *object)
  * @param payload JSON object to be send as payload, or null for no payload
  * @return response allocated in the requested talloc context, null on failure
  */
-MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx,
-                          MON_REQ *req,
-                          MON_RESP_CODE code,
-                          const char *msg,
-                          json_t *payload)
+MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx, MON_RESP_CODE code, const char *msg, json_t *payload)
 {
   MON_RESP *resp = talloc(mem_ctx, MON_RESP);
   if (resp) {
-    resp->req = req;
     resp->code = code;
     resp->message = tr_new_name(msg);
+
     resp->payload = payload;
+    if (resp->payload)
+      json_incref(resp->payload);
+
     talloc_set_destructor((void *)resp, mon_resp_destructor);
     if (resp->message == NULL) {
       talloc_free(resp); // destructor will be called
@@ -97,6 +92,45 @@ MON_RESP *mon_resp_new(TALLOC_CTX *mem_ctx,
     }
   }
   return resp;
+}
+
+/**
+ * Set or replace the response message
+ *
+ * Does not change the message if it fails
+ *
+ * @param resp
+ * @param new_msg
+ * @return 1 on success, 0 on error
+ */
+int mon_resp_set_message(MON_RESP *resp, const char *new_msg)
+{
+  TR_NAME *n = tr_new_name(new_msg);
+
+  if (n == NULL)
+    return 0; /* failed */
+
+  if (resp->message)
+    tr_free_name(resp->message);
+  resp->message = n;
+  return 1; /* succeeded */
+}
+
+/**
+ * Set or replace the payload
+ *
+ * Manages JSON reference counts
+ *
+ * @param resp
+ * @param new_payload
+ */
+void mon_resp_set_payload(MON_RESP *resp, json_t *new_payload)
+{
+  if (resp->payload)
+    json_decref(resp->payload);
+  resp->payload = new_payload;
+  if (resp->payload)
+    json_incref(new_payload);
 }
 
 /**

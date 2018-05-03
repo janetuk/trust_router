@@ -221,6 +221,9 @@ void tr_gss_handle_connection(int conn,
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
   char *req_str = NULL;
+  size_t req_len = 0;
+  TR_MSG *req_msg = NULL;
+  TR_MSG *resp_msg = NULL;
   char *resp_str = NULL;
 
   if (tr_gss_auth_connection(conn,
@@ -236,34 +239,52 @@ void tr_gss_handle_connection(int conn,
   tr_debug("tr_gss_handle_connection: Connection authorized");
 
   // TODO: should there be a timeout on this?
-  while (1) {	/* continue until an error breaks us out */
+  do {
+    /* continue until an error breaks us out */
     // try to read a request
     req_str = tr_gss_read_req(tmp_ctx, conn, gssctx);
 
-    if ( req_str == NULL) {
+    if (req_str == NULL) {
       // an error occurred, give up
       tr_notice("tr_gss_handle_connection: Error reading request");
       goto cleanup;
-    } else if (strlen(req_str) > 0) {
-      // we got a request message, exit the loop and process it
-      break;
     }
 
-    // no error, but no message, keep waiting for one
-    talloc_free(req_str); // this would be cleaned up anyway, but may as well free it
+    req_len = strlen(req_str);
+
+    /* If we got no characters, we will loop again. Free the empty response for the next loop. */
+    if (req_len == 0)
+      talloc_free(req_str);
+
+  } while (req_len == 0);
+
+  /* Decode the request */
+  req_msg = tr_msg_decode(tmp_ctx, req_str, req_len);
+  if (req_msg == NULL) {
+    tr_notice("tr_gss_handle_connection: Error decoding response");
+    goto cleanup;
   }
 
   /* Hand off the request for processing and get the response */
-  resp_str = req_cb(tmp_ctx, req_str, req_cookie);
+  resp_msg = req_cb(tmp_ctx, req_msg, req_cookie);
 
-  if (resp_str == NULL) {
+  if (resp_msg == NULL) {
     // no response, clean up
+    goto cleanup;
+  }
+
+  /* Encode the response */
+  resp_str = tr_msg_encode(tmp_ctx, resp_msg);
+  if (resp_str == NULL) {
+    /* We apparently can't encode a response, so just return */
+    tr_err("tr_gss_handle_connection: Error encoding response");
     goto cleanup;
   }
 
   // send the response
   if (tr_gss_write_resp(conn, gssctx, resp_str)) {
-    tr_notice("tr_gss_handle_connection: Error writing response");
+    tr_err("tr_gss_handle_connection: Error writing response");
+    goto cleanup;
   }
 
 cleanup:

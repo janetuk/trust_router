@@ -110,7 +110,7 @@ static int run_test(const char *filename, MON_REQ *(generator)())
   req_json_str = read_file(filename);
   assert(req_json_str);
 
-  req = mon_req_decode(NULL, req_json_str);
+  req = mon_req_parse(NULL, req_json_str);
   assert(req);
   assert(equal(req, expected));
 

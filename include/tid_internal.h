@@ -39,6 +39,7 @@
 #include <tr_rp.h>
 #include <trust_router/tid.h>
 #include <jansson.h>
+#include "tr_gss_client.h"
 
 struct tid_srvr_blk {
   TID_SRVR_BLK *next;
@@ -82,11 +83,7 @@ struct tid_req {
 };
 
 struct tidc_instance {
-  // TID_REQ *req_list;
-  // TBD -- Do we still need a separate private key */
-  // char *priv_key;
-  // int priv_len;
-  DH *client_dh;			/* Client's DH struct with priv and pub keys */
+  TR_GSSC_INSTANCE *gssc;
 };
 
 struct tids_instance {

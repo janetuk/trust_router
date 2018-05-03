@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, JANET(UK)
+ * Copyright (c) 2012, 2014-2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,65 +32,79 @@
  *
  */
 
-/* Testing trp message encoding / decoding */
-
-/* compiles with: gcc -o msgtst -I../include msgtst.c trp_msg.c $(pkg-config --cflags --libs glib-2.0) ../common/tr_debug.c  ../common/tr_name.c ../common/tr_msg.c -ltalloc -ljansson */
-
 #include <stdio.h>
+#include <jansson.h>
 #include <talloc.h>
 
-#include <trust_router/trp.h>
+#include <trust_router/tr_dh.h>
+#include <mon_internal.h>
 #include <tr_msg.h>
+#include <gsscon.h>
 #include <tr_debug.h>
 
-#define MAX_MSG_LEN 8192
 
-int main(int argc, const char *argv[])
+MONC_INSTANCE *monc_new(TALLOC_CTX *mem_ctx)
 {
-  TALLOC_CTX *main_ctx=talloc_new(NULL);
-  FILE *f;
-  char *buf;
-  size_t buflen;
-  TR_MSG *msg;
-  
-  if (argc != 2) {
-    printf("Usage: %s <input file>\n\n", argv[0]);
-    exit(-1);
+  MONC_INSTANCE *monc=talloc(mem_ctx, MONC_INSTANCE);
+  if (monc!=NULL) {
+    monc->gssc = tr_gssc_instance_new(monc);
+    if (monc->gssc == NULL) {
+      talloc_free(monc);
+      return NULL;
+    }
+
+    monc->gssc->service_name = "trustmonitor";
   }
+  return monc;
+}
 
-  buf=malloc(MAX_MSG_LEN);
-  if (!buf) {
-    printf("Allocation error.\n\n");
-    exit(-1);
-  }
+void monc_free(MONC_INSTANCE *monc)
+{
+  talloc_free(monc);
+}
 
-  f=fopen(argv[1], "r");
-  if (!f) {
-    printf("Error opening %s for reading.\n\n", argv[1]);
-    exit(-1);
-  }
+int monc_open_connection(MONC_INSTANCE *monc,
+                         const char *server,
+                         unsigned int port)
+{
+  return tr_gssc_open_connection(monc->gssc, server, port);
+}
 
-  printf("Reading from %s...\n", argv[1]);
+MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *req)
+{
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  TR_MSG *msg = NULL;
+  TR_MSG *resp_msg = NULL;
+  MON_RESP *resp = NULL;
 
-  buflen=fread(buf, sizeof(char), MAX_MSG_LEN, f);
-  if (buflen==0) {
-    printf("File empty.\n\n");
-    exit(0);
-  }
+  /* Create and populate a msg structure */
+  if (!(msg = talloc_zero(tmp_ctx, TR_MSG)))
+    goto cleanup;
 
-  if (buflen>=MAX_MSG_LEN)
-    printf("Warning: file may exceed maximum message length (%d bytes).\n", MAX_MSG_LEN);
+  msg->msg_type = MON_REQUEST;
+  tr_msg_set_mon_req(msg, req);
 
-  msg= tr_msg_decode(NULL, buf, buflen);
+  resp_msg = tr_gssc_exchange_msgs(tmp_ctx, monc->gssc, msg);
+  if (resp_msg == NULL)
+    goto cleanup;
 
-/*  if (rc==TRP_SUCCESS)
-    trp_msg_print(msg);*/
+  resp = tr_msg_get_mon_resp(resp_msg);
 
-  printf("\nEncoding...\n");
+  /* if we got a response, steal it from resp_msg's context so we can return it */
+  if (resp)
+    talloc_steal(mem_ctx, resp);
 
-  printf("Result: \n%s\n\n", tr_msg_encode(NULL, msg));
+cleanup:
+  talloc_free(tmp_ctx);
+  return resp;
+}
 
-  talloc_report_full(main_ctx, stdout);
+DH *monc_get_dh(MONC_INSTANCE *inst)
+{
+  return tr_gssc_get_dh(inst->gssc);
+}
 
-  return 0;
+DH *monc_set_dh(MONC_INSTANCE *inst, DH *dh)
+{
+  return tr_gssc_set_dh(inst->gssc, dh);
 }

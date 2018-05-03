@@ -44,6 +44,17 @@
 #include <sys/wait.h>
 #include <tr_gss.h>
 
+#include "mons_handlers.h"
+
+static int mons_destructor(void *object)
+{
+  MONS_INSTANCE *mons = talloc_get_type_abort(object, MONS_INSTANCE);
+  if (mons->handlers) {
+    g_ptr_array_unref(mons->handlers);
+  }
+  return 0;
+}
+
 /**
  * Allocate a new MONS_INSTANCE
  *
@@ -62,10 +73,20 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
     mons->req_handler = NULL;
     mons->auth_handler = NULL;
     mons->cookie = NULL;
+
+    /* Before any steps that may fail, install the destructor */
+    talloc_set_destructor((void *)mons, mons_destructor);
+
     mons->authorized_gss_names = tr_gss_names_new(mons);
     if (mons->authorized_gss_names == NULL) {
       talloc_free(mons);
-      mons = NULL;
+      return NULL;
+    }
+
+    mons->handlers = g_ptr_array_new();
+    if (mons->handlers == NULL) {
+      talloc_free(mons);
+      return NULL;
     }
   }
   return mons;
@@ -78,9 +99,53 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
  * @param data pointer to a MONS_INSTANCE
  * @return pointer to the response string or null to send no response
  */
-static char *mons_req_cb(TALLOC_CTX *mem_ctx, const char *req_str, void *data)
+static TR_MSG *mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, void *data)
 {
-  return "This is a response.";
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  MONS_INSTANCE *mons = talloc_get_type_abort(data, MONS_INSTANCE);
+  MON_REQ *req = NULL;
+  MON_RESP *resp = NULL;
+  TR_MSG *resp_msg = NULL; /* This is the response value */
+
+  /* Validate inputs */
+  if (req_msg == NULL)
+    goto cleanup;
+
+  req = tr_msg_get_mon_req(req_msg);
+  if (req == NULL) {
+    /* this is an internal error */
+    tr_err("mons_req_cb: Received incorrect message type (was %d, expected %d)",
+           tr_msg_get_msg_type(req_msg),
+           MON_REQUEST);
+    /* TODO send an error response */
+    goto cleanup;
+  }
+
+  /* Allocate a response message */
+  resp_msg = talloc(tmp_ctx, TR_MSG);
+  if (resp_msg == NULL) {
+    /* can't return a message, just emit an error */
+    tr_crit("mons_req_cb: Error allocating response message.");
+    goto cleanup;
+  }
+
+  /* Handle the request */
+  resp = mons_handle_request(resp_msg, mons, req);
+  if (resp == NULL) {
+    /* error processing the request */
+    /* TODO send back an error */
+    goto cleanup;
+  }
+
+  /* Set the response message payload */
+  tr_msg_set_mon_resp(resp_msg, resp);
+
+  /* Put the response message in the caller's context so it does not get freed when we exit */
+  talloc_steal(mem_ctx, resp_msg);
+
+cleanup:
+  talloc_free(tmp_ctx);
+  return resp_msg;
 }
 
 /**

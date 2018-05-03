@@ -21,7 +21,7 @@ static char *reconfigure(MON_RESP_CODE code, const char *message)
   req = mon_req_new(NULL, MON_CMD_RECONFIGURE);
   assert(req);
 
-  resp = mon_resp_new(NULL, req, code, message, NULL);
+  resp = mon_resp_new(NULL, code, message, NULL);
   assert(resp);
 
   resp_json = mon_resp_encode(resp);
@@ -76,7 +76,7 @@ static char *show_success()
                                mon_opt_type_to_string(OPT_TYPE_SHOW_TID_REQ_COUNT),
                                json_integer(1432)));
 
-  resp = mon_resp_new(NULL, req, MON_RESP_SUCCESS, "success", payload);
+  resp = mon_resp_new(NULL, MON_RESP_SUCCESS, "success", payload);
   assert(resp);
 
   resp_json = mon_resp_encode(resp);

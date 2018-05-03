@@ -66,7 +66,6 @@ json_t *mon_resp_encode(MON_RESP *resp)
 {
   json_t *resp_json = NULL;
   json_t *jval = NULL;
-  const char *cmd_str = NULL;
 
   /* Get a JSON object */
   resp_json = json_object();
@@ -79,8 +78,7 @@ json_t *mon_resp_encode(MON_RESP *resp)
 
   /* If we have a payload, add it */
   if (resp->payload) {
-    cmd_str = mon_cmd_to_string(resp->req->command); // key for the response payload
-    object_set_or_free_and_return(resp_json, jval, cmd_str, resp->payload);
+    object_set_or_free_and_return(resp_json, jval, "payload", resp->payload);
   }
 
   return resp_json;

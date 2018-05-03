@@ -137,9 +137,9 @@ TR_EXPORT const TID_PATH *tid_srvr_get_path(const TID_SRVR_BLK *);
 TR_EXPORT int tid_srvr_get_key_expiration(const TID_SRVR_BLK *, struct timeval *tv_out);
 
 #define tid_resp_servers_foreach(RESP, SERVER, INDEX) \
-  for (INDEX=0,SERVER=NULL;						\
-       ((INDEX < tid_resp_get_num_servers(RESP))&&(SERVER = tid_resp_get_server(resp, INDEX))); \
-       INDEX++)
+  for ((INDEX)=0,(SERVER)=NULL;						\
+       (((INDEX) < tid_resp_get_num_servers(RESP))&&((SERVER) = tid_resp_get_server(resp, (INDEX)))); \
+       (INDEX)++)
 
 
 /* TID Client functions, in tid/tidc.c */
