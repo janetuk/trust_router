@@ -37,9 +37,13 @@
 #define TRUST_ROUTER_MON_REQ_H
 
 #include <talloc.h>
+#include <stdint.h>
 #include <jansson.h>
 #include <gmodule.h>
+#include <trp_internal.h>
+#include <tr_gss_names.h>
 #include <tr_name_internal.h>
+#include <gssapi.h>
 
 /* Typedefs */
 typedef struct mon_req MON_REQ;
@@ -53,6 +57,10 @@ typedef enum mon_opt_type MON_OPT_TYPE;
 
 typedef enum mon_rc MON_RC;
 
+typedef struct mons_instance MONS_INSTANCE;
+
+typedef int (MONS_REQ_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
+typedef int (MONS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
 
 /* Struct and enum definitions */
 enum mon_rc {
@@ -108,6 +116,18 @@ struct mon_resp {
   json_t *payload;
 };
 
+/* Monitoring server instance */
+struct mons_instance {
+  const char *hostname;
+  unsigned int port;
+  TR_GSS_NAMES *authorized_gss_names;
+  TIDS_INSTANCE *tids;
+  TRPS_INSTANCE *trps;
+  MONS_REQ_FUNC *req_handler;
+  MONS_AUTH_FUNC *auth_handler;
+  void *cookie;
+};
+
 /* Prototypes */
 /* tr_mon.c */
 const char *mon_cmd_to_string(MON_CMD cmd);
@@ -138,5 +158,11 @@ void mon_resp_free(MON_RESP *resp);
 
 /* mon_resp_encode.c */
 json_t *mon_resp_encode(MON_RESP *resp);
+
+/* mons.c */
+MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx);
+int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH_FUNC *auth_handler, const char *hostname,
+                      unsigned int port, void *cookie, int *fd_out, size_t max_fd);
+int mons_accept(MONS_INSTANCE *mons, int listen);
 
 #endif //TRUST_ROUTER_MON_REQ_H

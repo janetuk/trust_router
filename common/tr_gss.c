@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,100 +33,239 @@
  */
 
 #include <talloc.h>
+#include <gssapi.h>
+#include <string.h>
 
+#include <tr_msg.h>
+#include <tr_debug.h>
+#include <gsscon.h>
 #include <tr_gss.h>
 
-static int tr_gss_names_destructor(void *obj)
-{
-  TR_GSS_NAMES *gss_names=talloc_get_type_abort(obj, TR_GSS_NAMES);
-  int ii=0;
+/**
+ * tr_gss.c - GSS connection handler
+ *
+ * The chief entry point to this module is tr_gss_handle_connection(). This
+ * function accepts an incoming socket connection, runs the GSS authorization
+ * and authentication process, accepts a request, processes it, then sends
+ * the reply and returns without closing the connection.
+ *
+ * Callers need to provide two callbacks, each with a cookie for passing
+ * custom data to the callback.
+ *
+ *   * TR_GSS_AUTH_FN auth_cb: Authorization callback
+ *     - This callback is used during the GSS auth process to determine whether
+ *       a credential should be authorized to connect.
+ *
+ *   * TR_GSS_HANDLE_REQ_FN req_cb: Request handler callback
+ *     - After auth, this callback is passed the string form of the incoming request.
+ *       It should process the request and return a string form of the outgoing
+ *       response, if any.
+ */
 
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if (gss_names->names[ii]!=NULL)
-      tr_free_name(gss_names->names[ii]);
+typedef struct tr_gss_cookie {
+  TR_GSS_AUTH_FN *auth_cb;
+  void *auth_cookie;
+} TR_GSS_COOKIE;
+
+static int tr_gss_auth_cb(gss_name_t clientName, gss_buffer_t displayName, void *data)
+{
+  TR_GSS_COOKIE *cookie = talloc_get_type_abort(data, TR_GSS_COOKIE);
+  TR_NAME name ={(char *) displayName->value, (int) displayName->length};
+  int result=0;
+
+  if (cookie->auth_cb(clientName, &name, cookie->auth_cookie)) {
+    tr_debug("tr_gss_auth_cb: client '%.*s' denied authorization.", name.len, name.buf);
+    result=EACCES; /* denied */
   }
-  return 0;
-}
-TR_GSS_NAMES *tr_gss_names_new(TALLOC_CTX *mem_ctx)
-{
-  TR_GSS_NAMES *gn=talloc(mem_ctx, TR_GSS_NAMES);
-  int ii=0;
 
-  if (gn!=NULL) {
-    for (ii=0; ii<TR_MAX_GSS_NAMES; ii++)
-      gn->names[ii]=NULL;
-    talloc_set_destructor((void *)gn, tr_gss_names_destructor);
-  }
-  return gn;
+  return result;
 }
 
-void tr_gss_names_free(TR_GSS_NAMES *gn)
-{
-  talloc_free(gn);
-}
 
-/* returns 0 on success */
-int tr_gss_names_add(TR_GSS_NAMES *gn, TR_NAME *new)
+/**
+ * Handle GSS authentication and authorization
+ *
+ * @param conn connection file descriptor
+ * @param acceptor_name name of acceptor to present to initiator
+ * @param acceptor_realm realm of acceptor to present to initiator
+ * @param gssctx GSS context
+ * @param auth_cb authorization callback
+ * @param auth_cookie generic data to pass to the authorization callback
+ * @return 0 on successful auth, 1 on disallowed auth, -1 on error
+ */
+static int tr_gss_auth_connection(int conn,
+                                  const char *acceptor_name,
+                                  const char *acceptor_realm,
+                                  gss_ctx_id_t *gssctx,
+                                  TR_GSS_AUTH_FN auth_cb,
+                                  void *auth_cookie)
 {
-  int ii=0;
+  int rc = 0;
+  int auth, autherr = 0;
+  gss_buffer_desc nameBuffer = {0, NULL};
+  TR_GSS_COOKIE *cookie = NULL;
 
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if (gn->names[ii]==NULL)
-      break;
-  }
-  if (ii!=TR_MAX_GSS_NAMES) {
-    gn->names[ii]=new;
-    return 0;
-  } else
+  nameBuffer.value = talloc_asprintf(NULL, "%s@%s", acceptor_name, acceptor_realm);
+  if (nameBuffer.value == NULL) {
+    tr_err("tr_gss_auth_connection: Error allocating acceptor name.");
     return -1;
+  }
+  nameBuffer.length = strlen(nameBuffer.value);
+
+  /* Set up for the auth callback. There are two layers of callbacks here: we
+   * use our own, which handles gsscon interfacing and calls the auth_cb parameter
+   * to do the actual auth. Store the auth_cb information in a metacookie. */
+  cookie = talloc(NULL, TR_GSS_COOKIE);
+  cookie->auth_cb=auth_cb;
+  cookie->auth_cookie=auth_cookie;
+
+  /* Now call gsscon with *our* auth callback and cookie */
+  rc = gsscon_passive_authenticate(conn, nameBuffer, gssctx, tr_gss_auth_cb, cookie);
+  talloc_free(cookie);
+  talloc_free(nameBuffer.value);
+  if (rc) {
+    tr_debug("tr_gss_auth_connection: Error from gsscon_passive_authenticate(), rc = %d.", rc);
+    return -1;
+  }
+
+  rc = gsscon_authorize(*gssctx, &auth, &autherr);
+  if (rc) {
+    tr_debug("tr_gss_auth_connection: Error from gsscon_authorize, rc = %d, autherr = %d.",
+             rc, autherr);
+    return -1;
+  }
+
+  if (auth)
+    tr_debug("tr_gss_auth_connection: Connection authenticated, conn = %d.", conn);
+  else
+    tr_debug("tr_gss_auth_connection: Authentication failed, conn %d.", conn);
+
+  return !auth;
 }
 
-int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name)
+/**
+ * Read a request from the GSS connection
+ *
+ * @param mem_ctx talloc context for the result
+ * @param conn file descriptor for the connection
+ * @param gssctx GSS context
+ * @return talloc'ed string containing the request, or null on error
+ */
+static char *tr_gss_read_req(TALLOC_CTX *mem_ctx, int conn, gss_ctx_id_t gssctx)
 {
-  int ii=0;
+  int err;
+  char *retval = NULL;
+  char *buf = NULL;
+  size_t buflen = 0;
 
-  if (!gn)
-    return 0;
+  err = gsscon_read_encrypted_token(conn, gssctx, &buf, &buflen);
+  if (err || (buf == NULL)) {
+    if (buf)
+      free(buf);
+    tr_debug("tr_gss_read_req: Error reading from connection, rc=%d", err);
+    return NULL;
+  }
 
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if ((gn->names[ii]!=NULL) &&
-        (0==tr_name_cmp(gn->names[ii], name)))
-      return 1;
+  tr_debug("tr_gss_read_req: Read %u bytes.", (unsigned) buflen);
+
+  // get a talloc'ed version, guaranteed to have a null termination
+  retval = talloc_asprintf(mem_ctx, "%.*s", (int) buflen, buf);
+  free(buf);
+
+  return retval;
+}
+
+/**
+ * Write a response to the GSS connection
+ *
+ * @param conn file descriptor for the connection
+ * @param gssctx GSS context
+ * @param resp encoded response string to send
+ * @return 0 on success, -1 on error
+ */
+static int tr_gss_write_resp(int conn, gss_ctx_id_t gssctx, const char *resp)
+{
+  int err = 0;
+
+  /* Send the response over the connection */
+  err = gsscon_write_encrypted_token (conn, gssctx, resp, strlen(resp) + 1);
+  if (err) {
+    tr_debug("tr_gss_send_response: Error sending response over connection, rc=%d.", err);
+    return -1;
   }
   return 0;
 }
 
-/* iterators */
-TR_GSS_NAMES_ITER *tr_gss_names_iter_new(TALLOC_CTX *mem_ctx)
+/**
+ * Handle a request/response connection
+ *
+ * Authorizes/authenticates the connection, then reads a response, passes that to a
+ * callback to get a response, sends that, then returns.
+ *
+ * @param conn connection file descriptor
+ * @param acceptor_name acceptor name to present
+ * @param acceptor_realm acceptor realm to present
+ * @param auth_cb callback for authorization
+ * @param auth_cookie cookie for the auth_cb
+ * @param req_cb callback to handle the request and produce the response
+ * @param req_cookie cookie for the req_cb
+ */
+void tr_gss_handle_connection(int conn,
+                              const char *acceptor_name,
+                              const char *acceptor_realm,
+                              TR_GSS_AUTH_FN auth_cb,
+                              void *auth_cookie,
+                              TR_GSS_HANDLE_REQ_FN req_cb,
+                              void *req_cookie)
 {
-  TR_GSS_NAMES_ITER *iter=talloc(mem_ctx, TR_GSS_NAMES_ITER);
-  if (iter!=NULL) {
-    iter->gn=NULL;
-    iter->ii=0;
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
+  gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
+  char *req_str = NULL;
+  char *resp_str = NULL;
+
+  if (tr_gss_auth_connection(conn,
+                             acceptor_name,
+                             acceptor_realm,
+                             &gssctx,
+                             auth_cb,
+                             auth_cookie)) {
+    tr_notice("tr_gss_handle_connection: Error authorizing connection.");
+    goto cleanup;
   }
-  return iter;
-}
 
-TR_NAME *tr_gss_names_iter_first(TR_GSS_NAMES_ITER *iter, TR_GSS_NAMES *gn)
-{
-  iter->gn=gn;
-  iter->ii=-1;
-  return tr_gss_names_iter_next(iter);
-}
+  tr_debug("tr_gss_handle_connection: Connection authorized");
 
-TR_NAME *tr_gss_names_iter_next(TR_GSS_NAMES_ITER *iter)
-{
-  for (iter->ii++;
-       (iter->ii < TR_MAX_GSS_NAMES) && (iter->gn->names[iter->ii]==NULL);
-       iter->ii++) { }
+  // TODO: should there be a timeout on this?
+  while (1) {	/* continue until an error breaks us out */
+    // try to read a request
+    req_str = tr_gss_read_req(tmp_ctx, conn, gssctx);
 
-  if (iter->ii<TR_MAX_GSS_NAMES)
-    return iter->gn->names[iter->ii];
-  
-  return NULL;
-}
+    if ( req_str == NULL) {
+      // an error occurred, give up
+      tr_notice("tr_gss_handle_connection: Error reading request");
+      goto cleanup;
+    } else if (strlen(req_str) > 0) {
+      // we got a request message, exit the loop and process it
+      break;
+    }
 
-void tr_gss_names_iter_free(TR_GSS_NAMES_ITER *iter)
-{
-  talloc_free(iter);
+    // no error, but no message, keep waiting for one
+    talloc_free(req_str); // this would be cleaned up anyway, but may as well free it
+  }
+
+  /* Hand off the request for processing and get the response */
+  resp_str = req_cb(tmp_ctx, req_str, req_cookie);
+
+  if (resp_str == NULL) {
+    // no response, clean up
+    goto cleanup;
+  }
+
+  // send the response
+  if (tr_gss_write_resp(conn, gssctx, resp_str)) {
+    tr_notice("tr_gss_handle_connection: Error writing response");
+  }
+
+cleanup:
+  talloc_free(tmp_ctx);
 }

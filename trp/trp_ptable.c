@@ -37,7 +37,7 @@
 
 #include <tr_name_internal.h>
 #include <trp_internal.h>
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <trp_ptable.h>
 #include <tr_debug.h>
 

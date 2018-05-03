@@ -36,7 +36,7 @@
 
 #include <tr.h>
 #include <tr_name_internal.h>
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <tr_config.h>
 #include <tr_rp.h>
 #include <tr_debug.h>

@@ -37,7 +37,7 @@
 
 #include <talloc.h>
 
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <tr_filter.h>
 
 typedef struct tr_rp_client {

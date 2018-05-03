@@ -39,6 +39,7 @@
 #include <sys/time.h>
 #include <glib.h>
 #include <string.h>
+#include <poll.h> // for nfds_t
 
 #include <gsscon.h>
 #include <tr_comm.h>
@@ -46,11 +47,12 @@
 #include <tr_rp.h>
 #include <tr_name_internal.h>
 #include <trp_internal.h>
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
 #include <tr_util.h>
+#include <tr_socket.h>
 
 static int trps_destructor(void *object)
 {
@@ -276,82 +278,6 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
   return rc;
 }
 
-/* Listens on all interfaces. Returns number of sockets opened. Their
- * descriptors are stored in *fd_out, which should point to space for
- * up to max_fd of them. */
-static size_t trps_listen(TRPS_INSTANCE *trps, int port, int *fd_out, size_t max_fd) 
-{
-  int rc = 0;
-  int conn = -1;
-  int optval=0;
-  struct addrinfo *ai=NULL;
-  struct addrinfo *ai_head=NULL;
-  struct addrinfo hints={.ai_flags=AI_PASSIVE,
-                         .ai_family=AF_UNSPEC,
-                         .ai_socktype=SOCK_STREAM,
-                         .ai_protocol=IPPROTO_TCP};
-  char *port_str=NULL;
-  size_t n_opened=0;
-
-  port_str=talloc_asprintf(NULL, "%d", port);
-  if (port_str==NULL) {
-    tr_debug("trps_listen: unable to allocate port.");
-    return -1;
-  }
-  getaddrinfo(NULL, port_str, &hints, &ai_head);
-  talloc_free(port_str);
-
-  for (ai=ai_head,n_opened=0; (ai!=NULL)&&(n_opened<max_fd); ai=ai->ai_next) {
-    if (0 > (conn = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol))) {
-      tr_debug("trps_listen: unable to open socket.");
-      continue;
-    }
-
-    optval=1;
-    if (0!=setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)))
-      tr_debug("trps_listen: unable to set SO_REUSEADDR."); /* not fatal? */
-
-    if (ai->ai_family==AF_INET6) {
-      /* don't allow IPv4-mapped IPv6 addresses (per RFC4942, not sure
-       * if still relevant) */
-      if (0!=setsockopt(conn, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval))) {
-        tr_debug("trps_listen: unable to set IPV6_V6ONLY. Skipping interface.");
-        close(conn);
-        continue;
-      }
-    }
-
-    rc=bind(conn, ai->ai_addr, ai->ai_addrlen);
-    if (rc<0) {
-      tr_debug("trps_listen: unable to bind to socket.");
-      close(conn);
-      continue;
-    }
-
-    if (0>listen(conn, 512)) {
-      tr_debug("trps_listen: unable to listen on bound socket.");
-      close(conn);
-      continue;
-    }
-
-    /* ok, this one worked. Save it */
-    fd_out[n_opened++]=conn;
-  }
-  freeaddrinfo(ai_head);
-
-  if (n_opened==0) {
-    tr_debug("trps_listen: no addresses available for listening.");
-    return -1;
-  }
-  
-  tr_debug("trps_listen: TRP Server listening on port %d on %d socket%s",
-           port,
-           n_opened,
-           (n_opened==1)?"":"s");
-
-  return n_opened;
-}
-
 /* get the currently selected route if available */
 TRP_ROUTE *trps_get_route(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer)
 {
@@ -459,11 +385,12 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       int *fd_out,
                       size_t max_fd)
 {
-  size_t n_fd=0;
-  size_t ii=0;
+  nfds_t n_fd=0;
+  nfds_t ii=0;
 
-  n_fd=trps_listen(trps, port, fd_out, max_fd);
-  if (n_fd==0)
+  n_fd = tr_sock_listen_all(port, fd_out, max_fd);
+
+  if (n_fd == 0)
     tr_err("trps_get_listener: Error opening port %d.");
   else {
     /* opening port succeeded */
@@ -477,13 +404,13 @@ int trps_get_listener(TRPS_INSTANCE *trps,
           close(fd_out[ii]);
           fd_out[ii]=-1;
         }
-        n_fd=0;
+        n_fd = 0;
         break;
       }
     }
   }
 
-  if (n_fd>0) {
+  if (n_fd > 0) {
     /* store the caller's request handler & cookie */
     trps->msg_handler = msg_handler;
     trps->auth_handler = auth_handler;
@@ -492,7 +419,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
     trps->cookie = cookie;
   }
 
-  return n_fd;
+  return (int) n_fd;
 }
 
 TRP_RC trps_authorize_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
@@ -1821,7 +1748,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
         upd = (TRP_UPD *) g_ptr_array_index(updates, ii);
         /* now encode the update message */
         tr_msg_set_trp_upd(&msg, upd);
-        encoded = tr_msg_encode(&msg);
+        encoded = tr_msg_encode(NULL, &msg);
         if (encoded == NULL) {
           tr_err("trps_update_one_peer: error encoding update.");
           rc = TRP_ERROR;
@@ -2006,7 +1933,7 @@ TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_servicename)
   }
 
   tr_msg_set_trp_req(&msg, req);
-  encoded=tr_msg_encode(&msg);
+  encoded= tr_msg_encode(NULL, &msg);
   if (encoded==NULL) {
     tr_err("trps_wildcard_route_req: error encoding wildcard TRP request.");
     rc=TRP_ERROR;

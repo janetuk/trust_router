@@ -230,6 +230,18 @@ static TID_RC tr_tids_merge_resps(TID_RESP *r1, TID_RESP *r2)
   return TID_SUCCESS;
 }
 
+/**
+ * Process a TID request
+ *
+ * Return value of -1 means to send a TID_ERROR response. Fill in resp->err_msg or it will
+ * be returned as a generic error.
+ *
+ * @param tids
+ * @param orig_req
+ * @param resp
+ * @param cookie_in
+ * @return
+ */
 static int tr_tids_req_handler(TIDS_INSTANCE *tids,
                                TID_REQ *orig_req, 
                                TID_RESP *resp,
@@ -280,14 +292,14 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   /* Duplicate the request, so we can modify and forward it */
   if (NULL == (fwd_req=tid_dup_req(orig_req))) {
     tr_debug("tr_tids_req_handler: Unable to duplicate request.");
-    retval=-1;
+    retval=-1; /* response will be a generic internal error */
     goto cleanup;
   }
   talloc_steal(tmp_ctx, fwd_req);
 
   if (NULL == (cfg_comm=tr_comm_table_find_comm(cfg_mgr->active->ctable, orig_req->comm))) {
     tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "Unknown community");
+    tid_resp_set_err_msg(resp, tr_new_name("Unknown community"));
     retval=-1;
     goto cleanup;
   }
@@ -300,7 +312,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
 
   if (!tids->gss_name) {
     tr_notice("tr_tids_req_handler: No GSS name for incoming request.");
-    tids_send_err_response(tids, orig_req, "No GSS name for request");
+    tid_resp_set_err_msg(resp, tr_new_name("No GSS name for request"));
     retval=-1;
     goto cleanup;
   }
@@ -312,7 +324,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   target=tr_filter_target_tid_req(tmp_ctx, orig_req);
   if (target==NULL) {
     tr_crit("tid_req_handler: Unable to allocate filter target, cannot apply filter!");
-    tids_send_err_response(tids, orig_req, "Incoming TID request filter error");
+    tid_resp_set_err_msg(resp, tr_new_name("Incoming TID request filter error"));
     retval=-1;
     goto cleanup;
   }
@@ -342,7 +354,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
    * a default action of reject, so we don't have to check why we exited the loop. */
   if (oaction != TR_FILTER_ACTION_ACCEPT) {
     tr_notice("tr_tids_req_handler: Incoming TID request rejected by filter for GSS name", orig_req->rp_realm->buf);
-    tids_send_err_response(tids, orig_req, "Incoming TID request filter error");
+    tid_resp_set_err_msg(resp, tr_new_name("Incoming TID request filter error"));
     retval = -1;
     goto cleanup;
   }
@@ -350,7 +362,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   /* Check that the rp_realm is a member of the community in the request */
   if (NULL == tr_comm_find_rp(cfg_mgr->active->ctable, cfg_comm, orig_req->rp_realm)) {
     tr_notice("tr_tids_req_handler: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "RP COI membership error");
+    tid_resp_set_err_msg(resp, tr_new_name("RP COI membership error"));
     retval=-1;
     goto cleanup;
   }
@@ -360,7 +372,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     if (orig_req->orig_coi!=NULL) {
       tr_notice("tr_tids_req_handler: community %s is COI but COI to APC mapping already occurred. Dropping request.",
                orig_req->comm->buf);
-      tids_send_err_response(tids, orig_req, "Second COI to APC mapping would result, permitted only once.");
+      tid_resp_set_err_msg(resp, tr_new_name("Second COI to APC mapping would result, permitted only once."));
       retval=-1;
       goto cleanup;
     }
@@ -369,7 +381,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     /* TBD -- In theory there can be more than one?  How would that work? */
     if ((!cfg_comm->apcs) || (!cfg_comm->apcs->id)) {
       tr_notice("No valid APC for COI %s.", orig_req->comm->buf);
-      tids_send_err_response(tids, orig_req, "No valid APC for community");
+      tid_resp_set_err_msg(resp, tr_new_name("No valid APC for community"));
       retval=-1;
       goto cleanup;
     }
@@ -378,7 +390,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     /* Check that the APC is configured */
     if (NULL == (cfg_apc = tr_comm_table_find_comm(cfg_mgr->active->ctable, apc))) {
       tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", apc->buf);
-      tids_send_err_response(tids, orig_req, "Unknown APC");
+      tid_resp_set_err_msg(resp, tr_new_name("Unknown APC"));
       retval=-1;
       goto cleanup;
     }
@@ -389,7 +401,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     /* Check that rp_realm is a  member of this APC */
     if (NULL == (tr_comm_find_rp(cfg_mgr->active->ctable, cfg_apc, orig_req->rp_realm))) {
       tr_notice("tr_tids_req_hander: RP Realm (%s) not member of community (%s).", orig_req->rp_realm->buf, orig_req->comm->buf);
-      tids_send_err_response(tids, orig_req, "RP APC membership error");
+      tid_resp_set_err_msg(resp, tr_new_name("RP APC membership error"));
       retval=-1;
       goto cleanup;
     }
@@ -404,7 +416,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     if (NULL == (aaa_servers = tr_default_server_lookup(cfg_mgr->active->default_servers,
                                                         orig_req->comm))) {
       tr_notice("tr_tids_req_handler: No default AAA servers, discarded.");
-      tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
+      tid_resp_set_err_msg(resp, tr_new_name("No path to AAA Server(s) for realm"));
       retval = -1;
       goto cleanup;
     }
@@ -427,13 +439,13 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     /* Since we aren't defaulting, check idp coi and apc membership */
     if (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_comm, fwd_req->realm))) {
       tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of community (%s).", orig_req->realm->buf, orig_req->comm->buf);
-      tids_send_err_response(tids, orig_req, "IDP community membership error");
+      tid_resp_set_err_msg(resp, tr_new_name("IDP community membership error"));
       retval=-1;
       goto cleanup;
     }
     if ( cfg_apc && (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_apc, fwd_req->realm)))) {
       tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of APC (%s).", orig_req->realm->buf, orig_req->comm->buf);
-      tids_send_err_response(tids, orig_req, "IDP APC membership error");
+      tid_resp_set_err_msg(resp, tr_new_name("IDP APC membership error"));
       retval=-1;
       goto cleanup;
     }
@@ -443,7 +455,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   if (NULL == aaa_servers) {
     tr_notice("tr_tids_req_handler: no route or AAA server for realm (%s) in community (%s).",
               orig_req->realm->buf, orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "Missing trust route error");
+    tid_resp_set_err_msg(resp, tr_new_name("Missing trust route error"));
     retval = -1;
     goto cleanup;
   }
@@ -608,13 +620,19 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   }
 
   if (n_responses==0) {
-    /* No requests succeeded. Forward an error if we got any error responses. */
+    /* No requests succeeded, so this will be an error */
+    retval = -1;
+
+    /* If we got any error responses, send an arbitrarily chosen one. */
     for (ii=0; ii<n_aaa; ii++) {
-      if (aaa_resp[ii]!=NULL)
-        tids_send_response(tids, orig_req, aaa_resp[ii]);
-      else
-        tids_send_err_response(tids, orig_req, "Unable to contact AAA server(s).");
+      if (aaa_resp[ii] != NULL) {
+        tid_resp_cpy(resp, aaa_resp[ii]);
+        goto cleanup;
+      }
     }
+    /* No error responses at all, so generate our own error. */
+    tid_resp_set_err_msg(resp, tr_new_name("Unable to contact AAA server(s)."));
+    goto cleanup;
   }
 
   /* success! */
@@ -676,7 +694,7 @@ int tr_tids_event_init(struct event_base *base,
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_tids_event_cookie *cookie=NULL;
   int retval=0;
-  size_t ii=0;
+  int ii=0;
 
   if (tids_ev == NULL) {
     tr_debug("tr_tids_event_init: Null tids_ev.");
@@ -698,14 +716,14 @@ int tr_tids_event_init(struct event_base *base,
   talloc_steal(tids, cookie);
 
   /* get a tids listener */
-  tids_ev->n_sock_fd=tids_get_listener(tids,
-                                       tr_tids_req_handler,
-                                       tr_tids_gss_handler,
-                                       cfg_mgr->active->internal->hostname,
-                                       cfg_mgr->active->internal->tids_port,
-                                       (void *)cookie,
-                                       tids_ev->sock_fd,
-                                       TR_MAX_SOCKETS);
+  tids_ev->n_sock_fd = (int)tids_get_listener(tids,
+                                              tr_tids_req_handler,
+                                              tr_tids_gss_handler,
+                                              cfg_mgr->active->internal->hostname,
+                                              cfg_mgr->active->internal->tids_port,
+                                              (void *)cookie,
+                                              tids_ev->sock_fd,
+                                              TR_MAX_SOCKETS);
   if (tids_ev->n_sock_fd==0) {
     tr_crit("Error opening TID server socket.");
     retval=1;

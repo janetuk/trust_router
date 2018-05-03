@@ -34,15 +34,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <jansson.h>
 #include <argp.h>
 #include <event2/event.h>
 #include <talloc.h>
-#include <sys/time.h>
 #include <signal.h>
-#include <pthread.h>
 
 #include <tid_internal.h>
+#include <mon_internal.h>
+#include <tr_mon.h>
 #include <tr_tid.h>
 #include <tr_trp.h>
 #include <tr_config.h>
@@ -159,6 +158,7 @@ int main(int argc, char *argv[])
   struct cmdline_args opts;
   struct event_base *ev_base;
   struct tr_socket_event tids_ev = {0};
+  struct tr_socket_event mon_ev = {0};
   struct event *cfgwatch_ev;
 
   configure_signals();
@@ -199,17 +199,25 @@ int main(int argc, char *argv[])
   }
 
   /***** initialize the trust path query server instance *****/
-  if (NULL == (tr->tids = tids_create())) {
+  if (NULL == (tr->tids = tids_new(tr))) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
-  talloc_steal(tr, tr->tids);
 
   /***** initialize the trust router protocol server instance *****/
   if (NULL == (tr->trps = trps_new(tr))) {
     tr_crit("Error initializing Trust Router Protocol Server instance.");
     return 1;
   }
+
+  /***** initialize the monitoring interface instance *****/
+  if (NULL == (tr->mons = mons_new(tr))) {
+    tr_crit("Error initializing monitoring interface instance.");
+    return 1;
+  }
+  /* Monitor our tids/trps instances */
+  tr->mons->tids = tr->tids;
+  tr->mons->trps = tr->trps;
 
   /***** process configuration *****/
   tr->cfgwatch=tr_cfgwatch_create(tr);
@@ -244,7 +252,12 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  /*tr_status_event_init();*/ /* install status reporting events */
+  /* install monitoring interface events */
+  tr_debug("Initializing monitoring interface events.");
+  if (0 != tr_mons_event_init(ev_base, tr->mons, tr->cfg_mgr, &mon_ev)) {
+    tr_crit("Error initializing monitoring interface.");
+    return 1;
+  }
 
   /* install TID server events */
   tr_debug("Initializing TID server events.");

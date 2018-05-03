@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, JANET(UK)
+ * Copyright (c) 2016, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,15 +32,31 @@
  *
  */
 
-#ifndef TRUST_ROUTER_TR_GSS_H
-#define TRUST_ROUTER_TR_GSS_H
+#ifndef __TR_GSS_H__
+#define __TR_GSS_H__
 
-#include <tr_msg.h>
+#include <talloc.h>
+#include <tr_name_internal.h>
 
-typedef int (TR_GSS_AUTH_FN)(gss_name_t, TR_NAME *, void *);
-typedef char *(TR_GSS_HANDLE_REQ_FN)(TALLOC_CTX *, const char *, void *);
+#define TR_MAX_GSS_NAMES 5
 
-void tr_gss_handle_connection(int conn, const char *acceptor_name, const char *acceptor_realm, TR_GSS_AUTH_FN auth_cb,
-                              void *auth_cookie, TR_GSS_HANDLE_REQ_FN req_cb, void *req_cookie);
+typedef struct tr_gss_names {
+  TR_NAME *names[TR_MAX_GSS_NAMES];
+} TR_GSS_NAMES;
 
-#endif //TRUST_ROUTER_TR_GSS_H
+typedef struct tr_gss_names_iter {
+  TR_GSS_NAMES *gn;
+  int ii; /* which entry did we last output? */
+} TR_GSS_NAMES_ITER;
+
+TR_GSS_NAMES *tr_gss_names_new(TALLOC_CTX *mem_ctx);
+void tr_gss_names_free(TR_GSS_NAMES *gn);
+int tr_gss_names_add(TR_GSS_NAMES *gn, TR_NAME *new);
+int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name);
+
+TR_GSS_NAMES_ITER *tr_gss_names_iter_new(TALLOC_CTX *mem_ctx);
+TR_NAME *tr_gss_names_iter_first(TR_GSS_NAMES_ITER *iter, TR_GSS_NAMES *gn);
+TR_NAME *tr_gss_names_iter_next(TR_GSS_NAMES_ITER *iter);
+void tr_gss_names_iter_free(TR_GSS_NAMES_ITER *iter);
+
+#endif /* __TR_GSS_H__ */

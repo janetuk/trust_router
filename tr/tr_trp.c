@@ -870,6 +870,10 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
   tr->cfgwatch->settling_time.tv_sec=new_cfg->internal->cfg_settling_time;
   tr->cfgwatch->settling_time.tv_usec=0;
 
+  /* These need to be updated */
+  tr->tids->hostname = new_cfg->internal->hostname;
+  tr->mons->hostname = new_cfg->internal->hostname;
+
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
   trps_set_sweep_interval(trps, new_cfg->internal->trp_sweep_interval);
