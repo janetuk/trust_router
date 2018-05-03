@@ -39,6 +39,38 @@
 #include <tr_cfgwatch.h>
 
 /**
+ * Parse a boolean
+ *
+ * If the key does not exist in the src object, returns success but does fill in *dest.
+ *
+ * @param src JSON object to pull a value from
+ * @param key key to pull
+ * @param dest (output) pointer to an allocated integer
+ * @return TR_CFG_SUCCESS or an error code
+ */
+static TR_CFG_RC tr_cfg_parse_boolean(json_t *src, const char *key, int *dest)
+{
+  json_t *jtmp;
+
+  /* Validate parameters */
+  if ((src == NULL) || (key == NULL) || (dest == NULL))
+    return TR_CFG_BAD_PARAMS;
+
+  /* See if we have a value for this key; do nothing if not */
+  jtmp = json_object_get(src, key);
+  if (jtmp) {
+    if (json_is_boolean(jtmp)) {
+      *dest = json_boolean_value(jtmp);
+    } else {
+      tr_debug("tr_cfg_parse_unsigned: Parsing error, %s is not a boolean.", key);
+      return TR_CFG_NOPARSE;
+    }
+  }
+
+  return TR_CFG_SUCCESS;
+}
+
+/**
  * Parse an unsigned integer
  *
  * If the key does not exist in the src object, returns success but does fill in *dest.
@@ -118,6 +150,7 @@ static void set_defaults(TR_CFG_INTERNAL *cfg)
   cfg->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
   cfg->tids_port = TR_DEFAULT_TIDS_PORT;
   cfg->trps_port = TR_DEFAULT_TRPS_PORT;
+  cfg->monitoring_port = TR_DEFAULT_MONITORING_PORT;
   cfg->cfg_poll_interval = TR_CFGWATCH_DEFAULT_POLL;
   cfg->cfg_settling_time = TR_CFGWATCH_DEFAULT_SETTLE;
   cfg->trp_connect_interval = TR_DEFAULT_TRP_CONNECT_INTERVAL;
@@ -128,6 +161,7 @@ static void set_defaults(TR_CFG_INTERNAL *cfg)
   cfg->tid_resp_denom = TR_DEFAULT_TID_RESP_DENOM;
   cfg->log_threshold = TR_DEFAULT_LOG_THRESHOLD;
   cfg->console_threshold = TR_DEFAULT_CONSOLE_THRESHOLD;
+  cfg->monitoring_credentials = NULL;
 }
 
 /* Helper that checks return value of a parse fn and returns if it failed */
@@ -136,6 +170,21 @@ do {                         \
   if ((x) != TR_CFG_SUCCESS) \
     return TR_CFG_NOPARSE;   \
 } while(0)
+
+static TR_CFG_RC tr_cfg_parse_monitoring(TR_CFG *trc, json_t *jmon)
+{
+  int enabled = 1; /* assume we are enabled unless we are told not to be */
+
+  NOPARSE_UNLESS(tr_cfg_parse_boolean(jmon, "enabled", &enabled));
+  if (enabled) {
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jmon, "port", &(trc->internal->monitoring_port)));
+    NOPARSE_UNLESS(tr_cfg_parse_gss_names(trc->internal,
+                                          json_object_get(jmon, "authorized_credentials"),
+                                          &(trc->internal->monitoring_credentials)));
+  }
+
+  return TR_CFG_SUCCESS;
+}
 
 /**
  * Parse internal configuration JSON
@@ -192,7 +241,7 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   /* Parse the monitoring section */
   if (NULL != (jtmp = json_object_get(jint, "monitoring"))) {
-    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "port", &(trc->internal->monitoring_port)));
+    NOPARSE_UNLESS(tr_cfg_parse_monitoring(trc, jtmp));
   }
 
   tr_debug("tr_cfg_parse_internal: Internal config parsed.");

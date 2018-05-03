@@ -95,7 +95,7 @@ enum mon_opt_type {
 
   // System information
   OPT_TYPE_SHOW_VERSION,
-  OPT_TYPE_SHOW_SERIAL,
+  OPT_TYPE_SHOW_CONFIG_FILES,
 
   // System statistics
   OPT_TYPE_SHOW_UPTIME,

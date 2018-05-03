@@ -129,7 +129,7 @@ nfds_t tr_sock_listen_all(unsigned int port, int *fd_out, nfds_t max_fd)
     return 0;
   }
 
-  tr_debug("tr_sock_listen_all: monitoring interface listening on port %d on %d socket%s",
+  tr_debug("tr_sock_listen_all: listening on port %d on %d socket%s",
            port,
            n_opened,
            (n_opened==1)?"":"s");

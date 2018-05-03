@@ -95,7 +95,7 @@ void tid_req_set_realm(TID_REQ *req, TR_NAME *realm);
 TR_EXPORT TR_NAME *tid_req_get_comm(TID_REQ *req);
 void tid_req_set_comm(TID_REQ *req, TR_NAME *comm);
 TR_EXPORT TR_NAME *tid_req_get_orig_coi(TID_REQ *req);
-void tid_req_set_rp_orig_coi(TID_REQ *req, TR_NAME *orig_coi);
+void tid_req_set_orig_coi(TID_REQ *req, TR_NAME *orig_coi);
 TR_EXPORT TIDC_RESP_FUNC *tid_req_get_resp_func(TID_REQ *req);
 void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
 TR_EXPORT void *tid_req_get_cookie(TID_REQ *req);

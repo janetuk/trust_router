@@ -52,7 +52,7 @@ static MON_REQ *show_options(const MON_OPT_TYPE *opts)
 static MON_REQ *show_all_options()
 {
   MON_OPT_TYPE opts[] = {
-      OPT_TYPE_SHOW_SERIAL,
+      OPT_TYPE_SHOW_CONFIG_FILES,
       OPT_TYPE_SHOW_VERSION,
       OPT_TYPE_SHOW_UPTIME,
       OPT_TYPE_SHOW_TID_REQ_COUNT,

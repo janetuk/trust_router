@@ -38,17 +38,6 @@
 #include <tr_util.h>
 #include <tr_debug.h>
 
-/**
- * Convert TR_NAME n to a JSON string, returning the empty string if n is null
- */
-static json_t *safe_name_to_json_string(TR_NAME *n)
-{
-  if (n)
-    return tr_name_to_json_string(n);
-  else
-    return json_string("");
-}
-
 static json_t *expiry_to_json_string(TR_COMM_MEMB *memb)
 {
   struct timespec ts_zero = {0, 0};
@@ -114,7 +103,7 @@ static json_t *tr_comm_memb_to_json(TR_COMM_MEMB *memb)
     OBJECT_SET_OR_FAIL(memb_json, "origin", json_string("file"));
   } else {
     OBJECT_SET_OR_FAIL(memb_json, "origin",
-                       safe_name_to_json_string(tr_comm_memb_get_origin(memb)));
+                       tr_name_to_json_string(tr_comm_memb_get_origin(memb)));
     OBJECT_SET_OR_FAIL(memb_json, "provenance",
                        provenance_to_json(memb));
     OBJECT_SET_OR_FAIL(memb_json, "expires",
@@ -190,9 +179,14 @@ static json_t *tr_comm_realms_to_json(TR_COMM_TABLE *ctable, TR_NAME *comm_name,
       realm_json = json_object();
       OBJECT_SET_OR_FAIL(realm_json, "realm",
                          tr_name_to_json_string(tr_realm_get_id(realm)));
-      memb = tr_comm_table_find_idp_memb(ctable,
-                                         tr_realm_get_id(realm),
-                                         comm_name);
+      memb = tr_comm_table_find_memb(ctable,
+                                     tr_realm_get_id(realm),
+                                     comm_name);
+      if (memb == NULL) {
+        /* This should not happen - there must be a matching membership if we
+         * believed the realm was in the community in the first place! */
+        goto cleanup;
+      }
       OBJECT_SET_OR_FAIL(realm_json, "sources",
                          tr_comm_memb_sources_to_json(memb));
       json_array_append_new(jarray, realm_json);
@@ -241,11 +235,14 @@ static json_t *tr_comm_to_json(TR_COMM_TABLE *ctable, TR_COMM *comm)
   }
   OBJECT_SET_OR_FAIL(comm_json, "name",
                      tr_name_to_json_string(tr_comm_get_id(comm)));
-  OBJECT_SET_OR_FAIL(comm_json, "owner_realm",
-                     safe_name_to_json_string(tr_comm_get_owner_realm(comm)));
-  OBJECT_SET_OR_FAIL(comm_json, "owner_contact",
-                     safe_name_to_json_string(tr_comm_get_owner_contact(comm)));
-
+  if (tr_comm_get_owner_realm(comm)) {
+    OBJECT_SET_OR_FAIL(comm_json, "owner_realm",
+                     tr_name_to_json_string(tr_comm_get_owner_realm(comm)));
+  }
+  if (tr_comm_get_owner_contact(comm)) {
+    OBJECT_SET_OR_FAIL(comm_json, "owner_contact",
+                       tr_name_to_json_string(tr_comm_get_owner_contact(comm)));
+  }
   OBJECT_SET_OR_FAIL(comm_json, "idp_realms",
                      tr_comm_realms_to_json(ctable, tr_comm_get_id(comm), TR_ROLE_IDP));
   OBJECT_SET_OR_FAIL(comm_json, "rp_realms",

@@ -41,6 +41,7 @@
 #include <syslog.h>
 #include <sys/time.h>
 #include <talloc.h>
+#include <gmodule.h>
 
 #include <tr_comm.h>
 #include <tr_rp.h>
@@ -52,6 +53,7 @@
 #define TR_DEFAULT_MAX_TREE_DEPTH 12
 #define TR_DEFAULT_TRPS_PORT 12308
 #define TR_DEFAULT_TIDS_PORT 12309
+#define TR_DEFAULT_MONITORING_PORT 0 /* defaults to being turned off */
 #define TR_DEFAULT_LOG_THRESHOLD LOG_INFO
 #define TR_DEFAULT_CONSOLE_THRESHOLD LOG_NOTICE
 #define TR_DEFAULT_APC_EXPIRATION_INTERVAL 43200
@@ -61,6 +63,8 @@
 #define TR_DEFAULT_TID_REQ_TIMEOUT 5
 #define TR_DEFAULT_TID_RESP_NUMER 2
 #define TR_DEFAULT_TID_RESP_DENOM 3
+
+#define TR_CFG_INVALID_SERIAL -1
 
 typedef enum tr_cfg_rc {
   TR_CFG_SUCCESS = 0,	/* No error */
@@ -86,7 +90,14 @@ typedef struct tr_cfg_internal {
   unsigned int tid_req_timeout;
   unsigned int tid_resp_numer; /* numerator of fraction of AAA servers to wait for in unshared mode */
   unsigned int tid_resp_denom; /* denominator of fraction of AAA servers to wait for in unshared mode */
+  TR_GSS_NAMES *monitoring_credentials;
 } TR_CFG_INTERNAL;
+
+/* record of files loaded for this configuration */
+typedef struct tr_cfg_file {
+  const char *name;
+  json_int_t serial;
+} TR_CFG_FILE;
 
 typedef struct tr_cfg {
   TR_CFG_INTERNAL *internal;		/* internal trust router config */
@@ -94,7 +105,8 @@ typedef struct tr_cfg {
   TRP_PTABLE *peers; /* TRP peer table */
   TR_COMM_TABLE *ctable; /* communities/realms */
   TR_AAA_SERVER *default_servers;	/* default server list */
-  /* TBD -- Global Filters */
+
+  GArray *files; /* files loaded to make this configuration */
 } TR_CFG;
 
 typedef struct tr_cfg_mgr {
@@ -117,10 +129,32 @@ void tr_print_comms(TR_COMM_TABLE *ctab);
 void tr_print_comm_idps(TR_COMM_TABLE *ctab, TR_COMM *comm);
 void tr_print_comm_rps(TR_COMM_TABLE *ctab, TR_COMM *comm);
 
-TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
-TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
-
 /* tr_config_internal.c */
 TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint);
+
+/* tr_config_comms.c */
+TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc);
+TR_RP_CLIENT *tr_cfg_find_rp (TR_CFG *tr_cfg, TR_NAME *rp_gss, TR_CFG_RC *rc);
+TR_CFG_RC tr_cfg_parse_comms (TR_CFG *trc, json_t *jcfg);
+TR_CFG_RC tr_cfg_parse_default_servers (TR_CFG *trc, json_t *jcfg);
+
+/* tr_config_filters.c */
+TR_FILTER_SET *tr_cfg_parse_filters(TALLOC_CTX *mem_ctx, json_t *jfilts, TR_CFG_RC *rc);
+
+/* tr_config_orgs.c */
+TR_CFG_RC tr_cfg_parse_local_orgs(TR_CFG *trc, json_t *jcfg);
+TR_CFG_RC tr_cfg_parse_peer_orgs(TR_CFG *trc, json_t *jcfg);
+
+/* tr_config_realms.c */
+TR_IDP_REALM *tr_cfg_parse_idp_realms(TALLOC_CTX *mem_ctx, json_t *jrealms, TR_CFG_RC *rc);
+TR_AAA_SERVER *tr_cfg_parse_one_aaa_server(TALLOC_CTX *mem_ctx, json_t *jaddr, TR_CFG_RC *rc);
+TR_APC *tr_cfg_parse_apcs(TALLOC_CTX *mem_ctx, json_t *japcs, TR_CFG_RC *rc);
+
+/* tr_config_rp_clients.c */
+TR_RP_CLIENT *tr_cfg_parse_rp_clients(TALLOC_CTX *mem_ctx, json_t *jrealms, TR_CFG_RC *rc);
+TR_CFG_RC tr_cfg_parse_gss_names(TALLOC_CTX *mem_ctx, json_t *jgss_names, TR_GSS_NAMES **gssn_out);
+
+/* tr_config_encoders.c */
+json_t *tr_cfg_files_to_json_array(TR_CFG *cfg);
 
 #endif

@@ -96,9 +96,8 @@ static int tr_mons_auth_handler(gss_name_t client_name, TR_NAME *gss_name, void 
 {
   struct tr_mons_event_cookie *cookie=talloc_get_type_abort(cookie_in, struct tr_mons_event_cookie);
   MONS_INSTANCE *mons = cookie->mons;
-  TR_CFG_MGR *cfg_mgr = cookie->cfg_mgr;
 
-  if ((!client_name) || (!gss_name) || (!mons) || (!cfg_mgr)) {
+  if ((!client_name) || (!gss_name) || (!mons)) {
     tr_debug("tr_mons_gss_handler: Bad parameters.");
     return -1;
   }
@@ -142,6 +141,12 @@ int tr_mons_event_init(struct event_base *base,
   if (mons_ev == NULL) {
     tr_debug("tr_mon_event_init: Null mons_ev.");
     retval=1;
+    goto cleanup;
+  }
+
+  if (cfg_mgr->active->internal->monitoring_port == 0) {
+    tr_notice("tr_mons_event_init: monitoring is disabled, not enabling events or opening sockets");
+    retval = 0;
     goto cleanup;
   }
 

@@ -64,10 +64,10 @@ static char *show_success()
                                mon_opt_type_to_string(OPT_TYPE_SHOW_VERSION),
                                json_string("1.2.3-4")));
   assert(! json_object_set_new(payload,
-                               mon_opt_type_to_string(OPT_TYPE_SHOW_SERIAL),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_CONFIG_FILES),
                                json_integer(1234567890)));
   assert(! json_object_set_new(payload,
-                               mon_opt_type_to_string(OPT_TYPE_SHOW_SERIAL),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_CONFIG_FILES),
                                json_integer(86400)));
   assert(! json_object_set_new(payload,
                                mon_opt_type_to_string(OPT_TYPE_SHOW_TID_REQ_PENDING),

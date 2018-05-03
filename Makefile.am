@@ -47,9 +47,19 @@ trp/trp_rtable.c \
 trp/trp_rtable_encoders.c \
 trp/trp_req.c \
 trp/trp_upd.c \
-common/tr_config.c \
-common/tr_config_internal.c \
-common/tr_mq.c
+common/tr_mq.c \
+$(config_srcs)
+
+# configuration parsing sources
+config_srcs = \
+    common/tr_config.c \
+    common/tr_config_comms.c \
+    common/tr_config_encoders.c \
+    common/tr_config_filters.c \
+    common/tr_config_internal.c \
+    common/tr_config_orgs.c \
+    common/tr_config_realms.c \
+    common/tr_config_rp_clients.c
 
 # general monitoring message sources
 mon_srcs =                   \
