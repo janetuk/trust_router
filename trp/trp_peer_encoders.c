@@ -33,7 +33,11 @@
  */
 
 #include <talloc.h>
+#include <jansson.h>
+
+#include <tr_gss_names.h>
 #include <trp_peer.h>
+#include <tr_util.h>
 
 char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep)
 {
@@ -45,3 +49,76 @@ char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep)
                          peer->linkcost);
 }
 
+/* helper for encoding to json */
+static json_t *server_to_json_string(const char *server, unsigned int port)
+{
+  char *s = talloc_asprintf(NULL, "%s:%u", server, port);
+  json_t *jstr = json_string(s);
+  talloc_free(s);
+  return jstr;
+}
+
+static json_t *last_attempt_to_json_string(TRP_PEER *peer)
+{
+  struct timespec ts_zero = {0, 0};
+  char *s = NULL;
+  json_t *jstr = NULL;
+
+  if (tr_cmp_timespec(trp_peer_get_last_conn_attempt(peer), &ts_zero) == 0) {
+    s = strdup("");
+  } else {
+    s = timespec_to_str(trp_peer_get_last_conn_attempt(peer));
+  }
+
+  if (s) {
+    jstr = json_string(s);
+    free(s);
+  }
+
+  return jstr;
+}
+
+/* helper for below */
+#define OBJECT_SET_OR_FAIL(jobj, key, val)     \
+do {                                           \
+  if (val)                                     \
+    json_object_set_new((jobj),(key),(val));   \
+  else                                         \
+    goto cleanup;                              \
+} while (0)
+
+json_t *trp_peer_to_json(TRP_PEER *peer)
+{
+  json_t *peer_json = NULL;
+  json_t *retval = NULL;
+
+  peer_json = json_object();
+  if (peer_json == NULL)
+    goto cleanup;
+
+
+  OBJECT_SET_OR_FAIL(peer_json, "server",
+                     server_to_json_string(trp_peer_get_server(peer),
+                                           trp_peer_get_port(peer)));
+  OBJECT_SET_OR_FAIL(peer_json, "linkcost",
+                     json_integer(trp_peer_get_linkcost(peer)));
+  OBJECT_SET_OR_FAIL(peer_json, "connected_to",
+                     json_boolean(trp_peer_get_outgoing_status(peer) == PEER_CONNECTED));
+  OBJECT_SET_OR_FAIL(peer_json, "connected_from",
+                     json_boolean(trp_peer_get_incoming_status(peer) == PEER_CONNECTED));
+  OBJECT_SET_OR_FAIL(peer_json, "servicename",
+                     tr_name_to_json_string(trp_peer_get_servicename(peer)));
+  OBJECT_SET_OR_FAIL(peer_json, "allowed_credentials",
+                     gss_names_to_json_array(trp_peer_get_gss_names(peer)));
+  OBJECT_SET_OR_FAIL(peer_json, "last_connection_attempt",
+                     last_attempt_to_json_string(peer));
+
+  /* succeeded - set the return value and increment the reference count */
+  retval = peer_json;
+  json_incref(retval);
+
+cleanup:
+  if (peer_json)
+    json_decref(peer_json);
+  return retval;
+}

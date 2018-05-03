@@ -130,3 +130,17 @@ void tr_gss_names_iter_free(TR_GSS_NAMES_ITER *iter)
 {
   talloc_free(iter);
 }
+
+json_t *gss_names_to_json_array(TR_GSS_NAMES *gss_names)
+{
+  TR_GSS_NAMES_ITER *iter = tr_gss_names_iter_new(NULL);
+  json_t *jarray = json_array();
+  TR_NAME *name = tr_gss_names_iter_first(iter, gss_names);
+  while (name) {
+    json_array_append_new(jarray, tr_name_to_json_string(name));
+    name = tr_gss_names_iter_next(iter);
+  }
+  tr_gss_names_iter_free(iter);
+  return jarray;
+}
+

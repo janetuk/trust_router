@@ -65,5 +65,6 @@ void trp_ptable_iter_free(TRP_PTABLE_ITER *iter);
 
 /* trp_ptable_encoders.c */
 char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, const char *lineterm);
+json_t *trp_ptable_to_json(TRP_PTABLE *ptbl);
 
 #endif /* _TRP_PTABLE_H_ */

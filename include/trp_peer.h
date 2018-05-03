@@ -90,5 +90,6 @@ TR_FILTER *trp_peer_get_filter(TRP_PEER *peer, TR_FILTER_TYPE ftype);
 
 /* trp_peer_encoders.c */
 char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep);
+json_t *trp_peer_to_json(TRP_PEER *peer);
 
 #endif //TRUST_ROUTER_TRP_PEER_H
