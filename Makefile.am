@@ -32,8 +32,14 @@ tid/tidc.c
 trp_srcs = trp/trp_conn.c \
 trp/trps.c \
 trp/trpc.c \
+trp/trp_peer.c \
+trp/trp_peer_encoders.c \
 trp/trp_ptable.c \
+trp/trp_ptable_encoders.c \
+trp/trp_route.c \
+trp/trp_route_encoders.c \
 trp/trp_rtable.c \
+trp/trp_rtable_encoders.c \
 trp/trp_req.c \
 trp/trp_upd.c \
 common/tr_config.c \
@@ -88,6 +94,7 @@ tr/tr_cfgwatch.c \
 tr/tr_tid.c \
 tr/tr_tid_mons.c \
 tr/tr_trp.c \
+tr/tr_trp_mons.c \
 tr/tr_mon.c \
 common/tr_gss.c \
 common/tr_gss_client.c \
@@ -133,7 +140,11 @@ trp_test_rtbl_test_SOURCES = trp/test/rtbl_test.c \
 common/tr_name.c \
 common/tr_gss_names.c \
 common/tr_debug.c \
-trp/trp_rtable.c
+common/tr_util.c \
+trp/trp_route.c \
+trp/trp_route_encoders.c \
+trp/trp_rtable.c \
+trp/trp_rtable_encoders.c
 trp_test_rtbl_test_LDADD =  $(GLIB_LIBS)
 
 trp_test_ptbl_test_SOURCES = trp/test/ptbl_test.c \
@@ -247,9 +258,9 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_comm.h include/tr_apc.h \
 	include/tr_tid.h include/tr_trp.h include/tr_mon.h \
 	include/tr_filter.h include/tr_gss_names.h \
-	include/tid_internal.h include/trp_internal.h \
+	include/tid_internal.h include/trp_internal.h include/trp_route.h \
 	include/tr_cfgwatch.h include/tr_event.h \
-	include/tr_mq.h include/trp_ptable.h \
+	include/tr_mq.h include/trp_peer.h include/trp_ptable.h \
 	include/trp_rtable.h include/tr_util.h \
 	include/tr_name_internal.h include/tr_gss.h
 

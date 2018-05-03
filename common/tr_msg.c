@@ -41,11 +41,10 @@
 #include <assert.h>
 #include <talloc.h>
 
-
 #include <tr_apc.h>
 #include <tr_comm.h>
-#include <mon_internal.h>
 #include <trp_internal.h>
+#include <mon_internal.h>
 #include <tr_msg.h>
 #include <tr_name_internal.h>
 #include <trust_router/tr_constraint.h>

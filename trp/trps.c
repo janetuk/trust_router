@@ -46,8 +46,10 @@
 #include <tr_apc.h>
 #include <tr_rp.h>
 #include <tr_name_internal.h>
+#include <trp_route.h>
 #include <trp_internal.h>
 #include <tr_gss_names.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
@@ -1145,7 +1147,7 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
     return TRP_ERROR;
   }
 
-  entry=trp_rtable_get_entries(trps->rtable, &n_entry); /* must talloc_free *entry */
+  entry= trp_rtable_get_entries(NULL, trps->rtable, &n_entry); /* must talloc_free *entry */
 
   /* loop over the entries */
   for (ii=0; ii<n_entry; ii++) {
@@ -1169,26 +1171,6 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 
   talloc_free(entry);
   return TRP_SUCCESS;
-}
-
-
-static char *timespec_to_str(struct timespec *ts)
-{
-  struct tm tm;
-  char *s=NULL;
-
-  if (localtime_r(&(ts->tv_sec), &tm)==NULL)
-    return NULL;
-
-  s=malloc(40); /* long enough to contain strftime result */
-  if (s==NULL)
-    return NULL;
-
-  if (strftime(s, 40, "%F %T", &tm)==0) {
-    free(s);
-    return NULL;
-  }
-  return s;
 }
 
 

@@ -80,4 +80,8 @@ TRP_RC tr_trpc_initiate(TRPS_INSTANCE *trps, TRP_PEER *peer, struct event *ev);
 void tr_config_changed(TR_CFG *new_cfg, void *cookie);
 TRP_RC tr_connect_to_peers(TRPS_INSTANCE *trps, struct event *ev);
 void tr_peer_status_change(TRP_PEER *peer, void *cookie);
+
+/* tr_trp_mons.h */
+void tr_trp_register_mons_handlers(TRPS_INSTANCE *trps, MONS_INSTANCE *mons);
+
 #endif /* TR_TRP_H */

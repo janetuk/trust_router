@@ -47,7 +47,9 @@
 #include <tr.h>
 #include <tr_mq.h>
 #include <tr_rp.h>
+#include <trp_route.h>
 #include <trp_internal.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_config.h>

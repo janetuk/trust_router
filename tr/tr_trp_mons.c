@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,38 +32,26 @@
  *
  */
 
-#ifndef _TRP_PTABLE_H_
-#define _TRP_PTABLE_H_
+/* Monitoring handlers for trust router TID server */
 
-#include <time.h>
-#include <talloc.h>
+#include <jansson.h>
+#include <trp_internal.h>
+#include <tr_trp.h>
+#include <trp_rtable.h>
+#include <mon_internal.h>
+#include <mons_handlers.h>
 
-#include <tr_name_internal.h>
-#include <tr_gss_names.h>
-#include <trust_router/trp.h>
-#include <tr_filter.h>
-#include <trp_peer.h>
+static MON_RC handle_show_routes(void *cookie, json_t **response_ptr)
+{
+  TRPS_INSTANCE *trps = talloc_get_type_abort(cookie, TRPS_INSTANCE);
 
-typedef struct trp_ptable {
-  TRP_PEER *head; /* head of a peer table list */
-} TRP_PTABLE;
+  *response_ptr = trp_rtable_to_json(trps->rtable);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
 
-/* iterator for the peer table */
-typedef TRP_PEER *TRP_PTABLE_ITER;
-
-TRP_PTABLE *trp_ptable_new(TALLOC_CTX *memctx);
-void trp_ptable_free(TRP_PTABLE *ptbl);
-TRP_RC trp_ptable_add(TRP_PTABLE *ptbl, TRP_PEER *newpeer);
-TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer);
-TRP_PEER *trp_ptable_find_gss_name(TRP_PTABLE *ptbl, TR_NAME *gssname);
-TRP_PEER *trp_ptable_find_servicename(TRP_PTABLE *ptbl, TR_NAME *servicename);
-
-TRP_PTABLE_ITER *trp_ptable_iter_new(TALLOC_CTX *mem_ctx);
-TRP_PEER *trp_ptable_iter_first(TRP_PTABLE_ITER *iter, TRP_PTABLE *ptbl);
-TRP_PEER *trp_ptable_iter_next(TRP_PTABLE_ITER *iter);
-void trp_ptable_iter_free(TRP_PTABLE_ITER *iter);
-
-/* trp_ptable_encoders.c */
-char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, const char *lineterm);
-
-#endif /* _TRP_PTABLE_H_ */
+void tr_trp_register_mons_handlers(TRPS_INSTANCE *trps, MONS_INSTANCE *mons)
+{
+  mons_register_handler(mons,
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_ROUTES,
+                        handle_show_routes, trps);
+}

@@ -36,8 +36,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <trust_router/tr_dh.h>
 #include <tr_util.h>
+#include <stdlib.h>
 
 void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
 		   char * hex_out, size_t hex_len)
@@ -71,3 +71,28 @@ int tr_cmp_timespec(struct timespec *ts1, struct timespec *ts2)
 
   return 0;
 }
+
+/**
+ * Convert a struct timespec to a string representation
+ * @param ts
+ * @return
+ */
+char *timespec_to_str(struct timespec *ts)
+{
+  struct tm tm;
+  char *s=NULL;
+
+  if (localtime_r(&(ts->tv_sec), &tm)==NULL)
+    return NULL;
+
+  s=malloc(40); /* long enough to contain strftime result */
+  if (s==NULL)
+    return NULL;
+
+  if (strftime(s, 40, "%F %T", &tm)==0) {
+    free(s);
+    return NULL;
+  }
+  return s;
+}
+
