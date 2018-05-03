@@ -34,15 +34,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <jansson.h>
 #include <argp.h>
 #include <event2/event.h>
 #include <talloc.h>
-#include <sys/time.h>
 #include <signal.h>
-#include <pthread.h>
+#include <time.h>
 
 #include <tid_internal.h>
+#include <mon_internal.h>
+#include <tr_mon.h>
 #include <tr_tid.h>
 #include <tr_trp.h>
 #include <tr_config.h>
@@ -151,6 +151,38 @@ static void configure_signals(void)
   pthread_sigmask(SIG_BLOCK, &signals, NULL);
 }
 
+/* Monitoring handlers */
+static MON_RC tr_handle_version(void *cookie, json_t **result_ptr)
+{
+  *result_ptr = json_string(PACKAGE_VERSION);
+  return (*result_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
+static MON_RC tr_handle_uptime(void *cookie, json_t **result_ptr)
+{
+  time_t *start_time = cookie;
+  *result_ptr = json_integer(time(NULL) - (*start_time));
+  return (*result_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
+static MON_RC tr_handle_show_rp_clients(void *cookie, json_t **response_ptr)
+{
+  TR_CFG_MGR *cfg_mgr = talloc_get_type_abort(cookie, TR_CFG_MGR);
+
+  *response_ptr = tr_rp_clients_to_json(cfg_mgr->active->rp_clients);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
+static MON_RC tr_handle_show_cfg_serial(void *cookie, json_t **response_ptr)
+{
+  TR_CFG_MGR *cfg_mgr = talloc_get_type_abort(cookie, TR_CFG_MGR);
+
+  *response_ptr = tr_cfg_files_to_json_array(cfg_mgr->active);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
+
+
 int main(int argc, char *argv[])
 {
   TALLOC_CTX *main_ctx=NULL;
@@ -159,7 +191,11 @@ int main(int argc, char *argv[])
   struct cmdline_args opts;
   struct event_base *ev_base;
   struct tr_socket_event tids_ev = {0};
+  struct event *tids_sweep_ev;
+  struct tr_socket_event mon_ev = {0};
   struct event *cfgwatch_ev;
+
+  time_t start_time = time(NULL); /* TODO move this? */
 
   configure_signals();
 
@@ -199,17 +235,33 @@ int main(int argc, char *argv[])
   }
 
   /***** initialize the trust path query server instance *****/
-  if (NULL == (tr->tids = tids_create())) {
+  if (NULL == (tr->tids = tids_new(tr))) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }
-  talloc_steal(tr, tr->tids);
 
   /***** initialize the trust router protocol server instance *****/
   if (NULL == (tr->trps = trps_new(tr))) {
     tr_crit("Error initializing Trust Router Protocol Server instance.");
     return 1;
   }
+
+  /***** initialize the monitoring interface instance *****/
+  if (NULL == (tr->mons = mons_new(tr))) {
+    tr_crit("Error initializing monitoring interface instance.");
+    return 1;
+  }
+  /* Monitor our tids/trps instances */
+  tr->mons->tids = tr->tids;
+  tr->mons->trps = tr->trps;
+
+  /* Register monitoring handlers */
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_VERSION, tr_handle_version, NULL);
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_CONFIG_FILES, tr_handle_show_cfg_serial, tr->cfg_mgr);
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_UPTIME, tr_handle_uptime, &start_time);
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_RP_CLIENTS, tr_handle_show_rp_clients, tr->cfg_mgr);
+  tr_tid_register_mons_handlers(tr->tids, tr->mons);
+  tr_trp_register_mons_handlers(tr->trps, tr->mons);
 
   /***** process configuration *****/
   tr->cfgwatch=tr_cfgwatch_create(tr);
@@ -244,15 +296,16 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  /*tr_status_event_init();*/ /* install status reporting events */
+  /* install monitoring interface events */
+  tr_debug("Initializing monitoring interface events.");
+  if (0 != tr_mons_event_init(ev_base, tr->mons, tr->cfg_mgr, &mon_ev)) {
+    tr_crit("Error initializing monitoring interface.");
+    return 1;
+  }
 
   /* install TID server events */
   tr_debug("Initializing TID server events.");
-  if (0 != tr_tids_event_init(ev_base,
-                              tr->tids,
-                              tr->cfg_mgr,
-                              tr->trps,
-                             &tids_ev)) {
+  if (0 != tr_tids_event_init(ev_base, tr->tids, tr->cfg_mgr, tr->trps, &tids_ev, &tids_sweep_ev)) {
     tr_crit("Error initializing Trust Path Query Server instance.");
     return 1;
   }

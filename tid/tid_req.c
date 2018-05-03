@@ -167,7 +167,7 @@ TR_NAME *tid_req_get_orig_coi(TID_REQ *req)
   return(req->orig_coi);
 }
 
-void tid_req_set_rp_orig_coi(TID_REQ *req, TR_NAME *orig_coi)
+void tid_req_set_orig_coi(TID_REQ *req, TR_NAME *orig_coi)
 {
   req->orig_coi = orig_coi;
 }

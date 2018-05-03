@@ -144,4 +144,7 @@ int tr_filter_validate_spec_field(TR_FILTER_TYPE ftype, TR_FSPEC *fspec);
 const char *tr_filter_type_to_string(TR_FILTER_TYPE ftype);
 TR_FILTER_TYPE tr_filter_type_from_string(const char *s);
 
+/* tr_filter_encoders.c */
+json_t *tr_filter_set_to_json(TR_FILTER_SET *filter_set);
+
 #endif

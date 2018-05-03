@@ -210,7 +210,8 @@ int main (int argc,
  
   /* Create a TID client instance & the client DH */
   tidc = tidc_create();
-  if (NULL == (tidc->client_dh = tr_create_dh_params(NULL, 0))) {
+  tidc_set_dh(tidc, tr_create_dh_params(NULL, 0));
+  if (tidc_get_dh(tidc) == NULL) {
     printf("Error creating client DH params.\n");
     return 1;
   }

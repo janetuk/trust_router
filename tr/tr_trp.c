@@ -47,7 +47,9 @@
 #include <tr.h>
 #include <tr_mq.h>
 #include <tr_rp.h>
+#include <trp_route.h>
 #include <trp_internal.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_config.h>
@@ -869,6 +871,20 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
 
   tr->cfgwatch->settling_time.tv_sec=new_cfg->internal->cfg_settling_time;
   tr->cfgwatch->settling_time.tv_usec=0;
+
+  /* These need to be updated */
+  tr->tids->hostname = new_cfg->internal->hostname;
+  tr->mons->hostname = new_cfg->internal->hostname;
+
+  /* Update the authorized monitoring gss names */
+  if (tr->mons->authorized_gss_names) {
+    tr_debug("tr_config_changed: freeing tr->mons->authorized_gss_names");
+    tr_gss_names_free(tr->mons->authorized_gss_names);
+  }
+  tr->mons->authorized_gss_names = tr_gss_names_dup(tr->mons, new_cfg->internal->monitoring_credentials);
+  if (tr->mons->authorized_gss_names == NULL) {
+    tr_err("tr_config_changed: Error configuring monitoring credentials");
+  }
 
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);

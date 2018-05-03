@@ -83,6 +83,13 @@ void tid_resp_free(TID_RESP *resp)
     talloc_free(resp);
 }
 
+/**
+ * Allocate a new copy of a TID_RESP
+ *
+ * @param mem_ctx
+ * @param resp
+ * @return
+ */
 TID_RESP *tid_resp_dup(TALLOC_CTX *mem_ctx, TID_RESP *resp)
 {
   TID_RESP *newresp=NULL;
@@ -93,17 +100,36 @@ TID_RESP *tid_resp_dup(TALLOC_CTX *mem_ctx, TID_RESP *resp)
   newresp=tid_resp_new(mem_ctx);
 
   if (NULL!=newresp) {
-    newresp->result=resp->result;
-    newresp->err_msg=tr_dup_name(resp->err_msg);
-    newresp->rp_realm=tr_dup_name(resp->rp_realm);
-    newresp->realm=tr_dup_name(resp->realm);
-    newresp->comm=tr_dup_name(resp->comm);
-    newresp->orig_coi=tr_dup_name(resp->orig_coi);
-    newresp->servers=tid_srvr_blk_dup(newresp, resp->servers);
-    tid_resp_set_cons(newresp, resp->cons);
-    tid_resp_set_error_path(newresp, resp->error_path);
+    tid_resp_cpy(newresp, resp);
   }
   return newresp;
+}
+
+/**
+ * Copy contents of one TID_RESP to an existing TID_RESP
+ *
+ * @param dst
+ * @param src
+ * @return TID_SUCCESS on success, error code on error
+ */
+TID_RC tid_resp_cpy(TID_RESP *dst, TID_RESP *src)
+{
+  tid_resp_set_result(dst, tid_resp_get_result(src));
+  tid_resp_set_err_msg(dst,
+                       tr_dup_name(tid_resp_get_err_msg(src)));
+  tid_resp_set_rp_realm(dst,
+                        tr_dup_name(tid_resp_get_rp_realm(src)));
+  tid_resp_set_realm(dst,
+                     tr_dup_name(tid_resp_get_realm(src)));
+  tid_resp_set_comm(dst,
+                    tr_dup_name(tid_resp_get_comm(src)));
+  tid_resp_set_cons(dst, src->cons);
+  tid_resp_set_orig_coi(dst,
+                        tr_dup_name(tid_resp_get_orig_coi(src)));
+  dst->servers = tid_srvr_blk_dup(dst, src->servers);
+  tid_resp_set_error_path(dst, src->error_path);
+
+  return TID_SUCCESS;
 }
 
 TR_EXPORT int tid_resp_get_result(TID_RESP *resp)

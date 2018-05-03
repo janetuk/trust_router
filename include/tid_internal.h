@@ -39,6 +39,7 @@
 #include <tr_rp.h>
 #include <trust_router/tid.h>
 #include <jansson.h>
+#include "tr_gss_client.h"
 
 struct tid_srvr_blk {
   TID_SRVR_BLK *next;
@@ -84,23 +85,26 @@ struct tid_req {
 };
 
 struct tidc_instance {
-  // TID_REQ *req_list;
-  // TBD -- Do we still need a separate private key */
-  // char *priv_key;
-  // int priv_len;
-  DH *client_dh;			/* Client's DH struct with priv and pub keys */
+  TR_GSSC_INSTANCE *gssc;
+};
+
+struct tid_process {
+  pid_t pid;
+  int read_fd;
 };
 
 struct tids_instance {
   int req_count;
+  int error_count;
   char *priv_key;
   char *ipaddr;
   const char *hostname;
   TIDS_REQ_FUNC *req_handler;
   tids_auth_func *auth_handler;
   void *cookie;
-  uint16_t tids_port;
+  unsigned int tids_port;
   TR_NAME *gss_name;		/* GSS name client used for authentication */
+  GArray *pids; /* PIDs of active tids processes */
 };
 
 /** Decrement a reference to #json when this tid_req is cleaned up. A
@@ -117,7 +121,10 @@ TID_SRVR_BLK *tid_srvr_blk_add_func(TID_SRVR_BLK *head, TID_SRVR_BLK *new);
 #define tid_srvr_blk_add(head, new) ((head)=tid_srvr_blk_add_func((head),(new)))
 void tid_srvr_blk_set_path(TID_SRVR_BLK *block, TID_PATH *path);
 
+TID_RC tid_resp_cpy(TID_RESP *dst, TID_RESP *src);
 void tid_resp_set_cons(TID_RESP *resp, TR_CONSTRAINT_SET *cons);
 void tid_resp_set_error_path(TID_RESP *resp, json_t *ep);
+
+void tids_sweep_procs(TIDS_INSTANCE *tids);
 
 #endif
