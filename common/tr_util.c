@@ -116,8 +116,9 @@ int tr_add_timespec(const struct timespec *ts1, const struct timespec *ts2, stru
  * The returned tv_nsec is always positive and less than 1e9.
  *
  * (The value represented is tv_sec + tv_nsec/1e9 seconds - this is a little
- * counterintuitive when tv_sec is positive. E.g., -1.5 seconds is represented
- * as {-2, 500000000).)
+ * counterintuitive when tv_sec is negative. E.g., -1.5 seconds is represented
+ * as {-2, 500000000). Negative time_t values are not guaranteed to be supported
+ * anyway, so it's probably best to stay away from them.)
  *
  * @param ts1
  * @param ts2
