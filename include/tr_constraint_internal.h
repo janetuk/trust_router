@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,24 +32,32 @@
  *
  */
 
-#ifndef TR_NAME_H
-#define TR_NAME_H
-#include <string.h>
-#include <trust_router/tr_versioning.h>
 
-typedef const char *tr_const_string;
+#ifndef TRUST_ROUTER_TR_CONSTRAINT_INTERNAL_H
+#define TRUST_ROUTER_TR_CONSTRAINT_INTERNAL_H
 
-typedef struct tr__name {
-  char *buf;
-  int len;
-} TR_NAME;
+#include <talloc.h>
 
-TR_EXPORT TR_NAME *tr_new_name (const char *name);
-TR_EXPORT TR_NAME *tr_dup_name (const TR_NAME *from);
-TR_EXPORT void tr_free_name (TR_NAME *name);
-TR_EXPORT int tr_name_cmp (const TR_NAME *one, const TR_NAME *two);
-TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
-TR_EXPORT char *tr_name_strdup(const TR_NAME *);
-TR_EXPORT TR_NAME *tr_name_cat(const TR_NAME *n1, const TR_NAME *n2);
+#include <tr_list.h>
+#include <tr_name_internal.h>
+#include <trust_router/tr_constraint.h>
 
-#endif
+
+struct tr_constraint {
+  TR_NAME *type;
+  TR_LIST *matches;
+};
+
+TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
+void tr_constraint_free(TR_CONSTRAINT *cons);
+TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons);
+
+/* Iterator for TR_CONS matches */
+typedef TR_LIST_ITER TR_CONSTRAINT_ITER;
+#define tr_constraint_iter_new(CTX) (tr_list_iter_new(CTX))
+#define tr_constraint_iter_free(ITER) (tr_list_iter_free(ITER))
+#define tr_constraint_iter_first(ITER, CONS) ((TR_NAME *) tr_list_iter_first((ITER), (CONS)->matches))
+#define tr_constraint_iter_next(ITER) ((TR_NAME *) tr_list_iter_next(ITER))
+#define tr_constraint_add_match(CONS, MATCH) ((TR_NAME *) tr_list_add((CONS)->matches, (MATCH), 0))
+
+#endif //TRUST_ROUTER_TR_CONSTRAINT_INTERNAL_H

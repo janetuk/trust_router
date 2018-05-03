@@ -33,29 +33,38 @@
  */
 
 #include <talloc.h>
+#include <glib.h>
 
 #include <tr_gss_names.h>
 #include <tr_debug.h>
 
+/**
+ * Helper for tr_gss_names_destructor - calls tr_free_name on its first argument
+ *
+ * @param item void pointer to a TR_NAME
+ * @param cookie ignored
+ */
+static void gss_names_destruct_helper(void *item, void *cookie)
+{
+  TR_NAME *name = (TR_NAME *) item;
+  tr_free_name(name);
+}
 static int tr_gss_names_destructor(void *obj)
 {
   TR_GSS_NAMES *gss_names=talloc_get_type_abort(obj, TR_GSS_NAMES);
-  int ii=0;
-
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if (gss_names->names[ii]!=NULL)
-      tr_free_name(gss_names->names[ii]);
-  }
+  if (gss_names->names)
+    tr_list_foreach(gss_names->names, gss_names_destruct_helper, NULL);
   return 0;
 }
 TR_GSS_NAMES *tr_gss_names_new(TALLOC_CTX *mem_ctx)
 {
-  TR_GSS_NAMES *gn=talloc(mem_ctx, TR_GSS_NAMES);
-  int ii=0;
-
-  if (gn!=NULL) {
-    for (ii=0; ii<TR_MAX_GSS_NAMES; ii++)
-      gn->names[ii]=NULL;
+  TR_GSS_NAMES *gn = talloc(mem_ctx, TR_GSS_NAMES);
+  if (gn != NULL) {
+    gn->names = tr_list_new(gn);
+    if (gn->names == NULL) {
+      talloc_free(gn);
+      return NULL;
+    }
     talloc_set_destructor((void *)gn, tr_gss_names_destructor);
   }
   return gn;
@@ -69,17 +78,7 @@ void tr_gss_names_free(TR_GSS_NAMES *gn)
 /* returns 0 on success */
 int tr_gss_names_add(TR_GSS_NAMES *gn, TR_NAME *new)
 {
-  int ii=0;
-
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if (gn->names[ii]==NULL)
-      break;
-  }
-  if (ii!=TR_MAX_GSS_NAMES) {
-    gn->names[ii]=new;
-    return 0;
-  } else
-    return -1;
+  return (NULL == tr_list_add(gn->names, new, 0)); /* nonzero if the add failed */
 }
 
 /**
@@ -100,66 +99,34 @@ TR_GSS_NAMES *tr_gss_names_dup(TALLOC_CTX *mem_ctx, TR_GSS_NAMES *orig)
     talloc_free(tmp_ctx);
     return NULL;
   }
-  this = tr_gss_names_iter_first(iter, orig);
-  while (this) {
+  for (this = tr_gss_names_iter_first(iter, orig);
+       this != NULL;
+       this = tr_gss_names_iter_next(iter)) {
     if (tr_gss_names_add(new, tr_dup_name(this)) != 0) {
       talloc_free(tmp_ctx);
       return NULL;
     }
-    this = tr_gss_names_iter_next(iter);
   }
   /* success */
   talloc_steal(mem_ctx, new);
   return new;
 }
+
 int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name)
 {
-  int ii=0;
+  TR_GSS_NAMES_ITER iter={0};
+  TR_NAME *this = NULL;
 
-  if (!gn)
+  if ((!gn) || (!name))
     return 0;
 
-  for (ii=0; ii<TR_MAX_GSS_NAMES; ii++) {
-    if ((gn->names[ii]!=NULL) &&
-        (0==tr_name_cmp(gn->names[ii], name)))
+  for (this = tr_gss_names_iter_first(&iter, gn);
+      this != NULL;
+      this = tr_gss_names_iter_next(&iter)) {
+    if (tr_name_cmp(name, this) == 0)
       return 1;
   }
   return 0;
-}
-
-/* iterators */
-TR_GSS_NAMES_ITER *tr_gss_names_iter_new(TALLOC_CTX *mem_ctx)
-{
-  TR_GSS_NAMES_ITER *iter=talloc(mem_ctx, TR_GSS_NAMES_ITER);
-  if (iter!=NULL) {
-    iter->gn=NULL;
-    iter->ii=0;
-  }
-  return iter;
-}
-
-TR_NAME *tr_gss_names_iter_first(TR_GSS_NAMES_ITER *iter, TR_GSS_NAMES *gn)
-{
-  iter->gn=gn;
-  iter->ii=-1;
-  return tr_gss_names_iter_next(iter);
-}
-
-TR_NAME *tr_gss_names_iter_next(TR_GSS_NAMES_ITER *iter)
-{
-  for (iter->ii++;
-       (iter->ii < TR_MAX_GSS_NAMES) && (iter->gn->names[iter->ii]==NULL);
-       iter->ii++) { }
-
-  if (iter->ii<TR_MAX_GSS_NAMES)
-    return iter->gn->names[iter->ii];
-  
-  return NULL;
-}
-
-void tr_gss_names_iter_free(TR_GSS_NAMES_ITER *iter)
-{
-  talloc_free(iter);
 }
 
 json_t *tr_gss_names_to_json_array(TR_GSS_NAMES *gss_names)
