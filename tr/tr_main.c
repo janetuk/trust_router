@@ -151,19 +151,29 @@ static void configure_signals(void)
   pthread_sigmask(SIG_BLOCK, &signals, NULL);
 }
 
-/* TODO move this function */
-static MON_RC tr_mon_handle_version(void *cookie, json_t **result_ptr)
+/* Monitoring handlers */
+static MON_RC tr_handle_version(void *cookie, json_t **result_ptr)
 {
   *result_ptr = json_string(PACKAGE_VERSION);
   return (*result_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
 }
 
-static MON_RC tr_mon_handle_uptime(void *cookie, json_t **result_ptr)
+static MON_RC tr_handle_uptime(void *cookie, json_t **result_ptr)
 {
   time_t *start_time = cookie;
   *result_ptr = json_integer(time(NULL) - (*start_time));
   return (*result_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
 }
+
+static MON_RC tr_handle_show_rp_clients(void *cookie, json_t **response_ptr)
+{
+  TR_CFG_MGR *cfg_mgr = talloc_get_type_abort(cookie, TR_CFG_MGR);
+
+  *response_ptr = tr_rp_clients_to_json(cfg_mgr->active->rp_clients);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
+
 
 int main(int argc, char *argv[])
 {
@@ -237,9 +247,10 @@ int main(int argc, char *argv[])
   tr->mons->tids = tr->tids;
   tr->mons->trps = tr->trps;
 
-  /* TODO do this more systematically */
-  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_VERSION, tr_mon_handle_version, NULL);
-  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_UPTIME, tr_mon_handle_uptime, &start_time);
+  /* Register monitoring handlers */
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_VERSION, tr_handle_version, NULL);
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_UPTIME, tr_handle_uptime, &start_time);
+  mons_register_handler(tr->mons, MON_CMD_SHOW, OPT_TYPE_SHOW_RP_CLIENTS, tr_handle_show_rp_clients, tr->cfg_mgr);
   tr_tid_register_mons_handlers(tr->tids, tr->mons);
   tr_trp_register_mons_handlers(tr->trps, tr->mons);
 

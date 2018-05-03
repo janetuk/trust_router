@@ -40,6 +40,7 @@
 #include <tr_comm.h>
 #include <tr_idp.h>
 #include <tr_rp.h>
+#include <tr_rp_client.h>
 #include <tr_event.h>
 #include <tr_debug.h>
 #include <gsscon.h>

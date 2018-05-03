@@ -59,6 +59,6 @@ TR_NAME *tr_gss_names_iter_first(TR_GSS_NAMES_ITER *iter, TR_GSS_NAMES *gn);
 TR_NAME *tr_gss_names_iter_next(TR_GSS_NAMES_ITER *iter);
 void tr_gss_names_iter_free(TR_GSS_NAMES_ITER *iter);
 
-json_t *gss_names_to_json_array(TR_GSS_NAMES *gss_names);
+json_t *tr_gss_names_to_json_array(TR_GSS_NAMES *gss_names);
 
 #endif /* __TR_GSS_H__ */
