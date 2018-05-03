@@ -196,9 +196,9 @@ cleanup:
     /* mq is still valid, so we can queue our response */
     tr_debug("tr_tids_req_fwd_thread: thread %d using valid msg queue.", cookie->thread_id);
     if (success)
-      msg=tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_SUCCESS, TR_MQ_PRIO_NORMAL);
+      msg= tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_SUCCESS);
     else
-      msg=tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_FAILURE, TR_MQ_PRIO_NORMAL);
+      msg= tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_FAILURE);
 
     if (msg==NULL)
       tr_notice("tr_tids_req_fwd_thread: thread %d unable to allocate response msg.", cookie->thread_id);

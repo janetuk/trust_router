@@ -59,7 +59,7 @@ int main(void)
   mq->notify_cb=notify_cb;
   mq->notify_cb_arg=mq_name;
 
-  msg1=tr_mq_msg_new(NULL,"Message 1", TR_MQ_PRIO_NORMAL);
+  msg1= tr_mq_msg_new(NULL, "Message 1");
   assert(asprintf((char **)&(msg1->p), "First message.\n")!=-1);
   msg1->p_free=free;
   tr_mq_add(mq, msg1);
@@ -67,7 +67,7 @@ int main(void)
   assert(mq->tail==msg1);
   assert(msg1->next==NULL);
 
-  msg2=tr_mq_msg_new(NULL, "Message 2", TR_MQ_PRIO_NORMAL);
+  msg2= tr_mq_msg_new(NULL, "Message 2");
   assert(asprintf((char **)&(msg2->p), "Second message.\n")!=-1);
   msg2->p_free=free;
   tr_mq_add(mq, msg2);
@@ -87,7 +87,7 @@ int main(void)
   } else
     printf("no message to pop\n");
   
-  msg3=tr_mq_msg_new(NULL, "Message 3", TR_MQ_PRIO_NORMAL);
+  msg3= tr_mq_msg_new(NULL, "Message 3");
   assert(asprintf((char **)&(msg3->p), "%s", "Third message.\n")!=-1);
   msg3->p_free=free;
   tr_mq_add(mq, msg3);
@@ -127,7 +127,7 @@ int main(void)
   } else
     printf("no message to pop\n");
 
-  msg4=tr_mq_msg_new(NULL, "Message 4", TR_MQ_PRIO_NORMAL);
+  msg4= tr_mq_msg_new(NULL, "Message 4");
   assert(asprintf((char **)&(msg4->p), "%s", "Fourth message.\n")!=-1);
   msg4->p_free=free;
   tr_mq_add(mq, msg4);

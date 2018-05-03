@@ -53,7 +53,7 @@ struct thread_data {
 static TR_MQ_MSG *make_msg(char *label, int n)
 {
   TR_MQ_MSG *msg=NULL;
-  msg=tr_mq_msg_new(NULL, "Message", TR_MQ_PRIO_NORMAL);
+  msg= tr_mq_msg_new(NULL, "Message");
   assert(-1!=asprintf((char **)&(msg->p), "%s: %d messages to go...", label, n));
   msg->p_free=free;
   return msg;
