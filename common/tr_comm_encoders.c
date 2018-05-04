@@ -40,19 +40,20 @@
 
 static json_t *expiry_to_json_string(TR_COMM_MEMB *memb)
 {
-  struct timespec ts_zero = {0, 0};
+  struct timespec ts = {0}; /* initialization to zero is important */
   char *s = NULL;
   json_t *jstr = NULL;
 
-  if (tr_cmp_timespec(tr_comm_memb_get_expiry(memb), &ts_zero) == 0) {
-    s = strdup("");
-  } else {
-    s = timespec_to_str(tr_comm_memb_get_expiry(memb));
-  }
+  if (tr_cmp_timespec(tr_comm_memb_get_expiry(memb), &ts) > 0) {
+    if (tr_comm_memb_get_expiry_realtime(memb, &ts) == NULL)
+      s = strdup("error");
+    else
+      s = timespec_to_str(&ts);
 
-  if (s) {
-    jstr = json_string(s);
-    free(s);
+    if (s) {
+      jstr = json_string(s);
+      free(s);
+    }
   }
 
   return jstr;

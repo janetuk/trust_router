@@ -84,12 +84,15 @@ char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
 /* helper */
 static json_t *expiry_to_json_string(TRP_ROUTE *route)
 {
-  struct timespec ts_zero = {0, 0};
+  struct timespec ts = {0}; /* initialization to zero is important */
   char *s = NULL;
   json_t *jstr = NULL;
 
-  if (tr_cmp_timespec(trp_route_get_expiry(route), &ts_zero) > 0) {
-    s = timespec_to_str(trp_route_get_expiry(route));
+  if (tr_cmp_timespec(trp_route_get_expiry(route), &ts) > 0) {
+    if (trp_route_get_expiry_realtime(route, &ts) == NULL)
+      s = strdup("error");
+    else
+      s = timespec_to_str(&ts);
 
     if (s) {
       jstr = json_string(s);

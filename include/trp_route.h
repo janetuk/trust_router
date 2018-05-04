@@ -78,6 +78,7 @@ void trp_route_set_interval(TRP_ROUTE *entry, int interval);
 int trp_route_get_interval(TRP_ROUTE *entry);
 void trp_route_set_expiry(TRP_ROUTE *entry, struct timespec *exp);
 struct timespec *trp_route_get_expiry(TRP_ROUTE *entry);
+struct timespec *trp_route_get_expiry_realtime(TRP_ROUTE *comm, struct timespec *result);
 void trp_route_set_local(TRP_ROUTE *entry, int local);
 int trp_route_is_local(TRP_ROUTE *entry);
 void trp_route_set_triggered(TRP_ROUTE *entry, int trig);

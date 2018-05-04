@@ -1179,6 +1179,7 @@ TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct timespec sweep_time={0,0};
+  struct timespec tmp = {0};
   TR_COMM_MEMB *memb=NULL;
   TR_COMM_ITER *iter=NULL;
   TRP_RC rc=TRP_ERROR;
@@ -1211,7 +1212,7 @@ TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
                  tr_comm_memb_get_realm_id(memb)->len, tr_comm_memb_get_realm_id(memb)->buf,
                  tr_comm_get_id(tr_comm_memb_get_comm(memb))->len, tr_comm_get_id(tr_comm_memb_get_comm(memb))->buf,
                  tr_comm_memb_get_origin(memb)->len, tr_comm_memb_get_origin(memb)->buf,
-                 timespec_to_str(tr_comm_memb_get_expiry(memb)));
+                 timespec_to_str(tr_comm_memb_get_expiry_realtime(memb, &tmp)));
         tr_comm_table_remove_memb(trps->ctable, memb);
         tr_comm_memb_free(memb);
       } else {
@@ -1219,8 +1220,8 @@ TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
         tr_comm_memb_expire(memb);
         trps_compute_expiry(trps, tr_comm_memb_get_interval(memb), tr_comm_memb_get_expiry(memb));
         tr_debug("trps_sweep_ctable: community membership expired at %s, resetting expiry to %s (%.*s in %.*s, origin %.*s).",
-                 timespec_to_str(&sweep_time),
-                 timespec_to_str(tr_comm_memb_get_expiry(memb)),
+                 timespec_to_str(tr_clock_convert(TRP_CLOCK, &sweep_time, CLOCK_REALTIME, &tmp)),
+                 timespec_to_str(tr_comm_memb_get_expiry_realtime(memb, &tmp)),
                  tr_comm_memb_get_realm_id(memb)->len, tr_comm_memb_get_realm_id(memb)->buf,
                  tr_comm_get_id(tr_comm_memb_get_comm(memb))->len, tr_comm_get_id(tr_comm_memb_get_comm(memb))->buf,
                  tr_comm_memb_get_origin(memb)->len, tr_comm_memb_get_origin(memb)->buf);
