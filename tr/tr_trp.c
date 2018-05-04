@@ -114,7 +114,7 @@ static int tr_trps_gss_handler(gss_name_t client_name, gss_buffer_t gss_name,
 
   tr_debug("tr_trps_gss_handler()");
 
-  if ((!client_name) || (!gss_name) || (!trps) || (!cfg_mgr)) {
+  if ((!client_name) || (!trps) || (!cfg_mgr)) {
     tr_debug("tr_trps_gss_handler: Bad parameters.");
     return -1;
   }
@@ -881,7 +881,11 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
     tr_debug("tr_config_changed: freeing tr->mons->authorized_gss_names");
     tr_gss_names_free(tr->mons->authorized_gss_names);
   }
-  tr->mons->authorized_gss_names = tr_gss_names_dup(tr->mons, new_cfg->internal->monitoring_credentials);
+  if (new_cfg->internal->monitoring_credentials != NULL) {
+    tr->mons->authorized_gss_names = tr_gss_names_dup(tr->mons, new_cfg->internal->monitoring_credentials);
+  } else {
+    tr->mons->authorized_gss_names = tr_gss_names_new(tr->mons);
+  }
   if (tr->mons->authorized_gss_names == NULL) {
     tr_err("tr_config_changed: Error configuring monitoring credentials");
   }
