@@ -1116,12 +1116,13 @@ static TRP_RC trps_validate_request(TRPS_INSTANCE *trps, TRP_REQ *req)
 
 /* choose the best route to comm/realm, optionally excluding routes to a particular peer */
 static TRP_ROUTE *trps_find_best_route(TRPS_INSTANCE *trps,
-                                        TR_NAME *comm,
-                                        TR_NAME *realm,
-                                        TR_NAME *exclude_peer)
+                                       TR_NAME *comm,
+                                       TR_NAME *realm,
+                                       TR_NAME *exclude_peer_label)
 {
   TRP_ROUTE **entry=NULL;
   TRP_ROUTE *best=NULL;
+  TRP_PEER *route_peer = NULL;
   size_t n_entry=0;
   unsigned int kk=0;
   unsigned int kk_min=0;
@@ -1130,13 +1131,31 @@ static TRP_ROUTE *trps_find_best_route(TRPS_INSTANCE *trps,
   entry=trp_rtable_get_realm_entries(trps->rtable, comm, realm, &n_entry);
   for (kk=0; kk<n_entry; kk++) {
     if (trp_route_get_metric(entry[kk]) < min_metric) {
-      if ((exclude_peer==NULL) || (0!=tr_name_cmp(trp_route_get_peer(entry[kk]),
-                                                  exclude_peer))) {
-        kk_min=kk;
-        min_metric=trp_route_get_metric(entry[kk]);
-      } 
+      if (exclude_peer_label != NULL) {
+        if (!trp_route_is_local(entry[kk])) {
+          /* route is not local, check the peer label */
+          route_peer = trp_ptable_find_gss_name(trps->ptable,
+                                                trp_route_get_peer(entry[kk]));
+          if (route_peer == NULL) {
+            tr_err("trps_find_best_route: unknown peer GSS name (%.*s) for route %d to %.*s/%.*s",
+                   trp_route_get_peer(entry[kk])->len, trp_route_get_peer(entry[kk])->buf,
+                   kk,
+                   realm->len, realm->buf,
+                   comm->len, comm->buf);
+            continue; /* unknown peer, skip the route */
+          }
+          if (0 == tr_name_cmp(exclude_peer_label, trp_peer_get_label(route_peer))) {
+            /* we're excluding this peer - skip the route */
+            continue;
+          }
+        }
+      }
+      /* if we get here, we're not excluding the route */
+      kk_min = kk;
+      min_metric = trp_route_get_metric(entry[kk]);
     }
   }
+
   if (trp_metric_is_finite(min_metric))
     best=entry[kk_min];
   
@@ -1386,26 +1405,67 @@ cleanup:
 }
 
 /* select the correct route to comm/realm to be announced to peer */
-static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer_gssname)
+static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer_label)
 {
-  TRP_ROUTE *route;
+  TRP_ROUTE *route = NULL;
+  TRP_PEER *route_peer = NULL;
+  TR_NAME *route_peer_label = NULL;
 
   /* Take the currently selected route unless it is through the peer we're sending the update to.
-   * I.e., enforce the split horizon rule. */
+   * I.e., enforce the split horizon rule. Start by looking up the currently selected route. */
   route=trp_rtable_get_selected_entry(trps->rtable, comm, realm);
   if (route==NULL) {
     /* No selected route, this should only happen if the only route has been retracted,
      * in which case we do not want to advertise it. */
     return NULL;
   }
-  tr_debug("trps_select_realm_update: %s vs %s", peer_gssname->buf,
-           trp_route_get_peer(route)->buf);
-  if (0==tr_name_cmp(peer_gssname, trp_route_get_peer(route))) {
-    tr_debug("trps_select_realm_update: matched, finding alternate route");
-    /* the selected entry goes through the peer we're reporting to, choose an alternate */
-    route=trps_find_best_route(trps, comm, realm, peer_gssname);
-    if ((route==NULL) || (!trp_metric_is_finite(trp_route_get_metric(route))))
-      return NULL; /* don't advertise a nonexistent or retracted route */
+
+  /* Check whether it's local. */
+  if (trp_route_is_local(route)) {
+    /* It is always ok to announce a local route */
+    tr_debug("trps_select_realm_update: selected route for %.*s/%.*s is local",
+             realm->len, realm->buf,
+             comm->len, comm->buf);
+  } else {
+    /* It's not local. Get the route's peer and check whether it's the same place we
+     * got the selected route from. Peer should always correspond to an entry in our
+     * peer table. */
+    tr_debug("trps_select_realm_update: selected route for %.*s/%.*s is not local",
+             realm->len, realm->buf,
+             comm->len, comm->buf);
+    route_peer = trp_ptable_find_gss_name(trps->ptable, trp_route_get_peer(route));
+    if (route_peer == NULL) {
+      tr_err("trps_select_realm_update: unknown peer GSS name (%.*s) for selected route for %.*s/%.*s",
+             trp_route_get_peer(route)->len, trp_route_get_peer(route)->buf,
+             realm->len, realm->buf,
+             comm->len, comm->buf);
+      return NULL;
+    }
+    route_peer_label = trp_peer_get_label(route_peer);
+    if (route_peer_label == NULL) {
+      tr_err("trps_select_realm_update: error retrieving peer label for selected route for %.*s/%.*s",
+             realm->len, realm->buf,
+             comm->len, comm->buf);
+      return NULL;
+    }
+
+    /* see if these match */
+    tr_debug("trps_select_realm_update: %.*s vs %.*s",
+             peer_label->len, peer_label->buf,
+             route_peer_label->len, route_peer_label->buf);
+
+    if (0==tr_name_cmp(peer_label, route_peer_label)) {
+      /* the selected entry goes through the peer we're reporting to, choose an alternate */
+      tr_debug("trps_select_realm_update: matched, finding alternate route");
+      route=trps_find_best_route(trps, comm, realm, peer_label);
+      if ((route==NULL) || (!trp_metric_is_finite(trp_route_get_metric(route)))) {
+        tr_debug("trps_select_realm_update: no route to %.*s/%.*s suitable to advertise to %.*s",
+                 realm->len, realm->buf,
+                 comm->len, comm->buf,
+                 peer_label->len, peer_label->buf);
+        return NULL; /* don't advertise a nonexistent or retracted route */
+      }
+    }
   }
   return route;
 }
@@ -1414,7 +1474,7 @@ static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, T
 static TRP_RC trps_select_route_updates_for_peer(TALLOC_CTX *mem_ctx,
                                                  GPtrArray *updates,
                                                  TRPS_INSTANCE *trps,
-                                                 TR_NAME *peer_gssname,
+                                                 TR_NAME *peer_label,
                                                  int triggered)
 {
   size_t n_comm=0;
@@ -1431,7 +1491,7 @@ static TRP_RC trps_select_route_updates_for_peer(TALLOC_CTX *mem_ctx,
   for (ii=0; ii<n_comm; ii++) {
     realm=trp_rtable_get_comm_realms(trps->rtable, comm[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
-      best=trps_select_realm_update(trps, comm[ii], realm[jj], peer_gssname);
+      best=trps_select_realm_update(trps, comm[ii], realm[jj], peer_label);
       /* If we found a route, add it to the list. If triggered!=0, then only
        * add triggered routes. */
       if ((best!=NULL) && ((!triggered) || trp_route_is_triggered(best))) {
@@ -1522,7 +1582,11 @@ cleanup:
 }
 
 /* construct an update with all the inforecs for comm/realm/role to be sent to peer */
-static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, TR_COMM *comm, TR_REALM *realm)
+static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx,
+                                 TRPS_INSTANCE *trps,
+                                 TR_NAME *peer_label,
+                                 TR_COMM *comm,
+                                 TR_REALM *realm)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_UPD *upd=trp_upd_new(tmp_ctx);
@@ -1588,7 +1652,7 @@ cleanup:
 static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx,
                                                 GPtrArray *updates,
                                                 TRPS_INSTANCE *trps,
-                                                TR_NAME *peer_gssname,
+                                                TR_NAME *peer_label,
                                                 int triggered)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
@@ -1628,7 +1692,7 @@ static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx,
       tr_debug("trps_select_comm_updates_for_peer: adding realm %.*s",
                tr_realm_get_id(realm)->len,
                tr_realm_get_id(realm)->buf);
-      upd=trps_comm_update(mem_ctx, trps, peer_gssname, comm, realm);
+      upd=trps_comm_update(mem_ctx, trps, peer_label, comm, realm);
       if (upd!=NULL)
         g_ptr_array_add(updates, upd);
     }
