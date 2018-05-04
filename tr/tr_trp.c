@@ -187,10 +187,12 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
     name = talloc_asprintf(tmp_ctx, "trustrouter@%s", trps->hostname);
     if (name == NULL)
       goto cleanup;
-    gssname=tr_new_name(name); /* name cleaned up with tmp_ctx */
+    gssname=tr_new_name(name); /* name cleaned up with tmp_ctx but need to handl gssname ourselves */
 
-    conn=trp_connection_accept(tmp_ctx, listener, gssname);
-    if (conn!=NULL) {
+    conn=trp_connection_accept(tmp_ctx, listener, gssname); /* steals gssname unless it fails */
+    if (conn == NULL) {
+      tr_free_name(gssname);
+    } else {
       /* need to monitor this fd and trigger events when read becomes possible */
       thread_data=talloc(conn, struct trps_thread_data);
       if (thread_data==NULL) {
