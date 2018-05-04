@@ -59,7 +59,6 @@ TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
     trpc->server=NULL;
     trpc->port=0;
     trpc->conn=NULL;
-    trpc->shutting_down = 0;
     trpc->mq=tr_mq_new(trpc);
     if (trpc->mq==NULL) {
       talloc_free(trpc);
@@ -190,9 +189,9 @@ void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg)
   tr_mq_add(trpc->mq, msg);
 }
 
-TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc)
+TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc, struct timespec *ts_abort)
 {
-  return tr_mq_pop(trpc->mq, 0);
+  return tr_mq_pop(trpc->mq, ts_abort);
 }
 
 void trpc_mq_clear(TRPC_INSTANCE *trpc)

@@ -289,13 +289,17 @@ int tr_mq_pop_timeout(time_t seconds, struct timespec *ts)
   return 0;
 }
 
-/* Caller must free msg via tr_mq_msg_free, waiting until absolute
+/* Retrieves a message from the queue, waiting until absolute
  * time ts_abort before giving up (using CLOCK_MONOTONIC). If ts_abort
  * has passed, returns an existing message but will not wait if one is
  * not already available. If ts_abort is null, no blocking.  Not
  * guaranteed to wait if an error occurs - immediately returns without
  * a message. Use tr_mq_pop_timeout() to get an absolute time that
- * is guaranteed compatible with this function. */
+ * is guaranteed compatible with this function.
+ *
+ * Caller should free msg via tr_mq_msg_free when done with it. It stays
+ * in the TR_MQ's context, though, so use talloc_steal() if you want to do
+ * something clever with it. */
 TR_MQ_MSG *tr_mq_pop(TR_MQ *mq, struct timespec *ts_abort)
 {
   TR_MQ_MSG *popped=NULL;
