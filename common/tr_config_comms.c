@@ -323,10 +323,13 @@ TR_CFG_RC tr_cfg_parse_comms (TR_CFG *trc, json_t *jcfg)
                                                &rc))) {
         return rc;
       }
+      if (tr_comm_table_add_comm(trc->ctable, comm) != 0) {
+        tr_debug("tr_cfg_parse_comms: Duplicate community %s.", tr_comm_get_id(comm)->buf);
+        return TR_CFG_NOPARSE;
+      }
+
       tr_debug("tr_cfg_parse_comms: Community configured: %s.",
                tr_comm_get_id(comm)->buf);
-
-      tr_comm_table_add_comm(trc->ctable, comm);
     }
   }
   tr_debug("tr_cfg_parse_comms: Finished (rc=%d)", rc);

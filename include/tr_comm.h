@@ -113,7 +113,7 @@ void tr_comm_table_free(TR_COMM_TABLE *ctab);
 TR_COMM_TABLE *tr_comm_table_new(TALLOC_CTX *mem_ctx);
 void tr_comm_table_free(TR_COMM_TABLE *ctab);
 void tr_comm_table_sweep(TR_COMM_TABLE *ctab);
-void tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new);
+int tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new);
 void tr_comm_table_remove_comm(TR_COMM_TABLE *ctab, TR_COMM *comm);
 TR_RP_REALM *tr_comm_table_find_rp_realm(TR_COMM_TABLE *ctab, TR_NAME *realm_id);
 void tr_comm_table_add_rp_realm(TR_COMM_TABLE *ctab, TR_RP_REALM *new);

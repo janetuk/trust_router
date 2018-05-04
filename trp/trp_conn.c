@@ -339,8 +339,13 @@ int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void 
   return !auth;
 }
 
-/* Accept connection */
-TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *gssname)
+/**
+ * Accept connection
+ *
+ * @param mem_ctx talloc context for return value
+ * @param listen socket fd for incoming connection
+ * @param gss_servicename our GSS service name to use for passive auth */
+TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *gss_servicename)
 {
   int conn_fd=-1;
   TRP_CONNECTION *conn=NULL;
@@ -353,7 +358,7 @@ TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *
   }
   conn=trp_connection_new(mem_ctx);
   trp_connection_set_fd(conn, conn_fd);
-  trp_connection_set_gssname(conn, gssname);
+  trp_connection_set_gssname(conn, gss_servicename);
   trp_connection_set_status(conn, TRP_CONNECTION_AUTHORIZING);
   return conn;
 }

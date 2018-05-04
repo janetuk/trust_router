@@ -762,9 +762,53 @@ TR_COMM_MEMB *tr_comm_memb_iter_next(TR_COMM_ITER *iter)
 }
 
 
-/* iterate over all memberships in the table */
+/* iterate over all memberships in the table
+ *
+ * The table is structured as a vertical list of memberships, each for a
+ * different community/realm. Each element in this list has a horizontal "origin list,"
+ * each for the same community/realm but with a different origin for the membership.
+ * Only the first element in the origin list has a vertical link ("next" pointer).
+ * Any element may have a horizontal link ("origin_next" pointer).
+ *
+ *  (A) - (B) - (C) - X
+ *   |
+ *  (D) - (E) - X
+ *   |
+ *  (F) - X
+ *   |
+ *  (G) - (H) - X
+ *   |
+ *   X
+ *
+ *  A, B, and C are all community/realm pair membership 1, with different origins
+ *  D, E are a second community/realm pair, with different origins
+ *  F is a third...
+ *  G, H are a fourth pair, with different origins
+ *
+ * This iterator will return every element in the grid.
+ *
+ * Algorithm:
+ *   The iterator struct stores the current member (cur_memb) and the origin head (cur_orig_head).
+ *   The latter is a pointer to the head of the current origin list (i.e., first element in a row).
+ *   The former can point to any element in the list. Both start at the root of the list (A in the
+ *   diagram above).
+ *
+ *   After each call to _first() or _next(), cur_memb points to the element just returned.
+ *
+ *   0. _first() just returns the first element. The rest of the steps are in _next()
+ *
+ *   1. If cur_memb has an origin_next element, walk the origin list. Move cur_memb to
+ *      the origin_list element (next one in this row) and return it.
+ *   2. If cur_memb does not have an origin_next element, we've finished the current origin
+ *      list. Move cur_memb to cur_orig_head's next element (the start of the next column),
+ *      move cur_orig_head to that same place, and return it.
+ *   3. If neither cur_memb has an origin_next element nor cur_orig_head has a next element,
+ *      then we have already reached the end of the list and there's nothing more to do.
+ *      Return NULL.
+ */
 TR_COMM_MEMB *tr_comm_memb_iter_all_first(TR_COMM_ITER *iter, TR_COMM_TABLE *ctab)
 {
+  /* step 0: return the root of the list */
   iter->cur_memb=ctab->memberships;
   iter->cur_orig_head=ctab->memberships;
   return iter->cur_memb;
@@ -772,16 +816,15 @@ TR_COMM_MEMB *tr_comm_memb_iter_all_first(TR_COMM_ITER *iter, TR_COMM_TABLE *cta
 
 TR_COMM_MEMB *tr_comm_memb_iter_all_next(TR_COMM_ITER *iter)
 {
-  if (iter->cur_memb->next==NULL) {
-    if (iter->cur_orig_head->next==NULL) {
-      /* we're done */
-      return NULL;
-    } else {
-      iter->cur_memb=iter->cur_orig_head->next;
-      iter->cur_orig_head=iter->cur_orig_head->next;
-    }
+  if (iter->cur_memb->origin_next) {
+    /* step 1: return the next element in the current origin list */
+    iter->cur_memb = iter->cur_memb->origin_next;
+  } else if (iter->cur_orig_head->next) {
+    /* step 2: move to the start of the next row and return the first element */
+    iter->cur_orig_head = iter->cur_memb = iter->cur_orig_head->next;
   } else {
-    iter->cur_memb=iter->cur_memb->origin_next;
+    /* step 3: both cur_memb->origin_next and cur_orig_head->next are null */
+    iter->cur_orig_head = iter->cur_memb = NULL;
   }
   return iter->cur_memb;
 }
@@ -1335,11 +1378,24 @@ TR_COMM *tr_comm_table_find_comm(TR_COMM_TABLE *ctab, TR_NAME *comm_id)
   return tr_comm_lookup(ctab->comms, comm_id);
 }
 
-void tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new)
+/**
+ * Add a community to the table.
+ *
+ * Does not allow duplicate community ids.
+ *
+ * @param ctab
+ * @param new
+ * @return 0 on success, -1 on failure
+ */
+int tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new)
 {
+  if (tr_comm_table_find_comm(ctab, tr_comm_get_id(new)) != NULL)
+    return -1;
+
   tr_comm_add(ctab->comms, new);
   if (ctab->comms!=NULL)
     talloc_steal(ctab, ctab->comms); /* make sure it's in the right context */
+  return 0;
 }
 
 void tr_comm_table_remove_comm(TR_COMM_TABLE *ctab, TR_COMM *comm)

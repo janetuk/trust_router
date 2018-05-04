@@ -68,6 +68,7 @@ struct tr_instance {
 /* messages between threads */
 #define TR_MQMSG_MSG_RECEIVED "msg received"
 #define TR_MQMSG_TRPC_DISCONNECTED "trpc disconnected"
+#define TR_MQMSG_TRPC_EXIT_OK "trpc exit ok"
 #define TR_MQMSG_TRPC_CONNECTED "trpc connected"
 #define TR_MQMSG_TRPS_DISCONNECTED "trps disconnected"
 #define TR_MQMSG_TRPS_CONNECTED "trps connected"

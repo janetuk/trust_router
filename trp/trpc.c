@@ -59,6 +59,7 @@ TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
     trpc->server=NULL;
     trpc->port=0;
     trpc->conn=NULL;
+    trpc->shutting_down = 0;
     trpc->mq=tr_mq_new(trpc);
     if (trpc->mq==NULL) {
       talloc_free(trpc);
@@ -216,7 +217,7 @@ TRP_RC trpc_send_msg (TRPC_INSTANCE *trpc,
                                          *trp_connection_get_gssctx(trpc_get_conn(trpc)),
                                          msg_content, 
                                          strlen(msg_content))) {
-    tr_err( "trpc_send_msg: Error sending message over connection.\n");
+    tr_err( "trpc_send_msg: Error sending message over connection.");
     rc=TRP_ERROR;
   }
   return rc;
