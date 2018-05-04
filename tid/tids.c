@@ -80,6 +80,12 @@ static TID_RESP *tids_create_response(TALLOC_CTX *mem_ctx, TID_REQ *req)
       goto cleanup;
     }
   }
+  if (req->request_id) {
+    if (NULL == (resp->request_id = tr_dup_name(req->request_id))) {
+      tr_crit("tids_create_response: Error allocating fields in response.");
+      goto cleanup;
+    }
+  }
 
   success=1;
 

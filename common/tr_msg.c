@@ -329,10 +329,15 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
 
   jstr = tr_name_to_json_string(req->comm);
   json_object_set_new(jreq, "community", jstr);
-  
+
   if (req->orig_coi) {
     jstr = tr_name_to_json_string(req->orig_coi);
     json_object_set_new(jreq, "orig_coi", jstr);
+  }
+
+  if (tid_req_get_request_id(req)) {
+    jstr = tr_name_to_json_string(tid_req_get_request_id(req));
+    json_object_set_new(jreq, "request_id", jstr);
   }
 
   json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tidc_dh));
@@ -356,6 +361,7 @@ static TID_REQ *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq)
   json_t *jrealm = NULL;
   json_t *jcomm = NULL;
   json_t *jorig_coi = NULL;
+  json_t *jrequest_id = NULL;
   json_t *jdh = NULL;
   json_t *jpath = NULL;
   json_t *jexpire_interval = NULL;
@@ -378,9 +384,9 @@ static TID_REQ *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq)
   jpath = json_object_get(jreq, "path");
   jexpire_interval = json_object_get(jreq, "expiration_interval");
 
-  treq->rp_realm = tr_new_name((char *)json_string_value(jrp_realm));
-  treq->realm = tr_new_name((char *)json_string_value(jrealm));
-  treq->comm = tr_new_name((char *)json_string_value(jcomm));
+  treq->rp_realm = tr_new_name(json_string_value(jrp_realm));
+  treq->realm = tr_new_name(json_string_value(jrealm));
+  treq->comm = tr_new_name(json_string_value(jcomm));
 
   /* Get DH Info from the request */
   if (NULL == (jdh = json_object_get(jreq, "dh_info"))) {
@@ -392,7 +398,12 @@ static TID_REQ *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq)
 
   /* store optional "orig_coi" field */
   if (NULL != (jorig_coi = json_object_get(jreq, "orig_coi"))) {
-    treq->orig_coi = tr_new_name((char *)json_string_value(jorig_coi));
+    treq->orig_coi = tr_new_name(json_string_value(jorig_coi));
+  }
+
+  /* store optional "request_id" field */
+  if (NULL != (jrequest_id = json_object_get(jreq, "request_id"))) {
+    tid_req_set_request_id(treq, tr_new_name(json_string_value(jrequest_id)));
   }
 
   treq->cons = (TR_CONSTRAINT_SET *) json_object_get(jreq, "constraints");
@@ -573,6 +584,11 @@ static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
     json_object_set_new(jresp, "orig_coi", jstr);
   }
 
+  if (tid_resp_get_request_id(resp)) {
+    jstr = tr_name_to_json_string(tid_resp_get_request_id(resp));
+    json_object_set_new(jresp, "request_id", jstr);
+  }
+
   if (NULL == resp->servers) {
     tr_debug("tr_msg_encode_tidresp(): No servers to encode.");
   }
@@ -595,6 +611,7 @@ static TID_RESP *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp)
   json_t *jrealm = NULL;
   json_t *jcomm = NULL;
   json_t *jorig_coi = NULL;
+  json_t *jrequest_id = NULL;
   json_t *jservers = NULL;
   json_t *jerr_msg = NULL;
 
@@ -648,10 +665,16 @@ static TID_RESP *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp)
 
   /* store optional "orig_coi" field */
   if ((NULL != (jorig_coi = json_object_get(jresp, "orig_coi"))) &&
-      (!json_is_object(jorig_coi))) {
+      json_is_string(jorig_coi)) {
     tresp->orig_coi = tr_new_name(json_string_value(jorig_coi));
   }
-     
+
+  /* store optional "request_id" field */
+  if ((NULL != (jrequest_id = json_object_get(jresp, "request_id"))) &&
+      json_is_string(jrequest_id)) {
+    tid_resp_set_request_id(tresp, tr_new_name(json_string_value(jrequest_id)));
+  }
+
   return tresp;
 }
 

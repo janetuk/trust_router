@@ -52,6 +52,7 @@ struct tid_srvr_blk {
 
 struct tid_resp {
   TID_RC result;
+  TR_NAME *request_id;
   TR_NAME *err_msg;
   TR_NAME *rp_realm;
   TR_NAME *realm;
@@ -67,6 +68,7 @@ struct tid_req {
   int resp_sent;
   int conn;
   int free_conn; /* free conn and gss ctx*/
+  TR_NAME *request_id;
   gss_ctx_id_t gssctx;
   int resp_rcvd;
   TR_NAME *rp_realm;

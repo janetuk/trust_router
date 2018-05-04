@@ -33,7 +33,8 @@ common_srcs = common/tr_name.c \
 tid_srcs = tid/tid_resp.c \
 tid/tid_req.c \
 tid/tids.c \
-tid/tidc.c
+tid/tidc.c \
+common/tr_rand_id.c
 
 trp_srcs = trp/trp_conn.c \
 trp/trps.c \
@@ -97,6 +98,7 @@ common/tr_debug.c \
 common/tr_name.c \
 common/tr_constraint.c \
 common/tr_dh.c \
+common/tr_rand_id.c \
 tid/tid_req.c \
 tid/tid_resp.c
 
@@ -146,6 +148,7 @@ tr_trmon_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 trp_msgtst_SOURCES = trp/msgtst.c \
 $(common_srcs) \
+common/tr_rand_id.c \
 trp/trp_req.c \
 trp/trp_upd.c \
 tid/tid_resp.c \

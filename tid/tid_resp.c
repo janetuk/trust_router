@@ -53,6 +53,8 @@ static int tid_resp_destructor(void *obj)
     tr_free_name(resp->comm);
   if (resp->orig_coi!=NULL)
     tr_free_name(resp->orig_coi);
+  if (resp->request_id!=NULL)
+    tr_free_name(resp->request_id);
   return 0;
 }
 
@@ -68,6 +70,7 @@ TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx)
     resp->cons=NULL;
     resp->orig_coi=NULL;
     resp->servers=NULL;
+    resp->request_id=NULL;
     resp->error_path=NULL;
     talloc_set_destructor((void *)resp, tid_resp_destructor);
   }
@@ -190,6 +193,16 @@ TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp)
 void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi)
 {
   resp->orig_coi = orig_coi;
+}
+
+TR_EXPORT TR_NAME *tid_resp_get_request_id(TID_RESP *resp)
+{
+  return(resp->request_id);
+}
+
+void tid_resp_set_request_id(TID_RESP *resp, TR_NAME *request_id)
+{
+  resp->request_id = request_id;
 }
 
 TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp,
