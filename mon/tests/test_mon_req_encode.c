@@ -12,19 +12,6 @@
 
 #define JSON_DUMP_OPTS 0
 
-static char *reconfigure()
-{
-  MON_REQ *req = mon_req_new(NULL, MON_CMD_RECONFIGURE);
-  json_t *req_json = mon_req_encode(req);
-  char *result = json_dumps(req_json, JSON_DUMP_OPTS);
-  assert(req);
-  assert(req_json);
-  assert(result);
-  json_decref(req_json);
-  mon_req_free(req);
-  return result;
-}
-
 static char *show_plain()
 {
   MON_REQ *req = mon_req_new(NULL, MON_CMD_SHOW);
@@ -80,14 +67,6 @@ int main(void)
   char *s = NULL;
   MON_OPT_TYPE opts[10];
   char *expected = NULL;
-
-  // Test reconfigure command
-  s = reconfigure();
-  expected = read_file("req_reconfigure.test");
-  assert(expected);
-  assert(strcmp(expected, s) == 0);
-  free(s);
-  free(expected);
 
   // Test show without options
   s = show_plain();

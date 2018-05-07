@@ -44,6 +44,7 @@
 #include <trp_rtable.h>
 #include <trust_router/trp.h>
 #include <tr_util.h>
+#include <tr_json_util.h>
 
 /* Pretty print a route table entry to a newly allocated string. If sep is NULL,
  * returns comma+space separated string. */
@@ -102,21 +103,6 @@ static json_t *expiry_to_json_string(TRP_ROUTE *route)
 
   return jstr;
 }
-
-/* helper for below */
-#define OBJECT_SET_OR_FAIL(jobj, key, val)     \
-do {                                           \
-  if (val)                                     \
-    json_object_set_new((jobj),(key),(val));   \
-  else                                         \
-    goto cleanup;                              \
-} while (0)
-
-#define OBJECT_SET_OR_SKIP(jobj, key, val)     \
-do {                                           \
-  if (val)                                     \
-    json_object_set_new((jobj),(key),(val));   \
-} while (0)
 
 json_t *trp_route_to_json(TRP_ROUTE *route)
 {

@@ -38,7 +38,7 @@
 
 #include <mon_internal.h>
 
-// Monitoring request message common code
+/* Monitoring response message common code */
 
 /**
  * Destructor used by talloc to ensure proper cleanup

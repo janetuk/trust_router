@@ -36,7 +36,6 @@
 #define TRUST_ROUTER_TR_GSS_CLIENT_H
 
 #include <gssapi.h>
-#include <trust_router/tr_dh.h>
 #include <tr_msg.h>
 
 typedef struct tr_gssc_instance TR_GSSC_INSTANCE;
@@ -44,7 +43,6 @@ typedef struct tr_gssc_instance TR_GSSC_INSTANCE;
 /* Client instance */
 struct tr_gssc_instance {
   const char *service_name;
-  DH *client_dh;
   gss_ctx_id_t *gss_ctx;
   int conn;
 };
@@ -54,7 +52,5 @@ TR_GSSC_INSTANCE *tr_gssc_instance_new(TALLOC_CTX *mem_ctx);
 void tr_gssc_instance_free(TR_GSSC_INSTANCE *tr_gssc);
 int tr_gssc_open_connection(TR_GSSC_INSTANCE *gssc, const char *server, unsigned int port);
 TR_MSG *tr_gssc_exchange_msgs(TALLOC_CTX *mem_ctx, TR_GSSC_INSTANCE *gssc, TR_MSG *req_msg);
-DH * tr_gssc_get_dh(TR_GSSC_INSTANCE *inst);
-DH *tr_gssc_set_dh(TR_GSSC_INSTANCE *inst, DH *dh);
 
 #endif //TRUST_ROUTER_TR_GSS_CLIENT_H

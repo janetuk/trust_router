@@ -397,6 +397,54 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
   return (int)n_fd;
 }
 
+/* Strings used to report results from the handler process. The
+ * TIDS_MAX_MESSAGE_LEN must be longer than the longest message, including
+ * null termination (i.e., strlen() + 1) */
+#define TIDS_MAX_MESSAGE_LEN (10)
+#define TIDS_SUCCESS_MESSAGE "OK"
+#define TIDS_ERROR_MESSAGE   "ERR"
+
+/**
+ * Process to handle an incoming TIDS request
+ *
+ * This should be run in the child process after a fork(). Handles
+ * the request, writes the result to result_fd, and terminates via exit().
+ * Never returns to the caller.
+ *
+ * @param tids TID server instance
+ * @param conn_fd file descriptor for the incoming connection
+ * @param result_fd writable file descriptor for the result, or 0 to disable reporting
+ */
+static void tids_handle_proc(TIDS_INSTANCE *tids, int conn_fd, int result_fd)
+{
+  const char *response_message = NULL;
+
+  switch(tr_gss_handle_connection(conn_fd,
+                                  "trustidentity", tids->hostname, /* acceptor name */
+                                  tids->auth_handler, tids->cookie, /* auth callback and cookie */
+                                  tids_req_cb, tids /* req callback and cookie */
+  )) {
+    case TR_GSS_SUCCESS:
+      response_message = TIDS_SUCCESS_MESSAGE;
+      break;
+
+    case TR_GSS_ERROR:
+    default:
+      response_message = TIDS_ERROR_MESSAGE;
+      break;
+  }
+
+  if (0 != result_fd) {
+    /* write strlen + 1 to include the null termination */
+    if (write(result_fd, response_message, strlen(response_message) + 1) < 0)
+      tr_err("tids_accept: child process unable to write to pipe");
+  }
+
+  close(result_fd);
+  close(conn_fd);
+  exit(0); /* exit to kill forked child process */
+}
+
 /* Accept and process a connection on a port opened with tids_get_listener() */
 int tids_accept(TIDS_INSTANCE *tids, int listen)
 {
@@ -422,26 +470,22 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
   }
 
   if (pid == 0) {
-    close(pipe_fd[0]); /* child only writes */
-    close(listen);
-    tr_gss_handle_connection(conn,
-                             "trustidentity", tids->hostname, /* acceptor name */
-                             tids->auth_handler, tids->cookie, /* auth callback and cookie */
-                             tids_req_cb, tids /* req callback and cookie */
-    );
-    if (write(pipe_fd[1], "OK\0", 3) < 0)
-      tr_crit("tids_accept: child process unable to write to pipe");
-    close(pipe_fd[1]);
-    close(conn);
-    exit(0); /* exit to kill forked child process */
+    /* Only the child process gets here */
+    close(pipe_fd[0]); /* close the read end of the pipe, the child only writes */
+    close(listen); /* close the child process's handle on the listen port */
+
+    tids_handle_proc(tids, conn, pipe_fd[1]); /* never returns */
   }
 
   /* Only the parent process gets here */
-  close(pipe_fd[1]); /* parent only listens */
-  close(conn); /* connection belongs to the child */
+  close(pipe_fd[1]); /* close the write end of the pipe, the parent only listens */
+  close(conn); /* connection belongs to the child, so close parent's handle */
+
+  /* remember the PID of our child process */
+  tr_info("tids_accept: Spawned TID process %d to handle incoming connection.", pid);
   tp.pid = pid;
   tp.read_fd = pipe_fd[0];
-  g_array_append_val(tids->pids, tp); /* remember the PID of our child process */
+  g_array_append_val(tids->pids, tp);
 
   /* clean up any processes that have completed */
   tids_sweep_procs(tids);
@@ -463,7 +507,7 @@ void tids_sweep_procs(TIDS_INSTANCE *tids)
 {
   guint ii;
   struct tid_process tp = {0};
-  char result[10] = {0};
+  char result[TIDS_MAX_MESSAGE_LEN] = {0};
   ssize_t result_len;
   int status;
   int wait_rc;
@@ -506,15 +550,15 @@ void tids_sweep_procs(TIDS_INSTANCE *tids)
     }
 
     /* read the pipe - if the TID request worked, it will have written status before terminating */
-    result_len = read(tp.read_fd, result, sizeof(result)/sizeof(result[0]));
+    result_len = read(tp.read_fd, result, TIDS_MAX_MESSAGE_LEN);
     close(tp.read_fd);
 
-    if ((result_len > 0) && (strcmp(result, "OK") == 0)) {
+    if ((result_len > 0) && (strcmp(result, TIDS_SUCCESS_MESSAGE) == 0)) {
       tids->req_count++;
-      tr_debug("tids_sweep_procs: TID process %d succeeded", tp.pid);
+      tr_info("tids_sweep_procs: TID process %d exited successfully.", tp.pid);
     } else {
       tids->error_count++;
-      tr_debug("tids_sweep_procs: TID process %d failed", tp.pid);
+      tr_info("tids_sweep_procs: TID process %d exited with an error.", tp.pid);
     }
   }
 }

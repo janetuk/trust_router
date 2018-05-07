@@ -38,7 +38,7 @@
 
 #include <mon_internal.h>
 
-// Monitoring response decoder
+/* Monitoring response decoder */
 
 /**
  * Decode a JSON response

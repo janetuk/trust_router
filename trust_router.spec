@@ -1,6 +1,6 @@
 %global optflags %{optflags} -Wno-parentheses
 Name:           trust_router
-Version:        3.4.0~1
+Version:        3.4.0~2
 Release:        1%{?dist}
 Summary:        Moonshot Trust Router
 
@@ -118,6 +118,7 @@ chmod 770 /var/log/trust_router
 #%{_bindir}/tidc-wrapper
 #%{_bindir}/tids
 #%{_bindir}/tids-wrapper
+#%{_bindir}/trmon
 #%{_bindir}/trust_router
 #%{_bindir}/trust_router-wrapper
 %{_bindir}/*

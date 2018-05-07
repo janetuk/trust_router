@@ -237,11 +237,23 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
 
   if (pid == 0) {
     close(listen);
-    tr_gss_handle_connection(conn,
-                             "trustmonitor", mons->hostname, /* acceptor name */
-                             mons->auth_handler, mons->cookie, /* auth callback and cookie */
-                             mons_req_cb, mons /* req callback and cookie */
-    );
+    switch(tr_gss_handle_connection(conn,
+                                    "trustmonitor", mons->hostname, /* acceptor name */
+                                    mons->auth_handler, mons->cookie, /* auth callback and cookie */
+                                    mons_req_cb, mons /* req callback and cookie */
+    )) {
+      case TR_GSS_SUCCESS:
+        /* do nothing */
+        break;
+
+      case TR_GSS_ERROR:
+        tr_debug("mons_accept: Error returned by tr_gss_handle_connection()");
+        break;
+
+      default:
+        tr_err("mons_accept: Unexpected value returned by tr_gss_handle_connection()");
+        break;
+    }
     close(conn);
     exit(0); /* exit to kill forked child process */
   }

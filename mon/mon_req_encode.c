@@ -39,7 +39,7 @@
 
 #include <mon_internal.h>
 
-// Monitoring request encoders
+/* Monitoring request encoders */
 
 /**
  * Encode options array as a JSON array
@@ -54,7 +54,7 @@
  * @param opts array of options
  * @return reference to a JSON array of options
  */
-static json_t *mon_opts_decode(GArray *opts)
+static json_t *mon_opts_encode(GArray *opts)
 {
   json_t *array_json = json_array(); // the array of options
   json_t *opt_json = NULL; // individual option JSON object
@@ -142,7 +142,7 @@ json_t *mon_req_encode(MON_REQ *req)
 
   /* If we have options, add them to the object */
   if (req->options->len > 0) {
-    opts_json = mon_opts_decode(req->options);
+    opts_json = mon_opts_encode(req->options);
     if (opts_json == NULL) {
       json_decref(req_json);
       return NULL;

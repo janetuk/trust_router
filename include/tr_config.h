@@ -41,7 +41,7 @@
 #include <syslog.h>
 #include <sys/time.h>
 #include <talloc.h>
-#include <gmodule.h>
+#include <glib.h>
 
 #include <tr_comm.h>
 #include <tr_rp.h>

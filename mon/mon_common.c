@@ -34,7 +34,7 @@
 
 
 #include <talloc.h>
-#include <gmodule.h>
+#include <glib.h>
 #include <string.h>
 
 #include <mon_internal.h>
@@ -49,9 +49,6 @@ const char *mon_cmd_to_string(MON_CMD cmd)
   switch(cmd) {
     case MON_CMD_UNKNOWN:
       return NULL;
-
-    case MON_CMD_RECONFIGURE:
-      return "reconfigure";
 
     case MON_CMD_SHOW:
       return "show";
@@ -68,7 +65,6 @@ const char *mon_cmd_to_string(MON_CMD cmd)
 
 MON_CMD mon_cmd_from_string(const char *s)
 {
-  return_if_matches(s, MON_CMD_RECONFIGURE);
   return_if_matches(s, MON_CMD_SHOW);
   return MON_CMD_UNKNOWN;
 }
@@ -94,13 +90,13 @@ const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
       return "uptime";
 
     case OPT_TYPE_SHOW_TID_REQ_COUNT:
-      return "tid_req_count";
+      return "tid_reqs_processed";
 
     case OPT_TYPE_SHOW_TID_REQ_ERR_COUNT:
-      return "tid_req_error_count";
+      return "tid_error_count";
 
     case OPT_TYPE_SHOW_TID_REQ_PENDING:
-      return "tid_req_pending";
+      return "tid_reqs_pending";
 
     case OPT_TYPE_SHOW_ROUTES:
       return "routes";
