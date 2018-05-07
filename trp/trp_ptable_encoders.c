@@ -62,7 +62,7 @@ json_t *trp_ptable_to_json(TRP_PTABLE *ptbl)
   json_t *ptbl_json = json_array();
   TRP_PEER *peer = NULL;
 
-  for (trp_ptable_iter_first(iter, ptbl);
+  for (peer = trp_ptable_iter_first(iter, ptbl);
        peer != NULL;
        peer = trp_ptable_iter_next(iter)) {
     json_array_append_new(ptbl_json, trp_peer_to_json(peer));
