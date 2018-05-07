@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,23 +34,7 @@
 
 #include <jansson.h>
 #include <tr_config.h>
-
-/* helper for below */
-#define OBJECT_SET_OR_FAIL(jobj, key, val)     \
-do {                                           \
-  if (val)                                     \
-    json_object_set_new((jobj),(key),(val));   \
-  else                                         \
-    goto cleanup;                              \
-} while (0)
-
-#define ARRAY_APPEND_OR_FAIL(jary, val)        \
-do {                                           \
-  if (val)                                     \
-    json_array_append_new((jary),(val));       \
-  else                                         \
-    goto cleanup;                              \
-} while (0)
+#include <tr_json_util.h>
 
 static json_t *tr_cfg_file_to_json(TR_CFG_FILE *cfg_file)
 {

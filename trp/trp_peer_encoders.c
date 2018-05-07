@@ -38,6 +38,7 @@
 #include <tr_gss_names.h>
 #include <trp_peer.h>
 #include <tr_util.h>
+#include <tr_json_util.h>
 
 char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep)
 {
@@ -75,15 +76,6 @@ static json_t *last_attempt_to_json_string(TRP_PEER *peer)
 
   return jstr;
 }
-
-/* helper for below */
-#define OBJECT_SET_OR_FAIL(jobj, key, val)     \
-do {                                           \
-  if (val)                                     \
-    json_object_set_new((jobj),(key),(val));   \
-  else                                         \
-    goto cleanup;                              \
-} while (0)
 
 json_t *trp_peer_to_json(TRP_PEER *peer)
 {

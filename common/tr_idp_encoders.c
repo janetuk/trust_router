@@ -40,6 +40,7 @@
 #include <tr_idp.h>
 #include <tr_config.h>
 #include <tr_debug.h>
+#include <tr_json_util.h>
 
 static char *tr_aaa_server_to_str(TALLOC_CTX *mem_ctx, TR_AAA_SERVER *aaa)
 {
@@ -120,23 +121,6 @@ char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp)
   return result;
 }
 
-
-/* helper for below */
-#define OBJECT_SET_OR_FAIL(jobj, key, val)     \
-do {                                           \
-  if (val)                                     \
-    json_object_set_new((jobj),(key),(val));   \
-  else                                         \
-    goto cleanup;                              \
-} while (0)
-
-#define ARRAY_APPEND_OR_FAIL(jary, val)        \
-do {                                           \
-  if (val)                                     \
-    json_array_append_new((jary),(val));       \
-  else                                         \
-    goto cleanup;                              \
-} while (0)
 
 static json_t *tr_apcs_to_json(TR_APC *apcs)
 {

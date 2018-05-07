@@ -37,24 +37,7 @@
 
 #include <tr_filter.h>
 #include <tr_constraint_internal.h>
-
-/* helper for below */
-#define OBJECT_SET_OR_FAIL(jobj, key, val)     \
-do {                                           \
-  if (val)                                     \
-    json_object_set_new((jobj),(key),(val));   \
-  else                                         \
-    goto cleanup;                              \
-} while (0)
-
-#define ARRAY_APPEND_OR_FAIL(jary, val)        \
-do {                                           \
-  if (val)                                     \
-    json_array_append_new((jary),(val));       \
-  else                                         \
-    goto cleanup;                              \
-} while (0)
-
+#include <tr_json_util.h>
 
 typedef json_t *(ITEM_ENCODER_FUNC)(void *);
 

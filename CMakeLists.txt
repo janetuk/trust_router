@@ -96,19 +96,19 @@ set(SOURCE_FILES
     trp/trp_upd.c
     trp/trpc.c
     trp/trps.c include/tr_name_internal.h mon/mon_req.c mon/mon_req_encode.c mon/mon_req_decode.c
-        mon/mon_resp.c mon/mon_common.c mon/mon_resp_encode.c mon/mon_resp_decode.c tr/tr_mon.c mon/mons.c include/tr_socket.h common/tr_gss.c include/tr_gss.h common/tr_config_internal.c mon/mons_handlers.c include/mons_handlers.h tr/tr_tid_mons.c tr/tr_tid_mons.c trp/trp_route.c include/trp_route.h trp/trp_rtable_encoders.c trp/trp_route_encoders.c trp/trp_peer.c include/trp_peer.h trp/trp_peer_encoders.c trp/trp_ptable_encoders.c common/tr_idp_encoders.c common/tr_comm_encoders.c common/tr_rp_client.c include/tr_rp_client.h common/tr_rp_client_encoders.c common/tr_filter_encoders.c common/tr_config_encoders.c common/tr_config_filters.c common/tr_config_realms.c common/tr_config_rp_clients.c common/tr_config_orgs.c common/tr_config_comms.c common/tr_list.c include/tr_list.h include/tr_constraint_internal.h)
+        mon/mon_resp.c mon/mon_common.c mon/mon_resp_encode.c mon/mon_resp_decode.c tr/tr_mon.c mon/mons.c include/tr_socket.h common/tr_gss.c include/tr_gss.h common/tr_config_internal.c mon/mons_handlers.c include/mons_handlers.h tr/tr_tid_mons.c tr/tr_tid_mons.c trp/trp_route.c include/trp_route.h trp/trp_rtable_encoders.c trp/trp_route_encoders.c trp/trp_peer.c include/trp_peer.h trp/trp_peer_encoders.c trp/trp_ptable_encoders.c common/tr_idp_encoders.c common/tr_comm_encoders.c common/tr_rp_client.c include/tr_rp_client.h common/tr_rp_client_encoders.c common/tr_filter_encoders.c common/tr_config_encoders.c common/tr_config_filters.c common/tr_config_realms.c common/tr_config_rp_clients.c common/tr_config_orgs.c common/tr_config_comms.c common/tr_list.c include/tr_list.h include/tr_constraint_internal.h include/tr_json_util.h)
 
 # Does not actually build!
 add_executable(trust_router ${SOURCE_FILES})
 
-add_executable(trmon mon/monc.c tr/trmon_main.c common/tr_gss_client.c include/tr_gss_client.h)
+add_executable(trmon mon/monc.c tr/trmon_main.c common/tr_gss_client.c include/tr_gss_client.h include/tr_json_util.h)
 
 # Test build targets - for debugging
-add_executable(test_mon_req_encode mon/mon_common.c mon/mon_req.c mon/tests/test_mon_req_encode.c mon/mon_req_encode.c)
+add_executable(test_mon_req_encode mon/mon_common.c mon/mon_req.c mon/tests/test_mon_req_encode.c mon/mon_req_encode.c include/tr_json_util.h)
 target_link_libraries(test_mon_req_encode jansson talloc glib-2.0)
 
-add_executable(test_mon_req_decode mon/mon_common.c mon/mon_req.c mon/tests/test_mon_req_decode.c mon/mon_req_decode.c)
+add_executable(test_mon_req_decode mon/mon_common.c mon/mon_req.c mon/tests/test_mon_req_decode.c mon/mon_req_decode.c include/tr_json_util.h)
 target_link_libraries(test_mon_req_decode jansson talloc glib-2.0)
 
-add_executable(test_mon_resp_encode mon/mon_common.c mon/mon_req.c mon/mon_resp.c mon/mon_resp_encode.c common/tr_name.c mon/tests/test_mon_resp_encode.c)
+add_executable(test_mon_resp_encode mon/mon_common.c mon/mon_req.c mon/mon_resp.c mon/mon_resp_encode.c common/tr_name.c mon/tests/test_mon_resp_encode.c include/tr_json_util.h)
 target_link_libraries(test_mon_resp_encode jansson talloc glib-2.0)
