@@ -87,10 +87,10 @@ json_t *tr_rp_clients_to_json(TR_RP_CLIENT *rp_clients)
   if ((jarray == NULL) || (iter == NULL))
     goto cleanup;
 
-  rp_client = tr_rp_client_iter_first(iter, rp_clients);
-  while (rp_client) {
+  for (rp_client = tr_rp_client_iter_first(iter, rp_clients);
+       rp_client != NULL;
+       rp_client = tr_rp_client_iter_next(iter)) {
     ARRAY_APPEND_OR_FAIL(jarray, tr_rp_client_to_json(rp_client));
-    rp_client = tr_rp_client_iter_next(iter);
   }
 
   /* succeeded - set the return value and increment the reference count */

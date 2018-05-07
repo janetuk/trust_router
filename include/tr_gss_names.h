@@ -36,29 +36,29 @@
 #define __TR_GSS_H__
 
 #include <talloc.h>
+#include <tr_list.h>
+
 #include <tr_name_internal.h>
 
-#define TR_MAX_GSS_NAMES 5
-
 typedef struct tr_gss_names {
-  TR_NAME *names[TR_MAX_GSS_NAMES];
+  TR_LIST *names;
 } TR_GSS_NAMES;
 
-typedef struct tr_gss_names_iter {
-  TR_GSS_NAMES *gn;
-  int ii; /* which entry did we last output? */
-} TR_GSS_NAMES_ITER;
+typedef TR_LIST_ITER TR_GSS_NAMES_ITER;
+
+/* Iterator for TR_FILTER lines */
+#define tr_gss_names_iter_new(CTX) (tr_list_iter_new(CTX))
+#define tr_gss_names_iter_free(ITER) (tr_list_iter_free(ITER))
+#define tr_gss_names_iter_first(ITER, GSSN) ((TR_NAME *) tr_list_iter_first((ITER), (GSSN)->names))
+#define tr_gss_names_iter_next(ITER) ((TR_NAME *) tr_list_iter_next(ITER))
 
 TR_GSS_NAMES *tr_gss_names_new(TALLOC_CTX *mem_ctx);
 void tr_gss_names_free(TR_GSS_NAMES *gn);
 int tr_gss_names_add(TR_GSS_NAMES *gn, TR_NAME *new);
 TR_GSS_NAMES *tr_gss_names_dup(TALLOC_CTX *mem_ctx, TR_GSS_NAMES *orig);
 int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name);
-
-TR_GSS_NAMES_ITER *tr_gss_names_iter_new(TALLOC_CTX *mem_ctx);
-TR_NAME *tr_gss_names_iter_first(TR_GSS_NAMES_ITER *iter, TR_GSS_NAMES *gn);
-TR_NAME *tr_gss_names_iter_next(TR_GSS_NAMES_ITER *iter);
-void tr_gss_names_iter_free(TR_GSS_NAMES_ITER *iter);
+#define tr_gss_names_length(GSSN) (tr_list_length((GSSN)->names))
+#define tr_gss_names_index(GSSN, INDEX) (tr_list_index((GSSN)->names, (INDEX)))
 
 json_t *tr_gss_names_to_json_array(TR_GSS_NAMES *gss_names);
 

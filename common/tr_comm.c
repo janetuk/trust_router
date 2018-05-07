@@ -40,9 +40,10 @@
 #include <tr_rp.h>
 #include <tr_idp.h>
 #include <tr_name_internal.h>
+#include <trp_internal.h>
 #include <tr_comm.h>
 #include <tr_debug.h>
-
+#include <tr_util.h>
 
 static int tr_comm_destructor(void *obj)
 {
@@ -1060,6 +1061,18 @@ struct timespec *tr_comm_memb_get_expiry(TR_COMM_MEMB *memb)
   return memb->expiry;
 }
 
+/**
+ * Get the expiration according to the realtime clock
+ *
+ * @param memb
+ * @param result space to store the result
+ * @return pointer to the result, or null on error
+ */
+struct timespec *tr_comm_memb_get_expiry_realtime(TR_COMM_MEMB *memb, struct timespec *result)
+{
+  return tr_clock_convert(TRP_CLOCK, memb->expiry, CLOCK_REALTIME, result);
+}
+
 int tr_comm_memb_is_expired(TR_COMM_MEMB *memb, struct timespec *curtime)
 {
   tr_debug("tr_comm_memb_is_expired: (cur->tv_sec>memb->expiry->tv_sec)=(%u > %u)=%s",
@@ -1365,11 +1378,24 @@ TR_COMM *tr_comm_table_find_comm(TR_COMM_TABLE *ctab, TR_NAME *comm_id)
   return tr_comm_lookup(ctab->comms, comm_id);
 }
 
-void tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new)
+/**
+ * Add a community to the table.
+ *
+ * Does not allow duplicate community ids.
+ *
+ * @param ctab
+ * @param new
+ * @return 0 on success, -1 on failure
+ */
+int tr_comm_table_add_comm(TR_COMM_TABLE *ctab, TR_COMM *new)
 {
+  if (tr_comm_table_find_comm(ctab, tr_comm_get_id(new)) != NULL)
+    return -1;
+
   tr_comm_add(ctab->comms, new);
   if (ctab->comms!=NULL)
     talloc_steal(ctab, ctab->comms); /* make sure it's in the right context */
+  return 0;
 }
 
 void tr_comm_table_remove_comm(TR_COMM_TABLE *ctab, TR_COMM *comm)

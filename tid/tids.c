@@ -80,6 +80,12 @@ static TID_RESP *tids_create_response(TALLOC_CTX *mem_ctx, TID_REQ *req)
       goto cleanup;
     }
   }
+  if (req->request_id) {
+    if (NULL == (resp->request_id = tr_dup_name(req->request_id))) {
+      tr_crit("tids_create_response: Error allocating fields in response.");
+      goto cleanup;
+    }
+  }
 
   success=1;
 
@@ -399,8 +405,8 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
   int pipe_fd[2];
   struct tid_process tp = {0};
 
-  if (0 > (conn = accept(listen, NULL, NULL))) {
-    perror("Error from TIDS Server accept()");
+  if (0 > (conn = tr_sock_accept(listen))) {
+    tr_err("tids_accept: Error accepting connection");
     return 1;
   }
 

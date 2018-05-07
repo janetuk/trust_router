@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2018 JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,24 +32,32 @@
  *
  */
 
-#ifndef TR_NAME_H
-#define TR_NAME_H
-#include <string.h>
-#include <trust_router/tr_versioning.h>
+#ifndef TRUST_ROUTER_TR_LIST_H
+#define TRUST_ROUTER_TR_LIST_H
 
-typedef const char *tr_const_string;
+#include <talloc.h>
+#include <glib.h>
 
-typedef struct tr__name {
-  char *buf;
-  int len;
-} TR_NAME;
+typedef GPtrArray *TR_LIST;
 
-TR_EXPORT TR_NAME *tr_new_name (const char *name);
-TR_EXPORT TR_NAME *tr_dup_name (const TR_NAME *from);
-TR_EXPORT void tr_free_name (TR_NAME *name);
-TR_EXPORT int tr_name_cmp (const TR_NAME *one, const TR_NAME *two);
-TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
-TR_EXPORT char *tr_name_strdup(const TR_NAME *);
-TR_EXPORT TR_NAME *tr_name_cat(const TR_NAME *n1, const TR_NAME *n2);
+typedef void (TR_LIST_FOREACH_FUNC)(void *item, void *cookie);
 
-#endif
+typedef struct tr_list_iter{
+  TR_LIST *list;
+  guint index;
+} TR_LIST_ITER;
+
+#define tr_list_index(LIST, INDEX) (g_ptr_array_index(*(LIST),(INDEX)))
+#define tr_list_length(LIST) ((size_t)((*(LIST))->len))
+
+TR_LIST *tr_list_new(TALLOC_CTX *mem_ctx);
+void tr_list_free(TR_LIST *list);
+void *tr_list_add(TR_LIST *list, void *item, int steal);
+
+TR_LIST_ITER *tr_list_iter_new(TALLOC_CTX *mem_ctx);
+void tr_list_iter_free(TR_LIST_ITER *iter);
+void *tr_list_iter_first(TR_LIST_ITER *iter, TR_LIST *list);
+void *tr_list_iter_next(TR_LIST_ITER *iter);
+void tr_list_foreach(TR_LIST *list, TR_LIST_FOREACH_FUNC *func, void *cookie);
+
+#endif //TRUST_ROUTER_TR_LIST_H

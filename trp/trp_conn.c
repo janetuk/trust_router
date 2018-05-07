@@ -40,6 +40,7 @@
 
 #include <tr_debug.h>
 #include <trp_internal.h>
+#include <tr_socket.h>
 
 /* Threading note: mutex lock is only used for protecting get_status() and set_status().
  * If needed, locking for other operations (notably adding/removing connections) must be managed
@@ -349,10 +350,10 @@ TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *
   int conn_fd=-1;
   TRP_CONNECTION *conn=NULL;
 
-  conn_fd = accept(listen, NULL, NULL);
+  conn_fd = tr_sock_accept(listen);
 
   if (0 > conn_fd) {
-    tr_notice("trp_connection_accept: accept() returned error.");
+    tr_notice("trp_connection_accept: Error accepting connection.");
     return NULL;
   }
   conn=trp_connection_new(mem_ctx);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,24 +32,54 @@
  *
  */
 
-#ifndef TR_NAME_H
-#define TR_NAME_H
+#include <stdio.h>
 #include <string.h>
-#include <trust_router/tr_versioning.h>
+#include <openssl/rand.h>
+#include <talloc.h>
 
-typedef const char *tr_const_string;
+#include <tr_rand_id.h>
 
-typedef struct tr__name {
-  char *buf;
-  int len;
-} TR_NAME;
+static char *bytes_to_hex(TALLOC_CTX *mem_ctx, const unsigned char *bytes, size_t len)
+{
+  char *hex = talloc_size(mem_ctx, 1 + len * 2 * sizeof(char));
+  char *p = NULL;
 
-TR_EXPORT TR_NAME *tr_new_name (const char *name);
-TR_EXPORT TR_NAME *tr_dup_name (const TR_NAME *from);
-TR_EXPORT void tr_free_name (TR_NAME *name);
-TR_EXPORT int tr_name_cmp (const TR_NAME *one, const TR_NAME *two);
-TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
-TR_EXPORT char *tr_name_strdup(const TR_NAME *);
-TR_EXPORT TR_NAME *tr_name_cat(const TR_NAME *n1, const TR_NAME *n2);
+  if (hex) {
+    p = hex;
+    while(len--) {
+      p += sprintf(p, "%02x", *(bytes++));
+    }
+  }
 
-#endif
+  return hex;
+}
+
+/**
+ * Generate n random bytes of data
+ *
+ * @param dst destination buffer, at least n bytes long
+ * @param n number of bytes to generate
+ * @return -1 on error
+ */
+static int random_bytes(unsigned char *dst, size_t n)
+{
+  return RAND_pseudo_bytes(dst, n);
+}
+
+#define ID_LENGTH 15
+/**
+ * Generate a random ID
+ *
+ * @param mem_ctx talloc context for the result
+ * @return random string of hex characters or null if it is unable to generate them
+ */
+char *tr_random_id(TALLOC_CTX *mem_ctx)
+{
+  unsigned char bytes[ID_LENGTH];
+  char *hex = NULL;
+
+  if (random_bytes(bytes, ID_LENGTH) >= 0)
+    hex = bytes_to_hex(mem_ctx, bytes, ID_LENGTH);
+
+  return hex;
+}

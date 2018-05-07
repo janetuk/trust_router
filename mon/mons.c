@@ -225,8 +225,8 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
   int conn=-1;
   int pid=-1;
 
-  if (0 > (conn = accept(listen, NULL, NULL))) {
-    perror("Error from monitoring interface accept()");
+  if (0 > (conn = tr_sock_accept(listen))) {
+    tr_err("mons_accept: Error accepting connection");
     return 1;
   }
 

@@ -40,6 +40,7 @@
 
 #include <tr_debug.h>
 #include <tr_socket.h>
+#include <errno.h>
 
 /**
  * Open sockets on all interface addresses
@@ -137,3 +138,63 @@ nfds_t tr_sock_listen_all(unsigned int port, int *fd_out, nfds_t max_fd)
   return n_opened;
 }
 
+/**
+ * Extract a string-formatted socket address from a struct sockaddr
+ *
+ * @param s
+ * @param dst pointer to allocated space of at least INET6_ADDRSLEN bytes
+ * @param dst_len size of space allocated at dst
+ * @return pointer to dst or null on error
+ */
+static const char *tr_sock_ip_address(struct sockaddr *s, char *dst, size_t dst_len)
+{
+  switch (s->sa_family) {
+    case AF_INET:
+      inet_ntop(AF_INET,
+                &(((struct sockaddr_in *)s)->sin_addr),
+                dst,
+                (socklen_t) dst_len);
+      break;
+
+    case AF_INET6:
+      inet_ntop(AF_INET6,
+                &(((struct sockaddr_in6 *)s)->sin6_addr),
+                dst,
+                (socklen_t) dst_len);
+      break;
+
+    default:
+      snprintf(dst, dst_len, "addr family %u", s->sa_family);
+      break;
+  }
+
+  return dst;
+}
+
+/**
+ * Accept a socket connection
+ *
+ * @param sock
+ * @return -1 on error, connection fd on success
+ */
+int tr_sock_accept(int sock)
+{
+  int conn = -1;
+  struct sockaddr_storage peeraddr;
+  socklen_t addr_len = sizeof(peeraddr);
+  char peeraddr_string[INET6_ADDRSTRLEN];
+  char err[80];
+
+  if (0 > (conn = accept(sock, (struct sockaddr *)&(peeraddr), &addr_len))) {
+    if (strerror_r(errno, err, sizeof(err)))
+      snprintf(err, sizeof(err), "errno = %d", errno);
+    tr_err("tr_sock_accept: Unable to accept connection: %s", err);
+  } else {
+    tr_notice("tr_sock_accept: Incoming connection on fd %d from %s",
+              conn,
+              tr_sock_ip_address((struct sockaddr *)&peeraddr,
+                                 peeraddr_string,
+                                 sizeof(peeraddr_string)));
+  }
+  return conn;
+}

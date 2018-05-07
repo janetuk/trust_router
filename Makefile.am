@@ -27,12 +27,14 @@ common_srcs = common/tr_name.c \
 	common/tr_filter_encoders.c \
 	common/tr_gss_names.c \
 	common/tr_socket.c \
+	common/tr_list.c \
 	$(mon_srcs)
 
 tid_srcs = tid/tid_resp.c \
 tid/tid_req.c \
 tid/tids.c \
-tid/tidc.c
+tid/tidc.c \
+common/tr_rand_id.c
 
 trp_srcs = trp/trp_conn.c \
 trp/trps.c \
@@ -96,6 +98,7 @@ common/tr_debug.c \
 common/tr_name.c \
 common/tr_constraint.c \
 common/tr_dh.c \
+common/tr_rand_id.c \
 tid/tid_req.c \
 tid/tid_resp.c
 
@@ -145,6 +148,7 @@ tr_trmon_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 trp_msgtst_SOURCES = trp/msgtst.c \
 $(common_srcs) \
+common/tr_rand_id.c \
 trp/trp_req.c \
 trp/trp_upd.c \
 tid/tid_resp.c \
@@ -156,6 +160,7 @@ common/tr_name.c \
 common/tr_gss_names.c \
 common/tr_debug.c \
 common/tr_util.c \
+common/tr_list.c \
 trp/trp_route.c \
 trp/trp_route_encoders.c \
 trp/trp_rtable.c \
@@ -277,6 +282,7 @@ noinst_HEADERS = include/gsscon.h include/tr_config.h \
 	include/tr_cfgwatch.h include/tr_event.h \
 	include/tr_mq.h include/trp_peer.h include/trp_ptable.h \
 	include/trp_rtable.h include/tr_util.h \
+	include/tr_list.h \
 	include/tr_name_internal.h include/tr_gss.h
 
 pkgdata_DATA=schema.sql

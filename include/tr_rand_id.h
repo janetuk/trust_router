@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,24 +32,9 @@
  *
  */
 
-#ifndef TR_NAME_H
-#define TR_NAME_H
-#include <string.h>
-#include <trust_router/tr_versioning.h>
+#ifndef TRUST_ROUTER_TR_RAND_ID_H
+#define TRUST_ROUTER_TR_RAND_ID_H
 
-typedef const char *tr_const_string;
+char *tr_random_id(TALLOC_CTX *mem_ctx);
 
-typedef struct tr__name {
-  char *buf;
-  int len;
-} TR_NAME;
-
-TR_EXPORT TR_NAME *tr_new_name (const char *name);
-TR_EXPORT TR_NAME *tr_dup_name (const TR_NAME *from);
-TR_EXPORT void tr_free_name (TR_NAME *name);
-TR_EXPORT int tr_name_cmp (const TR_NAME *one, const TR_NAME *two);
-TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
-TR_EXPORT char *tr_name_strdup(const TR_NAME *);
-TR_EXPORT TR_NAME *tr_name_cat(const TR_NAME *n1, const TR_NAME *n2);
-
-#endif
+#endif //TRUST_ROUTER_TR_RAND_ID_H
