@@ -90,13 +90,13 @@ const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
       return "uptime";
 
     case OPT_TYPE_SHOW_TID_REQ_COUNT:
-      return "tid_req_count";
+      return "tid_reqs_processed";
 
     case OPT_TYPE_SHOW_TID_REQ_ERR_COUNT:
-      return "tid_req_error_count";
+      return "tid_error_count";
 
     case OPT_TYPE_SHOW_TID_REQ_PENDING:
-      return "tid_req_pending";
+      return "tid_reqs_pending";
 
     case OPT_TYPE_SHOW_ROUTES:
       return "routes";
