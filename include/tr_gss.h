@@ -40,7 +40,17 @@
 typedef int (TR_GSS_AUTH_FN)(gss_name_t, TR_NAME *, void *);
 typedef TR_MSG *(TR_GSS_HANDLE_REQ_FN)(TALLOC_CTX *, TR_MSG *, void *);
 
-void tr_gss_handle_connection(int conn, const char *acceptor_service, const char *acceptor_hostname, TR_GSS_AUTH_FN auth_cb,
-                              void *auth_cookie, TR_GSS_HANDLE_REQ_FN req_cb, void *req_cookie);
+typedef enum tr_gss_rc {
+  TR_GSS_SUCCESS = 0, /* success */
+  TR_GSS_ERROR,       /* unspecified error */
+} TR_GSS_RC;
+
+TR_GSS_RC tr_gss_handle_connection(int conn,
+                                   const char *acceptor_service,
+                                   const char *acceptor_hostname,
+                                   TR_GSS_AUTH_FN auth_cb,
+                                   void *auth_cookie,
+                                   TR_GSS_HANDLE_REQ_FN req_cb,
+                                   void *req_cookie);
 
 #endif //TRUST_ROUTER_TR_GSS_H

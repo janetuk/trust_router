@@ -214,13 +214,13 @@ static int tr_gss_write_resp(int conn, gss_ctx_id_t gssctx, const char *resp)
  * @param req_cb callback to handle the request and produce the response
  * @param req_cookie cookie for the req_cb
  */
-void tr_gss_handle_connection(int conn,
-                              const char *acceptor_service,
-                              const char *acceptor_hostname,
-                              TR_GSS_AUTH_FN auth_cb,
-                              void *auth_cookie,
-                              TR_GSS_HANDLE_REQ_FN req_cb,
-                              void *req_cookie)
+TR_GSS_RC tr_gss_handle_connection(int conn,
+                                   const char *acceptor_service,
+                                   const char *acceptor_hostname,
+                                   TR_GSS_AUTH_FN auth_cb,
+                                   void *auth_cookie,
+                                   TR_GSS_HANDLE_REQ_FN req_cb,
+                                   void *req_cookie)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   gss_ctx_id_t gssctx = GSS_C_NO_CONTEXT;
@@ -229,6 +229,7 @@ void tr_gss_handle_connection(int conn,
   TR_MSG *req_msg = NULL;
   TR_MSG *resp_msg = NULL;
   char *resp_str = NULL;
+  TR_GSS_RC rc = TR_GSS_ERROR;
 
   tr_debug("tr_gss_handle_connection: Attempting to accept %s connection on fd %d.",
            acceptor_service, conn);
@@ -294,6 +295,10 @@ void tr_gss_handle_connection(int conn,
     goto cleanup;
   }
 
+  /* we successfully sent a response */
+  rc = TR_GSS_SUCCESS;
+
 cleanup:
   talloc_free(tmp_ctx);
+  return rc;
 }
