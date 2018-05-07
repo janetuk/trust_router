@@ -35,11 +35,12 @@
 #ifndef TID_INTERNAL_H
 #define TID_INTERNAL_H
 #include <glib.h>
-
-#include <tr_rp.h>
-#include <trust_router/tid.h>
 #include <jansson.h>
-#include "tr_gss_client.h"
+
+#include <trust_router/tid.h>
+#include <trust_router/tr_dh.h>
+#include <tr_rp.h>
+#include <tr_gss_client.h>
 
 struct tid_srvr_blk {
   TID_SRVR_BLK *next;
@@ -86,6 +87,7 @@ struct tid_req {
 
 struct tidc_instance {
   TR_GSSC_INSTANCE *gssc;
+  DH *client_dh;
 };
 
 struct tid_process {

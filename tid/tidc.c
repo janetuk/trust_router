@@ -46,6 +46,17 @@
 
 int tmp_len = 32;
 
+static int tidc_destructor(void *obj)
+{
+  TIDC_INSTANCE *tidc=talloc_get_type_abort(obj, TIDC_INSTANCE);
+  if (NULL!=tidc) {
+    if (NULL!=tidc->client_dh)
+      tr_destroy_dh_params(tidc->client_dh);
+  }
+  return 0;
+}
+
+
 /* creates struct in talloc null context */
 TIDC_INSTANCE *tidc_create(void)
 {
@@ -56,8 +67,9 @@ TIDC_INSTANCE *tidc_create(void)
       talloc_free(tidc);
       return NULL;
     }
-
     tidc->gssc->service_name = "trustidentity";
+    tidc->client_dh = NULL;
+    talloc_set_destructor((void *)tidc, tidc_destructor);
   }
   return tidc;
 }
@@ -129,7 +141,7 @@ int tidc_send_request (TIDC_INSTANCE *tidc,
     goto error;
   }
 
-  tid_req->tidc_dh = tr_dh_dup(tidc->gssc->client_dh);
+  tid_req->tidc_dh = tr_dh_dup(tidc_get_dh(tidc));
 
   /* generate an ID */
   request_id = tr_random_id(NULL);
@@ -219,12 +231,13 @@ int tidc_fwd_request(TIDC_INSTANCE *tidc,
 }
 
 
-DH * tidc_get_dh(TIDC_INSTANCE *inst)
+DH *tidc_get_dh(TIDC_INSTANCE *inst)
 {
-  return tr_gssc_get_dh(inst->gssc);
+  return inst->client_dh;
 }
 
 DH *tidc_set_dh(TIDC_INSTANCE *inst, DH *dh)
 {
-  return tr_gssc_set_dh(inst->gssc, dh);
+  inst->client_dh = dh;
+  return dh;
 }

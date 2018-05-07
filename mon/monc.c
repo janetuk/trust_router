@@ -98,13 +98,3 @@ cleanup:
   talloc_free(tmp_ctx);
   return resp;
 }
-
-DH *monc_get_dh(MONC_INSTANCE *inst)
-{
-  return tr_gssc_get_dh(inst->gssc);
-}
-
-DH *monc_set_dh(MONC_INSTANCE *inst, DH *dh)
-{
-  return tr_gssc_set_dh(inst->gssc, dh);
-}

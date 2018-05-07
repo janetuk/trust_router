@@ -40,29 +40,17 @@
 #include <tr_debug.h>
 #include <tr_gss_client.h>
 
-static int tr_gssc_destructor(void *obj)
-{
-  TR_GSSC_INSTANCE *tr_gssc=talloc_get_type_abort(obj, TR_GSSC_INSTANCE);
-  if (NULL!=tr_gssc) {
-    if (NULL!=tr_gssc->client_dh)
-      tr_destroy_dh_params(tr_gssc->client_dh);
-  }
-  return 0;
-}
-
 TR_GSSC_INSTANCE *tr_gssc_instance_new(TALLOC_CTX *mem_ctx)
 {
   TR_GSSC_INSTANCE *gssc=talloc(NULL, TR_GSSC_INSTANCE);
   if (gssc != NULL) {
     gssc->service_name = NULL;
-    gssc->client_dh = NULL;
     gssc->conn = -1;
     gssc->gss_ctx = talloc(gssc, gss_ctx_id_t);
     if (gssc->gss_ctx == NULL) {
-      talloc_free(gssc); /* before the destructor is set */
+      talloc_free(gssc);
       return NULL;
     }
-    talloc_set_destructor((void *)gssc, tr_gssc_destructor);
   }
   return gssc;
 }
@@ -144,15 +132,4 @@ TR_MSG *tr_gssc_exchange_msgs(TALLOC_CTX *mem_ctx, TR_GSSC_INSTANCE *gssc, TR_MS
 cleanup:
   talloc_free(tmp_ctx);
   return resp_msg;
-}
-
-DH * tr_gssc_get_dh(TR_GSSC_INSTANCE *inst)
-{
-  return inst->client_dh;
-}
-
-DH *tr_gssc_set_dh(TR_GSSC_INSTANCE *inst, DH *dh)
-{
-  inst->client_dh = dh;
-  return dh;
 }

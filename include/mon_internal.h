@@ -39,14 +39,13 @@
 #include <talloc.h>
 #include <stdint.h>
 #include <jansson.h>
-#include <gmodule.h>
+#include <glib.h>
 #include <gssapi.h>
 #include <trust_router/tid.h>
 #include <trp_internal.h>
 #include <tr_gss_names.h>
 #include <tr_gss_client.h>
 #include <tr_name_internal.h>
-#include <trust_router/tr_dh.h>
 #include <mon.h>
 
 /* Typedefs */
@@ -187,8 +186,6 @@ int mons_accept(MONS_INSTANCE *mons, int listen);
 /* monc.c */
 MONC_INSTANCE *monc_new(TALLOC_CTX *mem_ctx);
 void monc_free(MONC_INSTANCE *monc);
-DH *monc_get_dh(MONC_INSTANCE *inst);
-DH *monc_set_dh(MONC_INSTANCE *inst, DH *dh);
 int monc_open_connection(MONC_INSTANCE *monc, const char *server, unsigned int port);
 MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *req);
 
