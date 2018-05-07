@@ -277,60 +277,83 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
     s=tr_mq_msg_get_message(msg);
     if (0==strcmp(s, TR_MQMSG_TRPS_CONNECTED)) {
       TR_NAME *peer_gssname=(TR_NAME *)tr_mq_msg_get_payload(msg);
-      peer=trps_get_peer_by_gssname(trps, peer_gssname); /* get the peer record */
-      tmp = tr_name_strdup(peer_gssname); /* get the name as a null-terminated string */
-      if (peer==NULL)
-        tr_err("tr_trps_process_mq: incoming connection from unknown peer (%s) reported.", tmp);
-      else {
-        trp_peer_set_incoming_status(peer, PEER_CONNECTED);
-        tr_notice("tr_trps_process_mq: incoming connection from %s established.", tmp);
+      if (NULL == peer_gssname) {
+        /* This should not happen, we should not be able to establish a connection if we do not
+         * know their GSS name */
+        tr_err("tr_trps_process_mq: incoming connection from unknown GSS name reported.");
+      } else {
+        peer = trps_get_peer_by_gssname(trps, peer_gssname); /* get the peer record */
+        tmp = tr_name_strdup(peer_gssname); /* get the name as a null-terminated string */
+        if (peer == NULL)
+          tr_err("tr_trps_process_mq: incoming connection from unknown peer (%s) reported.", tmp);
+        else {
+          trp_peer_set_incoming_status(peer, PEER_CONNECTED);
+          tr_info("tr_trps_process_mq: incoming connection from %s established.", tmp);
+        }
+        free(tmp);
       }
-      free(tmp);
     }
     else if (0==strcmp(s, TR_MQMSG_TRPS_DISCONNECTED)) {
       TRP_CONNECTION *conn=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TRP_CONNECTION);
       TR_NAME *peer_gssname=trp_connection_get_peer(conn);
-      peer=trps_get_peer_by_gssname(trps, peer_gssname); /* get the peer record */
-      tmp = tr_name_strdup(peer_gssname); /* get the name as a null-terminated string */
-      if (peer==NULL) {
-        tr_err("tr_trps_process_mq: incoming connection from unknown peer (%.*s) lost.", tmp);
+
+      if (NULL == peer_gssname) {
+        /* If the GSS auth failed, then we don't know the peer's GSS name. */
+        tr_info("tr_trps_process_mq: incoming connection failed to auth.");
       } else {
-        trp_peer_set_incoming_status(peer, PEER_DISCONNECTED);
-        tr_trps_cleanup_conn(trps, conn);
-        tr_notice("tr_trps_process_mq: incoming connection from %s lost.", tmp);
+        /* We do know the peer's GSS name, see if we recognize it. */
+        peer = trps_get_peer_by_gssname(trps, peer_gssname); /* get the peer record */
+        tmp = tr_name_strdup(peer_gssname); /* get the name as a null-terminated string */
+        if (peer == NULL) {
+          tr_err("tr_trps_process_mq: incoming connection from unknown peer (%.*s) lost.", tmp);
+        } else {
+          trp_peer_set_incoming_status(peer, PEER_DISCONNECTED);
+          tr_trps_cleanup_conn(trps, conn);
+          tr_info("tr_trps_process_mq: incoming connection from %s lost.", tmp);
+        }
+        free(tmp);
       }
-      free(tmp);
     }
     else if (0==strcmp(s, TR_MQMSG_TRPC_CONNECTED)) {
       TR_NAME *svcname=(TR_NAME *)tr_mq_msg_get_payload(msg);
-      peer=trps_get_peer_by_servicename(trps, svcname);
-      tmp = tr_name_strdup(svcname);
-      if (peer==NULL)
-        tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) reported.", tmp);
-      else {
-        trp_peer_set_outgoing_status(peer, PEER_CONNECTED);
-        tr_notice("tr_trps_process_mq: outgoing connection to %s established.", tmp);
+      if (NULL == svcname) {
+        /* This should not happen because we shouldn't be reporting a connection unless we were
+         * able to auth the service name. */
+        tr_err("tr_trps_process_mq: outgoing connection established to unknown GSS service name.");
+      } else {
+        peer = trps_get_peer_by_servicename(trps, svcname);
+        tmp = tr_name_strdup(svcname);
+        if (peer == NULL)
+          tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) reported.", tmp);
+        else {
+          trp_peer_set_outgoing_status(peer, PEER_CONNECTED);
+          tr_info("tr_trps_process_mq: outgoing connection to %s established.", tmp);
+        }
+        free(tmp);
       }
-      free(tmp);
     }
     else if (0==strcmp(s, TR_MQMSG_TRPC_DISCONNECTED)) {
       TRPC_INSTANCE *trpc=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TRPC_INSTANCE);
       TR_NAME *svcname=trpc_get_gssname(trpc);
-      peer=trps_get_peer_by_servicename(trps, svcname);
-      tmp = tr_name_strdup(svcname);
-      if (peer==NULL)
-        tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) lost.", tmp);
-      else {
-        trp_peer_set_outgoing_status(peer, PEER_DISCONNECTED);
-        tr_notice("tr_trps_process_mq: outgoing connection to %s lost.", tmp);
-        tr_trps_cleanup_trpc(trps, trpc);
+      if (NULL == svcname) {
+        tr_info("tr_trps_process_mq: outgoing connection to unknown GSS service name lost.");
+      } else {
+        peer = trps_get_peer_by_servicename(trps, svcname);
+        tmp = tr_name_strdup(svcname);
+        if (peer == NULL)
+          tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) lost.", tmp);
+        else {
+          trp_peer_set_outgoing_status(peer, PEER_DISCONNECTED);
+          tr_info("tr_trps_process_mq: outgoing connection to %s lost.", tmp);
+          tr_trps_cleanup_trpc(trps, trpc);
+        }
+        free(tmp);
       }
-      free(tmp);
     }
 
     else if (0==strcmp(s, TR_MQMSG_MSG_RECEIVED)) {
       if (trps_handle_tr_msg(trps, tr_mq_msg_get_payload(msg))!=TRP_SUCCESS)
-        tr_notice("tr_trps_process_mq: error handling message.");
+        tr_err("tr_trps_process_mq: error handling message.");
     }
     else
       tr_notice("tr_trps_process_mq: unknown message '%s' received.", tr_mq_msg_get_message(msg));
