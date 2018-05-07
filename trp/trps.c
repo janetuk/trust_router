@@ -273,7 +273,7 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
   if (trpc==NULL) {
     tr_warning("trps_send_msg: skipping message queued for missing TRP client entry.");
   } else {
-    mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND, TR_MQ_PRIO_NORMAL);
+    mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND);
     msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
     tr_mq_msg_set_payload(mq_msg, msg_dup, NULL); /* no need for a free() func */
     trpc_mq_add(trpc, mq_msg);
