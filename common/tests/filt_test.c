@@ -119,7 +119,7 @@ TRP_INFOREC *load_inforec(const char *fname)
   json_decref(decoded);
 
   assert(encoded);
-  assert(msg=tr_msg_decode(encoded, strlen(encoded)));
+  assert(msg= tr_msg_decode(NULL, encoded, strlen(encoded)));
   assert(upd=tr_msg_get_trp_upd(msg));
   assert(inforec=trp_upd_get_inforec(upd));
   /* now remove the inforec from the update context */
@@ -146,7 +146,7 @@ TID_REQ *load_tid_req(const char *fname)
   msglen=fread(msgbuf, 1, MAX_FILE_SIZE, f);
   assert(msglen);
   assert(feof(f));
-  msg=tr_msg_decode(msgbuf, msglen);
+  msg= tr_msg_decode(NULL, msgbuf, msglen);
   free(msgbuf);
   msgbuf=NULL;
 

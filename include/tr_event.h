@@ -41,7 +41,7 @@
 
 /* struct for hanging on to a socket listener event */
 struct tr_socket_event {
-  size_t n_sock_fd; /* how many of those are filled in? */
+  int n_sock_fd; /* how many of those are filled in? */
   int sock_fd[TR_MAX_SOCKETS]; /* the fd for the socket */
   struct event *ev[TR_MAX_SOCKETS]; /* its events */
 };

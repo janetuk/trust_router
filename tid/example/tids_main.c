@@ -167,9 +167,6 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   
 
   tr_debug("tids_req_handler: Request received! target_realm = %s, community = %s", req->realm->buf, req->comm->buf);
-  if (tids)
-    tids->req_count++;
-
   if (!(resp) || !resp) {
     tr_debug("tids_req_handler: No response structure.");
     return -1;

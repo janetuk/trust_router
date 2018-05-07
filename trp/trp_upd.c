@@ -260,19 +260,31 @@ TR_NAME *trp_inforec_dup_next_hop(TRP_INFOREC *rec)
   return tr_dup_name(trp_inforec_get_next_hop(rec));
 }
 
+/**
+ * Set the next hop for the inforec
+ *
+ * Returns TRP_SUCCESS if it set the next hop value for the inforec.
+ * Returns TRP_UNSUPPORTED if the inforec does not have a next hop record but
+ * otherwise nothing went wrong.
+ * Returns TRP_ERROR or another error if there was a failure.
+ *
+ * @param rec
+ * @param next_hop
+ * @return TRP_SUCCESS if the value was set, TRP_UNSUPPORTED if the inforec does not support next hop, or an error code on failure
+ */
 TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop)
 {
+  /* Any inforec types that support next_hop should set it here. */
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
     if (rec->data->route==NULL)
       return TRP_ERROR;
     rec->data->route->next_hop=next_hop;
     break;
-  case TRP_INFOREC_TYPE_COMMUNITY:
-    /* next hop not used for community records */
-    break;
+
   default:
-    break;
+    /* next hop not used for other records */
+    return TRP_UNSUPPORTED;
   }
   return TRP_SUCCESS;
 }
@@ -770,11 +782,22 @@ void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
 {
   TRP_INFOREC *rec=NULL;
   TR_NAME *cpy=NULL;
-  
+
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    if (trp_inforec_set_next_hop(rec, cpy=tr_new_name(hostname)) != TRP_SUCCESS) {
-      tr_err("trp_upd_set_next_hop: error setting next hop.");
-      tr_free_name(cpy);
+    switch (trp_inforec_set_next_hop(rec, cpy=tr_new_name(hostname))) {
+      case TRP_SUCCESS:
+        /* Success, the TR_NAME in cpy is now stored with the inforec */
+        break;
+
+      case TRP_UNSUPPORTED:
+        /* No error, but the inforec does not accept a next_hop. Free our copy. */
+        tr_free_name(cpy);
+        break;
+
+      default:
+        tr_err("trp_upd_set_next_hop: error setting next hop.");
+        tr_free_name(cpy);
+        break;
     }
   }
 }

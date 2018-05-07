@@ -43,7 +43,9 @@
 #include <gsscon.h>
 #include <tr_mq.h>
 #include <tr_msg.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
+#include <trp_route.h>
 #include <trp_rtable.h>
 #include <tr_apc.h>
 #include <tr_comm.h>
@@ -114,8 +116,8 @@ struct trp_connection {
   TRP_CONNECTION *next;
   pthread_t *thread; /* thread servicing this connection */
   int fd;
-  TR_NAME *gssname;
-  TR_NAME *peer; /* TODO: why is there a peer and a gssname? jlr */
+  TR_NAME *gssname; /* the gss service name we presented for passive auth */
+  TR_NAME *peer; /* gssname of incoming peer */
   gss_ctx_id_t *gssctx;
   TRP_CONNECTION_STATUS status;
   void (*status_change_cb)(TRP_CONNECTION *conn, void *cookie);
@@ -185,7 +187,7 @@ TRP_CONNECTION *trp_connection_get_next(TRP_CONNECTION *conn);
 TRP_CONNECTION *trp_connection_remove(TRP_CONNECTION *conn, TRP_CONNECTION *remove);
 void trp_connection_append(TRP_CONNECTION *conn, TRP_CONNECTION *new);
 int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void *callback_data);
-TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *gssname);
+TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *gss_servicename);
 TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int port);
 
 TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx);
@@ -206,7 +208,7 @@ TRP_CONNECTION_STATUS trpc_get_status(TRPC_INSTANCE *trpc);
 TR_MQ *trpc_get_mq(TRPC_INSTANCE *trpc);
 void trpc_set_mq(TRPC_INSTANCE *trpc, TR_MQ *mq);
 void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
-TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc);
+TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc, struct timespec *ts_abort);
 void trpc_mq_clear(TRPC_INSTANCE *trpc);
 void trpc_master_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
 TR_MQ_MSG *trpc_master_mq_pop(TRPC_INSTANCE *trpc);

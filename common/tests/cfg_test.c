@@ -41,6 +41,7 @@
 #include <tr_idp.h>
 #include <tr_config.h>
 #include <tr_debug.h>
+#include <tr_gss_names.h>
 
 static void tr_talloc_log(const char *msg)
 {
@@ -98,7 +99,6 @@ static int verify_idp_cfg(TR_CFG *cfg)
 
 static int verify_rp_cfg(TR_CFG *cfg)
 {
-  int ii=0;
   TR_NAME *name=NULL;
 
   assert(cfg!=NULL);
@@ -107,11 +107,9 @@ static int verify_rp_cfg(TR_CFG *cfg)
   assert(cfg->rp_clients->comm_next==NULL);
 
   assert(cfg->rp_clients->gss_names!=NULL);
-  for (ii=1; ii<TR_MAX_GSS_NAMES; ii++)
-    assert(cfg->rp_clients->gss_names->names[ii]==NULL);
-  assert(cfg->rp_clients->gss_names->names[0]!=NULL);
+  assert(tr_gss_names_length(cfg->rp_clients->gss_names) == 1);
   name=tr_new_name("gss@example.com");
-  assert(tr_name_cmp(name, cfg->rp_clients->gss_names->names[0])==0);
+  assert(tr_name_cmp(name, tr_gss_names_index(cfg->rp_clients->gss_names, 0))==0);
   return 0;
 }
 

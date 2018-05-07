@@ -47,7 +47,9 @@
 #include <tr.h>
 #include <tr_mq.h>
 #include <tr_rp.h>
+#include <trp_route.h>
 #include <trp_internal.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_config.h>
@@ -91,7 +93,7 @@ static TRP_RC tr_trps_msg_handler(TRPS_INSTANCE *trps,
   /* n.b., conn is available here, but do not hold onto the reference
    * because it may be cleaned up if the originating connection goes
    * down before the message is processed */
-  mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_MSG_RECEIVED, TR_MQ_PRIO_NORMAL);
+  mq_msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_MSG_RECEIVED);
   if (mq_msg==NULL) {
     return TRP_NOMEM;
   }
@@ -112,7 +114,7 @@ static int tr_trps_gss_handler(gss_name_t client_name, gss_buffer_t gss_name,
 
   tr_debug("tr_trps_gss_handler()");
 
-  if ((!client_name) || (!gss_name) || (!trps) || (!cfg_mgr)) {
+  if ((!client_name) || (!trps) || (!cfg_mgr)) {
     tr_debug("tr_trps_gss_handler: Bad parameters.");
     return -1;
   }
@@ -145,7 +147,7 @@ static void *tr_trps_thread(void *arg)
   if (trps_authorize_connection(trps, conn)!=TRP_SUCCESS)
     goto cleanup;
 
-  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_CONNECTED, TR_MQ_PRIO_HIGH);
+  msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_CONNECTED);
   tr_mq_msg_set_payload(msg, (void *)tr_dup_name(trp_connection_get_peer(conn)), tr_free_name_helper);
   if (msg==NULL) {
     tr_err("tr_trps_thread: error allocating TR_MQ_MSG");
@@ -157,7 +159,7 @@ static void *tr_trps_thread(void *arg)
   trps_handle_connection(trps, conn);
 
 cleanup:
-  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_DISCONNECTED, TR_MQ_PRIO_HIGH);
+  msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_DISCONNECTED);
   tr_mq_msg_set_payload(msg, (void *)conn, NULL); /* do not pass a free routine */
   if (msg==NULL)
     tr_err("tr_trps_thread: error allocating TR_MQ_MSG");
@@ -182,23 +184,24 @@ static void tr_trps_event_cb(int listener, short event, void *arg)
     tr_debug("tr_trps_event_cb: unexpected event on TRPS socket (event=0x%X)", event);
   } else {
     /* create a thread to handle this connection */
-    if (asprintf(&name, "trustrouter@%s", trps->hostname)==-1) {
+    name = talloc_asprintf(tmp_ctx, "trustrouter@%s", trps->hostname);
+    if (name == NULL)
       goto cleanup;
-    }
-    gssname=tr_new_name(name);
-    free(name); name=NULL;
-    conn=trp_connection_accept(tmp_ctx, listener, gssname);
-    if (conn!=NULL) {
+    gssname=tr_new_name(name); /* name cleaned up with tmp_ctx but need to handl gssname ourselves */
+
+    conn=trp_connection_accept(tmp_ctx, listener, gssname); /* steals gssname unless it fails */
+    if (conn == NULL) {
+      tr_free_name(gssname);
+    } else {
       /* need to monitor this fd and trigger events when read becomes possible */
       thread_data=talloc(conn, struct trps_thread_data);
       if (thread_data==NULL) {
         tr_err("tr_trps_event_cb: unable to allocate trps_thread_data");
-        talloc_free(tmp_ctx);
-        return;
+        goto cleanup;
       }
       thread_data->conn=conn;
       thread_data->trps=trps;
-      trps_add_connection(trps, conn); /* remember the connection */
+      trps_add_connection(trps, conn); /* remember the connection - this puts conn and the thread data in trps's talloc context */
       pthread_create(trp_connection_get_thread(conn), NULL, tr_trps_thread, thread_data);
     }
   }
@@ -266,60 +269,91 @@ static void tr_trps_process_mq(int socket, short event, void *arg)
   TRPS_INSTANCE *trps=talloc_get_type_abort(arg, TRPS_INSTANCE);
   TR_MQ_MSG *msg=NULL;
   const char *s=NULL;
+  TRP_PEER *peer = NULL;
+  char *tmp = NULL;
 
   msg=trps_mq_pop(trps);
   while (msg!=NULL) {
     s=tr_mq_msg_get_message(msg);
     if (0==strcmp(s, TR_MQMSG_TRPS_CONNECTED)) {
-      TR_NAME *gssname=(TR_NAME *)tr_mq_msg_get_payload(msg);
-      TRP_PEER *peer=trps_get_peer_by_gssname(trps, gssname);
-      if (peer==NULL)
-        tr_err("tr_trps_process_mq: incoming connection from unknown peer (%s) reported.", gssname->buf);
-      else {
-        trp_peer_set_incoming_status(peer, PEER_CONNECTED);
-        tr_err("tr_trps_process_mq: incoming connection from %s established.", gssname->buf);
+      TR_NAME *peer_gssname=(TR_NAME *)tr_mq_msg_get_payload(msg);
+      if (NULL == peer_gssname) {
+        /* This should not happen, we should not be able to establish a connection if we do not
+         * know their GSS name */
+        tr_err("tr_trps_process_mq: incoming connection from unknown GSS name reported.");
+      } else {
+        peer = trps_get_peer_by_gssname(trps, peer_gssname); /* get the peer record */
+        tmp = tr_name_strdup(peer_gssname); /* get the name as a null-terminated string */
+        if (peer == NULL)
+          tr_err("tr_trps_process_mq: incoming connection from unknown peer (%s) reported.", tmp);
+        else {
+          trp_peer_set_incoming_status(peer, PEER_CONNECTED);
+          tr_info("tr_trps_process_mq: incoming connection from %s established.", tmp);
+        }
+        free(tmp);
       }
     }
     else if (0==strcmp(s, TR_MQMSG_TRPS_DISCONNECTED)) {
       TRP_CONNECTION *conn=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TRP_CONNECTION);
-      TR_NAME *gssname=trp_connection_get_gssname(conn);
-      TRP_PEER *peer=trps_get_peer_by_gssname(trps, gssname);
-      if (peer==NULL) {
-        tr_err("tr_trps_process_mq: incoming connection from unknown peer (%s) lost.",
-               trp_connection_get_gssname(conn)->buf);
+      TR_NAME *peer_gssname=trp_connection_get_peer(conn);
+
+      if (NULL == peer_gssname) {
+        /* If the GSS auth failed, then we don't know the peer's GSS name. */
+        tr_info("tr_trps_process_mq: incoming connection failed to auth.");
       } else {
-        trp_peer_set_incoming_status(peer, PEER_DISCONNECTED);
-        tr_trps_cleanup_conn(trps, conn);
-        tr_err("tr_trps_process_mq: incoming connection from %s lost.", gssname->buf);
+        /* We do know the peer's GSS name, see if we recognize it. */
+        peer = trps_get_peer_by_gssname(trps, peer_gssname); /* get the peer record */
+        tmp = tr_name_strdup(peer_gssname); /* get the name as a null-terminated string */
+        if (peer == NULL) {
+          tr_err("tr_trps_process_mq: incoming connection from unknown peer (%.*s) lost.", tmp);
+        } else {
+          trp_peer_set_incoming_status(peer, PEER_DISCONNECTED);
+          tr_trps_cleanup_conn(trps, conn);
+          tr_info("tr_trps_process_mq: incoming connection from %s lost.", tmp);
+        }
+        free(tmp);
       }
     }
     else if (0==strcmp(s, TR_MQMSG_TRPC_CONNECTED)) {
       TR_NAME *svcname=(TR_NAME *)tr_mq_msg_get_payload(msg);
-      TRP_PEER *peer=trps_get_peer_by_servicename(trps, svcname);
-      if (peer==NULL)
-        tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) reported.", svcname->buf);
-      else {
-        trp_peer_set_outgoing_status(peer, PEER_CONNECTED);
-        tr_err("tr_trps_process_mq: outgoing connection to %s established.", svcname->buf);
+      if (NULL == svcname) {
+        /* This should not happen because we shouldn't be reporting a connection unless we were
+         * able to auth the service name. */
+        tr_err("tr_trps_process_mq: outgoing connection established to unknown GSS service name.");
+      } else {
+        peer = trps_get_peer_by_servicename(trps, svcname);
+        tmp = tr_name_strdup(svcname);
+        if (peer == NULL)
+          tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) reported.", tmp);
+        else {
+          trp_peer_set_outgoing_status(peer, PEER_CONNECTED);
+          tr_info("tr_trps_process_mq: outgoing connection to %s established.", tmp);
+        }
+        free(tmp);
       }
     }
     else if (0==strcmp(s, TR_MQMSG_TRPC_DISCONNECTED)) {
-      /* trpc connection died */
       TRPC_INSTANCE *trpc=talloc_get_type_abort(tr_mq_msg_get_payload(msg), TRPC_INSTANCE);
-      TR_NAME *gssname=trpc_get_gssname(trpc);
-      TRP_PEER *peer=trps_get_peer_by_servicename(trps, gssname);
-      if (peer==NULL)
-        tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) lost.", gssname->buf);
-      else {
-        trp_peer_set_outgoing_status(peer, PEER_DISCONNECTED);
-        tr_err("tr_trps_process_mq: outgoing connection to %s lost.", gssname->buf);
-        tr_trps_cleanup_trpc(trps, trpc);
+      TR_NAME *svcname=trpc_get_gssname(trpc);
+      if (NULL == svcname) {
+        tr_info("tr_trps_process_mq: outgoing connection to unknown GSS service name lost.");
+      } else {
+        peer = trps_get_peer_by_servicename(trps, svcname);
+        tmp = tr_name_strdup(svcname);
+        if (peer == NULL)
+          tr_err("tr_trps_process_mq: outgoing connection to unknown peer (%s) lost.", tmp);
+        else {
+          trp_peer_set_outgoing_status(peer, PEER_DISCONNECTED);
+          tr_info("tr_trps_process_mq: outgoing connection to %s lost.", tmp);
+          tr_trps_cleanup_trpc(trps, trpc);
+        }
+        free(tmp);
       }
     }
 
     else if (0==strcmp(s, TR_MQMSG_MSG_RECEIVED)) {
       if (trps_handle_tr_msg(trps, tr_mq_msg_get_payload(msg))!=TRP_SUCCESS)
-        tr_notice("tr_trps_process_mq: error handling message.");
+        tr_err("tr_trps_process_mq: error handling message.");
     }
     else
       tr_notice("tr_trps_process_mq: unknown message '%s' received.", tr_mq_msg_get_message(msg));
@@ -548,29 +582,27 @@ cleanup:
   return retval;
 }
 
-
-struct trpc_notify_cb_data {
-  int msg_ready;
-  pthread_cond_t cond;
-  pthread_mutex_t mutex;
-};
-
-static void tr_trpc_mq_cb(TR_MQ *mq, void *arg)
-{
-  struct trpc_notify_cb_data *cb_data=(struct trpc_notify_cb_data *) arg;
-  pthread_mutex_lock(&(cb_data->mutex));
-  if (!cb_data->msg_ready) {
-    cb_data->msg_ready=1;
-    pthread_cond_signal(&(cb_data->cond));
-  }
-  pthread_mutex_unlock(&(cb_data->mutex));
-}
-
 /* data passed to thread */
 struct trpc_thread_data {
   TRPC_INSTANCE *trpc;
   TRPS_INSTANCE *trps;
 };
+
+/**
+ * Thread for handling TRPC (outgoing) connections
+ *
+ * Opens a connection to a peer. If successful, notifies the trps thread by
+ * posting a TR_MQMSG_TRPC_CONNECTED message to the trps message queue.
+ * It then waits for messages on trpc->mq. Normally these will be TR_MQMSG_TRPC_SEND
+ * messages, which this thread forwards to the peer. If its connection is lost or
+ * a TR_MQMSG_ABORT message is received on trpc->mq, the thread sends a
+ * TR_MQMSG_TRPC_DISCONNECTED message to the trps thread, then cleans up and
+ * terminates.
+ *
+ * The trps may continue queueing messages for this client even when the
+ * connection is down. To prevent the queue from growing endlessly, this thread
+ * should clear its queue after failed connection attempts.
+ */
 static void *tr_trpc_thread(void *arg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
@@ -582,37 +614,30 @@ static void *tr_trpc_thread(void *arg)
   const char *msg_type=NULL;
   char *encoded_msg=NULL;
   TR_NAME *peer_gssname=NULL;
-  int n_sent=0;
+  struct timespec wait_until = {0};
   int exit_loop=0;
-
-  struct trpc_notify_cb_data cb_data={0,
-                                      PTHREAD_COND_INITIALIZER,
-                                      PTHREAD_MUTEX_INITIALIZER};
 
   tr_debug("tr_trpc_thread: started");
 
-  /* set up the mq for receiving */
-  pthread_mutex_lock(&(cb_data.mutex)); /* hold this lock until we enter the main loop */
-
-  tr_mq_lock(trpc->mq);
-  tr_mq_set_notify_cb(trpc->mq, tr_trpc_mq_cb, (void *) &cb_data);
-  tr_mq_unlock(trpc->mq);
-
+  /* Try to make the outgoing connection */
   rc=trpc_connect(trpc);
   if (rc!=TRP_SUCCESS) {
     tr_notice("tr_trpc_thread: failed to initiate connection to %s:%d.",
               trpc_get_server(trpc),
               trpc_get_port(trpc));
+    trpc_mq_clear(trpc); /* clear the queue even though we did not connect */
   } else {
+    /* Retrieve the GSS name used by the peer for authentication */
     peer_gssname=trp_connection_get_peer(trpc_get_conn(trpc));
     if (peer_gssname==NULL) {
       tr_err("tr_trpc_thread: could not duplicate peer_gssname.");
       talloc_free(tmp_ctx);
       return NULL;
     }
-    tr_debug("tr_trpc_thread: connected to peer %s", peer_gssname->buf);
+    tr_debug("tr_trpc_thread: connected to peer %.*s",
+             peer_gssname->len, peer_gssname->buf);
 
-    msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_CONNECTED, TR_MQ_PRIO_HIGH);
+    msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_CONNECTED);
     tr_mq_msg_set_payload(msg, (void *)tr_dup_name(peer_gssname), tr_free_name_helper);
     if (msg==NULL) {
       tr_err("tr_trpc_thread: error allocating TR_MQ_MSG");
@@ -622,55 +647,59 @@ static void *tr_trpc_thread(void *arg)
     trps_mq_add(trps, msg); /* steals msg context */
     msg=NULL;
 
+    /* Loop until we get an abort message or until the connection is lost. */
     while(!exit_loop) {
-      cb_data.msg_ready=0;
-      pthread_cond_wait(&(cb_data.cond), &(cb_data.mutex));
-      /* verify the condition */
-      if (cb_data.msg_ready) {
-        for (msg=trpc_mq_pop(trpc),n_sent=0; msg!=NULL; msg=trpc_mq_pop(trpc),n_sent++) {
-          msg_type=tr_mq_msg_get_message(msg);
+      /* Wait up to 10 minutes for a message to be queued to send to the peer.
+       * Log a warning if we go longer than that, but don't give up. */
+      if (tr_mq_pop_timeout(10 * 60, &wait_until) != 0) {
+        tr_err("tr_trpc_thread: unable to set abort timeout");
+        break; /* immediately exit the loop, don't go through cleanup */
+      }
 
-          if (0==strcmp(msg_type, TR_MQMSG_ABORT)) {
-            exit_loop=1;
-            break;
-          }
-          else if (0==strcmp(msg_type, TR_MQMSG_TRPC_SEND)) {
-            encoded_msg=tr_mq_msg_get_payload(msg);
-            if (encoded_msg==NULL)
-              tr_notice("tr_trpc_thread: null outgoing TRP message.");
-            else {
-              rc = trpc_send_msg(trpc, encoded_msg);
-              if (rc!=TRP_SUCCESS) {
-                tr_notice("tr_trpc_thread: trpc_send_msg failed.");
-                exit_loop=1;
-                break;
-              }
+      /* Pop a message from the queue. */
+      msg = trpc_mq_pop(trpc, &wait_until);
+      if (msg) {
+        msg_type = tr_mq_msg_get_message(msg);
+        if (0 == strcmp(msg_type, TR_MQMSG_ABORT)) {
+          tr_debug("tr_trpc_thread: received abort message from main thread.");
+          exit_loop = 1;
+        } else if (0 == strcmp(msg_type, TR_MQMSG_TRPC_SEND)) {
+          encoded_msg = tr_mq_msg_get_payload(msg);
+          if (encoded_msg == NULL)
+            tr_notice("tr_trpc_thread: null outgoing TRP message.");
+          else {
+            rc = trpc_send_msg(trpc, encoded_msg);
+            if (rc == TRP_SUCCESS) {
+              tr_debug("tr_trpc_thread: sent message.");
+            } else {
+              tr_notice("tr_trpc_thread: trpc_send_msg failed.");
+              /* Assume this means we lost the connection. */
+              exit_loop = 1;
             }
           }
-          else
-            tr_notice("tr_trpc_thread: unknown message '%s' received.", msg_type);
+        } else
+          tr_notice("tr_trpc_thread: unknown message '%s' received.", msg_type);
 
-          tr_mq_msg_free(msg);
-        }
-        if (n_sent==0)
-          tr_err("tr_trpc_thread: notified of msg, but queue empty");
-        else 
-          tr_debug("tr_trpc_thread: sent %d messages.", n_sent);
+        tr_mq_msg_free(msg);
+      } else {
+        tr_warning("tr_trpc_thread: no outgoing messages to %.*s for 10 minutes",
+                   peer_gssname->len, peer_gssname->buf);
       }
     }
   }
 
-  tr_debug("tr_trpc_thread: exiting.");
-  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_DISCONNECTED, TR_MQ_PRIO_HIGH);
+  /* Send a DISCONNECTED message to the main thread */
+  msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_DISCONNECTED);
   tr_mq_msg_set_payload(msg, (void *)trpc, NULL); /* do not pass a free routine */
-  if (msg==NULL)
+  if (msg==NULL) {
+    /* can't notify main thread */
     tr_err("tr_trpc_thread: error allocating TR_MQ_MSG");
-  else
+  } else {
     trps_mq_add(trps, msg);
-
-  trpc_mq_clear(trpc); /* clear any queued messages */
+  }
 
   talloc_free(tmp_ctx);
+  tr_debug("tr_trpc_thread: thread terminating.");
   return NULL;
 }
 
@@ -869,6 +898,24 @@ void tr_config_changed(TR_CFG *new_cfg, void *cookie)
 
   tr->cfgwatch->settling_time.tv_sec=new_cfg->internal->cfg_settling_time;
   tr->cfgwatch->settling_time.tv_usec=0;
+
+  /* These need to be updated */
+  tr->tids->hostname = new_cfg->internal->hostname;
+  tr->mons->hostname = new_cfg->internal->hostname;
+
+  /* Update the authorized monitoring gss names */
+  if (tr->mons->authorized_gss_names) {
+    tr_debug("tr_config_changed: freeing tr->mons->authorized_gss_names");
+    tr_gss_names_free(tr->mons->authorized_gss_names);
+  }
+  if (new_cfg->internal->monitoring_credentials != NULL) {
+    tr->mons->authorized_gss_names = tr_gss_names_dup(tr->mons, new_cfg->internal->monitoring_credentials);
+  } else {
+    tr->mons->authorized_gss_names = tr_gss_names_new(tr->mons);
+  }
+  if (tr->mons->authorized_gss_names == NULL) {
+    tr_err("tr_config_changed: Error configuring monitoring credentials");
+  }
 
   trps_set_connect_interval(trps, new_cfg->internal->trp_connect_interval);
   trps_set_update_interval(trps, new_cfg->internal->trp_update_interval);
