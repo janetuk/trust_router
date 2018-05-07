@@ -78,7 +78,6 @@ enum mon_rc {
 
 enum mon_cmd {
   MON_CMD_UNKNOWN=0,
-  MON_CMD_RECONFIGURE,
   MON_CMD_SHOW
 };
 

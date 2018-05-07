@@ -50,9 +50,6 @@ const char *mon_cmd_to_string(MON_CMD cmd)
     case MON_CMD_UNKNOWN:
       return NULL;
 
-    case MON_CMD_RECONFIGURE:
-      return "reconfigure";
-
     case MON_CMD_SHOW:
       return "show";
   }
@@ -68,7 +65,6 @@ const char *mon_cmd_to_string(MON_CMD cmd)
 
 MON_CMD mon_cmd_from_string(const char *s)
 {
-  return_if_matches(s, MON_CMD_RECONFIGURE);
   return_if_matches(s, MON_CMD_SHOW);
   return MON_CMD_UNKNOWN;
 }

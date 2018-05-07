@@ -11,41 +11,6 @@
 
 #define JSON_DUMP_OPTS 0
 
-static char *reconfigure(MON_RESP_CODE code, const char *message)
-{
-  MON_REQ *req = NULL;
-  MON_RESP *resp = NULL;
-  json_t *resp_json = NULL;
-  char *result = NULL;
-
-  req = mon_req_new(NULL, MON_CMD_RECONFIGURE);
-  assert(req);
-
-  resp = mon_resp_new(NULL, code, message, NULL);
-  assert(resp);
-
-  resp_json = mon_resp_encode(resp);
-  assert(resp_json);
-
-  result = json_dumps(resp_json, JSON_DUMP_OPTS);
-  assert(result);
-
-  json_decref(resp_json);
-  mon_resp_free(resp);
-  mon_req_free(req);
-  return result;
-}
-
-static char *reconfigure_success()
-{
-  return reconfigure(MON_RESP_SUCCESS, "success");
-}
-
-static char *reconfigure_error()
-{
-  return reconfigure(MON_RESP_ERROR, "error");
-}
-
 static char *show_success()
 {
   MON_REQ *req = NULL;
@@ -123,8 +88,6 @@ int run_test(const char *filename, char *(generator)())
 
 int main(void)
 {
-  assert(run_test("resp_reconfigure_success.test", reconfigure_success));
-  assert(run_test("resp_reconfigure_error.test", reconfigure_error));
   assert(run_test("resp_show_success.test", show_success));
   return 0;
 }

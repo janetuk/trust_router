@@ -11,16 +11,6 @@
 #include <mon_internal.h>
 
 /**
- * @return reconfigure command
- */
-static MON_REQ *reconfigure()
-{
-  MON_REQ *req = mon_req_new(NULL, MON_CMD_RECONFIGURE);
-  assert(req);
-  return req;
-}
-
-/**
  * @return show command with no options
  */
 static MON_REQ *show_plain()
@@ -123,9 +113,6 @@ static int run_test(const char *filename, MON_REQ *(generator)())
 
 int main(void)
 {
-
-  // Test reconfigure command
-  assert(run_test("req_reconfigure.test", reconfigure));
 
   // Test show command with no options
   assert(run_test("req_show_no_options.test", show_plain));
