@@ -93,7 +93,7 @@ static TRP_RC tr_trps_msg_handler(TRPS_INSTANCE *trps,
   /* n.b., conn is available here, but do not hold onto the reference
    * because it may be cleaned up if the originating connection goes
    * down before the message is processed */
-  mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_MSG_RECEIVED, TR_MQ_PRIO_NORMAL);
+  mq_msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_MSG_RECEIVED);
   if (mq_msg==NULL) {
     return TRP_NOMEM;
   }
@@ -147,7 +147,7 @@ static void *tr_trps_thread(void *arg)
   if (trps_authorize_connection(trps, conn)!=TRP_SUCCESS)
     goto cleanup;
 
-  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_CONNECTED, TR_MQ_PRIO_HIGH);
+  msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_CONNECTED);
   tr_mq_msg_set_payload(msg, (void *)tr_dup_name(trp_connection_get_peer(conn)), tr_free_name_helper);
   if (msg==NULL) {
     tr_err("tr_trps_thread: error allocating TR_MQ_MSG");
@@ -159,7 +159,7 @@ static void *tr_trps_thread(void *arg)
   trps_handle_connection(trps, conn);
 
 cleanup:
-  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_DISCONNECTED, TR_MQ_PRIO_HIGH);
+  msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPS_DISCONNECTED);
   tr_mq_msg_set_payload(msg, (void *)conn, NULL); /* do not pass a free routine */
   if (msg==NULL)
     tr_err("tr_trps_thread: error allocating TR_MQ_MSG");
@@ -614,7 +614,7 @@ static void *tr_trpc_thread(void *arg)
     tr_debug("tr_trpc_thread: connected to peer %.*s",
              peer_gssname->len, peer_gssname->buf);
 
-    msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_CONNECTED, TR_MQ_PRIO_HIGH);
+    msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_CONNECTED);
     tr_mq_msg_set_payload(msg, (void *)tr_dup_name(peer_gssname), tr_free_name_helper);
     if (msg==NULL) {
       tr_err("tr_trpc_thread: error allocating TR_MQ_MSG");
@@ -666,8 +666,7 @@ static void *tr_trpc_thread(void *arg)
   }
 
   /* Send a DISCONNECTED message to the main thread */
-  tr_debug("tr_trpc_thread: notifying main thread of disconnection.");
-  msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_DISCONNECTED, TR_MQ_PRIO_NORMAL);
+  msg= tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_DISCONNECTED);
   tr_mq_msg_set_payload(msg, (void *)trpc, NULL); /* do not pass a free routine */
   if (msg==NULL) {
     /* can't notify main thread */

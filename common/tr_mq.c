@@ -49,12 +49,11 @@ static int tr_mq_msg_destructor(void *object)
   return 0;
 }
 
-TR_MQ_MSG *tr_mq_msg_new(TALLOC_CTX *mem_ctx, const char *message, TR_MQ_PRIORITY prio)
+TR_MQ_MSG *tr_mq_msg_new(TALLOC_CTX *mem_ctx, const char *message)
 {
   TR_MQ_MSG *msg=talloc(mem_ctx, TR_MQ_MSG);
   if (msg!=NULL) {
     msg->next=NULL;
-    msg->prio=prio;
     msg->message=talloc_strdup(msg, message);
     if (msg->message==NULL) {
       talloc_free(msg);
@@ -70,11 +69,6 @@ void tr_mq_msg_free(TR_MQ_MSG *msg)
 {
   if (msg!=NULL)
     talloc_free(msg);
-}
-
-TR_MQ_PRIORITY tr_mq_msg_get_prio(TR_MQ_MSG *msg)
-{
-  return msg->prio;
 }
 
 const char *tr_mq_msg_get_message(TR_MQ_MSG *msg)
@@ -121,7 +115,6 @@ TR_MQ *tr_mq_new(TALLOC_CTX *mem_ctx)
 
     mq->head=NULL;
     mq->tail=NULL;
-    mq->last_hi_prio=NULL;
 
     mq->notify_cb=NULL;
     mq->notify_cb_arg=NULL;
@@ -208,22 +201,6 @@ static void tr_mq_append(TR_MQ *mq, TR_MQ_MSG *msg)
   talloc_steal(mq, msg);
 }
 
-static void tr_mq_append_high_prio(TR_MQ *mq, TR_MQ_MSG *new)
-{
-  if (tr_mq_get_head(mq)==NULL) {
-    tr_mq_set_head(mq, new);
-    tr_mq_set_tail(mq, new);
-  } else if (mq->last_hi_prio==NULL) {
-    tr_mq_msg_set_next(new, tr_mq_get_head(mq)); /* add to front of list */
-    tr_mq_set_head(mq, new); /* update head of list */
-  } else {
-    tr_mq_msg_set_next(new, tr_mq_msg_get_next(mq->last_hi_prio));
-    tr_mq_msg_set_next(mq->last_hi_prio, new); /* add to end of hi prio msgs */
-  }
-  mq->last_hi_prio=new; /* in any case, this is now the last high priority msg */
-  talloc_steal(mq,new);
-}
-
 #define DEBUG_TR_MQ 0
 #if DEBUG_TR_MQ
 static void tr_mq_print(TR_MQ *mq)
@@ -234,8 +211,8 @@ static void tr_mq_print(TR_MQ *mq)
   tr_debug("tr_mq_print: mq contents:");
   while(m!=NULL) {
     ii++;
-    tr_debug("tr_mq_print: Entry %02d: %-15s (prio %d)",
-             ii, tr_mq_msg_get_message(m), tr_mq_msg_get_prio(m));
+    tr_debug("tr_mq_print: Entry %02d: %-15s",
+             ii, tr_mq_msg_get_message(m));
     m=tr_mq_msg_get_next(m);
   }
 }
@@ -249,14 +226,8 @@ void tr_mq_add(TR_MQ *mq, TR_MQ_MSG *msg)
   tr_mq_lock(mq);
   
   was_empty=tr_mq_empty(mq);
-  switch (tr_mq_msg_get_prio(msg)) {
-  case TR_MQ_PRIO_HIGH:
-    tr_mq_append_high_prio(mq, msg);
-    break;
-  default:
-    tr_mq_append(mq, msg);
-    break;
-  }
+  tr_mq_append(mq, msg);
+
   /* before releasing the mutex, get notify_cb data out of mq */
   notify_cb=mq->notify_cb;
   notify_cb_arg=mq->notify_cb_arg;
@@ -323,9 +294,6 @@ TR_MQ_MSG *tr_mq_pop(TR_MQ *mq, struct timespec *ts_abort)
   if (tr_mq_get_head(mq)!=NULL) {
     popped=tr_mq_get_head(mq);
     tr_mq_set_head(mq, tr_mq_msg_get_next(popped)); /* popped is the old head */
-
-    if (popped==mq->last_hi_prio)
-      mq->last_hi_prio=NULL;
 
     if (tr_mq_get_head(mq)==NULL)
       tr_mq_set_tail(mq, NULL); /* just popped the last element */
