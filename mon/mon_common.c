@@ -34,7 +34,7 @@
 
 
 #include <talloc.h>
-#include <gmodule.h>
+#include <glib.h>
 #include <string.h>
 
 #include <mon_internal.h>

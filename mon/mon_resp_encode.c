@@ -37,6 +37,8 @@
 
 #include <mon_internal.h>
 
+/* Monitoring response encoder */
+
 /* Helper for encoding. Adds a newly allocated JSON object to
  * jobj. If the allocation or setting fails, returns NULL after
  * cleaning up. */

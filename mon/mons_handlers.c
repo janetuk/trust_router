@@ -34,7 +34,7 @@
 
 /* Handlers for monitoring requests */
 
-#include <gmodule.h>
+#include <glib.h>
 
 #include <tr_debug.h>
 #include <mon_internal.h>

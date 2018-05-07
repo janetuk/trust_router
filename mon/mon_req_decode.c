@@ -38,7 +38,7 @@
 
 #include <mon_internal.h>
 
-// Monitoring request decoders
+/* Monitoring request decoders */
 
 /**
  * Decode a single option
@@ -98,7 +98,9 @@ static MON_RC mon_options_decode(json_t *opts_json, MON_REQ *req)
                            &opt) != MON_SUCCESS) {
       return MON_NOPARSE;
     }
-    mon_req_add_option(req, opt.type);
+    if (MON_SUCCESS != mon_req_add_option(req, opt.type)){
+      return MON_NOPARSE;
+    }
   }
   return MON_SUCCESS;
 }

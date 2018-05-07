@@ -49,7 +49,7 @@
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - TRP Client";
+static const char doc[]=PACKAGE_NAME " - Moonshot Trust Router TRP Client";
 static const char arg_doc[]="<message> <server> [<port>]"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:

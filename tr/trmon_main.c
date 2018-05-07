@@ -44,7 +44,7 @@
 /* command-line option setup */
 static void print_version_info(void)
 {
-  printf("Moonshot TR Monitoring Client %s\n\n", PACKAGE_VERSION);
+  printf("Moonshot Trust Router Monitoring Client %s\n\n", PACKAGE_VERSION);
 }
 
 
@@ -52,7 +52,7 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - Moonshot TR Monitoring Client";
+static const char doc[]=PACKAGE_NAME " - Moonshot Trust Router Monitoring Client";
 static const char arg_doc[]="<server> <port> <command> [<option> ...]"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
@@ -170,18 +170,10 @@ int main(int argc, char *argv[])
   tr_log_threshold(LOG_CRIT);
   tr_console_threshold(LOG_WARNING);
 
-  /* Create a MON client instance & the client DH */
+  /* Create a MON client instance */
   monc = monc_new(main_ctx);
   if (monc == NULL) {
     printf("Error allocating client instance.\n");
-    goto cleanup;
-  }
-
-
-  /* fill in the DH parameters */
-  monc_set_dh(monc, tr_create_dh_params(NULL, 0));
-  if (monc_get_dh(monc) == NULL) {
-    printf("Error creating client DH params.\n");
     goto cleanup;
   }
 
@@ -193,8 +185,14 @@ int main(int argc, char *argv[])
   };
 
   req = mon_req_new(main_ctx, opts.command);
-  for (ii=0; ii < opts.n_options; ii++)
-    mon_req_add_option(req, opts.options[ii]);
+  for (ii=0; ii < opts.n_options; ii++) {
+    if (MON_SUCCESS != mon_req_add_option(req, opts.options[ii])) {
+      printf("Error adding option '%s' to request. Request not sent.\n",
+             mon_opt_type_to_string(opts.options[ii]));
+      goto cleanup;
+    }
+
+  }
 
   /* Send a MON request and get the response */
   resp = monc_send_request(main_ctx, monc, req);

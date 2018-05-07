@@ -310,13 +310,13 @@ static json_t **tr_cfg_parse_config_files(TALLOC_CTX *mem_ctx, unsigned int n_fi
 
     this_file->serial = get_cfg_serial(jcfgs[ii]);
     if (this_file->serial != TR_CFG_INVALID_SERIAL) {
-      tr_notice("tr_parse_one_config_file: Attempting to load revision %"
+      tr_notice("tr_parse_config_files: Attempting to load revision %"
                     JSON_INTEGER_FORMAT
                     " of '%s'.",
                 this_file->serial,
                 this_file->name);
     } else {
-      tr_notice("tr_parse_one_config_file: Attempting to load '%s'.",
+      tr_notice("tr_parse_config_files: Attempting to load '%s'.",
                 this_file->name);
     }
   }

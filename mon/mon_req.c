@@ -34,11 +34,11 @@
 
 
 #include <talloc.h>
-#include <gmodule.h>
+#include <glib.h>
 
 #include <mon_internal.h>
 
-// Monitoring request message common code
+/* Monitoring request message common code */
 
 /**
  * Destructor used by talloc to ensure proper cleanup
