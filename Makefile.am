@@ -96,6 +96,7 @@ libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 4:1:2 -no-undefined
 common_t_constraint_SOURCES = common/t_constraint.c \
 common/tr_debug.c \
 common/tr_name.c \
+common/tr_list.c \
 common/tr_constraint.c \
 common/tr_dh.c \
 common/tr_rand_id.c \
@@ -103,7 +104,7 @@ tid/tid_req.c \
 tid/tid_resp.c
 
 common_t_constraint_CPPFLAGS = $(AM_CPPFLAGS) -DTESTS=\"$(srcdir)/common/tests.json\"
-common_t_constraint_LDADD = gsscon/libgsscon.la 
+common_t_constraint_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 
 tr_trust_router_SOURCES =tr/tr_main.c \
 tr/tr.c \
