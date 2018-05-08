@@ -442,7 +442,11 @@ static void tids_handle_proc(TIDS_INSTANCE *tids, int conn_fd, int result_fd)
 
   close(result_fd);
   close(conn_fd);
-  exit(0); /* exit to kill forked child process */
+
+  /* This ought to be an exit(0), but log4shib does not play well with our (mis)use of threads and
+ * fork() in the main process. Until we sort that out, we abort() to force termination of this
+ * process. */
+  abort(); /* exit hard */
 }
 
 /* Accept and process a connection on a port opened with tids_get_listener() */

@@ -255,7 +255,11 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
         break;
     }
     close(conn);
-    exit(0); /* exit to kill forked child process */
+
+    /* This ought to be an exit(0), but log4shib does not play well with our (mis)use of threads and
+     * fork() in the main process. Until we sort that out, we abort() to force termination of this
+     * process. */
+    abort(); /* exit hard */
   }
 
   /* Only the parent process gets here */
