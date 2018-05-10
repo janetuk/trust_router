@@ -49,6 +49,7 @@
 #include <tr_socket.h>
 #include <tr_gss.h>
 #include <tr_event.h>
+#include <sys/resource.h>
 
 /**
  * Create a response with minimal fields filled in
@@ -408,7 +409,7 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
  * Process to handle an incoming TIDS request
  *
  * This should be run in the child process after a fork(). Handles
- * the request, writes the result to result_fd, and terminates via exit().
+ * the request, writes the result to result_fd, and terminates.
  * Never returns to the caller.
  *
  * @param tids TID server instance
@@ -418,6 +419,7 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
 static void tids_handle_proc(TIDS_INSTANCE *tids, int conn_fd, int result_fd)
 {
   const char *response_message = NULL;
+  struct rlimit rlim; /* for disabling core dump */
 
   switch(tr_gss_handle_connection(conn_fd,
                                   "trustidentity", tids->hostname, /* acceptor name */
@@ -443,9 +445,13 @@ static void tids_handle_proc(TIDS_INSTANCE *tids, int conn_fd, int result_fd)
   close(result_fd);
   close(conn_fd);
 
-  /* This ought to be an exit(0), but log4shib does not play well with our (mis)use of threads and
- * fork() in the main process. Until we sort that out, we abort() to force termination of this
- * process. */
+  /* This ought to be an exit(0), but log4shib does not play well with fork() due to
+   * threading issues. To ensure we do not get stuck in the exit handler, we will
+   * abort. First disable core dump for this subprocess (the main process will still
+   * dump core if the environment allows). */
+  rlim.rlim_cur = 0; /* max core size of 0 */
+  rlim.rlim_max = 0; /* prevent the core size limit from being raised later */
+  setrlimit(RLIMIT_CORE, &rlim);
   abort(); /* exit hard */
 }
 

@@ -42,6 +42,7 @@
 #include <mon_internal.h>
 #include <tr_socket.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 #include <tr_gss.h>
 
 #include "mons_handlers.h"
@@ -214,6 +215,48 @@ int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH
 }
 
 /**
+ * Process to handle an incoming monitoring request
+ *
+ * This should be run in a child process after fork(). Handles the request
+ * and terminates. Never returns to the caller.
+ *
+ * @param mons the monitoring server instance
+ * @param conn_fd file descriptor for the incoming connection
+ */
+static void mons_handle_proc(MONS_INSTANCE *mons, int conn_fd)
+{
+  struct rlimit rlim; /* for disabling core dump */
+
+  switch(tr_gss_handle_connection(conn_fd,
+                                  "trustmonitor", mons->hostname, /* acceptor name */
+                                  mons->auth_handler, mons->cookie, /* auth callback and cookie */
+                                  mons_req_cb, mons /* req callback and cookie */
+  )) {
+    case TR_GSS_SUCCESS:
+      /* do nothing */
+      break;
+
+    case TR_GSS_ERROR:
+      tr_debug("mons_accept: Error returned by tr_gss_handle_connection()");
+      break;
+
+    default:
+      tr_err("mons_accept: Unexpected value returned by tr_gss_handle_connection()");
+      break;
+  }
+  close(conn_fd);
+
+  /* This ought to be an exit(0), but log4shib does not play well with fork() due to
+   * threading issues. To ensure we do not get stuck in the exit handler, we will
+   * abort. First disable core dump for this subprocess (the main process will still
+   * dump core if the environment allows). */
+  rlim.rlim_cur = 0; /* max core size of 0 */
+  rlim.rlim_max = 0; /* prevent the core size limit from being raised later */
+  setrlimit(RLIMIT_CORE, &rlim);
+  abort(); /* exit hard */
+}
+
+/**
  * Accept and process a connection on a port opened with mons_get_listener()
  *
  * @param mons monitoring interface instance
@@ -236,34 +279,13 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
   }
 
   if (pid == 0) {
-    close(listen);
-    switch(tr_gss_handle_connection(conn,
-                                    "trustmonitor", mons->hostname, /* acceptor name */
-                                    mons->auth_handler, mons->cookie, /* auth callback and cookie */
-                                    mons_req_cb, mons /* req callback and cookie */
-    )) {
-      case TR_GSS_SUCCESS:
-        /* do nothing */
-        break;
-
-      case TR_GSS_ERROR:
-        tr_debug("mons_accept: Error returned by tr_gss_handle_connection()");
-        break;
-
-      default:
-        tr_err("mons_accept: Unexpected value returned by tr_gss_handle_connection()");
-        break;
-    }
-    close(conn);
-
-    /* This ought to be an exit(0), but log4shib does not play well with our (mis)use of threads and
-     * fork() in the main process. Until we sort that out, we abort() to force termination of this
-     * process. */
-    abort(); /* exit hard */
+    /* Only the child process gets here */
+    close(listen); /* this belongs to the parent */
+    mons_handle_proc(mons, conn); /* never returns */
   }
 
   /* Only the parent process gets here */
-  close(conn);
+  close(conn); /* this belongs to the child */
   g_array_append_val(mons->pids, pid);
 
   /* clean up any processes that have completed */
