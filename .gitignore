@@ -13,7 +13,8 @@ configure
 Makefile.in
 Makefile
 autom4te.cache
-m4
+m4/*
+!m4/.ignore-this-file
 ltmain.sh
 libtool
 config.*
