@@ -55,30 +55,43 @@
 
 TR_AAA_SERVER *tr_cfg_parse_one_aaa_server(TALLOC_CTX *mem_ctx, json_t *jaddr, TR_CFG_RC *rc)
 {
+  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   TR_AAA_SERVER *aaa = NULL;
-  TR_NAME *name=NULL;
 
   if ((!jaddr) || (!json_is_string(jaddr))) {
     tr_debug("tr_cfg_parse_one_aaa_server: Bad parameters.");
     *rc = TR_CFG_BAD_PARAMS;
-    return NULL;
+    goto cleanup;
   }
 
-  name=tr_new_name(json_string_value(jaddr));
-  if (name==NULL) {
-    tr_debug("tr_cfg_parse_one_aaa_server: Out of memory allocating hostname.");
-    *rc = TR_CFG_NOMEM;
-    return NULL;
-  }
-
-  aaa=tr_aaa_server_new(mem_ctx, name);
-  if (aaa==NULL) {
-    tr_free_name(name);
+  aaa = tr_aaa_server_from_string(mem_ctx, json_string_value(jaddr));
+  if (aaa == NULL) {
     tr_debug("tr_cfg_parse_one_aaa_server: Out of memory allocating AAA server.");
     *rc = TR_CFG_NOMEM;
-    return NULL;
+    goto cleanup
   }
 
+  if (tr_aaa_server_get_hostname(aaa)->len == 0) {
+    tr_debug("tr_cfg_parse_one_aaa_server: Empty hostname for AAA server not allowed");
+    *rc = TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  if ((tr_aaa_server_get_port(aaa) <= 0)
+      || (tr_aaa_server_get_port(aaa) > 65535)) {
+    tr_debug("tr_cfg_parse_one_aaa_server: Invalid AAA server port");
+    *rc = TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  /* success ! */
+  *rc = TR_CFG_SUCCESS;
+  talloc_steal(mem_ctx, aaa);
+
+cleanup:
+  if (*rc != TR_CFG_SUCCESS)
+    aaa = NULL;
+  talloc_free(tmp_ctx);
   return aaa;
 }
 

@@ -511,7 +511,12 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
                                              &idp_shared);
     } else {
       tr_debug("tr_tids_req_handler: route not local.");
-      aaa_servers = tr_aaa_server_new(tmp_ctx, trp_route_get_next_hop(route));
+      aaa_servers = tr_aaa_server_from_name(tmp_ctx, trp_route_get_next_hop(route)); /* cleaned up via talloc */
+      if (aaa_servers == NULL) {
+        tr_err("tr_tids_req_handler: error allocating next hop");
+        retval=-1;
+        goto cleanup;
+      }
       idp_shared = 0;
     }
 
