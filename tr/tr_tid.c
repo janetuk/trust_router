@@ -87,7 +87,7 @@ struct tr_tids_fwd_cookie {
   int thread_id;
   pthread_mutex_t mutex; /* lock on the mq (separate from the locking within the mq, see below) */
   TR_MQ *mq; /* messages from thread to main process; set to NULL to disable response */
-  TR_NAME *aaa_hostname;
+  TR_AAA_SERVER *aaa; /* AAA server to contact */
   DH *dh_params;
   TID_REQ *fwd_req; /* the req to duplicate */
 };
@@ -95,8 +95,6 @@ struct tr_tids_fwd_cookie {
 static int tr_tids_fwd_cookie_destructor(void *obj)
 {
   struct tr_tids_fwd_cookie *c=talloc_get_type_abort(obj, struct tr_tids_fwd_cookie);
-  if (c->aaa_hostname!=NULL)
-    tr_free_name(c->aaa_hostname);
   if (c->dh_params!=NULL)
     tr_destroy_dh_params(c->dh_params);
   return 0;
@@ -136,6 +134,8 @@ static void *tr_tids_req_fwd_thread(void *arg)
   TIDC_INSTANCE *tidc=tidc_create();
   TR_MQ_MSG *msg=NULL;
   TR_RESP_COOKIE *cookie=NULL;
+  char *aaa_hostname = NULL;
+  int aaa_port;
   int rc=0;
   int success=0;
 
@@ -147,7 +147,7 @@ static void *tr_tids_req_fwd_thread(void *arg)
   /* create the cookie we will use for our response */
   cookie=talloc(tmp_ctx, TR_RESP_COOKIE);
   if (cookie==NULL) {
-    tr_notice("tr_tids_req_fwd_thread: unable to allocate response cookie.");
+    tr_crit("tr_tids_req_fwd_thread: unable to allocate response cookie.");
     success=0;
     goto cleanup;
   }
@@ -164,9 +164,22 @@ static void *tr_tids_req_fwd_thread(void *arg)
   }
 
   /* Set-up TID connection */
+  aaa_hostname = tr_name_strdup(tr_aaa_server_get_hostname(args->aaa));
+  if (aaa_hostname == NULL) {
+    tr_crit("tr_tids_req_fwd_thread: unable to allocate AAA hostname string");
+    success=0;
+    goto cleanup;
+  }
+  aaa_port = tr_aaa_server_get_port(args->aaa);
+  if ((aaa_port <= 0) || (aaa_port > 65535)) {
+    tr_notice("tr_tids_req_fwd_thread: invalid port (%d) for %s", aaa_port, aaa_hostname);
+    success=0;
+    goto cleanup;
+  }
+
   if (-1==(args->fwd_req->conn = tidc_open_connection(tidc, 
-                                                      args->aaa_hostname->buf,
-                                                      TID_PORT, /* TODO: make this configurable */
+                                                      aaa_hostname,
+                                                      (unsigned int) aaa_port, /* we checked, it's > 0 */
                                                      &(args->fwd_req->gssctx)))) {
     tr_notice("tr_tids_req_fwd_thread: Error in tidc_open_connection.");
     /* tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS"); */
@@ -174,9 +187,8 @@ static void *tr_tids_req_fwd_thread(void *arg)
     success=0;
     goto cleanup;
   };
-  tr_debug("tr_tids_req_fwd_thread: thread %d opened TID connection to %s.",
-           cookie->thread_id,
-           args->aaa_hostname->buf);
+  tr_debug("tr_tids_req_fwd_thread: thread %d opened TID connection to %s:%d.",
+           cookie->thread_id, aaa_hostname, aaa_port);
 
   /* Send a TID request. */
   if (0 > (rc = tidc_fwd_request(tidc, args->fwd_req, tr_tidc_resp_handler, (void *)cookie))) {
@@ -212,6 +224,9 @@ cleanup:
     if (0!=tr_tids_fwd_release_mutex(args))
       tr_notice("tr_tids_req_fwd_thread: Error releasing mutex.");
   }
+
+  if (aaa_hostname != NULL)
+    free(aaa_hostname);
 
   talloc_free(tmp_ctx);
   return NULL;
@@ -591,7 +606,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       goto cleanup;
     }
     aaa_cookie[n_aaa]->mq=mq;
-    aaa_cookie[n_aaa]->aaa_hostname=tr_dup_name(this_aaa->hostname);
+    aaa_cookie[n_aaa]->aaa=this_aaa;
     aaa_cookie[n_aaa]->dh_params=tr_dh_dup(orig_req->tidc_dh);
     aaa_cookie[n_aaa]->fwd_req=tid_dup_req(fwd_req);
     talloc_steal(aaa_cookie[n_aaa], aaa_cookie[n_aaa]->fwd_req);
