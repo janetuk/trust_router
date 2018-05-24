@@ -22,6 +22,7 @@ common_srcs = common/tr_name.c \
 	common/tr_rp_client.c \
 	common/tr_rp_client_encoders.c \
 	common/tr_idp.c \
+	common/tr_aaa_server.c \
 	common/tr_idp_encoders.c \
 	common/tr_filter.c \
 	common/tr_filter_encoders.c \
@@ -278,6 +279,7 @@ noinst_HEADERS = include/gsscon.h \
 	include/tr.h \
 	include/tr_msg.h \
 	include/tr_idp.h \
+	include/tr_aaa_server.h \
 	include/tr_rp.h include/tr_rp_client.h \
 	include/tr_comm.h \
 	include/tr_apc.h \
