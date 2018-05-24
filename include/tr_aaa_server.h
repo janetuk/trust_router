@@ -57,7 +57,6 @@ void tr_aaa_server_set_hostname(TR_AAA_SERVER *aaa, TR_NAME *hostname);
 int tr_aaa_server_get_port(TR_AAA_SERVER *aaa);
 void tr_aaa_server_set_port(TR_AAA_SERVER *aaa, int port);
 TR_AAA_SERVER *tr_aaa_server_from_string(TALLOC_CTX *mem_ctx, const char *s);
-TR_AAA_SERVER *tr_aaa_server_from_name(TALLOC_CTX *mem_ctx, TR_NAME *n);
 
 TR_AAA_SERVER_ITER *tr_aaa_server_iter_new(TALLOC_CTX *mem_ctx);
 void tr_aaa_server_iter_free(TR_AAA_SERVER_ITER *iter);

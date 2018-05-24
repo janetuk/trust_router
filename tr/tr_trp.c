@@ -703,11 +703,25 @@ static void *tr_trpc_thread(void *arg)
   return NULL;
 }
 
-/* convert an IDP realm into routing table entries. Outputs number in *n_routes */
+/**
+ * convert an IDP realm into routing table entries.
+ *
+ * @param mem_ctx talloc context for the result
+ * @param realm IDP realm whose routes should be generated
+ * @param trust_router hostname for TRP connections to us
+ * @param trust_router_port TRP port of our trust router
+ * @param next_hop hostname for TID connections to us
+ * @param next_hop_port TID port of our trust router
+ * @param n_routes (output) the number of routes in the returned array
+ * @return Pointer to an array of pointers to routes
+ */
 static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
-                                         TR_IDP_REALM *realm,
-                                         char *trust_router,
-                                         size_t *n_routes)
+                                        TR_IDP_REALM *realm,
+                                        const char *trust_router,
+                                        int trust_router_port,
+                                        const char *next_hop,
+                                        int next_hop_port,
+                                        size_t *n_routes)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_APC *comm=NULL;
@@ -736,7 +750,9 @@ static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
     trp_route_set_peer(new_entry, tr_new_name("")); /* no peer, it's us */
     trp_route_set_metric(new_entry, 0);
     trp_route_set_trust_router(new_entry, tr_new_name(trust_router));
-    trp_route_set_next_hop(new_entry, tr_new_name(""));
+    trp_route_set_trust_router_port(new_entry, trust_router_port);
+    trp_route_set_next_hop(new_entry, tr_new_name(next_hop));
+    trp_route_set_next_hop_port(new_entry, next_hop_port);
     trp_route_set_local(new_entry, 1);
     entries[ii]=new_entry;
   }
@@ -816,14 +832,15 @@ TRP_RC tr_add_local_routes(TRPS_INSTANCE *trps, TR_CFG *cfg)
   TRP_ROUTE **local_routes=NULL;
   size_t n_routes=0;
   size_t ii=0;
-  char *trust_router_name=talloc_asprintf(tmp_ctx, "%s:%d", cfg->internal->hostname, cfg->internal->trps_port);
-
-  /* determine our trust router name */
-  if (trust_router_name==NULL)
-    return TRP_NOMEM;
 
   for (cur=cfg->ctable->idp_realms; cur!=NULL; cur=cur->next) {
-    local_routes=tr_make_local_routes(tmp_ctx, cur, trust_router_name, &n_routes);
+    local_routes=tr_make_local_routes(tmp_ctx,
+                                      cur,
+                                      cfg->internal->hostname,
+                                      cfg->internal->trps_port,
+                                      cfg->internal->hostname,
+                                      cfg->internal->tids_port,
+                                      &n_routes);
     for (ii=0; ii<n_routes; ii++)
       trps_add_route(trps, local_routes[ii]);
 

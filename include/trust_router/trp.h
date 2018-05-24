@@ -60,6 +60,7 @@ typedef enum trp_rc {
   TRP_UNSUPPORTED, /* unsupported feature */
   TRP_BADARG, /* bad argument */
   TRP_CLOCKERR, /* error reading time */
+  TRP_MISSING, /* value not present */
 } TRP_RC;
 
 typedef enum trp_inforec_type {

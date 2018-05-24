@@ -39,6 +39,7 @@
 #include <tr_name_internal.h>
 #include <tr_util.h>
 #include <stdlib.h>
+#include <talloc.h>
 
 void tr_bin_to_hex(const unsigned char * bin, size_t bin_len,
 		   char * hex_out, size_t hex_len)
@@ -306,3 +307,22 @@ int tr_parse_hostname_and_port(const char *s, TR_NAME **hn_dest, int *p_dest)
   return 0;
 }
 
+TR_NAME *tr_hostname_and_port_to_name(TR_NAME *hn, int port)
+{
+  TR_NAME *retval = NULL;
+  char *s = NULL;
+  char *hn_s = tr_name_strdup(hn);
+
+  if (!hn_s)
+    return NULL;
+
+  s = talloc_asprintf(NULL, "%s:%d", hn_s, port);
+  free(hn_s);
+
+  if (s) {
+    retval = tr_new_name(s);
+    talloc_free(s);
+  }
+
+  return retval;
+}

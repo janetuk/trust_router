@@ -42,6 +42,7 @@
 #include <trp_internal.h>
 #include <tid_internal.h>
 #include <tr_debug.h>
+#include <tr_util.h>
 
 /* Function types for handling filter fields generally. All target values
  * are represented as strings in a TR_NAME.
@@ -280,15 +281,59 @@ static TR_NAME *tr_ff_get_trp_owner_realm(TR_FILTER_TARGET *target)
   return tr_dup_name(trp_inforec_get_owner_realm(target->trp_inforec));
 }
 
+/** Generic handlers for host:port fields*/
+static TR_NAME *tr_ff_get_hostname_and_port(TR_NAME *hn, int port)
+{
+  return tr_hostname_and_port_to_name(hn, port);
+}
+
+static int tr_ff_cmp_hostname_and_port(TR_NAME *hn, int port, int default_port, TR_NAME *val)
+{
+  int cmp = -1;
+  TR_NAME *n = NULL;
+
+  /* allow a match without :port if the default port is in use */
+  if ((port == default_port) && (tr_name_cmp(hn, val) == 0))
+    return 0;
+
+  /* need to match with the :port */
+  n = tr_ff_get_hostname_and_port(hn, port);
+
+  if (n) {
+    cmp = tr_name_cmp(n, val);
+    tr_free_name(n);
+  }
+  return cmp;
+}
+
 /** Handlers for TRP trust_router field */
 static int tr_ff_cmp_trp_trust_router(TR_FILTER_TARGET *target, TR_NAME *val)
 {
-  return tr_name_cmp(trp_inforec_get_trust_router(target->trp_inforec), val);
+  return tr_ff_cmp_hostname_and_port(trp_inforec_get_trust_router(target->trp_inforec),
+                                     trp_inforec_get_trust_router_port(target->trp_inforec),
+                                     TRP_PORT,
+                                     val);
 }
 
 static TR_NAME *tr_ff_get_trp_trust_router(TR_FILTER_TARGET *target)
 {
-  return tr_dup_name(trp_inforec_get_trust_router(target->trp_inforec));
+  return tr_ff_get_hostname_and_port(trp_inforec_get_trust_router(target->trp_inforec),
+                                     trp_inforec_get_trust_router_port(target->trp_inforec));
+}
+
+/** Handlers for TRP next_hop field */
+static int tr_ff_cmp_trp_next_hop(TR_FILTER_TARGET *target, TR_NAME *val)
+{
+  return tr_ff_cmp_hostname_and_port(trp_inforec_get_next_hop(target->trp_inforec),
+                                     trp_inforec_get_next_hop_port(target->trp_inforec),
+                                     TID_PORT,
+                                     val);
+}
+
+static TR_NAME *tr_ff_get_trp_next_hop(TR_FILTER_TARGET *target)
+{
+  return tr_ff_get_hostname_and_port(trp_inforec_get_next_hop(target->trp_inforec),
+                                     trp_inforec_get_next_hop_port(target->trp_inforec));
 }
 
 /** Handlers for TRP owner_contact field */
@@ -348,6 +393,10 @@ static struct tr_filter_field_entry tr_filter_field_table[] = {
     /* trust_router */
     {TR_FILTER_TYPE_TRP_INBOUND, "trust_router", tr_ff_cmp_trp_trust_router, tr_ff_get_trp_trust_router},
     {TR_FILTER_TYPE_TRP_OUTBOUND, "trust_router", tr_ff_cmp_trp_trust_router, tr_ff_get_trp_trust_router},
+
+    /* next_hop */
+    {TR_FILTER_TYPE_TRP_INBOUND, "next_hop", tr_ff_cmp_trp_next_hop, tr_ff_get_trp_next_hop},
+    {TR_FILTER_TYPE_TRP_OUTBOUND, "next_hop", tr_ff_cmp_trp_next_hop, tr_ff_get_trp_next_hop},
 
     /* owner_realm */
     {TR_FILTER_TYPE_TRP_INBOUND, "owner_realm", tr_ff_cmp_trp_owner_realm, tr_ff_get_trp_owner_realm},

@@ -42,9 +42,9 @@ typedef struct trp_route {
   TR_NAME *peer;
   unsigned int metric;
   TR_NAME *trust_router; /* hostname */
-  unsigned int trp_port;
-  unsigned int tid_port;
+  int trust_router_port;
   TR_NAME *next_hop;
+  int next_hop_port;
   int selected;
   unsigned int interval; /* interval from route update */
   struct timespec *expiry;
@@ -64,6 +64,8 @@ TR_NAME *trp_route_dup_realm(TRP_ROUTE *entry);
 void trp_route_set_trust_router(TRP_ROUTE *entry, TR_NAME *tr);
 TR_NAME *trp_route_get_trust_router(TRP_ROUTE *entry);
 TR_NAME *trp_route_dup_trust_router(TRP_ROUTE *entry);
+void trp_route_set_trust_router_port(TRP_ROUTE *entry, int port);
+int trp_route_get_trust_router_port(TRP_ROUTE *entry);
 void trp_route_set_peer(TRP_ROUTE *entry, TR_NAME *peer);
 TR_NAME *trp_route_get_peer(TRP_ROUTE *entry);
 TR_NAME *trp_route_dup_peer(TRP_ROUTE *entry);
@@ -72,6 +74,8 @@ unsigned int trp_route_get_metric(TRP_ROUTE *entry);
 void trp_route_set_next_hop(TRP_ROUTE *entry, TR_NAME *next_hop);
 TR_NAME *trp_route_get_next_hop(TRP_ROUTE *entry);
 TR_NAME *trp_route_dup_next_hop(TRP_ROUTE *entry);
+void trp_route_set_next_hop_port(TRP_ROUTE *entry, int port);
+int trp_route_get_next_hop_port(TRP_ROUTE *entry);
 void trp_route_set_selected(TRP_ROUTE *entry, int sel);
 int trp_route_is_selected(TRP_ROUTE *entry);
 void trp_route_set_interval(TRP_ROUTE *entry, int interval);

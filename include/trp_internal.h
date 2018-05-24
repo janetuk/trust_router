@@ -58,8 +58,9 @@
 /* TRP update record types */
 typedef struct trp_inforec_route {
   TR_NAME *trust_router;
+  int trust_router_port;
   TR_NAME *next_hop;
-  unsigned int next_hop_port;
+  int next_hop_port;
   unsigned int metric;
   unsigned int interval;
 } TRP_INFOREC_ROUTE;
@@ -275,11 +276,13 @@ TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec);
 TR_NAME *trp_inforec_dup_realm(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_realm(TRP_INFOREC *rec, TR_NAME *realm);
 TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec);
+int trp_inforec_get_trust_router_port(TRP_INFOREC *rec);
 TR_NAME *trp_inforec_dup_trust_router(TRP_INFOREC *rec);
-TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router);
+TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router, int port);
 TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec);
+int trp_inforec_get_next_hop_port(TRP_INFOREC *rec);
 TR_NAME *trp_inforec_dup_next_hop(TRP_INFOREC *rec);
-TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop);
+TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop, int port);
 unsigned int trp_inforec_get_metric(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_metric(TRP_INFOREC *rec, unsigned int metric);
 unsigned int trp_inforec_get_interval(TRP_INFOREC *rec);

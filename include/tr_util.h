@@ -50,5 +50,6 @@ struct timespec *tr_clock_convert(clockid_t from, const struct timespec *when,
 TR_NAME *tr_parse_hostname(const char *s);
 int tr_parse_port(const char *s);
 int tr_parse_hostname_and_port(const char *s, TR_NAME **hn_dest, int *p_dest);
+TR_NAME *tr_hostname_and_port_to_name(TR_NAME *hn, int port);
 
 #endif /* TR_UTIL_H */
