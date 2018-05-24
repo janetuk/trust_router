@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <tr_name_internal.h>
 #include <tr_util.h>
 #include <stdlib.h>
 
@@ -210,3 +211,98 @@ struct timespec *tr_clock_convert(clockid_t from, const struct timespec *when,
   }
   return dst;
 }
+
+TR_NAME *tr_parse_hostname(const char *s)
+{
+  const char *colon;
+  char *hostname;
+  size_t hostname_len;
+  TR_NAME *retval;
+
+  if (s == NULL)
+    return NULL;
+
+  /* find the colon */
+  colon = strchr(s, ':');
+  if (colon == NULL)
+    return tr_new_name(s); /* there was no colon, take the whole string */
+
+  /* make a copy of the hostname portion of the string */
+  hostname_len = colon - s;
+  hostname = malloc(hostname_len + 1); /* +1 for the null termination */
+  if (hostname == NULL)
+    return NULL;
+
+  /* copy up to the colon, add a null termination, and make a TR_NAME */
+  strncpy(hostname, s, hostname_len);
+  hostname[hostname_len] = '\0';
+  retval = tr_new_name(hostname);
+
+  /* clean up and return */
+  free(hostname);
+  return retval;
+}
+
+/**
+ * Parse the port from a hostname:port string
+ *
+ * @param s string to parse
+ * @return the specified port, 0 if none specified, -1 if invalid
+ */
+int tr_parse_port(const char *s)
+{
+  const char *s_port;
+  char *end_of_conversion;
+  long int port; /* long instead of int because we use strtol */
+
+  /* Find the first colon */
+  s_port = strchr(s, ':'); /* port starts at s_port + 1 */
+  if (s_port == NULL)
+    return 0; /* no port */
+
+  /* Check that the last colon is the same as the first */
+  if (strrchr(s, ':') != s_port)
+    return -1; /* multiple colons are invalid*/
+
+  s_port += 1; /* port now starts at s_port */
+
+  /* Parse the port number */
+  port = strtol(s, &end_of_conversion, /* base */ 10);
+
+  /* validate */
+  if ((end_of_conversion == s_port) /* there was no port, just a colon */
+      || (*end_of_conversion != '\0') /* did not reach the end of the string */
+      || (port <= 0) || (port > 65535)) {
+    return -1;
+  }
+
+  return (int) port;
+}
+
+/**
+ * Parse hostname and port
+ *
+ * @param s
+ * @param hn_dest
+ * @param p_dest
+ * @return 0 on success, -1 on error
+ */
+int tr_parse_hostname_and_port(const char *s, TR_NAME **hn_dest, int *p_dest)
+{
+  if ((hn_dest == NULL) || (p_dest == NULL))
+    return -1;
+
+  *hn_dest = tr_parse_hostname(s);
+  if (*hn_dest == NULL)
+    return -1;
+
+  *p_dest = tr_parse_port(s);
+  if ((*p_dest < 0) || (*p_dest > 65535)) {
+    tr_free_name(*hn_dest);
+    *hn_dest = NULL;
+    return -1;
+  }
+
+  return 0;
+}
+

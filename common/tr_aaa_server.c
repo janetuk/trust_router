@@ -38,6 +38,7 @@
 #include <tr_name_internal.h>
 #include <tr_aaa_server.h>
 #include <trust_router/tid.h>
+#include <tr_util.h>
 
 static int tr_aaa_server_destructor(void *obj)
 {
@@ -117,84 +118,6 @@ void tr_aaa_server_set_port(TR_AAA_SERVER *aaa, int port)
 }
 
 /**
- * Parse the port from a hostname:port string
- *
- * @param s string to parse
- * @return the specified port, 0 if none specified, -1 if invalid
- */
-static int tr_aaa_server_parse_port(const char *s)
-{
-  const char *s_port;
-  char *end_of_conversion;
-  long int port; /* long instead of int because we use strtol */
-
-  /* Find the first colon */
-  s_port = strchr(s, ':'); /* port starts at s_port + 1 */
-  if (s_port == NULL)
-    return 0; /* no port */
-
-  /* Check that the last colon is the same as the first */
-  if (strrchr(s, ':') != s_port)
-    return -1; /* multiple colons are invalid*/
-
-  s_port += 1; /* port now starts at s_port */
-
-  /* Parse the port number */
-  port = strtol(s, &end_of_conversion, /* base */ 10);
-
-  /* validate */
-  if ((end_of_conversion == s_port) /* there was no port, just a colon */
-      || (*end_of_conversion != '\0') /* did not reach the end of the string */
-      || (port <= 0) || (port > 65535)) {
-    return -1;
-  }
-
-  return (int) port;
-}
-
-/**
- * Parse a hostname out of a hostname:port string
- *
- * The ":port" section is optional. Ignores the string after the first colon.
- * Does not validate the port section of the name.
- *
- * An empty hostname is allowed (but s must not be null)
- *
- * @param s
- * @return TR_NAME or null on error (i.e., out-of-memory)
- */
-static TR_NAME *tr_aaa_server_parse_hostname(const char *s)
-{
-  const char *colon;
-  char *hostname;
-  size_t hostname_len;
-  TR_NAME *retval;
-
-  if (s == NULL)
-    return NULL;
-
-  /* find the colon */
-  colon = strchr(s, ':');
-  if (colon == NULL)
-    return tr_new_name(s); /* there was no colon, take the whole string */
-
-  /* make a copy of the hostname portion of the string */
-  hostname_len = colon - s;
-  hostname = malloc(hostname_len + 1); /* +1 for the null termination */
-  if (hostname == NULL)
-    return NULL;
-
-  /* copy up to the colon, add a null termination, and make a TR_NAME */
-  strncpy(hostname, s, hostname_len);
-  hostname[hostname_len] = '\0';
-  retval = tr_new_name(hostname);
-
-  /* clean up and return */
-  free(hostname);
-  return retval;
-}
-
-/**
  * Allocate a AAA server record and fill it in by parsing a hostname:port string
  *
  * Does not validate hostname or port values. The port will be -1 if the port
@@ -210,11 +133,11 @@ TR_AAA_SERVER *tr_aaa_server_from_string(TALLOC_CTX *mem_ctx, const char *s)
   if (aaa == NULL)
     goto failed;
 
-  tr_aaa_server_set_hostname(aaa, tr_aaa_server_parse_hostname(s));
+  tr_aaa_server_set_hostname(aaa, tr_parse_hostname(s));
   if (tr_aaa_server_get_hostname(aaa) == NULL)
     goto failed;
 
-  tr_aaa_server_set_port(aaa, tr_aaa_server_parse_port(s));
+  tr_aaa_server_set_port(aaa, tr_parse_port(s));
   talloc_steal(mem_ctx, aaa); /*put this in the caller's context */
   goto succeeded;
 
@@ -223,26 +146,6 @@ failed:
 
 succeeded:
   talloc_free(tmp_ctx);
-  return aaa;
-}
-
-
-/**
- * Allocate a AAA server record and fill it in by parsing a hostname:port TR_NAME
- *
- * Does not validate hostname or port values. The port will be -1 if the port
- * could not be parsed properly.
- *
- * @return newly allocated TR_AAA_SERVER in the mem_ctx context, or NULL on error
- */
-TR_AAA_SERVER *tr_aaa_server_from_name(TALLOC_CTX *mem_ctx, TR_NAME *n)
-{
-  TR_AAA_SERVER *aaa = NULL;
-  char *s = tr_name_strdup(n);
-  if (s != NULL) {
-    aaa = tr_aaa_server_from_string(mem_ctx, s);
-    free(s);
-  }
   return aaa;
 }
 
