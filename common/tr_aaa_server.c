@@ -64,6 +64,58 @@ void tr_aaa_server_free(TR_AAA_SERVER *aaa)
   talloc_free(aaa);
 }
 
+TR_NAME *tr_aaa_server_get_hostname(TR_AAA_SERVER *aaa)
+{
+  return aaa->hostname;
+}
+
+/**
+ * Set the hostname for a AAA server
+ *
+ * Takes ownership of the TR_NAME. Does nothing if aaa is null.
+ *
+ * @param aaa
+ * @param hostname
+ */
+void tr_aaa_server_set_hostname(TR_AAA_SERVER *aaa, TR_NAME *hostname)
+{
+  if (aaa == NULL)
+    return;
+
+  if (aaa->hostname != NULL) {
+    tr_free_name(aaa->hostname);
+  }
+
+  aaa->hostname = hostname;
+}
+
+int tr_aaa_server_get_port(TR_AAA_SERVER *aaa)
+{
+  return aaa->port;
+}
+
+/**
+ * Set the port for a AAA server
+ *
+ * If port is 0, uses the standard TID port (12309). Other invalid values are stored
+ * as-is.
+ *
+ * Does nothing if aaa is null.
+ *
+ * @param aaa
+ * @param port
+ */
+void tr_aaa_server_set_port(TR_AAA_SERVER *aaa, int port)
+{
+  if (aaa == NULL)
+    return;
+
+  if (port == 0)
+    port = TID_PORT;
+
+  aaa->port = port;
+}
+
 /**
  * Parse the port from a hostname:port string
  *
@@ -217,57 +269,3 @@ TR_AAA_SERVER *tr_aaa_server_iter_next(TR_AAA_SERVER_ITER *iter)
   }
   return iter->this;
 }
-
-TR_NAME *tr_aaa_server_get_hostname(TR_AAA_SERVER *aaa)
-{
-  return aaa->hostname;
-}
-
-/**
- * Set the hostname for a AAA server
- *
- * Takes ownership of the TR_NAME. Does nothing if aaa is null.
- *
- * @param aaa
- * @param hostname
- */
-void tr_aaa_server_set_hostname(TR_AAA_SERVER *aaa, TR_NAME *hostname)
-{
-  if (aaa == NULL)
-    return;
-
-  if (aaa->hostname != NULL) {
-    tr_free_name(aaa->hostname);
-  }
-
-  aaa->hostname = hostname;
-}
-
-int tr_aaa_server_get_port(TR_AAA_SERVER *aaa)
-{
-  return aaa->port;
-}
-
-/**
- * Set the port for a AAA server
- *
- * If port is 0, uses the standard TID port (12309). Other invalid values are stored
- * as-is.
- *
- * Does nothing if aaa is null.
- *
- * @param aaa
- * @param port
- */
-void tr_aaa_server_set_port(TR_AAA_SERVER *aaa, int port)
-{
-  if (aaa == NULL)
-    return;
-
-  if (port == 0)
-    port = TID_PORT;
-
-  aaa->port = port;
-}
-
-

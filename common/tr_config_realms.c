@@ -68,7 +68,7 @@ TR_AAA_SERVER *tr_cfg_parse_one_aaa_server(TALLOC_CTX *mem_ctx, json_t *jaddr, T
   if (aaa == NULL) {
     tr_debug("tr_cfg_parse_one_aaa_server: Out of memory allocating AAA server.");
     *rc = TR_CFG_NOMEM;
-    goto cleanup
+    goto cleanup;
   }
 
   if (tr_aaa_server_get_hostname(aaa)->len == 0) {
