@@ -55,7 +55,7 @@
  * @param max_fd maximum number of file descriptors to write
  * @return number of file descriptors written into the output array
  */
-nfds_t tr_sock_listen_all(unsigned int port, int *fd_out, nfds_t max_fd)
+nfds_t tr_sock_listen_all(int port, int *fd_out, nfds_t max_fd)
 {
   int rc = 0;
   int conn = -1;

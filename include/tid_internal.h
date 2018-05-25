@@ -104,7 +104,7 @@ struct tids_instance {
   TIDS_REQ_FUNC *req_handler;
   tids_auth_func *auth_handler;
   void *cookie;
-  unsigned int tids_port;
+  int tids_port;
   TR_NAME *gss_name;		/* GSS name client used for authentication */
   GArray *pids; /* PIDs of active tids processes */
 };
@@ -114,7 +114,7 @@ struct tids_instance {
     reference they already hold to the TID_REQ.*/
 void tid_req_cleanup_json(TID_REQ *, json_t *json);
 
-int tid_req_add_path(TID_REQ *, const char *this_system, unsigned port);
+int tid_req_add_path(TID_REQ *req, const char *this_system, int port);
 
 TID_SRVR_BLK *tid_srvr_blk_new(TALLOC_CTX *mem_ctx);
 void tid_srvr_blk_free(TID_SRVR_BLK *srvr);

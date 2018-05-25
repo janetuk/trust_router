@@ -173,12 +173,12 @@ TR_NAME *trp_peer_dup_servicename(TRP_PEER *peer)
   return tr_dup_name(peer->servicename);
 }
 
-unsigned int trp_peer_get_port(TRP_PEER *peer)
+int trp_peer_get_port(TRP_PEER *peer)
 {
   return peer->port;
 }
 
-void trp_peer_set_port(TRP_PEER *peer, unsigned int port)
+void trp_peer_set_port(TRP_PEER *peer, int port)
 {
   peer->port=port;
 }

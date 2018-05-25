@@ -150,7 +150,7 @@ static void set_defaults(TR_CFG_INTERNAL *cfg)
   cfg->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
   cfg->tids_port = TR_DEFAULT_TIDS_PORT;
   cfg->trps_port = TR_DEFAULT_TRPS_PORT;
-  cfg->monitoring_port = TR_DEFAULT_MONITORING_PORT;
+  cfg->mons_port = TR_DEFAULT_MONITORING_PORT;
   cfg->cfg_poll_interval = TR_CFGWATCH_DEFAULT_POLL;
   cfg->cfg_settling_time = TR_CFGWATCH_DEFAULT_SETTLE;
   cfg->trp_connect_interval = TR_DEFAULT_TRP_CONNECT_INTERVAL;
@@ -177,7 +177,7 @@ static TR_CFG_RC tr_cfg_parse_monitoring(TR_CFG *trc, json_t *jmon)
 
   NOPARSE_UNLESS(tr_cfg_parse_boolean(jmon, "enabled", &enabled));
   if (enabled) {
-    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jmon, "port", &(trc->internal->monitoring_port)));
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jmon, "port", &(trc->internal->mons_port)));
     NOPARSE_UNLESS(tr_cfg_parse_gss_names(trc->internal,
                                           json_object_get(jmon, "authorized_credentials"),
                                           &(trc->internal->monitoring_credentials)));

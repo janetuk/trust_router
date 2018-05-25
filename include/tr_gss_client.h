@@ -50,7 +50,7 @@ struct tr_gssc_instance {
 /* tr_gss_client.c */
 TR_GSSC_INSTANCE *tr_gssc_instance_new(TALLOC_CTX *mem_ctx);
 void tr_gssc_instance_free(TR_GSSC_INSTANCE *tr_gssc);
-int tr_gssc_open_connection(TR_GSSC_INSTANCE *gssc, const char *server, unsigned int port);
+int tr_gssc_open_connection(TR_GSSC_INSTANCE *gssc, const char *server, int port);
 TR_MSG *tr_gssc_exchange_msgs(TALLOC_CTX *mem_ctx, TR_GSSC_INSTANCE *gssc, TR_MSG *req_msg);
 
 #endif //TRUST_ROUTER_TR_GSS_CLIENT_H

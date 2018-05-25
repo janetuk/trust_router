@@ -66,7 +66,7 @@ static const struct argp_option cmdline_options[] = {
 /* structure for communicating with option parser */
 struct cmdline_args {
   char *server;
-  unsigned int port;
+  int port;
   MON_CMD command;
   MON_OPT_TYPE options[MAX_OPTIONS];
   unsigned int n_options;
@@ -97,7 +97,7 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
           if (errno || (tmp_l < 0) || (tmp_l > 65535)) /* max valid port */
             argp_usage(state);
 
-          arguments->port=(unsigned int) tmp_l;
+          arguments->port = (int) tmp_l; /* we already checked the range */
           break;
 
         case 2:

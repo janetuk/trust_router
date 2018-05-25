@@ -68,10 +68,15 @@ void tr_gssc_instance_free(TR_GSSC_INSTANCE *tr_gssc)
  * @param port TCP port to connect
  * @return 0 on success, -1 on failure
  */
-int tr_gssc_open_connection(TR_GSSC_INSTANCE *gssc, const char *server, unsigned int port)
+int tr_gssc_open_connection(TR_GSSC_INSTANCE *gssc, const char *server, int port)
 {
+  if ((port <= 0) || (port > 65535)) {
+    tr_err("tr_gssc_open_connection: invalid port requested (%d)", port);
+    return -1;
+  }
+
   tr_debug("tr_gssc_open_connection: opening connection to %s:%d", server, port);
-  if (0 != gsscon_connect(server, port, gssc->service_name, &(gssc->conn), gssc->gss_ctx))
+  if (0 != gsscon_connect(server, (unsigned int) port, gssc->service_name, &(gssc->conn), gssc->gss_ctx))
     return -1;
 
   return 0; /* success */

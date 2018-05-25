@@ -253,7 +253,7 @@ void tid_req_free(TID_REQ *req)
 }
 
 int tid_req_add_path(TID_REQ *req,
-		     const char *this_system, unsigned port)
+                     const char *this_system, int port)
 {
   char *path_element = talloc_asprintf(req, "%s:%u",
 				       this_system, port);

@@ -144,7 +144,7 @@ int tr_mons_event_init(struct event_base *base,
     goto cleanup;
   }
 
-  if (cfg_mgr->active->internal->monitoring_port == 0) {
+  if (cfg_mgr->active->internal->mons_port == 0) {
     tr_notice("tr_mons_event_init: monitoring is disabled, not enabling events or opening sockets");
     retval = 0;
     goto cleanup;
@@ -166,7 +166,7 @@ int tr_mons_event_init(struct event_base *base,
   mons_ev->n_sock_fd = mons_get_listener(mons, tr_mons_req_handler,
                                          tr_mons_auth_handler,
                                          cfg_mgr->active->internal->hostname,
-                                         cfg_mgr->active->internal->monitoring_port,
+                                         cfg_mgr->active->internal->mons_port,
                                          (void *) cookie, mons_ev->sock_fd,
                                          TR_MAX_SOCKETS);
   if (mons_ev->n_sock_fd==0) {

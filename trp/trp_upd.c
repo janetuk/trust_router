@@ -802,7 +802,7 @@ void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer)
   upd->peer=peer;
 }
 
-void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
+void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, int port)
 {
   TRP_INFOREC *rec=NULL;
   TR_NAME *cpy=NULL;

@@ -140,7 +140,7 @@ struct trpc_instance {
   TRPC_INSTANCE *next;
   TR_NAME *gssname;
   char *server;
-  unsigned int port;
+  int port;
   TRP_CONNECTION *conn;
   TR_MQ *mq; /* msgs from master to trpc */
 };
@@ -148,7 +148,8 @@ struct trpc_instance {
 /* TRP Server Instance Data */
 struct trps_instance {
   char *hostname;
-  unsigned int port;
+  int trps_port;
+  int tids_port; /* used for route advertisements; must agree with our tids configuration */
   TRP_AUTH_FUNC auth_handler;
   TRPS_MSG_FUNC msg_handler;
   void *cookie;
@@ -189,7 +190,7 @@ TRP_CONNECTION *trp_connection_remove(TRP_CONNECTION *conn, TRP_CONNECTION *remo
 void trp_connection_append(TRP_CONNECTION *conn, TRP_CONNECTION *new);
 int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void *callback_data);
 TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *gss_servicename);
-TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int port);
+TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, int port);
 
 TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx);
 void trpc_free (TRPC_INSTANCE *trpc);
@@ -204,7 +205,7 @@ void trpc_set_server(TRPC_INSTANCE *trpc, char *server);
 TR_NAME *trpc_get_gssname(TRPC_INSTANCE *trpc);
 void trpc_set_gssname(TRPC_INSTANCE *trpc, TR_NAME *gssname);
 unsigned int trpc_get_port(TRPC_INSTANCE *trpc);
-void trpc_set_port(TRPC_INSTANCE *trpc, unsigned int port);
+void trpc_set_port(TRPC_INSTANCE *trpc, int port);
 TRP_CONNECTION_STATUS trpc_get_status(TRPC_INSTANCE *trpc);
 TR_MQ *trpc_get_mq(TRPC_INSTANCE *trpc);
 void trpc_set_mq(TRPC_INSTANCE *trpc, TR_MQ *mq);
@@ -240,7 +241,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       TRPS_MSG_FUNC msg_handler,
                       TRP_AUTH_FUNC auth_handler,
                       const char *hostname,
-                      unsigned int port,
+                      int port,
                       void *cookie,
                       int *fd_out,
                       size_t max_fd);

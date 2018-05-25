@@ -51,7 +51,7 @@ char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep)
 }
 
 /* helper for encoding to json */
-static json_t *server_to_json_string(const char *server, unsigned int port)
+static json_t *server_to_json_string(const char *server, int port)
 {
   char *s = talloc_asprintf(NULL, "%s:%u", server, port);
   json_t *jstr = json_string(s);

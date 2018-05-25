@@ -127,7 +127,7 @@ struct mon_resp {
 /* Monitoring server instance */
 struct mons_instance {
   const char *hostname;
-  unsigned int port;
+  int mon_port;
   TR_GSS_NAMES *authorized_gss_names;
   TIDS_INSTANCE *tids;
   TRPS_INSTANCE *trps;
@@ -178,14 +178,20 @@ MON_RESP * mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json);
 
 /* mons.c */
 MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx);
-int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH_FUNC *auth_handler, const char *hostname,
-                      unsigned int port, void *cookie, int *fd_out, size_t max_fd);
+int mons_get_listener(MONS_INSTANCE *mons,
+                      MONS_REQ_FUNC *req_handler,
+                      MONS_AUTH_FUNC *auth_handler,
+                      const char *hostname,
+                      int port,
+                      void *cookie,
+                      int *fd_out,
+                      size_t max_fd);
 int mons_accept(MONS_INSTANCE *mons, int listen);
 
 /* monc.c */
 MONC_INSTANCE *monc_new(TALLOC_CTX *mem_ctx);
 void monc_free(MONC_INSTANCE *monc);
-int monc_open_connection(MONC_INSTANCE *monc, const char *server, unsigned int port);
+int monc_open_connection(MONC_INSTANCE *monc, const char *server, int port);
 MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *req);
 
 #endif //TRUST_ROUTER_MON_REQ_H

@@ -179,8 +179,8 @@ static void *tr_tids_req_fwd_thread(void *arg)
 
   if (-1==(args->fwd_req->conn = tidc_open_connection(tidc, 
                                                       aaa_hostname,
-                                                      (unsigned int) aaa_port, /* we checked, it's > 0 */
-                                                     &(args->fwd_req->gssctx)))) {
+                                                      aaa_port,
+                                                      &(args->fwd_req->gssctx)))) {
     tr_notice("tr_tids_req_fwd_thread: Error in tidc_open_connection.");
     /* tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS"); */
     /* TODO: encode reason for failure */
