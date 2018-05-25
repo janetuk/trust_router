@@ -268,7 +268,7 @@ int tr_parse_port(const char *s)
   s_port += 1; /* port now starts at s_port */
 
   /* Parse the port number */
-  port = strtol(s, &end_of_conversion, /* base */ 10);
+  port = strtol(s_port, &end_of_conversion, /* base */ 10);
 
   /* validate */
   if ((end_of_conversion == s_port) /* there was no port, just a colon */
