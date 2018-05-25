@@ -48,6 +48,7 @@
 #include <tr_idp.h>
 #include <tr.h>
 #include <trust_router/trp.h>
+#include <tr_util.h>
 
 #if JANSSON_VERSION_HEX < 0x020500
 #include "jansson_iterators.h"
@@ -164,28 +165,22 @@ static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   json_t *jhost=NULL;
-  json_t *jport=NULL;
   json_t *jgss=NULL;
   json_t *jfilt=NULL;
   TRP_PEER *new_peer=NULL;
   TR_GSS_NAMES *names=NULL;
   TR_FILTER_SET *filt_set=NULL;
   TR_CFG_RC rc=TR_CFG_ERROR;
+  TR_NAME *hostname=NULL;
+  char *s_hostname=NULL;
+  int port;
 
   jhost=json_object_get(jporg, "hostname");
-  jport=json_object_get(jporg, "port");
   jgss=json_object_get(jporg, "gss_names");
   jfilt=json_object_get(jporg, "filters");
 
   if ((jhost==NULL) || (!json_is_string(jhost))) {
     tr_err("tr_cfg_parse_one_peer_org: hostname not specified or not a string.");
-    rc=TR_CFG_NOPARSE;
-    goto cleanup;
-  }
-
-  if ((jport!=NULL) && (!json_is_number(jport))) {
-    /* note that not specifying the port is allowed, but if set it must be a number */
-    tr_err("tr_cfg_parse_one_peer_org: port is not a number.");
     rc=TR_CFG_NOPARSE;
     goto cleanup;
   }
@@ -209,11 +204,42 @@ static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
     goto cleanup;
   }
 
-  trp_peer_set_server(new_peer, json_string_value(jhost)); /* string is strdup'ed in _set_server() */
-  if (jport==NULL)
-    trp_peer_set_port(new_peer, TRP_PORT);
-  else
-    trp_peer_set_port(new_peer, json_integer_value(jport));
+  if (0 != tr_parse_hostname_and_port(json_string_value(jhost), &hostname, &port)) {
+    tr_err("tr_cfg_parse_one_peer_org: error parsing hostname (%s)", json_string_value(jhost));
+    rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  if ((port < 0) || (port > 65535)) {
+    tr_err("tr_cfg_parse_one_peer_org: invalid port (%s)", json_string_value(jhost));
+    rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  if (port == 0)
+    port = TRP_PORT;
+  trp_peer_set_port(new_peer, port);
+
+
+  if (hostname->len == 0) {
+    tr_err("tr_cfg_parse_one_peer_org: no hostname specified (%s)", json_string_value(jhost));
+    rc=TR_CFG_NOPARSE;
+    goto cleanup;
+  }
+
+  s_hostname = tr_name_strdup(hostname);
+  if (s_hostname == NULL) {
+    tr_err("tr_cfg_parse_one_peer_org: could not allocate hostname string.");
+    rc = TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
+  trp_peer_set_server(new_peer, s_hostname); /* string is strdup'ed in _set_server() */
+  if (trp_peer_get_server(new_peer) == NULL) {
+    tr_err("tr_cfg_parse_one_peer: could not set server hostname for new peer");
+    rc = TR_CFG_NOMEM;
+    goto cleanup;
+  }
 
   rc = tr_cfg_parse_gss_names(tmp_ctx, jgss, &names);
   if (rc!=TR_CFG_SUCCESS) {
@@ -238,6 +264,12 @@ static TR_CFG_RC tr_cfg_parse_one_peer_org(TR_CFG *trc, json_t *jporg)
   rc=TR_CFG_SUCCESS;
 
 cleanup:
+  if (hostname)
+    tr_free_name(hostname);
+
+  if (s_hostname)
+    free(s_hostname);
+
   talloc_free(tmp_ctx);
   return rc;
 }
