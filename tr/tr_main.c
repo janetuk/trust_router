@@ -310,6 +310,9 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  /* tell the trps which port the tid server listens on */
+  tr->trps->tids_port = tr->tids->tids_port;
+
   /* install TRP handler events */
   tr_debug("Initializing Dynamic Trust Router Protocol events.");
   if (TRP_SUCCESS != tr_trps_event_init(ev_base, tr)) {

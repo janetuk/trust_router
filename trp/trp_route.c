@@ -176,7 +176,6 @@ unsigned int trp_route_get_metric(TRP_ROUTE *entry)
   return entry->metric;
 }
 
-/* TODO: set the hostname and port for the next hop. Currently assume default TID port. --jlr */
 void trp_route_set_next_hop(TRP_ROUTE *entry, TR_NAME *next_hop)
 {
   if (entry->next_hop!=NULL)

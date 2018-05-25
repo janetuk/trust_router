@@ -710,8 +710,6 @@ static void *tr_trpc_thread(void *arg)
  * @param realm IDP realm whose routes should be generated
  * @param trust_router hostname for TRP connections to us
  * @param trust_router_port TRP port of our trust router
- * @param next_hop hostname for TID connections to us
- * @param next_hop_port TID port of our trust router
  * @param n_routes (output) the number of routes in the returned array
  * @return Pointer to an array of pointers to routes
  */
@@ -719,8 +717,6 @@ static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
                                         TR_IDP_REALM *realm,
                                         const char *trust_router,
                                         int trust_router_port,
-                                        const char *next_hop,
-                                        int next_hop_port,
                                         size_t *n_routes)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
@@ -751,8 +747,8 @@ static TRP_ROUTE **tr_make_local_routes(TALLOC_CTX *mem_ctx,
     trp_route_set_metric(new_entry, 0);
     trp_route_set_trust_router(new_entry, tr_new_name(trust_router));
     trp_route_set_trust_router_port(new_entry, trust_router_port);
-    trp_route_set_next_hop(new_entry, tr_new_name(next_hop));
-    trp_route_set_next_hop_port(new_entry, next_hop_port);
+    trp_route_set_next_hop(new_entry, tr_new_name("")); /* no next hop */
+    trp_route_set_next_hop_port(new_entry, -1); /* no next hop */
     trp_route_set_local(new_entry, 1);
     entries[ii]=new_entry;
   }
@@ -834,13 +830,7 @@ TRP_RC tr_add_local_routes(TRPS_INSTANCE *trps, TR_CFG *cfg)
   size_t ii=0;
 
   for (cur=cfg->ctable->idp_realms; cur!=NULL; cur=cur->next) {
-    local_routes=tr_make_local_routes(tmp_ctx,
-                                      cur,
-                                      cfg->internal->hostname,
-                                      cfg->internal->trps_port,
-                                      cfg->internal->hostname,
-                                      cfg->internal->tids_port,
-                                      &n_routes);
+    local_routes= tr_make_local_routes(tmp_ctx, cur, cfg->internal->hostname, cfg->internal->trps_port, &n_routes);
     for (ii=0; ii<n_routes; ii++)
       trps_add_route(trps, local_routes[ii]);
 

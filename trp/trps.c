@@ -69,7 +69,7 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
   TRPS_INSTANCE *trps=talloc(mem_ctx, TRPS_INSTANCE);
   if (trps!=NULL)  {
     trps->hostname=NULL;
-    trps->port=0;
+    trps->trps_port=0;
     trps->cookie=NULL;
     trps->conn=NULL;
     trps->trpc=NULL;
@@ -196,7 +196,7 @@ TR_NAME *trps_dup_label(TRPS_INSTANCE *trps)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_NAME *label=NULL;
-  char *s=talloc_asprintf(tmp_ctx, "%s:%u", trps->hostname, trps->port);
+  char *s=talloc_asprintf(tmp_ctx, "%s:%u", trps->hostname, trps->trps_port);
   if (s==NULL)
     goto cleanup;
   label=tr_new_name(s);
@@ -383,7 +383,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       TRPS_MSG_FUNC msg_handler,
                       TRP_AUTH_FUNC auth_handler,
                       const char *hostname,
-                      unsigned int port,
+                      int port,
                       void *cookie,
                       int *fd_out,
                       size_t max_fd)
@@ -418,7 +418,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
     trps->msg_handler = msg_handler;
     trps->auth_handler = auth_handler;
     trps->hostname = talloc_strdup(trps, hostname);
-    trps->port = port;
+    trps->trps_port = port;
     trps->cookie = cookie;
   }
 
@@ -1373,14 +1373,19 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
                                                               trp_route_get_peer(route)));
     }
 
-    /* Note that we leave the next hop empty since the recipient fills that in.
-     * This is where we add the link cost (currently always 1) to the next peer. */
+    /*
+     * This is where we add the link cost (currently always 1) to the next peer.
+     *
+     * Here, set next_hop to our TID address/port rather than passing along our own
+     * next_hop. That is the one *we* use to forward requests. We are advertising
+     * ourselves as a hop for our peers.
+     */
     if ((TRP_SUCCESS != trp_inforec_set_trust_router(rec,
                                                      trp_route_dup_trust_router(route),
                                                      trp_route_get_trust_router_port(route)))
         ||(TRP_SUCCESS != trp_inforec_set_next_hop(rec,
-                                                   trp_route_dup_next_hop(route),
-                                                   trp_route_get_next_hop_port(route)))
+                                                   tr_new_name(trps->hostname),
+                                                   trps->tids_port))
         ||(TRP_SUCCESS != trp_inforec_set_metric(rec,
                                                  trps_metric_add(trp_route_get_metric(route),
                                                                  linkcost)))
