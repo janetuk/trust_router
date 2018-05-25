@@ -636,8 +636,9 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
     trp_route_set_realm(entry, trp_upd_dup_realm(upd));
     trp_route_set_peer(entry, trp_upd_dup_peer(upd));
     trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec));
+    trp_route_set_trust_router_port(entry, trp_inforec_get_trust_router_port(rec));
     trp_route_set_next_hop(entry, trp_inforec_dup_next_hop(rec));
-    /* TODO: pass next hop port (now defaults to TID_PORT) --jlr */
+    trp_route_set_next_hop_port(entry, trp_inforec_get_next_hop_port(rec));
     if ((trp_route_get_comm(entry)==NULL)
        ||(trp_route_get_realm(entry)==NULL)
        ||(trp_route_get_peer(entry)==NULL)
