@@ -361,9 +361,10 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   /* verify we received a message we support, otherwise drop it now */
   switch (tr_msg_get_msg_type(*msg)) {
   case TRP_UPDATE:
+    trp_upd_set_peer(tr_msg_get_trp_upd(*msg), tr_dup_name(conn_peer));
     /* update provenance if necessary */
     trp_upd_add_to_provenance(tr_msg_get_trp_upd(*msg), trp_peer_get_label(peer));
-    /* fall through to next case */
+    break;
 
   case TRP_REQUEST:
     trp_req_set_peer(tr_msg_get_trp_req(*msg), tr_dup_name(conn_peer));
