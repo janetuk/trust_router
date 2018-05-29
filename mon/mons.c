@@ -184,7 +184,7 @@ int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH
   mons->port = port;
   n_fd = tr_sock_listen_all(port, fd_out, max_fd);
   if (n_fd<=0)
-    tr_err("mons_get_listener: Error opening port %d");
+    tr_err("mons_get_listener: Error opening port %d", port);
   else {
     /* opening port succeeded */
     tr_info("mons_get_listener: Opened port %d.", port);

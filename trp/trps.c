@@ -396,7 +396,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
   n_fd = tr_sock_listen_all(port, fd_out, max_fd);
 
   if (n_fd == 0)
-    tr_err("trps_get_listener: Error opening port %d.");
+    tr_err("trps_get_listener: Error opening port %d.", port);
   else {
     /* opening port succeeded */
     tr_info("trps_get_listener: Opened port %d.", port);
