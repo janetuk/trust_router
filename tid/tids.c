@@ -464,7 +464,7 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
   struct tid_process tp = {0};
 
   if (0 > (conn = tr_sock_accept(listen))) {
-    tr_err("tids_accept: Error accepting connection");
+    tr_debug("tids_accept: Error accepting connection");
     return 1;
   }
 
@@ -623,7 +623,7 @@ int tids_start (TIDS_INSTANCE *tids,
 
       if (poll_fd[ii].revents & POLLIN) {
         if (tids_accept(tids, poll_fd[ii].fd))
-          tr_err("tids_start: error in tids_accept().");
+          tr_debug("tids_start: error in tids_accept().");
       }
     }
   }

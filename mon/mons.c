@@ -269,7 +269,7 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
   int pid=-1;
 
   if (0 > (conn = tr_sock_accept(listen))) {
-    tr_err("mons_accept: Error accepting connection");
+    tr_debug("mons_accept: Error accepting connection");
     return 1;
   }
 
