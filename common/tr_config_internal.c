@@ -91,11 +91,14 @@ static TR_CFG_RC tr_cfg_parse_unsigned(json_t *src, const char *key, unsigned in
   /* See if we have a value for this key; do nothing if not */
   jtmp = json_object_get(src, key);
   if (jtmp) {
-    if (json_is_number(jtmp)) {
-      *dest = (unsigned int) json_integer_value(jtmp);
-    } else {
+    if (! json_is_number(jtmp)) {
       tr_debug("tr_cfg_parse_unsigned: Parsing error, %s is not a number.", key);
       return TR_CFG_NOPARSE;
+    } else if (json_integer_value(jtmp) < 0) {
+      tr_debug("tr_cfg_parse_unsigned: Value %d < 0.", json_integer_value(jtmp));
+      return TR_CFG_NOPARSE;
+    } else {
+      *dest = (unsigned int) json_integer_value(jtmp);
     }
   }
 
@@ -246,4 +249,109 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   tr_debug("tr_cfg_parse_internal: Internal config parsed.");
   return TR_CFG_SUCCESS;
+}
+
+static int invalid_port(int port)
+{
+  return ((port <= 0) || (port > 65536));
+}
+
+/**
+ * Validate the internal configuration of the trust router
+ *
+ * Validates fields, emitting errors if there are any. Safe to call with
+ * a null int_cfg, but this results in an error being returned.
+ *
+ * @param int_cfg pointer to an internal configuration (NULL is safe)
+ * @return success or error
+ */
+TR_CFG_RC tr_cfg_validate_internal(TR_CFG_INTERNAL *int_cfg)
+{
+  TR_CFG_RC rc;
+
+  /* ensure we have an internal configuration and exit if not  */
+  if (NULL == int_cfg) {
+    tr_debug("tr_cfg_validate_internal: No internal configuration present.");
+    return TR_CFG_BAD_PARAMS;
+  }
+
+  /* Assume we are going to succeed. If any errors are encountered, emit a message
+   * and set the return code to an error. Don't exit early, emit all the errors
+   * at once if we can. */
+  rc = TR_CFG_SUCCESS;
+
+  /*** Validate hostname ***/
+  if (NULL == int_cfg->hostname) {
+    tr_debug("tr_cfg_validate_internal: No hostname specified.");
+    rc = TR_CFG_ERROR;
+  }
+
+  /*** Validate various intervals ***/
+  if (TR_MIN_TRP_CONNECT_INTERVAL > int_cfg->trp_connect_interval) {
+    tr_debug(
+        "tr_cfg_validate_internal: Error: trp_connect_interval must be at least %d (currently %d).",
+        TR_MIN_TRP_CONNECT_INTERVAL, int_cfg->trp_connect_interval);
+    rc = TR_CFG_ERROR;
+  }
+
+  if (TR_MIN_TRP_SWEEP_INTERVAL > int_cfg->trp_sweep_interval) {
+    tr_debug(
+        "tr_cfg_validate_internal: Error: trp_sweep_interval must be at least %d (currently %d).",
+        TR_MIN_TRP_SWEEP_INTERVAL, int_cfg->trp_sweep_interval);
+    rc = TR_CFG_ERROR;
+  }
+
+  if (TR_MIN_TRP_UPDATE_INTERVAL > int_cfg->trp_update_interval) {
+    tr_debug(
+        "tr_cfg_validate_internal: Error: trp_update_interval must be at least %d (currently %d).",
+        TR_MIN_TRP_UPDATE_INTERVAL, int_cfg->trp_update_interval);
+    rc = TR_CFG_ERROR;
+  }
+
+  if (TR_MIN_CFG_POLL_INTERVAL > int_cfg->cfg_poll_interval) {
+    tr_debug(
+        "tr_cfg_validate_internal: Error: cfg_poll_interval must be at least %d (currently %d).",
+        TR_MIN_CFG_POLL_INTERVAL, int_cfg->cfg_poll_interval);
+    rc = TR_CFG_ERROR;
+  }
+
+  if (TR_MIN_CFG_SETTLING_TIME > int_cfg->cfg_settling_time) {
+    tr_debug(
+        "tr_cfg_validate_internal: Error: cfg_settling_time must be at least %d (currently %d).",
+        TR_MIN_CFG_SETTLING_TIME, int_cfg->cfg_settling_time);
+    rc = TR_CFG_ERROR;
+  }
+
+  /*** Validate ports ***/
+  if (invalid_port(int_cfg->tids_port)) {
+    tr_debug("tr_cfg_validate_internal: Error: invalid tids_port (%d).", int_cfg->tids_port);
+    rc = TR_CFG_ERROR;
+  }
+
+  if (invalid_port(int_cfg->trps_port)) {
+    tr_debug("tr_cfg_validate_internal: Error: invalid trps_port (%d).", int_cfg->trps_port);
+    rc = TR_CFG_ERROR;
+  }
+
+  if (invalid_port(int_cfg->monitoring_port)) {
+    tr_debug("tr_cfg_validate_internal: Error: invalid monitoring port (%d).", int_cfg->monitoring_port);
+    rc = TR_CFG_ERROR;
+  }
+
+  /*** Validate tid request timeout ***/
+  if (TR_MIN_TID_REQ_TIMEOUT > int_cfg->tid_req_timeout) {
+    tr_debug("tr_cfg_validate_internal: Error: tid_request_timeout must be at least %d (currently %d).",
+             TR_MIN_TID_REQ_TIMEOUT, int_cfg->tid_req_timeout);
+    rc = TR_CFG_ERROR;
+  }
+
+  /*** Validate tid response parameters ***/
+  if ((int_cfg->tid_resp_numer <= 0)
+      || (int_cfg->tid_resp_denom <= 0)
+      || (int_cfg->tid_resp_numer > int_cfg->tid_resp_denom)) {
+    tr_debug("tr_cfg_validate_internal: Error: invalid tid_response_numerator / tid_response_denominator. Both must be positive and the numerator/denominator ratio must be <= 1 (currently %d/%d).",
+             int_cfg->tid_resp_numer, int_cfg->tid_resp_denom);
+    rc = TR_CFG_ERROR;
+  }
+  return rc;
 }

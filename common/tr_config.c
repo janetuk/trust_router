@@ -195,11 +195,10 @@ TR_CFG_RC tr_cfg_validate(TR_CFG *trc)
   if (!trc)
     return TR_CFG_BAD_PARAMS;
 
-  if ((NULL == trc->internal)||
-      (NULL == trc->internal->hostname)) {
-    tr_debug("tr_cfg_validate: Error: No internal configuration, or no hostname.");
+  /* validate the internal config - error messages will be generated there, so don't genreate
+   * our own */
+  if (tr_cfg_validate_internal(trc->internal) != TR_CFG_SUCCESS)
     rc = TR_CFG_ERROR;
-  }
 
   if (NULL == trc->rp_clients) {
     tr_debug("tr_cfg_validate: Error: No RP Clients configured");
