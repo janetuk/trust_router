@@ -244,6 +244,7 @@ TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router, int
   case TRP_INFOREC_TYPE_ROUTE:
     if (rec->data->route!=NULL) {
       rec->data->route->trust_router=trust_router;
+      rec->data->route->trust_router_port = port;
       return TRP_SUCCESS;
     }
     break;
