@@ -32,9 +32,11 @@
  *
  */
 
+#include <tr_name_internal.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
+#include <talloc.h>
 
 #include <tr_inet_util.h>
 
@@ -55,16 +57,6 @@ static int is_valid_address(int af, const char *s)
 }
 
 /**
- * Determine whether a string is a valid IPv4 address
- * @param s string to validate
- * @return 1 if a valid reference, 0 otherwise
- */
-int is_valid_ipv4_address(const char *s)
-{
-  return is_valid_address(AF_INET, s);
-}
-
-/**
  * Determine whether a string is a valid IPv6 address reference
  *
  * I.e., an IPv6 address in brackets
@@ -72,7 +64,7 @@ int is_valid_ipv4_address(const char *s)
  * @param s string to validate
  * @return 1 if a valid reference, 0 otherwise
  */
-int is_valid_ipv6_reference(const char *s)
+static int tr_valid_ipv6_reference(const char *s)
 {
   char *cpy;
   size_t len;
@@ -88,65 +80,53 @@ int is_valid_ipv6_reference(const char *s)
     return 0;
 
   /* make a null-terminated copy of the string omitting the brackets */
-  cpy = strndup(s+1, len-2);
+  cpy = talloc_strndup(NULL, s+1, len-2);
   if (cpy == NULL)
-    return -1;
+    return 0; /* an error occurred - fail safe */
 
   valid_ipv6 = is_valid_address(AF_INET6, cpy);
-  free(cpy);
+  talloc_free(cpy);
 
   return valid_ipv6;
 }
 
-static int is_valid_dns_char(char c)
+/**
+ * Validate a host string
+ *
+ * The intention is to reject strings that may appear to contain a ':port' spec.
+ * Takes a permissive view of valid: a hostname is valid if either it is a
+ * bracketed IPv6 address reference ([address]) or has no brackets or colons.
+ * This accepts all valid DNS names and IPv4 addresses, as well as many invalid
+ * hostnames. This is ok for accepting a hostname that will later be resolved
+ * because invalid names will fail to resolve. It should *not* be used to ensure
+ * a hostname is compliant with RFC!
+ *
+ * Ignores a trailing colon followed by decimal digits.
+ *
+ * @param s string to validate
+ * @return 1 if a valid host specification, 0 otherwise
+ */
+static int tr_valid_host(const char *s)
 {
-  /* digits ok */
-  if ( ('0' <= c) && ('9' >= c))
-    return 1;
+  if (strchr(s, '[') || strchr(s, ']') || strchr(s, ':'))
+    return tr_valid_ipv6_reference(s);
 
-  /* letters ok */
-  if ( (('a' <= c) && ('z' >= c))
-       || (('A' <= c) && ('Z' >= c)) )
-    return 1;
-
-  /* '-' ok */
-  if ('-' == c)
-    return 1;
-
-  /* everything else illegal */
-  return 0;
+  return 1;
 }
 
 /**
- * Helper to validate a DNS label
- *
- * Checks whether the string starting at s[start] and ending at s[end-1]
- * is a valid DNS label.
- *
- * Does not check the length of the label.
+ * Check that all characters are decimal digits
  *
  * @param s
- * @param start
- * @param end
- * @return
+ * @return 1 if all digits, 0 otherwise
  */
-static int is_valid_dns_label(const char *s, size_t start, size_t end)
+static int tr_str_all_digits(const char *s)
 {
-  size_t ii;
-
-  /* Check that there is at least one character.
-   * Be careful - size_t is unsigned */
-  if (start >= end)
+  if (s == NULL)
     return 0;
 
-  /* must neither start nor end with '-' */
-  if ((s[start] == '-')
-      || s[end-1] == '-')
-    return 0;
-
-  /* make sure all characters are valid */
-  for (ii=start; ii<end; ii++) {
-    if (! is_valid_dns_char(s[ii]))
+  for( ; *s; s++) {
+    if ( (*s < '0') || (*s > '9'))
       return 0;
   }
 
@@ -154,69 +134,88 @@ static int is_valid_dns_label(const char *s, size_t start, size_t end)
 }
 
 /**
- * Determine whether a string is a valid DNS name
+ * Validate and parse a hostname or hostname/port
  *
- * Does not check the length of the name or of the indivdiual
- * labels in it.
+ * If port_out is not null, accepts a port as well. This is
+ * stored in *port_out. If no port is given, a 0 is stored.
+ * If an invalid port is given, -1 is stored.
  *
- * @param s string to validate
- * @return 1 if a valid DNS name, 0 otherwise
+ * If the hostname is invalid, null is returned and no value
+ * is written to *port_out.
+ *
+ * If port_out is null, null will be returned if the string
+ * contains a port.
+ *
+ * The return value must be freed with talloc_free unless
+ * it is null.
+ *
+ * @param mem_ctx talloc context for hostname result
+ * @param s string to parse
+ * @param port_out pointer to an allocated integer, or NULL
+ * @return pointer to the hostname or null on error
  */
-int is_valid_dns_name(const char *s)
+char *tr_parse_host(TALLOC_CTX *mem_ctx, const char *s, int *port_out)
 {
-  size_t label_start;
-  size_t label_end;
+  const char *colon;
+  char *hostname;
+  long int port;
 
-  /* reject some trivial cases */
-  if ((s == NULL)
-      || (*s == '\0'))
-    return 0;
+  if (s == NULL)
+    return NULL;
 
-  /* Walk along with the end counter until we encounter a '.'. When that
-   * happens, we have a complete DNS label. Validate that, then set the start
-   * counter to one character past the end pointer, which will either be the
-   * next character in the DNS name or the null terminator. Since we stop as
-   * soon as the end counter reaches a null character, this will never refer
-   * to an invalid address. */
-  for (label_start = 0, label_end = 0;
-       s[label_end] != '\0';
-       label_end++) {
-    if (s[label_end] == '.') {
-      if (! is_valid_dns_label(s, label_start, label_end))
-        return 0;
+  /* If we are accepting a port, find the last colon. */
+  if (port_out == NULL)
+    colon = NULL;
+  else
+    colon = strrchr(s, ':');
 
-      label_start = label_end+1;
+  /* Get a copy of the hostname portion, which may be the entire string. */
+  if (colon == NULL)
+    hostname = talloc_strdup(NULL, s);
+  else
+    hostname = talloc_strndup(NULL, s, colon-s);
+
+  if (hostname == NULL)
+    return NULL; /* failed to dup the hostname */
+
+  /* Check that the hostname is valid; if not, return null and ignore the port. */
+  if (! tr_valid_host(hostname)) {
+    talloc_free(hostname);
+    return NULL;
+  }
+
+  /* If we are accepting a port, parse and validate it. */
+  if (port_out != NULL) {
+    if (colon == NULL) {
+      *port_out = 0;
+    } else {
+      port = strtol(colon+1, NULL, 10);
+      if (tr_str_all_digits(colon+1) && (port > 0) && (port <= 65535))
+        *port_out = (int) port;
+      else
+        *port_out = -1;
     }
   }
 
-  if (s[label_start] == '\0')
-    return 1; /* we must have ended on a '.' */
-
-  /* There was one more label to validate */
-  return is_valid_dns_label(s, label_start, label_end);
+  return hostname;
 }
 
-/**
- * Validate a host string
- *
- * Valid formats:
- *   IPv4 address (dotted quad)
- *   IPv6 address in brackets (e.g., [::1])
- *   DNS hostname (labels made of alphanumerics or "-", separated by dots)
- *
- * @param s string to validate
- * @return 1 if a valid host specification, 0 otherwise
- */
-int is_valid_host(const char *s)
+TR_NAME *tr_hostname_and_port_to_name(TR_NAME *hn, int port)
 {
-  if (is_valid_ipv4_address(s))
-    return 1;
+  TR_NAME *retval = NULL;
+  char *s = NULL;
+  char *hn_s = tr_name_strdup(hn);
 
-  if (is_valid_ipv6_reference(s))
-    return 1;
+  if (!hn_s)
+    return NULL;
 
-  if (is_valid_dns_name(s))
-    return 1;
+  s = talloc_asprintf(NULL, "%s:%d", hn_s, port);
+  free(hn_s);
 
-  return 0;
+  if (s) {
+    retval = tr_new_name(s);
+    talloc_free(s);
+  }
+
+  return retval;
 }

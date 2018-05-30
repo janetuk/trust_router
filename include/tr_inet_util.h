@@ -36,10 +36,10 @@
 #define TRUST_ROUTER_TR_INET_UTIL_H
 
 #include <arpa/inet.h>
+#include <tr_name_internal.h>
 
-int is_valid_ipv4_address(const char *s);
-int is_valid_ipv6_reference(const char *s);
-int is_valid_dns_name(const char *s);
-int is_valid_host(const char *s);
+char *tr_parse_host(TALLOC_CTX *mem_ctx, const char *s, int *port_out);
+
+TR_NAME *tr_hostname_and_port_to_name(TR_NAME *hn, int port);
 
 #endif //TRUST_ROUTER_TR_INET_UTIL_H

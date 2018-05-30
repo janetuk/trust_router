@@ -35,7 +35,7 @@
 #ifndef TR_UTIL_H
 #define TR_UTIL_H
 
-#include <tr_name_internal.h>
+#include <stddef.h>
 #include <trust_router/tr_versioning.h>
 
 /* NB, tr_bin_to_hex() is also prototyped in trust_router/tr_dh.h */
@@ -47,9 +47,5 @@ int tr_sub_timespec(const struct timespec *ts1_copy, const struct timespec *ts2_
 char *timespec_to_str(const struct timespec *ts);
 struct timespec *tr_clock_convert(clockid_t from, const struct timespec *when,
                                   clockid_t to, struct timespec *dst);
-TR_NAME *tr_parse_hostname(const char *s);
-int tr_parse_port(const char *s);
-int tr_parse_hostname_and_port(const char *s, TR_NAME **hn_dest, int *p_dest);
-TR_NAME *tr_hostname_and_port_to_name(TR_NAME *hn, int port);
 
 #endif /* TR_UTIL_H */
