@@ -69,7 +69,7 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
   TRPS_INSTANCE *trps=talloc(mem_ctx, TRPS_INSTANCE);
   if (trps!=NULL)  {
     trps->hostname=NULL;
-    trps->port=0;
+    trps->trps_port=0;
     trps->cookie=NULL;
     trps->conn=NULL;
     trps->trpc=NULL;
@@ -196,7 +196,7 @@ TR_NAME *trps_dup_label(TRPS_INSTANCE *trps)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_NAME *label=NULL;
-  char *s=talloc_asprintf(tmp_ctx, "%s:%u", trps->hostname, trps->port);
+  char *s=talloc_asprintf(tmp_ctx, "%s:%u", trps->hostname, trps->trps_port);
   if (s==NULL)
     goto cleanup;
   label=tr_new_name(s);
@@ -362,7 +362,6 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   switch (tr_msg_get_msg_type(*msg)) {
   case TRP_UPDATE:
     trp_upd_set_peer(tr_msg_get_trp_upd(*msg), tr_dup_name(conn_peer));
-    trp_upd_set_next_hop(tr_msg_get_trp_upd(*msg), trp_peer_get_server(peer), 0); /* TODO: 0 should be the configured TID port */
     /* update provenance if necessary */
     trp_upd_add_to_provenance(tr_msg_get_trp_upd(*msg), trp_peer_get_label(peer));
     break;
@@ -385,7 +384,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       TRPS_MSG_FUNC msg_handler,
                       TRP_AUTH_FUNC auth_handler,
                       const char *hostname,
-                      unsigned int port,
+                      int port,
                       void *cookie,
                       int *fd_out,
                       size_t max_fd)
@@ -420,7 +419,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
     trps->msg_handler = msg_handler;
     trps->auth_handler = auth_handler;
     trps->hostname = talloc_strdup(trps, hostname);
-    trps->port = port;
+    trps->trps_port = port;
     trps->cookie = cookie;
   }
 
@@ -502,12 +501,27 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
   switch(trp_inforec_get_type(rec)) {
   case TRP_INFOREC_TYPE_ROUTE:
     if ((trp_inforec_get_trust_router(rec)==NULL)
-       || (trp_inforec_get_next_hop(rec)==NULL)) {
+        || (trp_inforec_get_next_hop(rec)==NULL)) {
       tr_debug("trps_validate_inforec: missing record info.");
       return TRP_ERROR;
     }
 
-    /* check for valid metric */
+    /* check for valid ports */
+    if ((trp_inforec_get_trust_router_port(rec) <= 0)
+        || (trp_inforec_get_trust_router_port(rec) > 65535)) {
+      tr_debug("trps_validate_inforec: invalid trust router port (%d)",
+               trp_inforec_get_trust_router_port(rec));
+      return TRP_ERROR;
+    }
+
+      if ((trp_inforec_get_next_hop_port(rec) <= 0)
+          || (trp_inforec_get_next_hop_port(rec) > 65535)) {
+        tr_debug("trps_validate_inforec: invalid next hop port (%d)",
+                 trp_inforec_get_next_hop_port(rec));
+        return TRP_ERROR;
+      }
+
+      /* check for valid metric */
     if (trp_metric_is_invalid(trp_inforec_get_metric(rec))) {
       tr_debug("trps_validate_inforec: invalid metric (%u).", trp_inforec_get_metric(rec));
       return TRP_ERROR;
@@ -593,6 +607,17 @@ static struct timespec *trps_compute_expiry(TRPS_INSTANCE *trps, unsigned int in
   return ts;
 }
 
+
+/* compare hostname/port of the trust router, return 0 if they match */
+static int trust_router_changed(TRP_ROUTE *route, TRP_INFOREC *rec)
+{
+  if (trp_route_get_trust_router_port(route) != trp_inforec_get_trust_router_port(rec))
+    return 1;
+
+  return tr_name_cmp(trp_route_get_trust_router(route),
+                     trp_inforec_get_trust_router(rec));
+}
+
 static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC *rec)
 {
   TRP_ROUTE *entry=NULL;
@@ -612,8 +637,9 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
     trp_route_set_realm(entry, trp_upd_dup_realm(upd));
     trp_route_set_peer(entry, trp_upd_dup_peer(upd));
     trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec));
+    trp_route_set_trust_router_port(entry, trp_inforec_get_trust_router_port(rec));
     trp_route_set_next_hop(entry, trp_inforec_dup_next_hop(rec));
-    /* TODO: pass next hop port (now defaults to TID_PORT) --jlr */
+    trp_route_set_next_hop_port(entry, trp_inforec_get_next_hop_port(rec));
     if ((trp_route_get_comm(entry)==NULL)
        ||(trp_route_get_realm(entry)==NULL)
        ||(trp_route_get_peer(entry)==NULL)
@@ -635,13 +661,13 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
   trp_route_set_metric(entry, trp_inforec_get_metric(rec));
   trp_route_set_interval(entry, trp_inforec_get_interval(rec));
 
-  /* check whether the trust router has changed */
-  if (0!=tr_name_cmp(trp_route_get_trust_router(entry),
-                     trp_inforec_get_trust_router(rec))) {
+  /* check whether the trust router has changed (either name or port) */
+  if (trust_router_changed(entry, rec)) {
     /* The name changed. Set this route as triggered. */
     tr_debug("trps_accept_update: trust router for route changed.");
     trp_route_set_triggered(entry, 1);
     trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec)); /* frees old name */
+    trp_route_set_trust_router_port(entry, trp_inforec_get_trust_router_port(rec));
   }
   if (!trps_route_retracted(trps, entry)) {
     tr_debug("trps_accept_update: route not retracted, setting expiry timer.");
@@ -689,8 +715,7 @@ static TRP_RC trps_handle_inforec_route(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_I
         trps_accept_update(trps, upd, rec);
       } else {
         /* Update is infeasible. Ignore it unless the trust router has changed. */
-        if (0!=tr_name_cmp(trp_route_get_trust_router(route),
-                           trp_inforec_get_trust_router(rec))) {
+        if (trust_router_changed(route, rec)) {
           /* the trust router associated with the route has changed, treat update as a retraction */
           trps_retract_route(trps, route);
         }
@@ -1349,13 +1374,23 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
                                                               trp_route_get_peer(route)));
     }
 
-    /* Note that we leave the next hop empty since the recipient fills that in.
-     * This is where we add the link cost (currently always 1) to the next peer. */
-    if ((trp_inforec_set_trust_router(rec, trp_route_dup_trust_router(route)) != TRP_SUCCESS)
-       ||(trp_inforec_set_metric(rec,
-                                 trps_metric_add(trp_route_get_metric(route),
-                                                 linkcost)) != TRP_SUCCESS)
-       ||(trp_inforec_set_interval(rec, trps_get_update_interval(trps)) != TRP_SUCCESS)) {
+    /*
+     * This is where we add the link cost (currently always 1) to the next peer.
+     *
+     * Here, set next_hop to our TID address/port rather than passing along our own
+     * next_hop. That is the one *we* use to forward requests. We are advertising
+     * ourselves as a hop for our peers.
+     */
+    if ((TRP_SUCCESS != trp_inforec_set_trust_router(rec,
+                                                     trp_route_dup_trust_router(route),
+                                                     trp_route_get_trust_router_port(route)))
+        ||(TRP_SUCCESS != trp_inforec_set_next_hop(rec,
+                                                   tr_new_name(trps->hostname),
+                                                   trps->tids_port))
+        ||(TRP_SUCCESS != trp_inforec_set_metric(rec,
+                                                 trps_metric_add(trp_route_get_metric(route),
+                                                                 linkcost)))
+        ||(TRP_SUCCESS != trp_inforec_set_interval(rec, trps_get_update_interval(trps)))) {
       tr_err("trps_route_to_inforec: error creating route update.");
       talloc_free(rec);
       rec=NULL;

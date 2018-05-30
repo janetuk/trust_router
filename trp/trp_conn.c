@@ -364,11 +364,11 @@ TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *
 }
 
 /* Initiate connection */
-TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int port)
+TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, int port)
 {
   int err = 0;
   int fd=-1;
-  unsigned int use_port=0;
+  int use_port=0;
 
   if (0 == port)
     use_port = TRP_PORT;

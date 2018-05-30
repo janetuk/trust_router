@@ -71,6 +71,38 @@ static TR_CFG_RC tr_cfg_parse_boolean(json_t *src, const char *key, int *dest)
 }
 
 /**
+ * Parse a signed integer
+ *
+ * If the key does not exist in the src object, returns success but does fill in *dest.
+ *
+ * @param src JSON object to pull a value from
+ * @param key key to pull
+ * @param dest (output) pointer to an allocated integer
+ * @return TR_CFG_SUCCESS or an error code
+ */
+static TR_CFG_RC tr_cfg_parse_integer(json_t *src, const char *key, int *dest)
+{
+  json_t *jtmp;
+
+  /* Validate parameters */
+  if ((src == NULL) || (key == NULL) || (dest == NULL))
+    return TR_CFG_BAD_PARAMS;
+
+  /* See if we have a value for this key; do nothing if not */
+  jtmp = json_object_get(src, key);
+  if (jtmp) {
+    if (json_is_number(jtmp)) {
+      *dest = (int) json_integer_value(jtmp);
+    } else {
+      tr_debug("tr_cfg_parse_unsigned: Parsing error, %s is not a number.", key);
+      return TR_CFG_NOPARSE;
+    }
+  }
+
+  return TR_CFG_SUCCESS;
+}
+
+/**
  * Parse an unsigned integer
  *
  * If the key does not exist in the src object, returns success but does fill in *dest.
@@ -150,7 +182,7 @@ static void set_defaults(TR_CFG_INTERNAL *cfg)
   cfg->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
   cfg->tids_port = TR_DEFAULT_TIDS_PORT;
   cfg->trps_port = TR_DEFAULT_TRPS_PORT;
-  cfg->monitoring_port = TR_DEFAULT_MONITORING_PORT;
+  cfg->mons_port = TR_DEFAULT_MONITORING_PORT;
   cfg->cfg_poll_interval = TR_CFGWATCH_DEFAULT_POLL;
   cfg->cfg_settling_time = TR_CFGWATCH_DEFAULT_SETTLE;
   cfg->trp_connect_interval = TR_DEFAULT_TRP_CONNECT_INTERVAL;
@@ -177,7 +209,7 @@ static TR_CFG_RC tr_cfg_parse_monitoring(TR_CFG *trc, json_t *jmon)
 
   NOPARSE_UNLESS(tr_cfg_parse_boolean(jmon, "enabled", &enabled));
   if (enabled) {
-    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jmon, "port", &(trc->internal->monitoring_port)));
+    NOPARSE_UNLESS(tr_cfg_parse_integer(jmon, "port", &(trc->internal->mons_port)));
     NOPARSE_UNLESS(tr_cfg_parse_gss_names(trc->internal,
                                           json_object_get(jmon, "authorized_credentials"),
                                           &(trc->internal->monitoring_credentials)));
@@ -213,8 +245,8 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
   talloc_steal(trc->internal, trc->internal->hostname);
 
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "max_tree_depth",           &(trc->internal->max_tree_depth)));
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "tids_port",                &(trc->internal->tids_port)));
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "trps_port",                &(trc->internal->trps_port)));
+  NOPARSE_UNLESS(tr_cfg_parse_integer(jint, "tids_port",                &(trc->internal->tids_port)));
+  NOPARSE_UNLESS(tr_cfg_parse_integer(jint, "trps_port",                &(trc->internal->trps_port)));
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "cfg_poll_interval",        &(trc->internal->cfg_poll_interval)));
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "cfg_settling_time",        &(trc->internal->cfg_settling_time)));
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "trp_connect_interval",     &(trc->internal->trp_connect_interval)));

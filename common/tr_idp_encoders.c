@@ -44,7 +44,18 @@
 
 static char *tr_aaa_server_to_str(TALLOC_CTX *mem_ctx, TR_AAA_SERVER *aaa)
 {
-  return talloc_strndup(mem_ctx, aaa->hostname->buf, aaa->hostname->len);
+  char *aaa_hostname = tr_name_strdup( tr_aaa_server_get_hostname(aaa) );
+  char *result = NULL;
+
+  if (aaa_hostname == NULL)
+    return NULL;
+
+  result = talloc_asprintf(mem_ctx,
+                           "%s:%d",
+                           aaa_hostname,
+                           tr_aaa_server_get_port(aaa));
+  free(aaa_hostname);
+  return result;
 }
 
 
@@ -151,14 +162,9 @@ cleanup:
 
 static json_t *tr_aaa_server_to_json(TR_AAA_SERVER *aaa)
 {
-  char *hostname = tr_name_strdup(aaa->hostname);
-  char *s = NULL;
+  char *s = tr_aaa_server_to_str(NULL, aaa);
   json_t *jstr = NULL;
 
-  if (hostname == NULL)
-    return NULL;
-
-  s = talloc_asprintf(NULL, "%s:%d", hostname, TID_PORT);
   if (s) {
     jstr = json_string(s);
     talloc_free(s);

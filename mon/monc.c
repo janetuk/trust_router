@@ -65,7 +65,7 @@ void monc_free(MONC_INSTANCE *monc)
 
 int monc_open_connection(MONC_INSTANCE *monc,
                          const char *server,
-                         unsigned int port)
+                         int port)
 {
   return tr_gssc_open_connection(monc->gssc, server, port);
 }

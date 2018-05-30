@@ -356,7 +356,7 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
                          TIDS_REQ_FUNC *req_handler,
                          tids_auth_func *auth_handler,
                          const char *hostname,
-                         unsigned int port,
+                         int port,
                          void *cookie,
                          int *fd_out,
                          size_t max_fd)
@@ -574,12 +574,12 @@ void tids_sweep_procs(TIDS_INSTANCE *tids)
 }
 
 /* Process tids requests forever. Should not return except on error. */
-int tids_start (TIDS_INSTANCE *tids,
-                TIDS_REQ_FUNC *req_handler,
-                tids_auth_func *auth_handler,
-                const char *hostname,
-                unsigned int port,
-                void *cookie)
+int tids_start(TIDS_INSTANCE *tids,
+               TIDS_REQ_FUNC *req_handler,
+               tids_auth_func *auth_handler,
+               const char *hostname,
+               int port,
+               void *cookie)
 {
   int fd[TR_MAX_SOCKETS]={0};
   nfds_t n_fd=0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, JANET(UK)
+ * Copyright (c) 2012-2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,25 +32,35 @@
  *
  */
 
-#ifndef TRUST_ROUTER_TR_GSS_CLIENT_H
-#define TRUST_ROUTER_TR_GSS_CLIENT_H
+#ifndef TRUST_ROUTER_TR_AAA_SERVER_H
+#define TRUST_ROUTER_TR_AAA_SERVER_H
 
-#include <gssapi.h>
-#include <tr_msg.h>
+#include <talloc.h>
 
-typedef struct tr_gssc_instance TR_GSSC_INSTANCE;
+#include <tr_name_internal.h>
 
-/* Client instance */
-struct tr_gssc_instance {
-  const char *service_name;
-  gss_ctx_id_t *gss_ctx;
-  int conn;
-};
+typedef struct tr_aaa_server {
+  struct tr_aaa_server *next;
+  TR_NAME *hostname;
+  int port;
+} TR_AAA_SERVER;
 
-/* tr_gss_client.c */
-TR_GSSC_INSTANCE *tr_gssc_instance_new(TALLOC_CTX *mem_ctx);
-void tr_gssc_instance_free(TR_GSSC_INSTANCE *tr_gssc);
-int tr_gssc_open_connection(TR_GSSC_INSTANCE *gssc, const char *server, int port);
-TR_MSG *tr_gssc_exchange_msgs(TALLOC_CTX *mem_ctx, TR_GSSC_INSTANCE *gssc, TR_MSG *req_msg);
+typedef struct tr_aaa_server_iter {
+  TR_AAA_SERVER *this;
+} TR_AAA_SERVER_ITER;
 
-#endif //TRUST_ROUTER_TR_GSS_CLIENT_H
+TR_AAA_SERVER *tr_aaa_server_new(TALLOC_CTX *mem_ctx);
+void tr_aaa_server_free(TR_AAA_SERVER *aaa);
+
+TR_NAME *tr_aaa_server_get_hostname(TR_AAA_SERVER *aaa);
+void tr_aaa_server_set_hostname(TR_AAA_SERVER *aaa, TR_NAME *hostname);
+int tr_aaa_server_get_port(TR_AAA_SERVER *aaa);
+void tr_aaa_server_set_port(TR_AAA_SERVER *aaa, int port);
+TR_AAA_SERVER *tr_aaa_server_from_string(TALLOC_CTX *mem_ctx, const char *s);
+
+TR_AAA_SERVER_ITER *tr_aaa_server_iter_new(TALLOC_CTX *mem_ctx);
+void tr_aaa_server_iter_free(TR_AAA_SERVER_ITER *iter);
+TR_AAA_SERVER *tr_aaa_server_iter_first(TR_AAA_SERVER_ITER *iter, TR_AAA_SERVER *aaa);
+TR_AAA_SERVER *tr_aaa_server_iter_next(TR_AAA_SERVER_ITER *iter);
+
+#endif //TRUST_ROUTER_TR_AAA_SERVER_H

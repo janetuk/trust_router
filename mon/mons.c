@@ -73,7 +73,7 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
 
   if (mons) {
     mons->hostname = NULL;
-    mons->port = 0;
+    mons->mon_port = 0;
     mons->tids = NULL;
     mons->trps = NULL;
     mons->req_handler = NULL;
@@ -175,13 +175,19 @@ cleanup:
  * @param max_fd
  * @return
  */
-int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH_FUNC *auth_handler, const char *hostname,
-                      unsigned int port, void *cookie, int *fd_out, size_t max_fd)
+int mons_get_listener(MONS_INSTANCE *mons,
+                      MONS_REQ_FUNC *req_handler,
+                      MONS_AUTH_FUNC *auth_handler,
+                      const char *hostname,
+                      int port,
+                      void *cookie,
+                      int *fd_out,
+                      size_t max_fd)
 {
   size_t n_fd=0;
   size_t ii=0;
 
-  mons->port = port;
+  mons->mon_port = port;
   n_fd = tr_sock_listen_all(port, fd_out, max_fd);
   if (n_fd<=0)
     tr_err("mons_get_listener: Error opening port %d", port);

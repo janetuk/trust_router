@@ -153,7 +153,7 @@ unsigned int trpc_get_port(TRPC_INSTANCE *trpc)
   return trpc->port;
 }
 
-void trpc_set_port(TRPC_INSTANCE *trpc, unsigned int port)
+void trpc_set_port(TRPC_INSTANCE *trpc, int port)
 {
   trpc->port=port;
 }

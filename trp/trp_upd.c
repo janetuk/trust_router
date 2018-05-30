@@ -211,14 +211,26 @@ void trp_inforec_set_type(TRP_INFOREC *rec, TRP_INFOREC_TYPE type)
 TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec)
 {
   switch (rec->type) {
-  case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data->route!=NULL)
-      return rec->data->route->trust_router;
-    break;
-  default:
-    break;
+    case TRP_INFOREC_TYPE_ROUTE:
+      if (rec->data->route!=NULL)
+        return rec->data->route->trust_router;
+      break;
+    default:
+      break;
   }
   return NULL;
+}
+
+int trp_inforec_get_trust_router_port(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+    case TRP_INFOREC_TYPE_ROUTE:
+      if (rec->data->route!=NULL)
+        return rec->data->route->trust_router_port;
+      /* fall through */
+    default:
+      return -1;
+  }
 }
 
 TR_NAME *trp_inforec_dup_trust_router(TRP_INFOREC *rec)
@@ -226,12 +238,13 @@ TR_NAME *trp_inforec_dup_trust_router(TRP_INFOREC *rec)
   return tr_dup_name(trp_inforec_get_trust_router(rec));
 }
 
-TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router)
+TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router, int port)
 {
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
     if (rec->data->route!=NULL) {
       rec->data->route->trust_router=trust_router;
+      rec->data->route->trust_router_port = port;
       return TRP_SUCCESS;
     }
     break;
@@ -241,16 +254,15 @@ TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router)
   return TRP_ERROR;
 }
 
-/* TODO: need to return hostname/port --jlr */
 TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec)
 {
   switch (rec->type) {
-  case TRP_INFOREC_TYPE_ROUTE:
-    if (rec->data->route!=NULL)
-      return rec->data->route->next_hop;
-    break;
-  default:
-    break;
+    case TRP_INFOREC_TYPE_ROUTE:
+      if (rec->data->route!=NULL)
+        return rec->data->route->next_hop;
+      break;
+    default:
+      break;
   }
   return NULL;
 }
@@ -272,14 +284,15 @@ TR_NAME *trp_inforec_dup_next_hop(TRP_INFOREC *rec)
  * @param next_hop
  * @return TRP_SUCCESS if the value was set, TRP_UNSUPPORTED if the inforec does not support next hop, or an error code on failure
  */
-TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop)
+TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop, int port)
 {
   /* Any inforec types that support next_hop should set it here. */
   switch (rec->type) {
   case TRP_INFOREC_TYPE_ROUTE:
     if (rec->data->route==NULL)
       return TRP_ERROR;
-    rec->data->route->next_hop=next_hop;
+    rec->data->route->next_hop = next_hop;
+    rec->data->route->next_hop_port = port;
     break;
 
   default:
@@ -287,6 +300,18 @@ TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop)
     return TRP_UNSUPPORTED;
   }
   return TRP_SUCCESS;
+}
+
+int trp_inforec_get_next_hop_port(TRP_INFOREC *rec)
+{
+  switch (rec->type) {
+    case TRP_INFOREC_TYPE_ROUTE:
+      if (rec->data->route!=NULL)
+        return rec->data->route->next_hop_port;
+      /* fall through */
+    default:
+      return -1;
+  }
 }
 
 unsigned int trp_inforec_get_metric(TRP_INFOREC *rec)
@@ -778,13 +803,13 @@ void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer)
   upd->peer=peer;
 }
 
-void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port)
+void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, int port)
 {
   TRP_INFOREC *rec=NULL;
   TR_NAME *cpy=NULL;
 
   for (rec=trp_upd_get_inforec(upd); rec!=NULL; rec=trp_inforec_get_next(rec)) {
-    switch (trp_inforec_set_next_hop(rec, cpy=tr_new_name(hostname))) {
+    switch (trp_inforec_set_next_hop(rec, cpy=tr_new_name(hostname), port)) {
       case TRP_SUCCESS:
         /* Success, the TR_NAME in cpy is now stored with the inforec */
         break;

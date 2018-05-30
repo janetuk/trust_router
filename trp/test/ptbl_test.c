@@ -48,7 +48,7 @@
 struct peer_entry {
   char *server;
   char *gss_name;
-  unsigned int port;
+  int port;
   unsigned int linkcost;
 };
 
