@@ -51,6 +51,7 @@
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
 #include <tr_debug.h>
+#include <tr_inet_util.h>
 
 /* JSON helpers */
 /* Read attribute attr from msg as an integer. */
@@ -916,6 +917,7 @@ static TRP_RC tr_msg_decode_trp_inforec_route(json_t *jrecord, TRP_INFOREC *rec)
   TRP_RC rc=TRP_ERROR;
   char *s=NULL;
   TR_NAME *name;
+  char *hostname;
   int port;
   int num=0;
 
@@ -924,11 +926,15 @@ static TRP_RC tr_msg_decode_trp_inforec_route(json_t *jrecord, TRP_INFOREC *rec)
   if (rc != TRP_SUCCESS)
     goto cleanup;
 
-  if (0 != tr_parse_hostname_and_port(s, &name, &port)) {
+  hostname = tr_parse_host(tmp_ctx, s, &port);
+  if ((NULL == hostname)
+      || (NULL == (name = tr_new_name(hostname)))
+      || (port < 0)) {
     rc = TRP_ERROR;
     goto cleanup;
   }
   talloc_free(s); s=NULL;
+  talloc_free(hostname);
 
   if (port == 0)
     port = TRP_PORT;
@@ -943,7 +949,10 @@ static TRP_RC tr_msg_decode_trp_inforec_route(json_t *jrecord, TRP_INFOREC *rec)
   switch(tr_msg_get_json_string(jrecord, "next_hop", &s, tmp_ctx)) {
     case TRP_SUCCESS:
       /* we got a next_hop field */
-      if (0 != tr_parse_hostname_and_port(s, &name, &port)) {
+      hostname = tr_parse_host(tmp_ctx, s, &port);
+      if ((hostname == NULL)
+          || (NULL == (name = tr_new_name(hostname)))
+          || (port < 0)) {
         rc = TRP_ERROR;
         goto cleanup;
       }

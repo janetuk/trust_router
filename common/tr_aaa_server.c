@@ -39,6 +39,7 @@
 #include <tr_aaa_server.h>
 #include <trust_router/tid.h>
 #include <tr_util.h>
+#include <tr_inet_util.h>
 
 static int tr_aaa_server_destructor(void *obj)
 {
@@ -120,8 +121,7 @@ void tr_aaa_server_set_port(TR_AAA_SERVER *aaa, int port)
 /**
  * Allocate a AAA server record and fill it in by parsing a hostname:port string
  *
- * Does not validate hostname or port values. The port will be -1 if the port
- * could not be parsed properly.
+ * If hostname or port are invalid, hostname will be empty and port will be -1.
  *
  * @return newly allocated TR_AAA_SERVER in the mem_ctx context, or NULL on error
  */
@@ -129,15 +129,23 @@ TR_AAA_SERVER *tr_aaa_server_from_string(TALLOC_CTX *mem_ctx, const char *s)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   TR_AAA_SERVER *aaa = tr_aaa_server_new(tmp_ctx);
+  char *hostname;
+  int port;
 
   if (aaa == NULL)
     goto failed;
 
-  tr_aaa_server_set_hostname(aaa, tr_parse_hostname(s));
+  hostname = tr_parse_host(tmp_ctx, s, &port);
+  if (NULL == hostname) {
+    hostname = "";
+    port = -1;
+  }
+
+  tr_aaa_server_set_hostname(aaa, tr_new_name(hostname));
   if (tr_aaa_server_get_hostname(aaa) == NULL)
     goto failed;
 
-  tr_aaa_server_set_port(aaa, tr_parse_port(s));
+  tr_aaa_server_set_port(aaa, port); /* port = 0 uses default TID port */
   talloc_steal(mem_ctx, aaa); /*put this in the caller's context */
   goto succeeded;
 

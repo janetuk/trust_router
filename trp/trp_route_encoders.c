@@ -45,6 +45,7 @@
 #include <trust_router/trp.h>
 #include <tr_util.h>
 #include <tr_json_util.h>
+#include <tr_inet_util.h>
 
 /* Pretty print a route table entry to a newly allocated string. If sep is NULL,
  * returns comma+space separated string. */

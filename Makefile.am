@@ -15,6 +15,7 @@ common_srcs = common/tr_name.c \
 	common/tr_dh.c \
     common/tr_debug.c \
 	common/tr_util.c \
+	common/tr_inet_util.c \
 	common/tr_apc.c \
 	common/tr_comm.c \
 	common/tr_comm_encoders.c \
@@ -162,6 +163,7 @@ common/tr_name.c \
 common/tr_gss_names.c \
 common/tr_debug.c \
 common/tr_util.c \
+common/tr_inet_util.c \
 common/tr_list.c \
 trp/trp_route.c \
 trp/trp_route_encoders.c \
@@ -295,7 +297,7 @@ noinst_HEADERS = include/gsscon.h \
 	include/trp_route.h include/trp_rtable.h \
 	include/tr_list.h \
 	include/tr_name_internal.h \
-	include/tr_util.h include/tr_json_util.h \
+	include/tr_util.h include/tr_json_util.h include/tr_inet_util.h\
 	include/tr_rand_id.h include/tr_socket.h \
 	include/tr_constraint_internal.h
 

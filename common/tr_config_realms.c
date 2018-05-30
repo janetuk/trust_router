@@ -72,14 +72,16 @@ TR_AAA_SERVER *tr_cfg_parse_one_aaa_server(TALLOC_CTX *mem_ctx, json_t *jaddr, T
   }
 
   if (tr_aaa_server_get_hostname(aaa)->len == 0) {
-    tr_debug("tr_cfg_parse_one_aaa_server: Empty hostname for AAA server not allowed");
+    tr_debug("tr_cfg_parse_one_aaa_server: Invalid hostname for AAA server (%s)",
+             json_string_value(jaddr));
     *rc = TR_CFG_NOPARSE;
     goto cleanup;
   }
 
   if ((tr_aaa_server_get_port(aaa) <= 0)
       || (tr_aaa_server_get_port(aaa) > 65535)) {
-    tr_debug("tr_cfg_parse_one_aaa_server: Invalid AAA server port");
+    tr_debug("tr_cfg_parse_one_aaa_server: Invalid AAA server port (%s)",
+             json_string_value(jaddr));
     *rc = TR_CFG_NOPARSE;
     goto cleanup;
   }

@@ -41,8 +41,8 @@
 #include <tr_filter.h>
 #include <trp_internal.h>
 #include <tid_internal.h>
+#include <tr_inet_util.h>
 #include <tr_debug.h>
-#include <tr_util.h>
 
 /* Function types for handling filter fields generally. All target values
  * are represented as strings in a TR_NAME.
