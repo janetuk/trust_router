@@ -53,7 +53,30 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - Moonshot Trust Router Monitoring Client";
+static const char doc[] =
+    PACKAGE_NAME " - Moonshot Trust Router Monitoring Client"
+                 "\v" /* options list goes here */
+                 "Supported monitoring commands:\n"
+                 "\n"
+                 "  show [<option> ...]\n"
+                 "\n"
+                 "     Show information about the Trust Router's current state.\n"
+                 "\n"
+                 "     Options:\n"
+                 "       version            - current Trust Router software version\n"
+                 "       config_files       - currently loaded configuration files\n"
+                 "       uptime             - time, in seconds, since the Trust Router launched\n"
+                 "       tid_reqs_processed - number of TID requests successfully processed\n"
+                 "       tid_reqs_pending   - number of TID requests currently being processed\n"
+                 "       tid_error_count    - number of TID failed connections\n"
+                 "       routes             - current TID routing table\n"
+                 "       peers              - dynamic Trust Router peer table\n"
+                 "       communities        - community table\n"
+                 "       realms             - known realm table\n"
+                 "       rp_clients         - authorized TID RP clients\n"
+                 "\n"
+                 "    If no options are specified, data for all options will be retrieved.\n";
+
 static const char arg_doc[]="<server> <port> <command> [<option> ...]"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
@@ -152,9 +175,8 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
   return 0; /* success */
 }
 
-
 /* assemble the argp parser */
-static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
+static struct argp argp = {cmdline_options, parse_option, arg_doc, doc, 0};
 
 int main(int argc, char *argv[])
 {
