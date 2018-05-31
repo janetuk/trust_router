@@ -39,6 +39,7 @@
 #include <talloc.h>
 
 #include <tr_inet_util.h>
+#include <errno.h>
 
 /**
  * Determine whether a string is a valid address of a given family
@@ -158,7 +159,7 @@ char *tr_parse_host(TALLOC_CTX *mem_ctx, const char *s, int *port_out)
 {
   const char *colon;
   char *hostname;
-  long int port;
+  int port;
 
   if (s == NULL)
     return NULL;
@@ -189,9 +190,9 @@ char *tr_parse_host(TALLOC_CTX *mem_ctx, const char *s, int *port_out)
     if (colon == NULL) {
       *port_out = 0;
     } else {
-      port = strtol(colon+1, NULL, 10);
-      if (tr_str_all_digits(colon+1) && (port > 0) && (port <= 65535))
-        *port_out = (int) port;
+      port = tr_parse_port(colon+1);
+      if ((port > 0) && tr_str_all_digits(colon+1))
+        *port_out = port;
       else
         *port_out = -1;
     }
@@ -218,4 +219,35 @@ TR_NAME *tr_hostname_and_port_to_name(TR_NAME *hn, int port)
   }
 
   return retval;
+}
+
+/**
+ * Parse a string containing a port
+ *
+ * Returns the port number, which is always in the range 1-65535.
+ * On error, returns < 0. The absolute value is an error code from errno.h
+ *
+ * @param s
+ * @return port number or < 0 on error
+ */
+int tr_parse_port(const char *s)
+{
+  long port;
+  char *end;
+
+  errno = 0; /* strtol sets this, make sure it's zero to avoid false positives */
+  port = strtol(s, &end, 10);
+  if (errno) {
+    return -errno;
+  }
+
+  if (*end != '\0') {
+    return -EINVAL;
+  }
+
+  if ((port <= 0) || (port > 65535)) {
+    return -ERANGE;
+  }
+
+  return (int) port;
 }

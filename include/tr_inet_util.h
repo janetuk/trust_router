@@ -41,5 +41,6 @@
 char *tr_parse_host(TALLOC_CTX *mem_ctx, const char *s, int *port_out);
 
 TR_NAME *tr_hostname_and_port_to_name(TR_NAME *hn, int port);
+int tr_parse_port(const char *s);
 
 #endif //TRUST_ROUTER_TR_INET_UTIL_H

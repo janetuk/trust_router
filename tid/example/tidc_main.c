@@ -42,6 +42,7 @@
 #include <tid_internal.h>
 #include <trust_router/tr_dh.h>
 #include <trust_router/tid.h>
+#include <tr_inet_util.h>
 
 static void tidc_resp_handler (TIDC_INSTANCE * tidc, 
 			TID_REQ *req,
@@ -146,7 +147,19 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
       break;
 
     case 4:
-      arguments->port=strtol(arg, NULL, 10); /* optional */
+      arguments->port=tr_parse_port(arg); /* optional */
+      if (arguments->port < 0) {
+        switch(-(arguments->port)) {
+          case ERANGE:
+            printf("\nError parsing port (%s): port must be an integer in the range 1 - 65535\n\n", arg);
+            break;
+
+          default:
+            printf("\nError parsing port (%s): %s\n\n", arg, strerror(-arguments->port));
+            break;
+        }
+        argp_usage(state);
+      }
       break;
 
     default:
