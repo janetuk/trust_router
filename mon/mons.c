@@ -146,6 +146,7 @@ static TR_GSS_RC mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, TR_MSG **resp
   if (resp == NULL) {
     /* error processing the request */
     /* TODO send back an error */
+    *resp_msg = NULL; /* null this out so the caller doesn't mistake it for valid */
     goto cleanup;
   }
 
