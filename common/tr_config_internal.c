@@ -365,8 +365,8 @@ TR_CFG_RC tr_cfg_validate_internal(TR_CFG_INTERNAL *int_cfg)
     rc = TR_CFG_ERROR;
   }
 
-  if (invalid_port(int_cfg->monitoring_port)) {
-    tr_debug("tr_cfg_validate_internal: Error: invalid monitoring port (%d).", int_cfg->monitoring_port);
+  if (invalid_port(int_cfg->mons_port)) {
+    tr_debug("tr_cfg_validate_internal: Error: invalid monitoring port (%d).", int_cfg->mons_port);
     rc = TR_CFG_ERROR;
   }
 
