@@ -187,6 +187,9 @@ TR_APC *tr_cfg_parse_apcs(TALLOC_CTX *mem_ctx, json_t *japcs, TR_CFG_RC *rc)
   *rc=TR_CFG_SUCCESS;
 
 cleanup:
+  if (*rc != TR_CFG_SUCCESS)
+    apcs = NULL;
+
   talloc_free(tmp_ctx);
   return apcs;
 }
