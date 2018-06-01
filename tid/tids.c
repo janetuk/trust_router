@@ -306,7 +306,7 @@ static TR_GSS_RC tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, TR_MSG **mresp, 
 
   /* Handle the request and fill in resp */
   if (tids_handle_request(tids, req, resp) >= 0)
-  rc = TR_GSS_SUCCESS;
+    rc = TR_GSS_SUCCESS;
   else {
     /* The TID request was an error response */
     tr_debug("tids_req_cb: Error from tids_handle_request");
