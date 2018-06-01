@@ -89,13 +89,16 @@ const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
     case OPT_TYPE_SHOW_UPTIME:
       return "uptime";
 
-    case OPT_TYPE_SHOW_TID_REQ_COUNT:
+    case OPT_TYPE_SHOW_TID_REQS_PROCESSED:
       return "tid_reqs_processed";
 
-    case OPT_TYPE_SHOW_TID_REQ_ERR_COUNT:
+    case OPT_TYPE_SHOW_TID_REQS_FAILED:
+      return "tid_reqs_failed";
+
+    case OPT_TYPE_SHOW_TID_ERROR_COUNT:
       return "tid_error_count";
 
-    case OPT_TYPE_SHOW_TID_REQ_PENDING:
+    case OPT_TYPE_SHOW_TID_REQS_PENDING:
       return "tid_reqs_pending";
 
     case OPT_TYPE_SHOW_ROUTES:
@@ -128,9 +131,9 @@ MON_OPT_TYPE mon_opt_type_from_string(const char *s)
   return_if_matches(s, OPT_TYPE_SHOW_VERSION);
   return_if_matches(s, OPT_TYPE_SHOW_CONFIG_FILES);
   return_if_matches(s, OPT_TYPE_SHOW_UPTIME);
-  return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_COUNT);
-  return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_ERR_COUNT);
-  return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_PENDING);
+  return_if_matches(s, OPT_TYPE_SHOW_TID_REQS_PROCESSED);
+  return_if_matches(s, OPT_TYPE_SHOW_TID_ERROR_COUNT);
+  return_if_matches(s, OPT_TYPE_SHOW_TID_REQS_PENDING);
   return_if_matches(s, OPT_TYPE_SHOW_ROUTES);
   return_if_matches(s, OPT_TYPE_SHOW_PEERS);
   return_if_matches(s, OPT_TYPE_SHOW_COMMUNITIES);

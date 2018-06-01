@@ -41,7 +41,7 @@
 #include <mons_handlers.h>
 
 /**
- * Get the count of completed TID requests
+ * Get the count of successfully completed TID requests
  */
 static MON_RC handle_show_req_count(void *cookie, json_t **response_ptr)
 {
@@ -50,7 +50,20 @@ static MON_RC handle_show_req_count(void *cookie, json_t **response_ptr)
   return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
 }
 
-static MON_RC handle_show_req_err_count(void *cookie, json_t **response_ptr)
+/**
+ * Get the count of completed TID requests that resulted in error responses
+ */
+static MON_RC handle_show_req_error_count(void *cookie, json_t **response_ptr)
+{
+  TIDS_INSTANCE *tids = talloc_get_type_abort(cookie, TIDS_INSTANCE);
+  *response_ptr = json_integer(tids->req_error_count);
+  return (*response_ptr == NULL) ? MON_NOMEM : MON_SUCCESS;
+}
+
+/**
+ * Get the count of TID requests that could not be completed
+ */
+static MON_RC handle_show_error_count(void *cookie, json_t **response_ptr)
 {
   TIDS_INSTANCE *tids = talloc_get_type_abort(cookie, TIDS_INSTANCE);
   *response_ptr = json_integer(tids->error_count);
@@ -67,12 +80,15 @@ static MON_RC handle_show_req_pending(void *cookie, json_t **response_ptr)
 void tr_tid_register_mons_handlers(TIDS_INSTANCE *tids, MONS_INSTANCE *mons)
 {
   mons_register_handler(mons,
-                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQ_COUNT,
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQS_PROCESSED,
                         handle_show_req_count, tids);
   mons_register_handler(mons,
-                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQ_ERR_COUNT,
-                        handle_show_req_err_count, tids);
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQS_FAILED,
+                        handle_show_req_error_count, tids);
   mons_register_handler(mons,
-                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQ_PENDING,
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_ERROR_COUNT,
+                        handle_show_error_count, tids);
+  mons_register_handler(mons,
+                        MON_CMD_SHOW, OPT_TYPE_SHOW_TID_REQS_PENDING,
                         handle_show_req_pending, tids);
 }
