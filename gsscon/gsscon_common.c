@@ -53,6 +53,8 @@
  */
 
 #include <gsscon.h>
+#include <fcntl.h>
+#include <poll.h>
 
 /* --------------------------------------------------------------------------- */
 /* Display the contents of the buffer in hex and ascii                         */
@@ -86,6 +88,7 @@ static void PrintBuffer (const char *inBuffer,
 /* --------------------------------------------------------------------------- */
 /* Standard network read loop, accounting for EINTR, EOF and incomplete reads  */
 
+#define READBUFFER_TIMEOUT 60
 static int ReadBuffer (int     inSocket, 
                        size_t  inBufferLength, 
                        char   *ioBuffer)
@@ -94,13 +97,37 @@ static int ReadBuffer (int     inSocket,
     ssize_t bytesRead = 0;
     
     if (!ioBuffer) { err = EINVAL; }
-    
+
+    /* Read in non-blocking mode */
+    if (!err) {
+        err = fcntl(inSocket, F_SETFL, O_NONBLOCK);
+    }
+
     if (!err) {
         char *ptr = ioBuffer;
         do {
-            ssize_t count = read (inSocket, ptr, inBufferLength - bytesRead);
+            ssize_t count;
+            struct pollfd fds = {inSocket, POLLIN, 0}; /* poll for data ready on the socket */
+            int poll_rc = 0;
+
+            poll_rc = poll(&fds, 1, READBUFFER_TIMEOUT);
+            if (poll_rc == 0) {
+                /* timed out */
+                err = ETIMEDOUT;
+                continue;
+            } else if (poll_rc < 0) {
+                /* try again if we were interrupted, otherwise exit */
+                if (errno != EINTR) {
+                    err = errno;
+                }
+                continue;
+            }
+
+            /* Data should be ready to read */
+            count = read (inSocket, ptr, inBufferLength - bytesRead);
             if (count < 0) {
-                /* Try again on EINTR */
+                /* Try again on EINTR (if we get EAGAIN or EWOULDBLOCK, something is wrong because
+                 * we just polled the fd) */
                 if (errno != EINTR) { err = errno; }
             } else if (count == 0) {
                 err = ECONNRESET; /* EOF and we expected data */
@@ -109,8 +136,8 @@ static int ReadBuffer (int     inSocket,
                 bytesRead += count;
             }
         } while (!err && (bytesRead < inBufferLength));
-    } 
-    
+    }
+
     if (err) { gsscon_print_error (err, "ReadBuffer failed"); }
 
     return err;
