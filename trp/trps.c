@@ -430,11 +430,11 @@ TRP_RC trps_authorize_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
 {
   /* try to establish a GSS context */
   if (0!=trp_connection_auth(conn, trps->auth_handler, trps->cookie)) {
-    tr_notice("trps_authorize_connection: failed to authorize connection");
+    tr_debug("trps_authorize_connection: failed to authorize connection");
     trp_connection_close(conn);
     return TRP_ERROR;
   }
-  tr_notice("trps_authorize_connection: authorized connection");
+  tr_debug("trps_authorize_connection: authorized connection");
   return TRP_SUCCESS;
 }
 
