@@ -96,8 +96,9 @@ struct tid_process {
 };
 
 struct tids_instance {
-  int req_count;
-  int error_count;
+  int req_count; /* successful requests */
+  int req_error_count; /* unsuccessful requests */
+  int error_count; /* invalid requests or internal errors */
   char *priv_key;
   char *ipaddr;
   const char *hostname;

@@ -111,13 +111,13 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
  * @param data pointer to a MONS_INSTANCE
  * @return pointer to the response string or null to send no response
  */
-static TR_MSG *mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, void *data)
+static TR_GSS_RC mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, TR_MSG **resp_msg, void *data)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   MONS_INSTANCE *mons = talloc_get_type_abort(data, MONS_INSTANCE);
   MON_REQ *req = NULL;
   MON_RESP *resp = NULL;
-  TR_MSG *resp_msg = NULL; /* This is the response value */
+  TR_GSS_RC rc = TR_GSS_ERROR;
 
   /* Validate inputs */
   if (req_msg == NULL)
@@ -134,30 +134,32 @@ static TR_MSG *mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, void *data)
   }
 
   /* Allocate a response message */
-  resp_msg = talloc(tmp_ctx, TR_MSG);
-  if (resp_msg == NULL) {
+  *resp_msg = talloc(tmp_ctx, TR_MSG);
+  if (*resp_msg == NULL) {
     /* can't return a message, just emit an error */
     tr_crit("mons_req_cb: Error allocating response message.");
     goto cleanup;
   }
 
   /* Handle the request */
-  resp = mons_handle_request(resp_msg, mons, req);
+  resp = mons_handle_request(*resp_msg, mons, req);
   if (resp == NULL) {
     /* error processing the request */
     /* TODO send back an error */
+    *resp_msg = NULL; /* null this out so the caller doesn't mistake it for valid */
     goto cleanup;
   }
 
   /* Set the response message payload */
-  tr_msg_set_mon_resp(resp_msg, resp);
+  tr_msg_set_mon_resp(*resp_msg, resp);
 
   /* Put the response message in the caller's context so it does not get freed when we exit */
-  talloc_steal(mem_ctx, resp_msg);
+  talloc_steal(mem_ctx, *resp_msg);
+  rc = TR_GSS_SUCCESS;
 
 cleanup:
   talloc_free(tmp_ctx);
-  return resp_msg;
+  return rc;
 }
 
 /**
