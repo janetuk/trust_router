@@ -57,7 +57,7 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
   unsigned char *c_keybuf = NULL;
   int i;
   struct timeval tv;
-  struct tidc_resp_cookie *data = talloc_get_type_abort(cookie, struct tidc_resp_cookie);
+  struct tidc_resp_cookie *data = (struct tidc_resp_cookie *) cookie;
 
   printf ("Response received! Realm = %s, Community = %s.\n", resp->realm->buf, resp->comm->buf);
 
