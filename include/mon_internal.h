@@ -145,7 +145,7 @@ struct monc_instance {
 };
 
 /* Prototypes */
-/* tr_mon.c */
+/* mon_common.c */
 const char *mon_cmd_to_string(MON_CMD cmd);
 MON_CMD mon_cmd_from_string(const char *s);
 const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type);
