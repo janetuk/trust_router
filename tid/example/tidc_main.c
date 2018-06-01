@@ -44,6 +44,10 @@
 #include <trust_router/tid.h>
 #include <tr_inet_util.h>
 
+struct tidc_resp_cookie {
+  int succeeded;
+};
+
 static void tidc_resp_handler (TIDC_INSTANCE * tidc, 
 			TID_REQ *req,
 			TID_RESP *resp, 
@@ -53,8 +57,11 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
   unsigned char *c_keybuf = NULL;
   int i;
   struct timeval tv;
+  struct tidc_resp_cookie *data = talloc_get_type_abort(cookie, struct tidc_resp_cookie);
 
   printf ("Response received! Realm = %s, Community = %s.\n", resp->realm->buf, resp->comm->buf);
+
+  data->succeeded = 0;
 
   /* Generate the client key -- TBD, handle more than one server */
   if (TID_SUCCESS != resp->result) {
@@ -87,6 +94,7 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
   }
   printf("\n");
 
+  data->succeeded = 1;
   return;
 }
 
@@ -186,6 +194,11 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
   return 0; /* success */
 }
 
+/* Exit values */
+#define EXIT_OK 0
+#define EXIT_REQ_FAILED 2
+#define EXIT_ERROR 1
+
 /* assemble the argp parser */
 static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
@@ -197,6 +210,7 @@ int main (int argc,
   int rc;
   gss_ctx_id_t gssctx;
   struct cmdline_args opts;
+  struct tidc_resp_cookie cookie = {0};
 
   /* parse the command line*/
   /* set defaults */
@@ -226,27 +240,30 @@ int main (int argc,
   tidc_set_dh(tidc, tr_create_dh_params(NULL, 0));
   if (tidc_get_dh(tidc) == NULL) {
     printf("Error creating client DH params.\n");
-    return 1;
+    return EXIT_ERROR;
   }
 
   /* Set-up TID connection */
   if (-1 == (conn = tidc_open_connection(tidc, opts.server, opts.port, &gssctx))) {
     /* Handle error */
     printf("Error in tidc_open_connection.\n");
-    return 1;
+    return EXIT_ERROR;
   };
 
   /* Send a TID request */
   if (0 > (rc = tidc_send_request(tidc, conn, gssctx, opts.rp_realm, opts.target_realm, opts.community, 
-				  &tidc_resp_handler, NULL))) {
+				  &tidc_resp_handler, &cookie))) {
     /* Handle error */
     printf("Error in tidc_send_request, rc = %d.\n", rc);
-    return 1;
+    return EXIT_ERROR;
   }
     
   /* Clean-up the TID client instance, and exit */
   tidc_destroy(tidc);
 
-  return 0;
+  if (cookie.succeeded)
+    return EXIT_OK;
+  else
+    return EXIT_REQ_FAILED;
 }
 
