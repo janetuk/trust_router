@@ -88,7 +88,7 @@ static void PrintBuffer (const char *inBuffer,
 /* --------------------------------------------------------------------------- */
 /* Standard network read loop, accounting for EINTR, EOF and incomplete reads  */
 
-#define READBUFFER_TIMEOUT 60
+#define READBUFFER_TIMEOUT_SECONDS (60 * 1000)
 static int ReadBuffer (int     inSocket, 
                        size_t  inBufferLength, 
                        char   *ioBuffer)
@@ -110,7 +110,7 @@ static int ReadBuffer (int     inSocket,
             struct pollfd fds = {inSocket, POLLIN, 0}; /* poll for data ready on the socket */
             int poll_rc = 0;
 
-            poll_rc = poll(&fds, 1, READBUFFER_TIMEOUT);
+            poll_rc = poll(&fds, 1, READBUFFER_TIMEOUT_SECONDS);
             if (poll_rc == 0) {
                 /* timed out */
                 err = ETIMEDOUT;
