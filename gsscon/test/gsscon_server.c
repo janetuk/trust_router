@@ -129,6 +129,7 @@ int main (int argc, const char *argv[])
     int err = 0;
     OM_uint32 minorStatus;
     int port = kDefaultPort;
+    long tmp;
     int listenFD = -1;
     gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
     int i = 0;
@@ -136,8 +137,14 @@ int main (int argc, const char *argv[])
 
     for (i = 1; (i < argc) && !err; i++) {
         if ((strcmp (argv[i], "--port") == 0) && (i < (argc - 1))) {
-            port = strtol (argv[++i], NULL, 0);
-            if (port == 0) { err = errno; }
+            errno = 0; /* ensure this starts off at 0 */
+            tmp = strtol (argv[++i], NULL, 0);
+            if (errno)
+                err = errno;
+            else if ((tmp <= 0) || (tmp > 65535))
+                err = ERANGE;
+            else
+                port = (int) tmp;
         } else if ((strcmp(argv[i], "--service") == 0) && (i < (argc - 1))) {
             gServiceName = argv[++i];
         } else {

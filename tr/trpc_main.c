@@ -41,6 +41,7 @@
 #include <gsscon.h>
 #include <tr_debug.h>
 #include <tr_trp.h>
+#include <tr_inet_util.h>
 
 
 /* command-line option setup */
@@ -49,7 +50,7 @@
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - TRP Client";
+static const char doc[]=PACKAGE_NAME " - Moonshot Trust Router TRP Client";
 static const char arg_doc[]="<message> <server> [<port>]"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
@@ -92,7 +93,19 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
       break;
 
     case 2:
-      arguments->port=strtol(arg, NULL, 10); /* optional */
+      arguments->port=tr_parse_port(arg); /* optional */
+      if (arguments->port < 0) {
+        switch(-(arguments->port)) {
+          case ERANGE:
+            printf("\nError parsing port (%s): port must be an integer in the range 1 - 65535\n\n", arg);
+            break;
+
+          default:
+            printf("\nError parsing port (%s): %s\n\n", arg, strerror(-arguments->port));
+            break;
+        }
+        argp_usage(state);
+      }
       break;
 
     default:

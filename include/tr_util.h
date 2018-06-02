@@ -35,8 +35,17 @@
 #ifndef TR_UTIL_H
 #define TR_UTIL_H
 
+#include <stddef.h>
 #include <trust_router/tr_versioning.h>
 
-TR_EXPORT int tr_cmp_timespec(struct timespec *ts1, struct timespec *ts2);
+/* NB, tr_bin_to_hex() is also prototyped in trust_router/tr_dh.h */
+TR_EXPORT void tr_bin_to_hex(const unsigned char * bin, size_t binlen,
+                             char * hex_out, size_t hex_len);
+TR_EXPORT int tr_cmp_timespec(const struct timespec *ts1, const struct timespec *ts2);
+int tr_add_timespec(const struct timespec *ts1, const struct timespec *ts2, struct timespec *sum);
+int tr_sub_timespec(const struct timespec *ts1_copy, const struct timespec *ts2_copy, struct timespec *diff);
+char *timespec_to_str(const struct timespec *ts);
+struct timespec *tr_clock_convert(clockid_t from, const struct timespec *when,
+                                  clockid_t to, struct timespec *dst);
 
 #endif /* TR_UTIL_H */

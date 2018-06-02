@@ -41,33 +41,35 @@
 #include <assert.h>
 #include <talloc.h>
 
-
 #include <tr_apc.h>
 #include <tr_comm.h>
-#include <tr_msg.h>
-#include <tr_name_internal.h>
 #include <trp_internal.h>
+#include <mon_internal.h>
+#include <tr_msg.h>
+#include <tr_util.h>
+#include <tr_name_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
 #include <tr_debug.h>
+#include <tr_inet_util.h>
 
 /* JSON helpers */
-/* Read attribute attr from msg as an integer. Returns nonzero on error. */
-static int tr_msg_get_json_integer(json_t *jmsg, const char *attr, int *dest)
+/* Read attribute attr from msg as an integer. */
+static TRP_RC tr_msg_get_json_integer(json_t *jmsg, const char *attr, int *dest)
 {
   json_t *obj;
 
   obj=json_object_get(jmsg, attr);
   if (obj == NULL) {
-    return -1;
+    return TRP_MISSING;
   }
   /* check type */
   if (!json_is_integer(obj)) {
-    return -1;
+    return TRP_BADTYPE;
   }
 
   (*dest)=json_integer_value(obj);
-  return 0;
+  return TRP_SUCCESS;
 }
 
 /* Read attribute attr from msg as a string. Copies string into mem_ctx context so jmsg can
@@ -78,15 +80,15 @@ static TRP_RC tr_msg_get_json_string(json_t *jmsg, const char *attr, char **dest
 
   obj=json_object_get(jmsg, attr);
   if (obj == NULL)
-    return TRP_ERROR;
+    return TRP_MISSING;
 
   /* check type */
   if (!json_is_string(obj))
-    return TRP_ERROR;
+    return TRP_BADTYPE;
 
   *dest=talloc_strdup(mem_ctx, json_string_value(obj));
   if (*dest==NULL)
-    return TRP_ERROR;
+    return TRP_NOMEM;
 
   return TRP_SUCCESS;
 }
@@ -101,6 +103,17 @@ void tr_msg_set_msg_type(TR_MSG *msg, enum msg_type type)
   msg->msg_type = type;
 }
 
+/* NOTE: If you are manipulating messages with these getters/setters, the msg_rep
+ * objects are *not* put in the talloc context of the msg. If you are allocating
+ * the message directly with talloc, then you can talloc_steal() the rep into the
+ * message's context, but this is not handled automatically. */
+
+/**
+ * Get a TID_REQ message payload
+ *
+ * @param msg
+ * @return the message payload, or null if it is not a TID_REQUEST message
+ */
 TID_REQ *tr_msg_get_req(TR_MSG *msg)
 {
   if (msg->msg_type == TID_REQUEST)
@@ -108,12 +121,24 @@ TID_REQ *tr_msg_get_req(TR_MSG *msg)
   return NULL;
 }
 
+/**
+ * Set message's payload
+ *
+ * Does not manage talloc contexts, works with any means of allocating
+ * the objects.
+ */
 void tr_msg_set_req(TR_MSG *msg, TID_REQ *req)
 {
   msg->msg_rep = req;
   msg->msg_type = TID_REQUEST;
 }
 
+/**
+ * Get a TID_RESP message payload
+ *
+ * @param msg
+ * @return the message payload, or null if it is not a TID_RESPONSE message
+ */
 TID_RESP *tr_msg_get_resp(TR_MSG *msg)
 {
   if (msg->msg_type == TID_RESPONSE)
@@ -121,12 +146,74 @@ TID_RESP *tr_msg_get_resp(TR_MSG *msg)
   return NULL;
 }
 
+/**
+ * Set message's payload
+ *
+ * Does not manage talloc contexts, works with any means of allocating
+ * the objects.
+ */
 void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp)
 {
   msg->msg_rep = resp;
   msg->msg_type = TID_RESPONSE;
 }
 
+/**
+ * Get a MON_REQ message payload
+ *
+ * @param msg
+ * @return the message payload, or null if it is not a MON_REQUEST message
+ */
+MON_REQ *tr_msg_get_mon_req(TR_MSG *msg)
+{
+  if (msg->msg_type == MON_REQUEST)
+    return (MON_REQ *)msg->msg_rep;
+  return NULL;
+}
+
+/**
+ * Set message's payload
+ *
+ * Does not manage talloc contexts, works with any means of allocating
+ * the objects.
+ */
+void tr_msg_set_mon_req(TR_MSG *msg, MON_REQ *req)
+{
+  msg->msg_rep = req;
+  msg->msg_type = MON_REQUEST;
+}
+
+/**
+ * Get a MON_RESP message payload
+ *
+ * @param msg
+ * @return the message payload, or null if it is not a MON_RESPONSE message
+ */
+MON_RESP *tr_msg_get_mon_resp(TR_MSG *msg)
+{
+  if (msg->msg_type == MON_RESPONSE)
+    return (MON_RESP *)msg->msg_rep;
+  return NULL;
+}
+
+/**
+ * Set message's payload
+ *
+ * Does not manage talloc contexts, works with any means of allocating
+ * the objects.
+ */
+void tr_msg_set_mon_resp(TR_MSG *msg, MON_RESP *resp)
+{
+  msg->msg_rep = resp;
+  msg->msg_type = MON_RESPONSE;
+}
+
+/**
+ * Get a TRP_UPD message payload
+ *
+ * @param msg
+ * @return the message payload, or null if it is not a TRP_UPDATE message
+ */
 TRP_UPD *tr_msg_get_trp_upd(TR_MSG *msg)
 {
   if (msg->msg_type == TRP_UPDATE)
@@ -134,13 +221,24 @@ TRP_UPD *tr_msg_get_trp_upd(TR_MSG *msg)
   return NULL;
 }
 
+/**
+ * Set message's payload
+ *
+ * Does not manage talloc contexts, works with any means of allocating
+ * the objects.
+ */
 void tr_msg_set_trp_upd(TR_MSG *msg, TRP_UPD *update)
 {
   msg->msg_rep=update;
-  talloc_steal(NULL, update); /* should attach to msg, but TR_MSG not usually talloc'ed */
   msg->msg_type=TRP_UPDATE;
 }
 
+/**
+ * Get a TRP_REQ message payload
+ *
+ * @param msg
+ * @return the message payload, or null if it is not a TRP_REQUEST message
+ */
 TRP_REQ *tr_msg_get_trp_req(TR_MSG *msg)
 {
   if (msg->msg_type == TRP_REQUEST)
@@ -148,6 +246,12 @@ TRP_REQ *tr_msg_get_trp_req(TR_MSG *msg)
   return NULL;
 }
 
+/**
+ * Set message's payload
+ *
+ * Does not manage talloc contexts, works with any means of allocating
+ * the objects.
+ */
 void tr_msg_set_trp_req(TR_MSG *msg, TRP_REQ *req)
 {
   msg->msg_rep=req;
@@ -216,7 +320,8 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
   if ((!req) || (!req->rp_realm) || (!req->realm) || !(req->comm))
     return NULL;
 
-  assert(jreq = json_object());
+  jreq = json_object();
+  assert(jreq);
 
   jstr = tr_name_to_json_string(req->rp_realm);
   json_object_set_new(jreq, "rp_realm", jstr);
@@ -226,10 +331,15 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
 
   jstr = tr_name_to_json_string(req->comm);
   json_object_set_new(jreq, "community", jstr);
-  
+
   if (req->orig_coi) {
     jstr = tr_name_to_json_string(req->orig_coi);
     json_object_set_new(jreq, "orig_coi", jstr);
+  }
+
+  if (tid_req_get_request_id(req)) {
+    jstr = tr_name_to_json_string(tid_req_get_request_id(req));
+    json_object_set_new(jreq, "request_id", jstr);
   }
 
   json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tidc_dh));
@@ -246,13 +356,14 @@ static json_t * tr_msg_encode_tidreq(TID_REQ *req)
   return jreq;
 }
 
-static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
+static TID_REQ *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq)
 {
   TID_REQ *treq = NULL;
   json_t *jrp_realm = NULL;
   json_t *jrealm = NULL;
   json_t *jcomm = NULL;
   json_t *jorig_coi = NULL;
+  json_t *jrequest_id = NULL;
   json_t *jdh = NULL;
   json_t *jpath = NULL;
   json_t *jexpire_interval = NULL;
@@ -261,7 +372,8 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
     tr_crit("tr_msg_decode_tidreq(): Error allocating TID_REQ structure.");
     return NULL;
   }
- 
+  talloc_steal(mem_ctx, treq);
+
   /* store required fields from request */
   if ((NULL == (jrp_realm = json_object_get(jreq, "rp_realm"))) ||
       (NULL == (jrealm = json_object_get(jreq, "target_realm"))) ||
@@ -274,9 +386,9 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
   jpath = json_object_get(jreq, "path");
   jexpire_interval = json_object_get(jreq, "expiration_interval");
 
-  treq->rp_realm = tr_new_name((char *)json_string_value(jrp_realm));
-  treq->realm = tr_new_name((char *)json_string_value(jrealm));
-  treq->comm = tr_new_name((char *)json_string_value(jcomm));
+  treq->rp_realm = tr_new_name(json_string_value(jrp_realm));
+  treq->realm = tr_new_name(json_string_value(jrealm));
+  treq->comm = tr_new_name(json_string_value(jcomm));
 
   /* Get DH Info from the request */
   if (NULL == (jdh = json_object_get(jreq, "dh_info"))) {
@@ -288,7 +400,12 @@ static TID_REQ *tr_msg_decode_tidreq(json_t *jreq)
 
   /* store optional "orig_coi" field */
   if (NULL != (jorig_coi = json_object_get(jreq, "orig_coi"))) {
-    treq->orig_coi = tr_new_name((char *)json_string_value(jorig_coi));
+    treq->orig_coi = tr_new_name(json_string_value(jorig_coi));
+  }
+
+  /* store optional "request_id" field */
+  if (NULL != (jrequest_id = json_object_get(jreq, "request_id"))) {
+    tid_req_set_request_id(treq, tr_new_name(json_string_value(jrequest_id)));
   }
 
   treq->cons = (TR_CONSTRAINT_SET *) json_object_get(jreq, "constraints");
@@ -469,6 +586,11 @@ static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
     json_object_set_new(jresp, "orig_coi", jstr);
   }
 
+  if (tid_resp_get_request_id(resp)) {
+    jstr = tr_name_to_json_string(tid_resp_get_request_id(resp));
+    json_object_set_new(jresp, "request_id", jstr);
+  }
+
   if (NULL == resp->servers) {
     tr_debug("tr_msg_encode_tidresp(): No servers to encode.");
   }
@@ -483,7 +605,7 @@ static json_t * tr_msg_encode_tidresp(TID_RESP *resp)
   return jresp;
 }
 
-static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
+static TID_RESP *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp)
 {
   TID_RESP *tresp = NULL;
   json_t *jresult = NULL;
@@ -491,14 +613,14 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
   json_t *jrealm = NULL;
   json_t *jcomm = NULL;
   json_t *jorig_coi = NULL;
+  json_t *jrequest_id = NULL;
   json_t *jservers = NULL;
   json_t *jerr_msg = NULL;
 
-  if (!(tresp=tid_resp_new(NULL))) {
+  if (!(tresp=tid_resp_new(mem_ctx))) {
     tr_crit("tr_msg_decode_tidresp(): Error allocating TID_RESP structure.");
     return NULL;
   }
- 
 
   /* store required fields from response */
   if ((NULL == (jresult = json_object_get(jresp, "result"))) ||
@@ -545,21 +667,46 @@ static TID_RESP *tr_msg_decode_tidresp(json_t *jresp)
 
   /* store optional "orig_coi" field */
   if ((NULL != (jorig_coi = json_object_get(jresp, "orig_coi"))) &&
-      (!json_is_object(jorig_coi))) {
+      json_is_string(jorig_coi)) {
     tresp->orig_coi = tr_new_name(json_string_value(jorig_coi));
   }
-     
+
+  /* store optional "request_id" field */
+  if ((NULL != (jrequest_id = json_object_get(jresp, "request_id"))) &&
+      json_is_string(jrequest_id)) {
+    tid_resp_set_request_id(tresp, tr_new_name(json_string_value(jrequest_id)));
+  }
+
   return tresp;
 }
 
+static json_t *hostname_and_port_to_json(TR_NAME *hostname, int port)
+{
+  char *s_hostname = tr_name_strdup(hostname);
+  char *s;
+  json_t *j;
 
-/* Information records for TRP update msg 
+  if (s_hostname == NULL)
+    return NULL;
+
+  s = talloc_asprintf(NULL, "%s:%d", s_hostname, port);
+  free(s_hostname);
+
+  if (s == NULL)
+    return NULL;
+
+  j = json_string(s);
+  talloc_free(s);
+
+  return j;
+}
+
+/* Information records for TRP update msg
  * requires that jrec already be allocated */
 static TRP_RC tr_msg_encode_inforec_route(json_t *jrec, TRP_INFOREC *rec)
 {
   json_t *jstr=NULL;
   json_t *jint=NULL;
-  char *s=NULL;
 
   if (rec==NULL)
     return TRP_BADTYPE;
@@ -567,14 +714,17 @@ static TRP_RC tr_msg_encode_inforec_route(json_t *jrec, TRP_INFOREC *rec)
   if (trp_inforec_get_trust_router(rec)==NULL)
     return TRP_ERROR;
 
-  s=tr_name_strdup(trp_inforec_get_trust_router(rec));
-  if (s==NULL)
-    return TRP_NOMEM;
-  jstr=json_string(s);
-  free(s);s=NULL;
+  jstr=hostname_and_port_to_json(trp_inforec_get_trust_router(rec),
+                                 trp_inforec_get_trust_router_port(rec));
   if(jstr==NULL)
-    return TRP_ERROR;
+    return TRP_NOMEM;
   json_object_set_new(jrec, "trust_router", jstr);
+
+  jstr=hostname_and_port_to_json(trp_inforec_get_next_hop(rec),
+                                 trp_inforec_get_next_hop_port(rec));
+  if(jstr==NULL)
+    return TRP_NOMEM;
+  json_object_set_new(jrec, "next_hop", jstr);
 
   jint=json_integer(trp_inforec_get_metric(rec));
   if(jint==NULL)
@@ -766,18 +916,71 @@ static TRP_RC tr_msg_decode_trp_inforec_route(json_t *jrecord, TRP_INFOREC *rec)
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_RC rc=TRP_ERROR;
   char *s=NULL;
+  TR_NAME *name;
+  char *hostname;
+  int port;
   int num=0;
 
+  /* get the trust router */
   rc=tr_msg_get_json_string(jrecord, "trust_router", &s, tmp_ctx);
   if (rc != TRP_SUCCESS)
     goto cleanup;
-  if (TRP_SUCCESS!=trp_inforec_set_trust_router(rec, tr_new_name(s))) {
-    rc=TRP_ERROR;
+
+  hostname = tr_parse_host(tmp_ctx, s, &port);
+  if ((NULL == hostname)
+      || (NULL == (name = tr_new_name(hostname)))
+      || (port < 0)) {
+    rc = TRP_ERROR;
     goto cleanup;
   }
   talloc_free(s); s=NULL;
+  talloc_free(hostname);
 
-  trp_inforec_set_next_hop(rec, NULL); /* make sure this is null (filled in later) */
+  if (port == 0)
+    port = TRP_PORT;
+
+  if (TRP_SUCCESS!= trp_inforec_set_trust_router(rec, name, port)) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+
+  /* Now do the next hop. If it's not present, use the trust_router for backward
+   * compatibility */
+  switch(tr_msg_get_json_string(jrecord, "next_hop", &s, tmp_ctx)) {
+    case TRP_SUCCESS:
+      /* we got a next_hop field */
+      hostname = tr_parse_host(tmp_ctx, s, &port);
+      if ((hostname == NULL)
+          || (NULL == (name = tr_new_name(hostname)))
+          || (port < 0)) {
+        rc = TRP_ERROR;
+        goto cleanup;
+      }
+      break;
+
+    case TRP_MISSING:
+      /* no next_hop field; use the trust router */
+      name = tr_dup_name(trp_inforec_get_trust_router(rec));
+      if (name == NULL) {
+        rc = TRP_ERROR;
+        goto cleanup;
+      }
+      break;
+
+    default:
+      /* something went wrong */
+      rc = TRP_ERROR;
+      goto cleanup;
+  }
+  talloc_free(s); s=NULL;
+
+  if (port == 0)
+    port = TID_PORT;
+
+  if (TRP_SUCCESS!= trp_inforec_set_next_hop(rec, name, port)) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
 
   rc=tr_msg_get_json_integer(jrecord, "metric", &num);
   if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_metric(rec,num)))
@@ -1144,21 +1347,23 @@ cleanup:
   return req;
 }
 
-char *tr_msg_encode(TR_MSG *msg) 
+char *tr_msg_encode(TALLOC_CTX *mem_ctx, TR_MSG *msg)
 {
   json_t *jmsg=NULL;
   json_t *jmsg_type=NULL;
+  char *encoded_tmp=NULL;
   char *encoded=NULL;
   TID_RESP *tidresp=NULL;
   TID_REQ *tidreq=NULL;
   TRP_UPD *trpupd=NULL;
   TRP_REQ *trpreq=NULL;
+  MON_REQ *monreq=NULL;
+  MON_RESP *monresp=NULL;
 
   /* TBD -- add error handling */
   jmsg = json_object();
 
-  switch (msg->msg_type) 
-    {
+  switch (msg->msg_type) {
     case TID_REQUEST:
       jmsg_type = json_string("tid_request");
       json_object_set_new(jmsg, "msg_type", jmsg_type);
@@ -1187,18 +1392,37 @@ char *tr_msg_encode(TR_MSG *msg)
       json_object_set_new(jmsg, "msg_body", tr_msg_encode_trp_req(trpreq));
       break;
 
+    case MON_REQUEST:
+      jmsg_type = json_string("mon_request");
+      json_object_set_new(jmsg, "msg_type", jmsg_type);
+      monreq=tr_msg_get_mon_req(msg);
+      json_object_set_new(jmsg, "msg_body", mon_req_encode(monreq));
+      break;
+
+    case MON_RESPONSE:
+      jmsg_type = json_string("mon_response");
+      json_object_set_new(jmsg, "msg_type", jmsg_type);
+      monresp=tr_msg_get_mon_resp(msg);
+      json_object_set_new(jmsg, "msg_body", mon_resp_encode(monresp));
+      break;
+
     default:
       json_decref(jmsg);
       return NULL;
-    }
+  }
 
-  encoded=json_dumps(jmsg, 0);
+  /* We should perhaps use json_set_alloc_funcs to automatically use talloc, but for
+   * now, we'll encode to a malloc'ed buffer, then copy that to a talloc'ed buffer. */
+  encoded_tmp=json_dumps(jmsg, 0);                // malloc'ed version
+  json_decref(jmsg);                              // free the JSON structure
+  encoded = talloc_strdup(mem_ctx, encoded_tmp);  // get the talloc'ed version
+  free(encoded_tmp);                              // free the malloc'ed version
+
   tr_debug("tr_msg_encode: outgoing msg=%s", encoded);
-  json_decref(jmsg);
   return encoded;
 }
 
-TR_MSG *tr_msg_decode(const char *jbuf, size_t buflen)
+TR_MSG *tr_msg_decode(TALLOC_CTX *mem_ctx, const char *jbuf, size_t buflen)
 {
   TR_MSG *msg=NULL;
   json_t *jmsg = NULL;
@@ -1212,14 +1436,12 @@ TR_MSG *tr_msg_decode(const char *jbuf, size_t buflen)
     return NULL;
   }
 
-  if (!(msg = malloc(sizeof(TR_MSG)))) {
+  if (!(msg = talloc_zero(mem_ctx, TR_MSG))) {
     tr_debug("tr_msg_decode(): Error allocating TR_MSG structure.");
     json_decref(jmsg);
     return NULL;
   }
  
-  memset(msg, 0, sizeof(TR_MSG));
-
   if ((NULL == (jtype = json_object_get(jmsg, "msg_type"))) ||
       (NULL == (jbody = json_object_get(jmsg, "msg_body")))) {
     tr_debug("tr_msg_decode(): Error parsing message header.");
@@ -1232,19 +1454,28 @@ TR_MSG *tr_msg_decode(const char *jbuf, size_t buflen)
 
   if (0 == strcmp(mtype, "tid_request")) {
     msg->msg_type = TID_REQUEST;
-    tr_msg_set_req(msg, tr_msg_decode_tidreq(jbody));
+    tr_msg_set_req(msg, tr_msg_decode_tidreq(msg, jbody));
   }
   else if (0 == strcmp(mtype, "tid_response")) {
     msg->msg_type = TID_RESPONSE;
-    tr_msg_set_resp(msg, tr_msg_decode_tidresp(jbody));
+    tr_msg_set_resp(msg, tr_msg_decode_tidresp(msg, jbody));
   }
   else if (0 == strcmp(mtype, "trp_update")) {
     msg->msg_type = TRP_UPDATE;
-    tr_msg_set_trp_upd(msg, tr_msg_decode_trp_upd(NULL, jbody)); /* null talloc context for now */
+    tr_msg_set_trp_upd(msg, tr_msg_decode_trp_upd(msg, jbody));
   }
   else if (0 == strcmp(mtype, "trp_request")) {
     msg->msg_type = TRP_UPDATE;
-    tr_msg_set_trp_req(msg, tr_msg_decode_trp_req(NULL, jbody)); /* null talloc context for now */
+    tr_msg_set_trp_req(msg, tr_msg_decode_trp_req(msg, jbody));
+  }
+  else if (0 == strcmp(mtype, "mon_request")) {
+    msg->msg_type = MON_REQUEST;
+    tr_msg_set_mon_req(msg, mon_req_decode(msg, jbody));
+  }
+  /* We do not currently handle monitoring responses */
+  else if (0 == strcmp(mtype, "mon_response")) {
+    msg->msg_type = MON_RESPONSE;
+    tr_msg_set_mon_resp(msg, mon_resp_decode(msg, jbody));
   }
   else {
     msg->msg_type = TR_UNKNOWN;
@@ -1259,29 +1490,11 @@ TR_MSG *tr_msg_decode(const char *jbuf, size_t buflen)
 void tr_msg_free_encoded(char *jmsg)
 {
   if (jmsg)
-    free (jmsg);
+    talloc_free(jmsg);
 }
 
 void tr_msg_free_decoded(TR_MSG *msg)
 {
-  if (msg) {
-    if (msg->msg_rep!=NULL) {
-      switch (msg->msg_type) {
-        case TID_REQUEST:
-          tid_req_free(tr_msg_get_req(msg));
-          break;
-        case TID_RESPONSE:
-          tid_resp_free(tr_msg_get_resp(msg));
-          break;
-        case TRP_UPDATE:
-          trp_upd_free(tr_msg_get_trp_upd(msg));
-          break;
-        case TRP_REQUEST:
-          trp_req_free(tr_msg_get_trp_req(msg));
-        default:
-          break;
-      }
-    }
-    free (msg);
-  }
+  if (msg)
+    talloc_free(msg);
 }

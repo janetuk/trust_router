@@ -43,7 +43,9 @@
 #include <gsscon.h>
 #include <tr_mq.h>
 #include <tr_msg.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
+#include <trp_route.h>
 #include <trp_rtable.h>
 #include <tr_apc.h>
 #include <tr_comm.h>
@@ -56,8 +58,9 @@
 /* TRP update record types */
 typedef struct trp_inforec_route {
   TR_NAME *trust_router;
+  int trust_router_port;
   TR_NAME *next_hop;
-  unsigned int next_hop_port;
+  int next_hop_port;
   unsigned int metric;
   unsigned int interval;
 } TRP_INFOREC_ROUTE;
@@ -114,8 +117,8 @@ struct trp_connection {
   TRP_CONNECTION *next;
   pthread_t *thread; /* thread servicing this connection */
   int fd;
-  TR_NAME *gssname;
-  TR_NAME *peer; /* TODO: why is there a peer and a gssname? jlr */
+  TR_NAME *gssname; /* the gss service name we presented for passive auth */
+  TR_NAME *peer; /* gssname of incoming peer */
   gss_ctx_id_t *gssctx;
   TRP_CONNECTION_STATUS status;
   void (*status_change_cb)(TRP_CONNECTION *conn, void *cookie);
@@ -137,7 +140,7 @@ struct trpc_instance {
   TRPC_INSTANCE *next;
   TR_NAME *gssname;
   char *server;
-  unsigned int port;
+  int port;
   TRP_CONNECTION *conn;
   TR_MQ *mq; /* msgs from master to trpc */
 };
@@ -145,7 +148,8 @@ struct trpc_instance {
 /* TRP Server Instance Data */
 struct trps_instance {
   char *hostname;
-  unsigned int port;
+  int trps_port;
+  int tids_port; /* used for route advertisements; must agree with our tids configuration */
   TRP_AUTH_FUNC auth_handler;
   TRPS_MSG_FUNC msg_handler;
   void *cookie;
@@ -185,8 +189,8 @@ TRP_CONNECTION *trp_connection_get_next(TRP_CONNECTION *conn);
 TRP_CONNECTION *trp_connection_remove(TRP_CONNECTION *conn, TRP_CONNECTION *remove);
 void trp_connection_append(TRP_CONNECTION *conn, TRP_CONNECTION *new);
 int trp_connection_auth(TRP_CONNECTION *conn, TRP_AUTH_FUNC auth_callback, void *callback_data);
-TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *gssname);
-TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, unsigned int port);
+TRP_CONNECTION *trp_connection_accept(TALLOC_CTX *mem_ctx, int listen, TR_NAME *gss_servicename);
+TRP_RC trp_connection_initiate(TRP_CONNECTION *conn, char *server, int port);
 
 TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx);
 void trpc_free (TRPC_INSTANCE *trpc);
@@ -201,12 +205,12 @@ void trpc_set_server(TRPC_INSTANCE *trpc, char *server);
 TR_NAME *trpc_get_gssname(TRPC_INSTANCE *trpc);
 void trpc_set_gssname(TRPC_INSTANCE *trpc, TR_NAME *gssname);
 unsigned int trpc_get_port(TRPC_INSTANCE *trpc);
-void trpc_set_port(TRPC_INSTANCE *trpc, unsigned int port);
+void trpc_set_port(TRPC_INSTANCE *trpc, int port);
 TRP_CONNECTION_STATUS trpc_get_status(TRPC_INSTANCE *trpc);
 TR_MQ *trpc_get_mq(TRPC_INSTANCE *trpc);
 void trpc_set_mq(TRPC_INSTANCE *trpc, TR_MQ *mq);
 void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
-TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc);
+TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc, struct timespec *ts_abort);
 void trpc_mq_clear(TRPC_INSTANCE *trpc);
 void trpc_master_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg);
 TR_MQ_MSG *trpc_master_mq_pop(TRPC_INSTANCE *trpc);
@@ -237,7 +241,7 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       TRPS_MSG_FUNC msg_handler,
                       TRP_AUTH_FUNC auth_handler,
                       const char *hostname,
-                      unsigned int port,
+                      int port,
                       void *cookie,
                       int *fd_out,
                       size_t max_fd);
@@ -273,11 +277,13 @@ TR_NAME *trp_inforec_get_realm(TRP_INFOREC *rec);
 TR_NAME *trp_inforec_dup_realm(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_realm(TRP_INFOREC *rec, TR_NAME *realm);
 TR_NAME *trp_inforec_get_trust_router(TRP_INFOREC *rec);
+int trp_inforec_get_trust_router_port(TRP_INFOREC *rec);
 TR_NAME *trp_inforec_dup_trust_router(TRP_INFOREC *rec);
-TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router);
+TRP_RC trp_inforec_set_trust_router(TRP_INFOREC *rec, TR_NAME *trust_router, int port);
 TR_NAME *trp_inforec_get_next_hop(TRP_INFOREC *rec);
+int trp_inforec_get_next_hop_port(TRP_INFOREC *rec);
 TR_NAME *trp_inforec_dup_next_hop(TRP_INFOREC *rec);
-TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop);
+TRP_RC trp_inforec_set_next_hop(TRP_INFOREC *rec, TR_NAME *next_hop, int port);
 unsigned int trp_inforec_get_metric(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_metric(TRP_INFOREC *rec, unsigned int metric);
 unsigned int trp_inforec_get_interval(TRP_INFOREC *rec);
