@@ -62,7 +62,6 @@ static json_t *server_to_json_string(const char *server, int port)
 static json_t *last_attempt_to_json_string(TRP_PEER *peer)
 {
   struct timespec ts_zero = {0, 0};
-  struct timespec *last_conn_attempt;
   char *s = NULL;
   json_t *jstr = NULL;
 
