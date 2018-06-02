@@ -62,6 +62,7 @@ static json_t *server_to_json_string(const char *server, int port)
 static json_t *last_attempt_to_json_string(TRP_PEER *peer)
 {
   struct timespec ts_zero = {0, 0};
+  struct timespec *last_conn_attempt;
   char *s = NULL;
   json_t *jstr = NULL;
 
@@ -98,7 +99,7 @@ json_t *trp_peer_to_json(TRP_PEER *peer)
                      json_boolean(trp_peer_get_outgoing_status(peer) == PEER_CONNECTED));
   OBJECT_SET_OR_FAIL(peer_json, "connected_from",
                      json_boolean(trp_peer_get_incoming_status(peer) == PEER_CONNECTED));
-  OBJECT_SET_OR_FAIL(peer_json, "last_connection_attempt",
+  OBJECT_SET_OR_SKIP(peer_json, "last_connection_attempt",
                      last_attempt_to_json_string(peer));
   OBJECT_SET_OR_FAIL(peer_json, "allowed_credentials",
                      tr_gss_names_to_json_array(trp_peer_get_gss_names(peer)));
