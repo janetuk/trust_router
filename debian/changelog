@@ -1,3 +1,18 @@
+moonshot-trust-router (3.4.0-1) unstable; urgency=medium
+
+  * Add monitoring interface and trmon utility
+  * Support non-default TID and TRP ports
+  * Add timeout to GSS buffer reads to prevent hung processes
+  * Changes to configuration files
+    - ports now specified by hostname:port for AAA servers / trust routers
+    - "monitoring" section added to internal configuration
+  * Fix several bugs and memory leaks
+  * Improved cleanup of terminated subprocesses
+  * Improvements to logging
+  * Add a "request_id" to TID requests
+
+ -- Jennifer Richards <jennifer@painless-security.com>  Mon, 4 Jun 2018 11:00:00 -0400
+
 moonshot-trust-router (3.3.0-1) unstable; urgency=medium
 
   * Fix segfault when sweeping realms and communities
