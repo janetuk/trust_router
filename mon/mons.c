@@ -42,6 +42,7 @@
 #include <mon_internal.h>
 #include <tr_socket.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 #include <tr_gss.h>
 
 #include "mons_handlers.h"
@@ -72,7 +73,7 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
 
   if (mons) {
     mons->hostname = NULL;
-    mons->port = 0;
+    mons->mon_port = 0;
     mons->tids = NULL;
     mons->trps = NULL;
     mons->req_handler = NULL;
@@ -110,13 +111,13 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
  * @param data pointer to a MONS_INSTANCE
  * @return pointer to the response string or null to send no response
  */
-static TR_MSG *mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, void *data)
+static TR_GSS_RC mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, TR_MSG **resp_msg, void *data)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   MONS_INSTANCE *mons = talloc_get_type_abort(data, MONS_INSTANCE);
   MON_REQ *req = NULL;
   MON_RESP *resp = NULL;
-  TR_MSG *resp_msg = NULL; /* This is the response value */
+  TR_GSS_RC rc = TR_GSS_ERROR;
 
   /* Validate inputs */
   if (req_msg == NULL)
@@ -133,30 +134,32 @@ static TR_MSG *mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, void *data)
   }
 
   /* Allocate a response message */
-  resp_msg = talloc(tmp_ctx, TR_MSG);
-  if (resp_msg == NULL) {
+  *resp_msg = talloc(tmp_ctx, TR_MSG);
+  if (*resp_msg == NULL) {
     /* can't return a message, just emit an error */
     tr_crit("mons_req_cb: Error allocating response message.");
     goto cleanup;
   }
 
   /* Handle the request */
-  resp = mons_handle_request(resp_msg, mons, req);
+  resp = mons_handle_request(*resp_msg, mons, req);
   if (resp == NULL) {
     /* error processing the request */
     /* TODO send back an error */
+    *resp_msg = NULL; /* null this out so the caller doesn't mistake it for valid */
     goto cleanup;
   }
 
   /* Set the response message payload */
-  tr_msg_set_mon_resp(resp_msg, resp);
+  tr_msg_set_mon_resp(*resp_msg, resp);
 
   /* Put the response message in the caller's context so it does not get freed when we exit */
-  talloc_steal(mem_ctx, resp_msg);
+  talloc_steal(mem_ctx, *resp_msg);
+  rc = TR_GSS_SUCCESS;
 
 cleanup:
   talloc_free(tmp_ctx);
-  return resp_msg;
+  return rc;
 }
 
 /**
@@ -174,16 +177,22 @@ cleanup:
  * @param max_fd
  * @return
  */
-int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH_FUNC *auth_handler, const char *hostname,
-                      unsigned int port, void *cookie, int *fd_out, size_t max_fd)
+int mons_get_listener(MONS_INSTANCE *mons,
+                      MONS_REQ_FUNC *req_handler,
+                      MONS_AUTH_FUNC *auth_handler,
+                      const char *hostname,
+                      int port,
+                      void *cookie,
+                      int *fd_out,
+                      size_t max_fd)
 {
   size_t n_fd=0;
   size_t ii=0;
 
-  mons->port = port;
+  mons->mon_port = port;
   n_fd = tr_sock_listen_all(port, fd_out, max_fd);
   if (n_fd<=0)
-    tr_err("mons_get_listener: Error opening port %d");
+    tr_err("mons_get_listener: Error opening port %d", port);
   else {
     /* opening port succeeded */
     tr_info("mons_get_listener: Opened port %d.", port);
@@ -214,6 +223,48 @@ int mons_get_listener(MONS_INSTANCE *mons, MONS_REQ_FUNC *req_handler, MONS_AUTH
 }
 
 /**
+ * Process to handle an incoming monitoring request
+ *
+ * This should be run in a child process after fork(). Handles the request
+ * and terminates. Never returns to the caller.
+ *
+ * @param mons the monitoring server instance
+ * @param conn_fd file descriptor for the incoming connection
+ */
+static void mons_handle_proc(MONS_INSTANCE *mons, int conn_fd)
+{
+  struct rlimit rlim; /* for disabling core dump */
+
+  switch(tr_gss_handle_connection(conn_fd,
+                                  "trustmonitor", mons->hostname, /* acceptor name */
+                                  mons->auth_handler, mons->cookie, /* auth callback and cookie */
+                                  mons_req_cb, mons /* req callback and cookie */
+  )) {
+    case TR_GSS_SUCCESS:
+      /* do nothing */
+      break;
+
+    case TR_GSS_ERROR:
+      tr_debug("mons_accept: Error returned by tr_gss_handle_connection()");
+      break;
+
+    default:
+      tr_err("mons_accept: Unexpected value returned by tr_gss_handle_connection()");
+      break;
+  }
+  close(conn_fd);
+
+  /* This ought to be an exit(0), but log4shib does not play well with fork() due to
+   * threading issues. To ensure we do not get stuck in the exit handler, we will
+   * abort. First disable core dump for this subprocess (the main process will still
+   * dump core if the environment allows). */
+  rlim.rlim_cur = 0; /* max core size of 0 */
+  rlim.rlim_max = 0; /* prevent the core size limit from being raised later */
+  setrlimit(RLIMIT_CORE, &rlim);
+  abort(); /* exit hard */
+}
+
+/**
  * Accept and process a connection on a port opened with mons_get_listener()
  *
  * @param mons monitoring interface instance
@@ -226,7 +277,7 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
   int pid=-1;
 
   if (0 > (conn = tr_sock_accept(listen))) {
-    tr_err("mons_accept: Error accepting connection");
+    tr_debug("mons_accept: Error accepting connection");
     return 1;
   }
 
@@ -236,30 +287,13 @@ int mons_accept(MONS_INSTANCE *mons, int listen)
   }
 
   if (pid == 0) {
-    close(listen);
-    switch(tr_gss_handle_connection(conn,
-                                    "trustmonitor", mons->hostname, /* acceptor name */
-                                    mons->auth_handler, mons->cookie, /* auth callback and cookie */
-                                    mons_req_cb, mons /* req callback and cookie */
-    )) {
-      case TR_GSS_SUCCESS:
-        /* do nothing */
-        break;
-
-      case TR_GSS_ERROR:
-        tr_debug("mons_accept: Error returned by tr_gss_handle_connection()");
-        break;
-
-      default:
-        tr_err("mons_accept: Unexpected value returned by tr_gss_handle_connection()");
-        break;
-    }
-    close(conn);
-    exit(0); /* exit to kill forked child process */
+    /* Only the child process gets here */
+    close(listen); /* this belongs to the parent */
+    mons_handle_proc(mons, conn); /* never returns */
   }
 
   /* Only the parent process gets here */
-  close(conn);
+  close(conn); /* this belongs to the child */
   g_array_append_val(mons->pids, pid);
 
   /* clean up any processes that have completed */

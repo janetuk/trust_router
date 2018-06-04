@@ -39,6 +39,7 @@
 
 #include <mon_internal.h>
 #include <tr_debug.h>
+#include <tr_inet_util.h>
 
 
 /* command-line option setup */
@@ -52,7 +53,31 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - Moonshot Trust Router Monitoring Client";
+static const char doc[] =
+    PACKAGE_NAME " - Moonshot Trust Router Monitoring Client"
+    "\v" /* options list goes here */
+    "Supported monitoring commands:\n"
+    "\n"
+    "  show [<option> ...]\n"
+    "\n"
+    "     Show information about the Trust Router's current state.\n"
+    "\n"
+    "     Options:\n"
+    "       version            - current Trust Router software version\n"
+    "       config_files       - currently loaded configuration files\n"
+    "       uptime             - time, in seconds, since the Trust Router launched\n"
+    "       tid_reqs_processed - number of TID requests completed successfully\n"
+    "       tid_reqs_failed    - number of TID requests completed with errors\n"
+    "       tid_reqs_pending   - number of TID requests currently being processed\n"
+    "       tid_error_count    - number of unprocessable TID connections\n"
+    "       routes             - current TID routing table\n"
+    "       peers              - dynamic Trust Router peer table\n"
+    "       communities        - community table\n"
+    "       realms             - known realm table\n"
+    "       rp_clients         - authorized TID RP clients\n"
+    "\n"
+    "    If no options are specified, data for all options will be retrieved.\n";
+
 static const char arg_doc[]="<server> <port> <command> [<option> ...]"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
@@ -66,7 +91,7 @@ static const struct argp_option cmdline_options[] = {
 /* structure for communicating with option parser */
 struct cmdline_args {
   char *server;
-  unsigned int port;
+  int port;
   MON_CMD command;
   MON_OPT_TYPE options[MAX_OPTIONS];
   unsigned int n_options;
@@ -75,7 +100,7 @@ struct cmdline_args {
 /* parser for individual options - fills in a struct cmdline_args */
 static error_t parse_option(int key, char *arg, struct argp_state *state)
 {
-  long tmp_l = 0;
+  int err = 0;
 
   /* get a shorthand to the command line argument structure, part of state */
   struct cmdline_args *arguments=state->input;
@@ -84,7 +109,6 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
     case 'v':
       print_version_info();
       exit(0);
-      break;
 
     case ARGP_KEY_ARG: /* handle argument (not option) */
       switch (state->arg_num) {
@@ -93,31 +117,40 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
           break;
 
         case 1:
-          tmp_l = strtol(arg, NULL, 10);
-          if (errno || (tmp_l < 0) || (tmp_l > 65535)) /* max valid port */
-            argp_usage(state);
+          arguments->port=tr_parse_port(arg); /* optional */
+          if (arguments->port < 0) {
+            switch(-(arguments->port)) {
+              case ERANGE:
+                printf("\nError parsing port (%s): port must be an integer in the range 1 - 65535\n\n", arg);
+                break;
 
-          arguments->port=(unsigned int) tmp_l;
+              default:
+                printf("\nError parsing port (%s): %s\n\n", arg, strerror(-arguments->port));
+                break;
+            }
+            argp_usage(state);
+          }
           break;
 
         case 2:
           arguments->command=mon_cmd_from_string(arg);
           if (arguments->command == MON_CMD_UNKNOWN) {
-            printf("\nUnknown command '%s'\n", arg);
-            argp_usage(state);
+            printf("\nUnknown command '%s'\n\n", arg);
+            err = 1;
           }
           break;
 
         default:
           if (arguments->n_options >= MAX_OPTIONS) {
-            printf("\nToo many command options given, limit is %d\n", MAX_OPTIONS);
-            argp_usage(state);
+            printf("\nToo many command options given, limit is %d\n\n", MAX_OPTIONS);
+            err = 1;
+            break;
           }
 
           arguments->options[arguments->n_options] = mon_opt_type_from_string(arg);
           if (arguments->options[arguments->n_options] == OPT_TYPE_UNKNOWN) {
-            printf("\nUnknown command option '%s'\n", arg);
-            argp_usage(state);
+            printf("\nUnknown command option '%s'\n\n", arg);
+            err = 1;
           }
           arguments->n_options++;
           break;
@@ -127,7 +160,7 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
     case ARGP_KEY_END: /* no more arguments */
       if (state->arg_num < 3) {
         /* not enough arguments encountered */
-        argp_usage(state);
+        err = 1;
       }
       break;
 
@@ -135,12 +168,16 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
       return ARGP_ERR_UNKNOWN;
   }
 
+  if (err) {
+    argp_usage(state);
+    return EINVAL; /* argp_usage() usually does not return, but just in case */
+  }
+
   return 0; /* success */
 }
 
-
 /* assemble the argp parser */
-static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
+static struct argp argp = {cmdline_options, parse_option, arg_doc, doc, 0};
 
 int main(int argc, char *argv[])
 {

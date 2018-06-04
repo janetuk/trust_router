@@ -51,7 +51,7 @@ char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep)
 }
 
 /* helper for encoding to json */
-static json_t *server_to_json_string(const char *server, unsigned int port)
+static json_t *server_to_json_string(const char *server, int port)
 {
   char *s = talloc_asprintf(NULL, "%s:%u", server, port);
   json_t *jstr = json_string(s);
@@ -98,7 +98,7 @@ json_t *trp_peer_to_json(TRP_PEER *peer)
                      json_boolean(trp_peer_get_outgoing_status(peer) == PEER_CONNECTED));
   OBJECT_SET_OR_FAIL(peer_json, "connected_from",
                      json_boolean(trp_peer_get_incoming_status(peer) == PEER_CONNECTED));
-  OBJECT_SET_OR_FAIL(peer_json, "last_connection_attempt",
+  OBJECT_SET_OR_SKIP(peer_json, "last_connection_attempt",
                      last_attempt_to_json_string(peer));
   OBJECT_SET_OR_FAIL(peer_json, "allowed_credentials",
                      tr_gss_names_to_json_array(trp_peer_get_gss_names(peer)));

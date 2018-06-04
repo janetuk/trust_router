@@ -64,6 +64,14 @@
 #define TR_DEFAULT_TID_RESP_NUMER 2
 #define TR_DEFAULT_TID_RESP_DENOM 3
 
+/* limits on values for validations */
+#define TR_MIN_TRP_CONNECT_INTERVAL 5
+#define TR_MIN_TRP_SWEEP_INTERVAL 5
+#define TR_MIN_TRP_UPDATE_INTERVAL 5
+#define TR_MIN_CFG_POLL_INTERVAL 1
+#define TR_MIN_CFG_SETTLING_TIME 0
+#define TR_MIN_TID_REQ_TIMEOUT 1
+
 #define TR_CFG_INVALID_SERIAL -1
 
 typedef enum tr_cfg_rc {
@@ -76,9 +84,9 @@ typedef enum tr_cfg_rc {
 
 typedef struct tr_cfg_internal {
   unsigned int max_tree_depth;
-  unsigned int tids_port;
-  unsigned int trps_port;
-  unsigned int monitoring_port;
+  int tids_port;
+  int trps_port;
+  int mons_port;
   const char *hostname;
   int log_threshold;
   int console_threshold;
@@ -131,6 +139,7 @@ void tr_print_comm_rps(TR_COMM_TABLE *ctab, TR_COMM *comm);
 
 /* tr_config_internal.c */
 TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint);
+TR_CFG_RC tr_cfg_validate_internal(TR_CFG_INTERNAL *int_cfg);
 
 /* tr_config_comms.c */
 TR_IDP_REALM *tr_cfg_find_idp (TR_CFG *tr_cfg, TR_NAME *idp_id, TR_CFG_RC *rc);

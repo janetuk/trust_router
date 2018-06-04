@@ -35,10 +35,10 @@ static char *show_success()
                                mon_opt_type_to_string(OPT_TYPE_SHOW_CONFIG_FILES),
                                json_integer(86400)));
   assert(! json_object_set_new(payload,
-                               mon_opt_type_to_string(OPT_TYPE_SHOW_TID_REQ_PENDING),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_TID_REQS_PENDING),
                                json_integer(13)));
   assert(! json_object_set_new(payload,
-                               mon_opt_type_to_string(OPT_TYPE_SHOW_TID_REQ_COUNT),
+                               mon_opt_type_to_string(OPT_TYPE_SHOW_TID_REQS_PROCESSED),
                                json_integer(1432)));
 
   resp = mon_resp_new(NULL, MON_RESP_SUCCESS, "success", payload);

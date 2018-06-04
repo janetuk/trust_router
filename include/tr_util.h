@@ -35,6 +35,7 @@
 #ifndef TR_UTIL_H
 #define TR_UTIL_H
 
+#include <stddef.h>
 #include <trust_router/tr_versioning.h>
 
 /* NB, tr_bin_to_hex() is also prototyped in trust_router/tr_dh.h */

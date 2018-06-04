@@ -73,8 +73,8 @@ TRP_ROUTE *trp_route_new(TALLOC_CTX *mem_ctx)
     entry->comm=NULL;
     entry->realm=NULL;
     entry->trust_router=NULL;
-    entry->trp_port=TRP_PORT;
-    entry->tid_port=TID_PORT;
+    entry->trust_router_port=TRP_PORT;
+    entry->next_hop_port=TID_PORT;
     entry->peer=NULL;
     entry->next_hop=NULL;
     entry->selected=0;
@@ -176,7 +176,6 @@ unsigned int trp_route_get_metric(TRP_ROUTE *entry)
   return entry->metric;
 }
 
-/* TODO: set the hostname and port for the next hop. Currently assume default TID port. --jlr */
 void trp_route_set_next_hop(TRP_ROUTE *entry, TR_NAME *next_hop)
 {
   if (entry->next_hop!=NULL)
@@ -261,4 +260,44 @@ void trp_route_set_triggered(TRP_ROUTE *entry, int trig)
 int trp_route_is_triggered(TRP_ROUTE *entry)
 {
   return entry->triggered;
+}
+
+void trp_route_set_trust_router_port(TRP_ROUTE *entry, int port)
+{
+  if (entry)
+    entry->trust_router_port = port;
+}
+
+/**
+ * Get the port to use for TRP connections to the trust router
+ *
+ * @param entry
+ * @return port, or -1 if entry is null
+ */
+int trp_route_get_trust_router_port(TRP_ROUTE *entry)
+{
+  if (entry)
+    return entry->trust_router_port;
+
+  return -1;
+}
+
+void trp_route_set_next_hop_port(TRP_ROUTE *entry, int port)
+{
+  if (entry)
+    entry->next_hop_port = port;
+}
+
+/**
+ * Get the port to use for TID connections to the next hop
+ *
+ * @param entry
+ * @return port, or -1 if entry is null
+ */
+int trp_route_get_next_hop_port(TRP_ROUTE *entry)
+{
+  if (entry)
+    return entry->next_hop_port;
+
+  return -1;
 }

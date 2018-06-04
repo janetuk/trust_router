@@ -45,6 +45,7 @@
 #include <trust_router/trp.h>
 #include <tr_util.h>
 #include <tr_json_util.h>
+#include <tr_inet_util.h>
 
 /* Pretty print a route table entry to a newly allocated string. If sep is NULL,
  * returns comma+space separated string. */
@@ -62,13 +63,13 @@ char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
     sep=", ";
 
   result=talloc_asprintf(mem_ctx,
-                         "%s%s%s%s%s%s%u%s%s%s%s%s%u%s%u%s%s%s%u",
+                         "%s%s%s%s%s%s%u%s%s:%d%s%s:%d%s%u%s%u%s%s%s%u",
                          comm, sep,
                          realm, sep,
                          peer, sep,
                          entry->metric, sep,
-                         trust_router, sep,
-                         next_hop, sep,
+                         trust_router, entry->trust_router_port, sep,
+                         next_hop, entry->next_hop_port, sep,
                          entry->selected, sep,
                          entry->local, sep,
                          expiry, sep,
@@ -108,6 +109,7 @@ json_t *trp_route_to_json(TRP_ROUTE *route)
 {
   json_t *route_json = NULL;
   json_t *retval = NULL;
+  TR_NAME *n;
 
   route_json = json_object();
   if (route_json == NULL)
@@ -118,9 +120,25 @@ json_t *trp_route_to_json(TRP_ROUTE *route)
   if (trp_route_get_peer(route)->len > 0)
     OBJECT_SET_OR_FAIL(route_json, "peer", tr_name_to_json_string(trp_route_get_peer(route)));
   OBJECT_SET_OR_FAIL(route_json, "metric", json_integer(trp_route_get_metric(route)));
-  OBJECT_SET_OR_FAIL(route_json, "trust_router", tr_name_to_json_string(trp_route_get_trust_router(route)));
-  if (trp_route_get_next_hop(route)->len > 0)
-    OBJECT_SET_OR_FAIL(route_json, "next_hop", tr_name_to_json_string(trp_route_get_next_hop(route)));
+
+  /* add trust_router as hostname:port */
+  n = tr_hostname_and_port_to_name(
+          trp_route_get_trust_router(route),
+          trp_route_get_trust_router_port(route));
+  if (n == NULL)
+    goto cleanup;
+  OBJECT_SET_OR_FAIL(route_json, "trust_router", tr_name_to_json_string(n));
+  tr_free_name(n);
+
+  /* add next_hop as hostname:port */
+  n = tr_hostname_and_port_to_name(
+      trp_route_get_next_hop(route),
+      trp_route_get_next_hop_port(route));
+  if (n == NULL)
+    goto cleanup;
+  OBJECT_SET_OR_FAIL(route_json, "next_hop", tr_name_to_json_string(n));
+  tr_free_name(n);
+
   OBJECT_SET_OR_FAIL(route_json, "selected", json_boolean(trp_route_is_selected(route)));
   OBJECT_SET_OR_FAIL(route_json, "local", json_boolean(trp_route_is_local(route)));
   OBJECT_SET_OR_SKIP(route_json, "expires", expiry_to_json_string(route));

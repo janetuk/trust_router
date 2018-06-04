@@ -79,12 +79,12 @@ void tidc_destroy(TIDC_INSTANCE *tidc)
   talloc_free(tidc);
 }
 
-int tidc_open_connection (TIDC_INSTANCE *tidc, 
-                          const char *server,
-                          unsigned int port,
-                          gss_ctx_id_t *gssctx)
+int tidc_open_connection(TIDC_INSTANCE *tidc,
+                         const char *server,
+                         int port,
+                         gss_ctx_id_t *gssctx)
 {
-  unsigned int use_port = 0;
+  int use_port = 0;
   tidc->gssc->gss_ctx = gssctx;
 
   if (0 == port)

@@ -49,6 +49,7 @@
 #include <tr_socket.h>
 #include <tr_gss.h>
 #include <tr_event.h>
+#include <sys/resource.h>
 
 /**
  * Create a response with minimal fields filled in
@@ -261,18 +262,18 @@ int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp)
  * @param data pointer to a TIDS_INSTANCE
  * @return pointer to the response string or null to send no response
  */
-static TR_MSG *tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, void *data)
+static TR_GSS_RC tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, TR_MSG **mresp, void *data)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   TIDS_INSTANCE *tids = talloc_get_type_abort(data, TIDS_INSTANCE);
   TID_REQ *req = NULL;
   TID_RESP *resp = NULL;
-  TR_MSG *resp_msg = NULL; /* this is the return value */
-  int rc = 0;
+  TR_GSS_RC rc = TR_GSS_ERROR;
 
   /* If this isn't a TID Request, just drop it. */
   if (mreq->msg_type != TID_REQUEST) {
     tr_debug("tids_req_cb: Not a TID request, dropped.");
+    rc = TR_GSS_INTERNAL_ERROR;
     goto cleanup;
   }
 
@@ -280,40 +281,45 @@ static TR_MSG *tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, void *data)
   req = tr_msg_get_req(mreq);
 
   /* Allocate a response message */
-  resp_msg = talloc(tmp_ctx, TR_MSG);
-  if (resp_msg == NULL) {
+  *mresp = talloc(tmp_ctx, TR_MSG);
+  if (*mresp == NULL) {
     /* We cannot create a response message, so all we can really do is emit
      * an error message and return. */
     tr_crit("tids_req_cb: Error allocating response message.");
+    rc = TR_GSS_INTERNAL_ERROR;
     goto cleanup;
   }
 
   /* Allocate a response structure and populate common fields. Put it in the
    * response message's talloc context. */
-  resp = tids_create_response(resp_msg, req);
+  resp = tids_create_response(mresp, req);
   if (resp == NULL) {
     /* If we were unable to create a response, we cannot reply. Log an
      * error if we can, then drop the request. */
     tr_crit("tids_req_cb: Error creating response structure.");
-    resp_msg = NULL; /* the contents are in tmp_ctx, so they will still be cleaned up */
+    *mresp = NULL; /* the contents are in tmp_ctx, so they will still be cleaned up */
+    rc = TR_GSS_INTERNAL_ERROR;
     goto cleanup;
   }
   /* Now officially assign the response to the message. */
-  tr_msg_set_resp(resp_msg, resp);
+  tr_msg_set_resp(*mresp, resp);
 
   /* Handle the request and fill in resp */
-  rc = tids_handle_request(tids, req, resp);
-  if (rc < 0) {
-    tr_debug("tids_req_cb: Error from tids_handle_request(), rc = %d.", rc);
+  if (tids_handle_request(tids, req, resp) >= 0)
+    rc = TR_GSS_SUCCESS;
+  else {
+    /* The TID request was an error response */
+    tr_debug("tids_req_cb: Error from tids_handle_request");
+    rc = TR_GSS_REQUEST_FAILED;
     /* Fall through, to send the response, either way */
   }
 
   /* put the response message in the caller's context */
-  talloc_steal(mem_ctx, resp_msg);
+  talloc_steal(mem_ctx, *mresp);
 
 cleanup:
   talloc_free(tmp_ctx);
-  return resp_msg;
+  return rc;
 }
 
 static int tids_destructor(void *object)
@@ -355,7 +361,7 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
                          TIDS_REQ_FUNC *req_handler,
                          tids_auth_func *auth_handler,
                          const char *hostname,
-                         unsigned int port,
+                         int port,
                          void *cookie,
                          int *fd_out,
                          size_t max_fd)
@@ -367,7 +373,7 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
   n_fd = tr_sock_listen_all(port, fd_out, max_fd);
 
   if (n_fd == 0)
-    tr_err("tids_get_listener: Error opening port %d");
+    tr_err("tids_get_listener: Error opening port %d", port);
   else {
     /* opening port succeeded */
     tr_info("tids_get_listener: Opened port %d.", port);
@@ -401,14 +407,15 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
  * TIDS_MAX_MESSAGE_LEN must be longer than the longest message, including
  * null termination (i.e., strlen() + 1) */
 #define TIDS_MAX_MESSAGE_LEN (10)
-#define TIDS_SUCCESS_MESSAGE "OK"
-#define TIDS_ERROR_MESSAGE   "ERR"
+#define TIDS_SUCCESS_MESSAGE "OK" /* a success message was sent */
+#define TIDS_ERROR_MESSAGE   "ERR" /* an error message was sent */
+#define TIDS_REQ_FAIL_MESSAGE "FAIL" /* sending failed */
 
 /**
  * Process to handle an incoming TIDS request
  *
  * This should be run in the child process after a fork(). Handles
- * the request, writes the result to result_fd, and terminates via exit().
+ * the request, writes the result to result_fd, and terminates.
  * Never returns to the caller.
  *
  * @param tids TID server instance
@@ -418,6 +425,7 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
 static void tids_handle_proc(TIDS_INSTANCE *tids, int conn_fd, int result_fd)
 {
   const char *response_message = NULL;
+  struct rlimit rlim; /* for disabling core dump */
 
   switch(tr_gss_handle_connection(conn_fd,
                                   "trustidentity", tids->hostname, /* acceptor name */
@@ -428,9 +436,14 @@ static void tids_handle_proc(TIDS_INSTANCE *tids, int conn_fd, int result_fd)
       response_message = TIDS_SUCCESS_MESSAGE;
       break;
 
+    case TR_GSS_REQUEST_FAILED:
+      response_message = TIDS_ERROR_MESSAGE;
+      break;
+
+    case TR_GSS_INTERNAL_ERROR:
     case TR_GSS_ERROR:
     default:
-      response_message = TIDS_ERROR_MESSAGE;
+      response_message = TIDS_REQ_FAIL_MESSAGE;
       break;
   }
 
@@ -442,7 +455,15 @@ static void tids_handle_proc(TIDS_INSTANCE *tids, int conn_fd, int result_fd)
 
   close(result_fd);
   close(conn_fd);
-  exit(0); /* exit to kill forked child process */
+
+  /* This ought to be an exit(0), but log4shib does not play well with fork() due to
+   * threading issues. To ensure we do not get stuck in the exit handler, we will
+   * abort. First disable core dump for this subprocess (the main process will still
+   * dump core if the environment allows). */
+  rlim.rlim_cur = 0; /* max core size of 0 */
+  rlim.rlim_max = 0; /* prevent the core size limit from being raised later */
+  setrlimit(RLIMIT_CORE, &rlim);
+  abort(); /* exit hard */
 }
 
 /* Accept and process a connection on a port opened with tids_get_listener() */
@@ -454,7 +475,7 @@ int tids_accept(TIDS_INSTANCE *tids, int listen)
   struct tid_process tp = {0};
 
   if (0 > (conn = tr_sock_accept(listen))) {
-    tr_err("tids_accept: Error accepting connection");
+    tr_debug("tids_accept: Error accepting connection");
     return 1;
   }
 
@@ -555,7 +576,10 @@ void tids_sweep_procs(TIDS_INSTANCE *tids)
 
     if ((result_len > 0) && (strcmp(result, TIDS_SUCCESS_MESSAGE) == 0)) {
       tids->req_count++;
-      tr_info("tids_sweep_procs: TID process %d exited successfully.", tp.pid);
+      tr_info("tids_sweep_procs: TID process %d exited after successful request.", tp.pid);
+    } else if ((result_len > 0) && (strcmp(result, TIDS_ERROR_MESSAGE) == 0)) {
+      tids->req_error_count++;
+      tr_info("tids_sweep_procs: TID process %d exited after unsuccessful request.", tp.pid);
     } else {
       tids->error_count++;
       tr_info("tids_sweep_procs: TID process %d exited with an error.", tp.pid);
@@ -564,12 +588,12 @@ void tids_sweep_procs(TIDS_INSTANCE *tids)
 }
 
 /* Process tids requests forever. Should not return except on error. */
-int tids_start (TIDS_INSTANCE *tids,
-                TIDS_REQ_FUNC *req_handler,
-                tids_auth_func *auth_handler,
-                const char *hostname,
-                unsigned int port,
-                void *cookie)
+int tids_start(TIDS_INSTANCE *tids,
+               TIDS_REQ_FUNC *req_handler,
+               tids_auth_func *auth_handler,
+               const char *hostname,
+               int port,
+               void *cookie)
 {
   int fd[TR_MAX_SOCKETS]={0};
   nfds_t n_fd=0;
@@ -613,7 +637,7 @@ int tids_start (TIDS_INSTANCE *tids,
 
       if (poll_fd[ii].revents & POLLIN) {
         if (tids_accept(tids, poll_fd[ii].fd))
-          tr_err("tids_start: error in tids_accept().");
+          tr_debug("tids_start: error in tids_accept().");
       }
     }
   }

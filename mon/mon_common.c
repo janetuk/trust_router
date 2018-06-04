@@ -41,101 +41,108 @@
 
 // Monitoring common code
 
-/**
- * This method defines the command strings
- */
-const char *mon_cmd_to_string(MON_CMD cmd)
-{
-  switch(cmd) {
-    case MON_CMD_UNKNOWN:
-      return NULL;
+struct mon_cmd_entry {
+  MON_CMD code;
+  const char *name;
+};
 
-    case MON_CMD_SHOW:
-      return "show";
+struct mon_opt_entry {
+  MON_OPT_TYPE code;
+  MON_CMD cmd_code;
+  const char *name;
+};
+
+/* Table of commands */
+struct mon_cmd_entry mon_cmd_table[] = {
+    { MON_CMD_SHOW, "show" },
+    { MON_CMD_UNKNOWN } /* list terminator */
+};
+
+/* Table of options */
+struct  mon_opt_entry mon_opt_table[] = {
+    { OPT_TYPE_SHOW_VERSION,            MON_CMD_SHOW,  "version"            },
+    { OPT_TYPE_SHOW_CONFIG_FILES,       MON_CMD_SHOW,  "config_files"       },
+    { OPT_TYPE_SHOW_UPTIME,             MON_CMD_SHOW,  "uptime"             },
+    { OPT_TYPE_SHOW_TID_REQS_PROCESSED, MON_CMD_SHOW,  "tid_reqs_processed" },
+    { OPT_TYPE_SHOW_TID_REQS_FAILED,    MON_CMD_SHOW,  "tid_reqs_failed"    },
+    { OPT_TYPE_SHOW_TID_REQS_PENDING,   MON_CMD_SHOW,  "tid_reqs_pending"   },
+    { OPT_TYPE_SHOW_TID_ERROR_COUNT,    MON_CMD_SHOW,  "tid_error_count"    },
+    { OPT_TYPE_SHOW_ROUTES,             MON_CMD_SHOW,  "routes"             },
+    { OPT_TYPE_SHOW_PEERS,              MON_CMD_SHOW,  "peers"              },
+    { OPT_TYPE_SHOW_COMMUNITIES,        MON_CMD_SHOW,  "communities"        },
+    { OPT_TYPE_SHOW_REALMS,             MON_CMD_SHOW,  "realms"             },
+    { OPT_TYPE_SHOW_RP_CLIENTS,         MON_CMD_SHOW,  "rp_clients"         },
+    { OPT_TYPE_UNKNOWN } /* list terminator */
+};
+
+/*** Commands ***/
+
+static struct mon_cmd_entry *find_cmd_entry(MON_CMD code)
+{
+  struct mon_cmd_entry *entry;
+
+  for (entry=mon_cmd_table; entry->code != MON_CMD_UNKNOWN; entry++) {
+    if (entry->code == code)
+      return entry;
   }
+
   return NULL;
 }
 
-// Helper macro for the mon_cmd_from_string method
-#define return_if_matches(s, cmd)                \
-  do {                                           \
-    if (strcmp((s), mon_cmd_to_string(cmd))==0)  \
-      return (cmd);                              \
-  } while(0)
+const char *mon_cmd_to_string(MON_CMD cmd)
+{
+  struct mon_cmd_entry *entry = find_cmd_entry(cmd);
+
+  if (entry)
+    return entry->name;
+
+  return NULL;
+}
 
 MON_CMD mon_cmd_from_string(const char *s)
 {
-  return_if_matches(s, MON_CMD_SHOW);
+  struct mon_cmd_entry *entry;
+
+  for (entry=mon_cmd_table; entry->code != MON_CMD_UNKNOWN; entry++) {
+    if (strcmp(s, entry->name) == 0)
+      return entry->code;
+  }
+
   return MON_CMD_UNKNOWN;
 }
-#undef return_if_matches
 
-/**
- * This method defines the option type strings
- */
-const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
+/*** Options ***/
+
+static struct mon_opt_entry *find_opt_entry(MON_OPT_TYPE code)
 {
-  switch(opt_type) {
-    case OPT_TYPE_UNKNOWN:
-    case OPT_TYPE_ANY:
-      return NULL;
+  struct mon_opt_entry *entry;
 
-    case OPT_TYPE_SHOW_VERSION:
-      return "version";
-
-    case OPT_TYPE_SHOW_CONFIG_FILES:
-      return "config_files";
-
-    case OPT_TYPE_SHOW_UPTIME:
-      return "uptime";
-
-    case OPT_TYPE_SHOW_TID_REQ_COUNT:
-      return "tid_reqs_processed";
-
-    case OPT_TYPE_SHOW_TID_REQ_ERR_COUNT:
-      return "tid_error_count";
-
-    case OPT_TYPE_SHOW_TID_REQ_PENDING:
-      return "tid_reqs_pending";
-
-    case OPT_TYPE_SHOW_ROUTES:
-      return "routes";
-
-    case OPT_TYPE_SHOW_PEERS:
-      return "peers";
-
-    case OPT_TYPE_SHOW_COMMUNITIES:
-      return "communities";
-
-    case OPT_TYPE_SHOW_REALMS:
-      return "realms";
-
-    case OPT_TYPE_SHOW_RP_CLIENTS:
-      return "rp_clients";
+  for (entry=mon_opt_table; entry->code != OPT_TYPE_UNKNOWN; entry++) {
+    if (entry->code == code)
+      return entry;
   }
+
   return NULL;
 }
 
-// Helper macro for the mon_opt_type_from_string method
-#define return_if_matches(s, cmd)                     \
-  do {                                                \
-    if (strcmp((s), mon_opt_type_to_string(cmd))==0)  \
-      return (cmd);                                   \
-  } while(0)
+const char *mon_opt_type_to_string(MON_OPT_TYPE opt_type)
+{
+  struct mon_opt_entry *entry = find_opt_entry(opt_type);
+
+  if (entry)
+    return entry->name;
+
+  return NULL;
+}
 
 MON_OPT_TYPE mon_opt_type_from_string(const char *s)
 {
-  return_if_matches(s, OPT_TYPE_SHOW_VERSION);
-  return_if_matches(s, OPT_TYPE_SHOW_CONFIG_FILES);
-  return_if_matches(s, OPT_TYPE_SHOW_UPTIME);
-  return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_COUNT);
-  return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_ERR_COUNT);
-  return_if_matches(s, OPT_TYPE_SHOW_TID_REQ_PENDING);
-  return_if_matches(s, OPT_TYPE_SHOW_ROUTES);
-  return_if_matches(s, OPT_TYPE_SHOW_PEERS);
-  return_if_matches(s, OPT_TYPE_SHOW_COMMUNITIES);
-  return_if_matches(s, OPT_TYPE_SHOW_REALMS);
-  return_if_matches(s, OPT_TYPE_SHOW_RP_CLIENTS);
+  struct mon_opt_entry *entry;
+
+  for (entry=mon_opt_table; entry->code != OPT_TYPE_UNKNOWN; entry++) {
+    if (strcmp(s, entry->name) == 0)
+      return entry->code;
+  }
+
   return OPT_TYPE_UNKNOWN;
 }
-#undef return_if_matches

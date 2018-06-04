@@ -38,10 +38,13 @@
 #include <tr_msg.h>
 
 typedef int (TR_GSS_AUTH_FN)(gss_name_t, TR_NAME *, void *);
-typedef TR_MSG *(TR_GSS_HANDLE_REQ_FN)(TALLOC_CTX *, TR_MSG *, void *);
+typedef enum tr_gss_rc (TR_GSS_HANDLE_REQ_FN)(TALLOC_CTX *, TR_MSG *, TR_MSG **, void *);
 
 typedef enum tr_gss_rc {
   TR_GSS_SUCCESS = 0, /* success */
+  TR_GSS_AUTH_FAILED, /* authorization failed */
+  TR_GSS_REQUEST_FAILED, /* request failed */
+  TR_GSS_INTERNAL_ERROR, /* internal error (memory allocation, etc) */
   TR_GSS_ERROR,       /* unspecified error */
 } TR_GSS_RC;
 

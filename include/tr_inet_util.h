@@ -32,25 +32,15 @@
  *
  */
 
-#ifndef TRUST_ROUTER_TR_GSS_CLIENT_H
-#define TRUST_ROUTER_TR_GSS_CLIENT_H
+#ifndef TRUST_ROUTER_TR_INET_UTIL_H
+#define TRUST_ROUTER_TR_INET_UTIL_H
 
-#include <gssapi.h>
-#include <tr_msg.h>
+#include <arpa/inet.h>
+#include <tr_name_internal.h>
 
-typedef struct tr_gssc_instance TR_GSSC_INSTANCE;
+char *tr_parse_host(TALLOC_CTX *mem_ctx, const char *s, int *port_out);
 
-/* Client instance */
-struct tr_gssc_instance {
-  const char *service_name;
-  gss_ctx_id_t *gss_ctx;
-  int conn;
-};
+TR_NAME *tr_hostname_and_port_to_name(TR_NAME *hn, int port);
+int tr_parse_port(const char *s);
 
-/* tr_gss_client.c */
-TR_GSSC_INSTANCE *tr_gssc_instance_new(TALLOC_CTX *mem_ctx);
-void tr_gssc_instance_free(TR_GSSC_INSTANCE *tr_gssc);
-int tr_gssc_open_connection(TR_GSSC_INSTANCE *gssc, const char *server, int port);
-TR_MSG *tr_gssc_exchange_msgs(TALLOC_CTX *mem_ctx, TR_GSSC_INSTANCE *gssc, TR_MSG *req_msg);
-
-#endif //TRUST_ROUTER_TR_GSS_CLIENT_H
+#endif //TRUST_ROUTER_TR_INET_UTIL_H

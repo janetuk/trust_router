@@ -46,28 +46,30 @@
 #include <trp_internal.h>
 #include <mon_internal.h>
 #include <tr_msg.h>
+#include <tr_util.h>
 #include <tr_name_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
 #include <tr_debug.h>
+#include <tr_inet_util.h>
 
 /* JSON helpers */
-/* Read attribute attr from msg as an integer. Returns nonzero on error. */
-static int tr_msg_get_json_integer(json_t *jmsg, const char *attr, int *dest)
+/* Read attribute attr from msg as an integer. */
+static TRP_RC tr_msg_get_json_integer(json_t *jmsg, const char *attr, int *dest)
 {
   json_t *obj;
 
   obj=json_object_get(jmsg, attr);
   if (obj == NULL) {
-    return -1;
+    return TRP_MISSING;
   }
   /* check type */
   if (!json_is_integer(obj)) {
-    return -1;
+    return TRP_BADTYPE;
   }
 
   (*dest)=json_integer_value(obj);
-  return 0;
+  return TRP_SUCCESS;
 }
 
 /* Read attribute attr from msg as a string. Copies string into mem_ctx context so jmsg can
@@ -78,15 +80,15 @@ static TRP_RC tr_msg_get_json_string(json_t *jmsg, const char *attr, char **dest
 
   obj=json_object_get(jmsg, attr);
   if (obj == NULL)
-    return TRP_ERROR;
+    return TRP_MISSING;
 
   /* check type */
   if (!json_is_string(obj))
-    return TRP_ERROR;
+    return TRP_BADTYPE;
 
   *dest=talloc_strdup(mem_ctx, json_string_value(obj));
   if (*dest==NULL)
-    return TRP_ERROR;
+    return TRP_NOMEM;
 
   return TRP_SUCCESS;
 }
@@ -678,14 +680,33 @@ static TID_RESP *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp)
   return tresp;
 }
 
+static json_t *hostname_and_port_to_json(TR_NAME *hostname, int port)
+{
+  char *s_hostname = tr_name_strdup(hostname);
+  char *s;
+  json_t *j;
 
-/* Information records for TRP update msg 
+  if (s_hostname == NULL)
+    return NULL;
+
+  s = talloc_asprintf(NULL, "%s:%d", s_hostname, port);
+  free(s_hostname);
+
+  if (s == NULL)
+    return NULL;
+
+  j = json_string(s);
+  talloc_free(s);
+
+  return j;
+}
+
+/* Information records for TRP update msg
  * requires that jrec already be allocated */
 static TRP_RC tr_msg_encode_inforec_route(json_t *jrec, TRP_INFOREC *rec)
 {
   json_t *jstr=NULL;
   json_t *jint=NULL;
-  char *s=NULL;
 
   if (rec==NULL)
     return TRP_BADTYPE;
@@ -693,14 +714,17 @@ static TRP_RC tr_msg_encode_inforec_route(json_t *jrec, TRP_INFOREC *rec)
   if (trp_inforec_get_trust_router(rec)==NULL)
     return TRP_ERROR;
 
-  s=tr_name_strdup(trp_inforec_get_trust_router(rec));
-  if (s==NULL)
-    return TRP_NOMEM;
-  jstr=json_string(s);
-  free(s);s=NULL;
+  jstr=hostname_and_port_to_json(trp_inforec_get_trust_router(rec),
+                                 trp_inforec_get_trust_router_port(rec));
   if(jstr==NULL)
-    return TRP_ERROR;
+    return TRP_NOMEM;
   json_object_set_new(jrec, "trust_router", jstr);
+
+  jstr=hostname_and_port_to_json(trp_inforec_get_next_hop(rec),
+                                 trp_inforec_get_next_hop_port(rec));
+  if(jstr==NULL)
+    return TRP_NOMEM;
+  json_object_set_new(jrec, "next_hop", jstr);
 
   jint=json_integer(trp_inforec_get_metric(rec));
   if(jint==NULL)
@@ -892,18 +916,71 @@ static TRP_RC tr_msg_decode_trp_inforec_route(json_t *jrecord, TRP_INFOREC *rec)
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_RC rc=TRP_ERROR;
   char *s=NULL;
+  TR_NAME *name;
+  char *hostname;
+  int port;
   int num=0;
 
+  /* get the trust router */
   rc=tr_msg_get_json_string(jrecord, "trust_router", &s, tmp_ctx);
   if (rc != TRP_SUCCESS)
     goto cleanup;
-  if (TRP_SUCCESS!=trp_inforec_set_trust_router(rec, tr_new_name(s))) {
-    rc=TRP_ERROR;
+
+  hostname = tr_parse_host(tmp_ctx, s, &port);
+  if ((NULL == hostname)
+      || (NULL == (name = tr_new_name(hostname)))
+      || (port < 0)) {
+    rc = TRP_ERROR;
     goto cleanup;
   }
   talloc_free(s); s=NULL;
+  talloc_free(hostname);
 
-  trp_inforec_set_next_hop(rec, NULL); /* make sure this is null (filled in later) */
+  if (port == 0)
+    port = TRP_PORT;
+
+  if (TRP_SUCCESS!= trp_inforec_set_trust_router(rec, name, port)) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
+
+  /* Now do the next hop. If it's not present, use the trust_router for backward
+   * compatibility */
+  switch(tr_msg_get_json_string(jrecord, "next_hop", &s, tmp_ctx)) {
+    case TRP_SUCCESS:
+      /* we got a next_hop field */
+      hostname = tr_parse_host(tmp_ctx, s, &port);
+      if ((hostname == NULL)
+          || (NULL == (name = tr_new_name(hostname)))
+          || (port < 0)) {
+        rc = TRP_ERROR;
+        goto cleanup;
+      }
+      break;
+
+    case TRP_MISSING:
+      /* no next_hop field; use the trust router */
+      name = tr_dup_name(trp_inforec_get_trust_router(rec));
+      if (name == NULL) {
+        rc = TRP_ERROR;
+        goto cleanup;
+      }
+      break;
+
+    default:
+      /* something went wrong */
+      rc = TRP_ERROR;
+      goto cleanup;
+  }
+  talloc_free(s); s=NULL;
+
+  if (port == 0)
+    port = TID_PORT;
+
+  if (TRP_SUCCESS!= trp_inforec_set_next_hop(rec, name, port)) {
+    rc=TRP_ERROR;
+    goto cleanup;
+  }
 
   rc=tr_msg_get_json_integer(jrecord, "metric", &num);
   if ((rc != TRP_SUCCESS) || (TRP_SUCCESS!=trp_inforec_set_metric(rec,num)))

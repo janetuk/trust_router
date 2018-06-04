@@ -239,11 +239,9 @@ struct aaa_entry {
 static TR_AAA_SERVER *aaa_entry_to_aaa_server(TALLOC_CTX *mem_ctx, struct aaa_entry *ae)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TR_AAA_SERVER *aaa=tr_aaa_server_new(tmp_ctx, tr_new_name(ae->hostname));
+  TR_AAA_SERVER *aaa=tr_aaa_server_from_string(tmp_ctx, ae->hostname);
 
-  if ((aaa==NULL) || (aaa->hostname==NULL))
-    aaa=NULL;
-  else
+  if (aaa)
     talloc_steal(mem_ctx, aaa);
 
   talloc_free(tmp_ctx); 

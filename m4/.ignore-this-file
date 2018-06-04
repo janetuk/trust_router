@@ -1,0 +1,2 @@
+This file only exists to ensure the m4 directory exists in the git repository.
+Without it, autoreconf complains when building for the first time.

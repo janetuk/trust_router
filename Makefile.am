@@ -15,6 +15,7 @@ common_srcs = common/tr_name.c \
 	common/tr_dh.c \
     common/tr_debug.c \
 	common/tr_util.c \
+	common/tr_inet_util.c \
 	common/tr_apc.c \
 	common/tr_comm.c \
 	common/tr_comm_encoders.c \
@@ -22,6 +23,7 @@ common_srcs = common/tr_name.c \
 	common/tr_rp_client.c \
 	common/tr_rp_client_encoders.c \
 	common/tr_idp.c \
+	common/tr_aaa_server.c \
 	common/tr_idp_encoders.c \
 	common/tr_filter.c \
 	common/tr_filter_encoders.c \
@@ -91,7 +93,7 @@ trp/trp_upd.c
 
 libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
 libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
-libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 4:1:2 -no-undefined
+libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 4:2:2 -no-undefined
 
 common_t_constraint_SOURCES = common/t_constraint.c \
 common/tr_debug.c \
@@ -161,6 +163,7 @@ common/tr_name.c \
 common/tr_gss_names.c \
 common/tr_debug.c \
 common/tr_util.c \
+common/tr_inet_util.c \
 common/tr_list.c \
 trp/trp_route.c \
 trp/trp_route_encoders.c \
@@ -273,18 +276,30 @@ pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/trust_router/tr_constraint.h \
 	include/trust_router/tr_versioning.h 
 
-noinst_HEADERS = include/gsscon.h include/tr_config.h \
-	include/tr_msg.h include/tr.h \
-	include/tr_idp.h include/tr_rp.h \
-	include/tr_comm.h include/tr_apc.h \
-	include/tr_tid.h include/tr_trp.h include/tr_mon.h \
-	include/tr_filter.h include/tr_gss_names.h \
-	include/tid_internal.h include/trp_internal.h include/trp_route.h \
-	include/tr_cfgwatch.h include/tr_event.h \
-	include/tr_mq.h include/trp_peer.h include/trp_ptable.h \
-	include/trp_rtable.h include/tr_util.h \
+noinst_HEADERS = include/gsscon.h \
+    include/tr_config.h include/tr_cfgwatch.h \
+	include/tr.h \
+	include/tr_msg.h \
+	include/tr_idp.h \
+	include/tr_aaa_server.h \
+	include/tr_rp.h include/tr_rp_client.h \
+	include/tr_comm.h \
+	include/tr_apc.h \
+	include/tr_tid.h include/tid_internal.h \
+	include/tr_trp.h include/trp_internal.h \
+    include/tr_mon.h include/mon.h include/mon_internal.h include/mons_handlers.h \
+	include/tr_filter.h \
+	include/tr_gss.h include/tr_gss_client.h \
+    include/tr_gss_names.h \
+	include/tr_event.h \
+	include/tr_mq.h \
+	include/trp_peer.h include/trp_ptable.h \
+	include/trp_route.h include/trp_rtable.h \
 	include/tr_list.h \
-	include/tr_name_internal.h include/tr_gss.h
+	include/tr_name_internal.h \
+	include/tr_util.h include/tr_json_util.h include/tr_inet_util.h\
+	include/tr_rand_id.h include/tr_socket.h \
+	include/tr_constraint_internal.h
 
 pkgdata_DATA=schema.sql
 nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/organizations.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-internal.cfg redhat/default-internal.cfg redhat/tids-wrapper redhat/sysconfig.tids

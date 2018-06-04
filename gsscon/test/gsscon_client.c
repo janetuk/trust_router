@@ -68,6 +68,7 @@ int main (int argc, const char *argv[])
     int err = 0;
     int fd = -1;
     int port = kDefaultPort;
+    long tmp;
     const char *server = "127.0.0.1";
     const char *clientName = NULL;
     const char *serviceName = "host";
@@ -77,8 +78,14 @@ int main (int argc, const char *argv[])
         
     for (i = 1; (i < argc) && !err; i++) {
         if ((strcmp (argv[i], "--port") == 0) && (i < (argc - 1))) {
-            port = strtol (argv[++i], NULL, 0);
-            if (port == 0) { err = errno; }
+            errno = 0; /* ensure this starts off as 0 */
+            tmp = strtol (argv[++i], NULL, 0);
+            if (errno)
+                err = errno;
+            else if ((tmp <= 0) || (tmp > 65535))
+                err = ERANGE;
+            else
+                port = (int) tmp;
         } else if ((strcmp (argv[i], "--server") == 0) && (i < (argc - 1))) {
             server = argv[++i];
         } else if ((strcmp(argv[i], "--cprinc") == 0) && (i < (argc - 1))) {
@@ -93,7 +100,7 @@ int main (int argc, const char *argv[])
     if (!err) {
         printf ("%s: Starting up...\n", argv[0]);
         
-        err = gsscon_connect (server, port, serviceName, &fd, &gssContext);
+        err = gsscon_connect (server, (unsigned int) port, serviceName, &fd, &gssContext);
     }
     
     if (!err) {

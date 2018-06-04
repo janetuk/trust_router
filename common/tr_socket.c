@@ -55,7 +55,7 @@
  * @param max_fd maximum number of file descriptors to write
  * @return number of file descriptors written into the output array
  */
-nfds_t tr_sock_listen_all(unsigned int port, int *fd_out, nfds_t max_fd)
+nfds_t tr_sock_listen_all(int port, int *fd_out, nfds_t max_fd)
 {
   int rc = 0;
   int conn = -1;
@@ -188,9 +188,9 @@ int tr_sock_accept(int sock)
   if (0 > (conn = accept(sock, (struct sockaddr *)&(peeraddr), &addr_len))) {
     if (strerror_r(errno, err, sizeof(err)))
       snprintf(err, sizeof(err), "errno = %d", errno);
-    tr_err("tr_sock_accept: Unable to accept connection: %s", err);
+    tr_debug("tr_sock_accept: Unable to accept connection: %s", err);
   } else {
-    tr_notice("tr_sock_accept: Incoming connection on fd %d from %s",
+    tr_info("tr_sock_accept: Incoming connection on fd %d from %s",
               conn,
               tr_sock_ip_address((struct sockaddr *)&peeraddr,
                                  peeraddr_string,
