@@ -37,16 +37,13 @@
 
 #include <talloc.h>
 #include <jansson.h>
+#include <glib.h>
 
+#include <tr_list.h>
 #include <tr_name_internal.h>
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tid.h>
 #include <trust_router/trp.h>
-
-#define TR_MAX_FILTERS  5
-#define TR_MAX_FILTER_LINES 8
-#define TR_MAX_FILTER_SPECS 8
-#define TR_MAX_FILTER_SPEC_MATCHES 64
 
 /* Filter actions */
 typedef enum tr_filter_action {
@@ -69,21 +66,20 @@ typedef enum {
 
 typedef struct tr_fspec {
   TR_NAME *field;
-  TR_NAME *match[TR_MAX_FILTER_SPEC_MATCHES];
+  TR_LIST *match;
 } TR_FSPEC;
 
 typedef struct tr_fline {
   TR_FILTER_ACTION action;
-  TR_FSPEC *specs[TR_MAX_FILTER_SPECS];
+  TR_LIST *specs;
   TR_CONSTRAINT *realm_cons;
   TR_CONSTRAINT *domain_cons;
 } TR_FLINE;
 
 typedef struct tr_filter {
   TR_FILTER_TYPE type;
-  TR_FLINE *lines[TR_MAX_FILTER_LINES];
+  TR_LIST *lines;
 } TR_FILTER;
-
 
 typedef struct tr_filter_set TR_FILTER_SET;
 struct tr_filter_set {
@@ -109,25 +105,45 @@ int tr_filter_set_add(TR_FILTER_SET *set, TR_FILTER *new);
 TR_FILTER *tr_filter_set_get(TR_FILTER_SET *set, TR_FILTER_TYPE type);
 
 TR_FILTER *tr_filter_new(TALLOC_CTX *mem_ctx);
-
 void tr_filter_free(TR_FILTER *filt);
 
 void tr_filter_set_type(TR_FILTER *filt, TR_FILTER_TYPE type);
-
 TR_FILTER_TYPE tr_filter_get_type(TR_FILTER *filt);
+TR_FLINE *tr_filter_add_line(TR_FILTER *filt, TR_FLINE *line);
 
 TR_FLINE *tr_fline_new(TALLOC_CTX *mem_ctx);
-
 void tr_fline_free(TR_FLINE *fline);
+TR_FSPEC *tr_fline_add_spec(TR_FLINE *fline, TR_FSPEC *spec);
 
 TR_FSPEC *tr_fspec_new(TALLOC_CTX *mem_ctx);
-
 void tr_fspec_free(TR_FSPEC *fspec);
-
-void tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
+TR_NAME *tr_fspec_add_match(TR_FSPEC *fspec, TR_NAME *match);
 
 int tr_fspec_matches(TR_FSPEC *fspec, TR_FILTER_TYPE ftype, TR_FILTER_TARGET *target);
 
+/* Iterator for TR_FILTER lines */
+typedef TR_LIST_ITER TR_FILTER_ITER;
+#define tr_filter_iter_new(CTX) (tr_list_iter_new(CTX))
+#define tr_filter_iter_free(ITER) (tr_list_iter_free(ITER))
+#define tr_filter_iter_first(ITER, FILT) ((TR_FLINE *) tr_list_iter_first((ITER), (FILT)->lines))
+#define tr_filter_iter_next(ITER) ((TR_FLINE *) tr_list_iter_next(ITER))
+#define tr_filter_add_line(FILT, LINE) ((TR_FLINE *) tr_list_add((FILT)->lines, (LINE), 1))
+
+/* Iterator for TR_FSPEC matches */
+typedef TR_LIST_ITER TR_FSPEC_ITER;
+#define tr_fspec_iter_new(CTX) (tr_list_iter_new(CTX))
+#define tr_fspec_iter_free(ITER) (tr_list_iter_free(ITER))
+#define tr_fspec_iter_first(ITER, SPEC) (tr_list_iter_first((ITER), (SPEC)->match))
+#define tr_fspec_iter_next(ITER) (tr_list_iter_next(ITER))
+#define tr_fspec_add_match(SPEC, MATCH) ((TR_NAME *) tr_list_add((SPEC)->match, (MATCH), 0))
+
+/* Iterator for TR_FLINE specs */
+typedef TR_LIST_ITER TR_FLINE_ITER;
+#define tr_fline_iter_new(CTX) (tr_list_iter_new(CTX))
+#define tr_fline_iter_free(ITER) (tr_list_iter_free(ITER))
+#define tr_fline_iter_first(ITER, LINE) (tr_list_iter_first((ITER), (LINE)->specs))
+#define tr_fline_iter_next(ITER) (tr_list_iter_next(ITER))
+#define tr_fline_add_spec(LINE, SPEC) ((TR_NAME *) tr_list_add((LINE)->specs, (SPEC), 1))
 
 /*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
 int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);
@@ -143,5 +159,8 @@ int tr_filter_validate(TR_FILTER *filt);
 int tr_filter_validate_spec_field(TR_FILTER_TYPE ftype, TR_FSPEC *fspec);
 const char *tr_filter_type_to_string(TR_FILTER_TYPE ftype);
 TR_FILTER_TYPE tr_filter_type_from_string(const char *s);
+
+/* tr_filter_encoders.c */
+json_t *tr_filter_set_to_json(TR_FILTER_SET *filter_set);
 
 #endif

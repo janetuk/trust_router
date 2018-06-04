@@ -189,9 +189,9 @@ void trpc_mq_add(TRPC_INSTANCE *trpc, TR_MQ_MSG *msg)
   tr_mq_add(trpc->mq, msg);
 }
 
-TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc)
+TR_MQ_MSG *trpc_mq_pop(TRPC_INSTANCE *trpc, struct timespec *ts_abort)
 {
-  return tr_mq_pop(trpc->mq, 0);
+  return tr_mq_pop(trpc->mq, ts_abort);
 }
 
 void trpc_mq_clear(TRPC_INSTANCE *trpc)
@@ -216,7 +216,7 @@ TRP_RC trpc_send_msg (TRPC_INSTANCE *trpc,
                                          *trp_connection_get_gssctx(trpc_get_conn(trpc)),
                                          msg_content, 
                                          strlen(msg_content))) {
-    tr_err( "trpc_send_msg: Error sending message over connection.\n");
+    tr_err( "trpc_send_msg: Error sending message over connection.");
     rc=TRP_ERROR;
   }
   return rc;

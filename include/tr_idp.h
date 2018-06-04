@@ -83,7 +83,8 @@ TR_IDP_REALM *tr_idp_realm_remove_func(TR_IDP_REALM *head, TR_IDP_REALM *remove)
 #define tr_idp_realm_remove(head,remove) ((head)=tr_idp_realm_remove_func((head),(remove)))
 TR_IDP_REALM *tr_idp_realm_sweep_func(TR_IDP_REALM *head);
 #define tr_idp_realm_sweep(head) ((head)=tr_idp_realm_sweep_func((head)))
-char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp);
+int tr_idp_realm_aaa_server_count(TR_IDP_REALM *idp);
+int tr_idp_realm_apc_count(TR_IDP_REALM *idp);
 void tr_idp_realm_incref(TR_IDP_REALM *realm);
 void tr_idp_realm_decref(TR_IDP_REALM *realm);
 
@@ -97,5 +98,9 @@ TR_AAA_SERVER *tr_aaa_server_iter_next(TR_AAA_SERVER_ITER *iter);
 
 TR_AAA_SERVER *tr_idp_aaa_server_lookup(TR_IDP_REALM *idp_realms, TR_NAME *idp_realm_name, TR_NAME *comm, int *shared_out);
 TR_AAA_SERVER *tr_default_server_lookup(TR_AAA_SERVER *default_servers, TR_NAME *comm);
+
+/* tr_idp_encoders.c */
+char *tr_idp_realm_to_str(TALLOC_CTX *mem_ctx, TR_IDP_REALM *idp);
+json_t *tr_idp_realms_to_json(TR_IDP_REALM *idp);
 
 #endif
