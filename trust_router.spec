@@ -13,7 +13,14 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: autoconf, automake, m4, libtool
 BuildRequires:  krb5-devel, glib2-devel
 BuildRequires: jansson-devel >= 2.4
-BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel, libevent-devel
+BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
+
+%if 0%{?el6}
+BuildRequires: libevent2-devel
+%else
+BuildRequires: libevent-devel >= 2.0
+%endif
+
 %{?el7:BuildRequires: systemd}
 Requires:       moonshot-gss-eap >= 0.9.3, sqlite
 
