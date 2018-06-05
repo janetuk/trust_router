@@ -1,3 +1,9 @@
+moonshot-trust-router (3.4.0-2) unstable; urgency=medium
+
+  * Use json_is_true() in place of json_boolean_value() for compatibility
+
+ -- Jennifer Richards <jennifer@painless-security.com>  Tue, 5 Jun 2018 12:39:08 -0400
+
 moonshot-trust-router (3.4.0-1) unstable; urgency=medium
 
   * Add monitoring interface and trmon utility
