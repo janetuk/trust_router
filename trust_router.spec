@@ -1,5 +1,5 @@
 %global optflags %{optflags} -Wno-parentheses
-%{!?_release_number: %define _release_number 1}
+%{!?_release_number: %define _release_number 2}
 Name:           trust_router
 Version:        3.4.0
 Release:        %{_release_number}%{?dist}
