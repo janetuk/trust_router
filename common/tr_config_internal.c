@@ -60,7 +60,7 @@ static TR_CFG_RC tr_cfg_parse_boolean(json_t *src, const char *key, int *dest)
   jtmp = json_object_get(src, key);
   if (jtmp) {
     if (json_is_boolean(jtmp)) {
-      *dest = json_boolean_value(jtmp);
+      *dest = json_is_true(jtmp);
     } else {
       tr_debug("tr_cfg_parse_unsigned: Parsing error, %s is not a boolean.", key);
       return TR_CFG_NOPARSE;
