@@ -48,24 +48,7 @@
 #include <tr_name_internal.h>
 #include <mon.h>
 
-/* Typedefs */
-typedef struct mon_req MON_REQ;
-typedef struct mon_resp MON_RESP;
-
-typedef enum mon_cmd MON_CMD;
-typedef enum mon_resp_code MON_RESP_CODE;
-
-typedef struct mon_opt MON_OPT;
-typedef enum mon_opt_type MON_OPT_TYPE;
-
-typedef enum mon_rc MON_RC;
-
-typedef struct mons_instance MONS_INSTANCE;
-typedef struct monc_instance MONC_INSTANCE;
-
-typedef int (MONS_REQ_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
-typedef int (MONS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
-typedef int (MONC_RESP_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
+/* Typedefs go in mon.h */
 
 /* Struct and enum definitions */
 enum mon_rc {
