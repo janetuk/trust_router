@@ -292,7 +292,7 @@ static TR_GSS_RC tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, TR_MSG **mresp, 
 
   /* Allocate a response structure and populate common fields. Put it in the
    * response message's talloc context. */
-  resp = tids_create_response(mresp, req);
+  resp = tids_create_response(*mresp, req);
   if (resp == NULL) {
     /* If we were unable to create a response, we cannot reply. Log an
      * error if we can, then drop the request. */
