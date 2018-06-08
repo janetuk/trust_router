@@ -164,12 +164,16 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
   n_rp_realm_1=NULL; /* we don't own this name any more */
 
   name=tr_dup_name(realm);
-  if (name==NULL) {
+  if (NULL == name) {
     tr_debug("tr_cfg_default_filters: could not allocate realm name.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
-  tr_fspec_add_match(fspec, name);
+  if (NULL == tr_fspec_add_match(fspec, name)) {
+    tr_debug("tr_cfg_default_filters: could not add realm name to filter spec.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
   name=NULL; /* we no longer own the name */
 
   if (tr_fline_add_spec(fline, fspec) == NULL) {
@@ -183,13 +187,18 @@ static TR_FILTER_SET *tr_cfg_default_filters(TALLOC_CTX *mem_ctx, TR_NAME *realm
   fspec->field=n_rp_realm_2;
   n_rp_realm_2=NULL; /* we don't own this name any more */
 
-  if (NULL==(name=tr_name_cat(n_prefix, realm))) {
+  if (NULL == (name=tr_name_cat(n_prefix, realm))) {
     tr_debug("tr_cfg_default_filters: could not allocate wildcard realm name.");
     *rc=TR_CFG_NOMEM;
     goto cleanup;
   }
 
-  tr_fspec_add_match(fspec, name);
+  if (NULL == tr_fspec_add_match(fspec, name)) {
+    tr_debug("tr_cfg_default_filters: could not add wildcard realm name for filter spec.");
+    *rc=TR_CFG_NOMEM;
+    goto cleanup;
+  }
+
   name=NULL; /* we no longer own the name */
 
   if (tr_fline_add_spec(fline, fspec) == NULL) {

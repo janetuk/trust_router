@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <poll.h> // for nfds_t
+#include <sys/socket.h>
 
 #include <tr_debug.h>
 #include <tr_socket.h>
@@ -180,19 +181,20 @@ static const char *tr_sock_ip_address(struct sockaddr *s, char *dst, size_t dst_
 int tr_sock_accept(int sock)
 {
   int conn = -1;
-  struct sockaddr_storage peeraddr;
-  socklen_t addr_len = sizeof(peeraddr);
+  struct sockaddr_storage peeraddr_storage;
+  socklen_t addr_len = sizeof(struct sockaddr_storage);
+  struct sockaddr *peeraddr = (struct sockaddr *) &peeraddr_storage;
   char peeraddr_string[INET6_ADDRSTRLEN];
   char err[80];
 
-  if (0 > (conn = accept(sock, (struct sockaddr *)&(peeraddr), &addr_len))) {
+  if (0 > (conn = accept(sock, peeraddr, &addr_len))) {
     if (strerror_r(errno, err, sizeof(err)))
       snprintf(err, sizeof(err), "errno = %d", errno);
     tr_debug("tr_sock_accept: Unable to accept connection: %s", err);
   } else {
     tr_info("tr_sock_accept: Incoming connection on fd %d from %s",
               conn,
-              tr_sock_ip_address((struct sockaddr *)&peeraddr,
+              tr_sock_ip_address(peeraddr,
                                  peeraddr_string,
                                  sizeof(peeraddr_string)));
   }
