@@ -32,29 +32,38 @@ common_srcs = common/tr_name.c \
 	common/tr_list.c \
 	$(mon_srcs)
 
-tid_srcs = tid/tid_resp.c \
-tid/tid_req.c \
-tid/tids.c \
-tid/tidc.c \
-common/tr_rand_id.c
+## TR gss sources
+gss_srcs = \
+    common/tr_gss.c \
+    common/tr_gss_client.c
 
-trp_srcs = trp/trp_conn.c \
-trp/trps.c \
-trp/trpc.c \
-trp/trp_peer.c \
-trp/trp_peer_encoders.c \
-trp/trp_ptable.c \
-trp/trp_ptable_encoders.c \
-trp/trp_route.c \
-trp/trp_route_encoders.c \
-trp/trp_rtable.c \
-trp/trp_rtable_encoders.c \
-trp/trp_req.c \
-trp/trp_upd.c \
-common/tr_mq.c \
-$(config_srcs)
+## TID processing sources - must also include gss_srcs
+tid_srcs = \
+    tid/tid_resp.c \
+    tid/tid_req.c \
+    tid/tids.c \
+    tid/tidc.c \
+    common/tr_rand_id.c
 
-# configuration parsing sources
+## TRP processing sources
+trp_srcs = \
+    trp/trp_conn.c \
+    trp/trps.c \
+    trp/trpc.c \
+    trp/trp_peer.c \
+    trp/trp_peer_encoders.c \
+    trp/trp_ptable.c \
+    trp/trp_ptable_encoders.c \
+    trp/trp_route.c \
+    trp/trp_route_encoders.c \
+    trp/trp_rtable.c \
+    trp/trp_rtable_encoders.c \
+    trp/trp_req.c \
+    trp/trp_upd.c \
+    common/tr_mq.c \
+    $(config_srcs)
+
+## configuration parsing sources
 config_srcs = \
     common/tr_config.c \
     common/tr_config_comms.c \
@@ -65,7 +74,7 @@ config_srcs = \
     common/tr_config_realms.c \
     common/tr_config_rp_clients.c
 
-# general monitoring message sources
+## general monitoring message sources
 mon_srcs =                   \
     mon/mon_common.c         \
     mon/mon_req.c            \
@@ -75,7 +84,7 @@ mon_srcs =                   \
     mon/mon_resp_decode.c    \
     mon/mon_resp_encode.c
 
-# monitoring server sources
+## monitoring server sources - must also include gss_srcs
 mons_srcs = \
     mon/mons.c \
     mon/mons_handlers.c
@@ -86,185 +95,196 @@ TEST_CFLAGS = -Wno-missing-prototypes
 
 lib_LTLIBRARIES = libtr_tid.la
 
-libtr_tid_la_SOURCES = $(tid_srcs) \
-$(common_srcs) \
-trp/trp_req.c \
-trp/trp_upd.c
+libtr_tid_la_SOURCES = \
+    $(common_srcs) \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    trp/trp_req.c \
+    trp/trp_upd.c
 
 libtr_tid_la_CFLAGS = $(AM_CFLAGS) -fvisibility=hidden
 libtr_tid_la_LIBADD = gsscon/libgsscon.la $(GLIB_LIBS)
 libtr_tid_la_LDFLAGS = $(AM_LDFLAGS) -version-info 4:3:2 -no-undefined
 
-common_t_constraint_SOURCES = common/t_constraint.c \
-common/tr_debug.c \
-common/tr_name.c \
-common/tr_list.c \
-common/tr_constraint.c \
-common/tr_dh.c \
-common/tr_rand_id.c \
-tid/tid_req.c \
-tid/tid_resp.c
+common_t_constraint_SOURCES = \
+    common/t_constraint.c \
+    common/tr_debug.c \
+    common/tr_name.c \
+    common/tr_list.c \
+    common/tr_constraint.c \
+    common/tr_dh.c \
+    common/tr_rand_id.c \
+    tid/tid_req.c \
+    tid/tid_resp.c
 
 common_t_constraint_CPPFLAGS = $(AM_CPPFLAGS) -DTESTS=\"$(srcdir)/common/tests.json\"
 common_t_constraint_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 
-tr_trust_router_SOURCES =tr/tr_main.c \
-tr/tr.c \
-tr/tr_event.c \
-tr/tr_cfgwatch.c \
-tr/tr_tid.c \
-tr/tr_tid_mons.c \
-tr/tr_trp.c \
-tr/tr_trp_mons.c \
-tr/tr_mon.c \
-common/tr_gss.c \
-common/tr_gss_client.c \
-$(tid_srcs) \
-$(trp_srcs) \
-$(common_srcs) \
-$(mons_srcs)
+tr_trust_router_SOURCES = \
+    tr/tr_main.c \
+    tr/tr.c \
+    tr/tr_event.c \
+    tr/tr_cfgwatch.c \
+    tr/tr_tid.c \
+    tr/tr_tid_mons.c \
+    tr/tr_trp.c \
+    tr/tr_trp_mons.c \
+    tr/tr_mon.c \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs) \
+    $(common_srcs) \
+    $(mons_srcs)
 
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads -pthread
 tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 
-tr_trpc_SOURCES =tr/trpc_main.c \
-tr/tr_trp.c \
-common/tr_gss.c \
-common/tr_gss_client.c \
-$(trp_srcs) \
-$(tid_srcs) \
-$(common_srcs)
+tr_trpc_SOURCES = \
+    tr/trpc_main.c \
+    tr/tr_trp.c \
+    $(trp_srcs) \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(common_srcs)
 
 tr_trpc_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 tr_trpc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
-tr_trmon_SOURCES = tr/trmon_main.c \
-common/tr_gss.c \
-common/tr_gss_client.c \
-$(tid_srcs) \
-$(trp_srcs) \
-$(common_srcs) \
-mon/monc.c
+tr_trmon_SOURCES = \
+    tr/trmon_main.c \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs) \
+    $(common_srcs) \
+    mon/monc.c
 
 tr_trmon_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
 tr_trmon_LDFLAGS = $(AM_LDFLAGS) -pthread
 
-trp_msgtst_SOURCES = trp/msgtst.c \
-$(common_srcs) \
-common/tr_rand_id.c \
-trp/trp_req.c \
-trp/trp_upd.c \
-tid/tid_resp.c \
-tid/tid_req.c
+trp_msgtst_SOURCES = \
+    trp/msgtst.c \
+    $(common_srcs) \
+    common/tr_rand_id.c \
+    trp/trp_req.c \
+    trp/trp_upd.c \
+    tid/tid_resp.c \
+    tid/tid_req.c
 trp_msgtst_LDADD =  $(GLIB_LIBS)
 
-trp_test_rtbl_test_SOURCES = trp/test/rtbl_test.c \
-common/tr_name.c \
-common/tr_gss_names.c \
-common/tr_debug.c \
-common/tr_util.c \
-common/tr_inet_util.c \
-common/tr_list.c \
-trp/trp_route.c \
-trp/trp_route_encoders.c \
-trp/trp_rtable.c \
-trp/trp_rtable_encoders.c
+trp_test_rtbl_test_SOURCES = \
+    trp/test/rtbl_test.c \
+    common/tr_name.c \
+    common/tr_gss_names.c \
+    common/tr_debug.c \
+    common/tr_util.c \
+    common/tr_inet_util.c \
+    common/tr_list.c \
+    trp/trp_route.c \
+    trp/trp_route_encoders.c \
+    trp/trp_rtable.c \
+    trp/trp_rtable_encoders.c
 trp_test_rtbl_test_LDADD =  $(GLIB_LIBS)
 
-trp_test_ptbl_test_SOURCES = trp/test/ptbl_test.c \
-common/tr_gss.c \
-common/tr_gss_client.c \
-$(tid_srcs) \
-$(trp_srcs) \
-$(common_srcs)
+trp_test_ptbl_test_SOURCES = \
+    trp/test/ptbl_test.c \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs) \
+    $(common_srcs)
 trp_test_ptbl_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 trp_test_ptbl_test_LDFLAGS = $(AM_LDFLAGS) -pthread
 
-tid_example_tidc_SOURCES = tid/example/tidc_main.c \
-common/tr_gss.c \
-common/tr_gss_client.c \
-$(tid_srcs) \
-$(trp_srcs) \
-$(common_srcs)
+tid_example_tidc_SOURCES = \
+    tid/example/tidc_main.c \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs) \
+    $(common_srcs)
 tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
 tid_example_tidc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
-tid_example_tids_SOURCES = tid/example/tids_main.c \
-common/tr_gss.c \
-common/tr_gss_client.c \
-$(tid_srcs) \
-$(trp_srcs) \
-$(common_srcs)
+tid_example_tids_SOURCES = \
+    tid/example/tids_main.c \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs) \
+    $(common_srcs)
 tid_example_tids_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
 tid_example_tids_LDFLAGS = $(AM_LDFLAGS) -pthread
 
-common_tests_tr_dh_test_SOURCES = common/tr_dh.c \
-common/tr_debug.c \
-common/tests/dh_test.c
+common_tests_tr_dh_test_SOURCES = \
+    common/tr_dh.c \
+    common/tr_debug.c \
+    common/tests/dh_test.c
 
-common_tests_mq_test_SOURCES = common/tr_mq.c \
-common/tests/mq_test.c \
-common/tr_debug.c
+common_tests_mq_test_SOURCES = \
+    common/tr_mq.c \
+    common/tests/mq_test.c \
+    common/tr_debug.c
 
 common_tests_mq_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
-common_tests_cfg_test_SOURCES = common/tests/cfg_test.c \
-$(common_srcs) \
-common/tr_gss.c \
-common/tr_gss_client.c \
-$(tid_srcs) \
-$(trp_srcs)
+common_tests_cfg_test_SOURCES = \
+    common/tests/cfg_test.c \
+    $(common_srcs) \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs)
 common_tests_cfg_test_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
 common_tests_cfg_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
-common_tests_thread_test_SOURCES = common/tr_mq.c \
-common/tr_debug.c \
-common/tests/thread_test.c
+common_tests_thread_test_SOURCES = \
+    common/tr_mq.c \
+    common/tr_debug.c \
+    common/tests/thread_test.c
 
-common_tests_commtest_SOURCES = common/tests/commtest.c \
-$(common_srcs) \
-common/tr_gss.c \
-common/tr_gss_client.c \
-$(tid_srcs) \
-$(trp_srcs)
+common_tests_commtest_SOURCES = \
+    common/tests/commtest.c \
+    $(common_srcs) \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs)
 common_tests_commtest_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 common_tests_commtest_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
 common_tests_thread_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 
-common_tests_name_test_SOURCES = common/tests/name_test.c \
-              $(common_srcs) \
-              common/tr_gss.c \
-              common/tr_gss_client.c \
-              $(tid_srcs) \
-              $(trp_srcs)
+common_tests_name_test_SOURCES = \
+    common/tests/name_test.c \
+    $(common_srcs) \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs)
 common_tests_name_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 common_tests_name_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 common_tests_name_test_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
-common_tests_filt_test_SOURCES = common/tests/filt_test.c \
-              $(common_srcs) \
-              common/tr_gss.c \
-              common/tr_gss_client.c \
-              $(tid_srcs) \
-              $(trp_srcs)
+common_tests_filt_test_SOURCES = \
+    common/tests/filt_test.c \
+    $(common_srcs) \
+    $(gss_srcs) \
+    $(tid_srcs) \
+    $(trp_srcs)
 common_tests_filt_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 common_tests_filt_test_LDFLAGS = $(AM_LDFLAGS) -ltalloc -pthread
 common_tests_filt_test_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
-mon_tests_test_mon_req_encode_SOURCES = mon/tests/test_mon_req_encode.c \
+mon_tests_test_mon_req_encode_SOURCES = \
+    mon/tests/test_mon_req_encode.c \
     $(mon_srcs) \
     common/tr_name.c
 mon_tests_test_mon_req_encode_LDADD = $(GLIB_LIBS)
 mon_tests_test_mon_req_encode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
-mon_tests_test_mon_req_decode_SOURCES = mon/tests/test_mon_req_decode.c \
+mon_tests_test_mon_req_decode_SOURCES = \
+    mon/tests/test_mon_req_decode.c \
     $(mon_srcs) \
     common/tr_name.c
 mon_tests_test_mon_req_decode_LDADD = $(GLIB_LIBS)
 mon_tests_test_mon_req_decode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 
-mon_tests_test_mon_resp_encode_SOURCES = mon/tests/test_mon_resp_encode.c \
+mon_tests_test_mon_resp_encode_SOURCES = \
+    mon/tests/test_mon_resp_encode.c \
     $(mon_srcs) \
     common/tr_name.c
 mon_tests_test_mon_resp_encode_LDADD = $(GLIB_LIBS)
