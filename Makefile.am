@@ -129,6 +129,7 @@ tests_t_libtr_tid_la_SOURCES = tests/t_libtr_tid_la.c
 tests_t_libtr_tid_la_LDADD = $(lib_LTLIBRARIES)
 
 tr_trust_router_SOURCES = \
+    $(common_srcs) \
     tr/tr_main.c \
     tr/tr.c \
     tr/tr_event.c \
@@ -138,14 +139,12 @@ tr_trust_router_SOURCES = \
     tr/tr_trp.c \
     tr/tr_trp_mons.c \
     tr/tr_mon.c \
-    $(gss_srcs) \
-    $(tid_srcs) \
     $(trp_srcs) \
-    $(common_srcs) \
+    $(gss_srcs) \
     $(mons_srcs)
 
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads -pthread
-tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
+tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS) $(lib_LTLIBRARIES)
 
 tr_trpc_SOURCES = \
     tr/trpc_main.c \
@@ -203,15 +202,14 @@ trp_test_ptbl_test_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
 trp_test_ptbl_test_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tidc_SOURCES = \
-    tid/example/tidc_main.c \
-    common/tr_inet_util.c
+    $(common_srcs) \
+    tid/example/tidc_main.c
 tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS) $(lib_LTLIBRARIES)
 tid_example_tidc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tids_SOURCES = \
-    tid/example/tids_main.c \
-    common/tr_inet_util.c \
-    common/tr_socket.c
+    $(common_srcs) \
+    tid/example/tids_main.c
 tid_example_tids_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS) $(lib_LTLIBRARIES)
 tid_example_tids_LDFLAGS = $(AM_LDFLAGS) -pthread
 
