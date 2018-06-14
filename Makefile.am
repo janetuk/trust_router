@@ -7,7 +7,7 @@ bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/t
               mon/tests/test_mon_req_decode mon/tests/test_mon_resp_encode tr/trmon
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
-SUBDIRS = gsscon 
+SUBDIRS = gsscon
 common_srcs = common/tr_name.c \
 	common/tr_constraint.c \
 	common/jansson_iterators.h \
@@ -89,8 +89,13 @@ mons_srcs = \
     mon/mons.c \
     mon/mons_handlers.c
 
-check_PROGRAMS = common/t_constraint
-TESTS = common/t_constraint
+## Called by make check
+check_PROGRAMS = \
+    common/t_constraint \
+    tests/t_libtr_tid_la
+TESTS = \
+    common/t_constraint \
+    tests/t_libtr_tid_la
 TEST_CFLAGS = -Wno-missing-prototypes
 
 lib_LTLIBRARIES = libtr_tid.la
@@ -119,6 +124,9 @@ common_t_constraint_SOURCES = \
 
 common_t_constraint_CPPFLAGS = $(AM_CPPFLAGS) -DTESTS=\"$(srcdir)/common/tests.json\"
 common_t_constraint_LDADD = gsscon/libgsscon.la $(GLIB_LIBS)
+
+tests_t_libtr_tid_la_SOURCES = tests/t_libtr_tid_la.c
+tests_t_libtr_tid_la_LDADD = $(lib_LTLIBRARIES)
 
 tr_trust_router_SOURCES = \
     tr/tr_main.c \
@@ -196,20 +204,15 @@ trp_test_ptbl_test_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tidc_SOURCES = \
     tid/example/tidc_main.c \
-    $(gss_srcs) \
-    $(tid_srcs) \
-    $(trp_srcs) \
-    $(common_srcs)
-tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
+    common/tr_inet_util.c
+tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS) $(lib_LTLIBRARIES)
 tid_example_tidc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tids_SOURCES = \
     tid/example/tids_main.c \
-    $(gss_srcs) \
-    $(tid_srcs) \
-    $(trp_srcs) \
-    $(common_srcs)
-tid_example_tids_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS)
+    common/tr_inet_util.c \
+    common/tr_socket.c
+tid_example_tids_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS) $(lib_LTLIBRARIES)
 tid_example_tids_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 common_tests_tr_dh_test_SOURCES = \
@@ -294,7 +297,7 @@ pkginclude_HEADERS = include/trust_router/tid.h include/trust_router/tr_name.h \
 	include/tr_debug.h include/trust_router/trp.h \
 	include/trust_router/tr_dh.h \
 	include/trust_router/tr_constraint.h \
-	include/trust_router/tr_versioning.h 
+	include/trust_router/tr_versioning.h
 
 noinst_HEADERS = include/gsscon.h \
     include/tr_config.h include/tr_cfgwatch.h \
