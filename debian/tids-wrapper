@@ -1,0 +1,14 @@
+#! /usr/bin/env bash
+
+PIDFILE=$1
+LOGFILE=$2
+shift 2
+
+unset DISPLAY
+/usr/bin/tids $@ >> $LOGFILE 2>&1 &
+BGPID=$!
+RET=$?
+
+echo $BGPID > $PIDFILE
+
+exit $RET

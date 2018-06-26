@@ -1,0 +1,6 @@
+moonshot-trust-router: binary-without-manpage usr/bin/tidc
+moonshot-trust-router: binary-without-manpage usr/bin/trust_router
+moonshot-trust-router: binary-without-manpage usr/bin/tids
+moonshot-trust-router: script-not-executable usr/share/trust_router/redhat/*
+# No, actually we do test earlier and exit if the default file is not present
+moonshot-trust-router: init.d-script-sourcing-without-test
