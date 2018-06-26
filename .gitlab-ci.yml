@@ -1,0 +1,151 @@
+variables:
+  DOCKER_DRIVER: overlay2
+
+stages:
+- build
+
+before_script:
+    - rm -fr build SOURCES RPMS
+
+centos6:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/centos6:latest
+  stage: build
+  tags:
+    - moonshot
+  script:
+    - "for i in ui mech_eap libradsec; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=centos6 -o deps.zip; unzip deps.zip; done"
+    - yum -y install RPMS/x86_64/*.rpm
+    - rm -fr RPMS deps.zip
+    - autoreconf -fi
+    - ./configure
+    - make dist
+    - mkdir SOURCES
+    - mv trust_router*.tar.gz SOURCES
+    - rpmbuild -bb trust_router.spec --define "_topdir `pwd`"
+  artifacts:
+    paths:
+        - RPMS
+
+centos7:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/centos7:latest
+  stage: build
+  tags:
+    - moonshot
+  script:
+    - "for i in ui mech_eap libradsec; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=centos7 -o deps.zip; unzip deps.zip; done"
+    - yum -y install RPMS/x86_64/*.rpm
+    - rm -fr RPMS deps.zip
+    - autoreconf -fi
+    - ./configure
+    - make dist
+    - mkdir SOURCES
+    - mv trust_router*.tar.gz SOURCES
+    - rpmbuild -bb trust_router.spec --define "_topdir `pwd`"
+  artifacts:
+    paths:
+        - RPMS
+
+debian8:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/debian8:latest
+  stage: build
+  tags:
+    - moonshot
+  script:
+    - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=debian8 -o deps.zip; unzip deps.zip; done"
+    - "dpkg -i build/*.deb || true"
+    - apt-get install -fy
+    - rm -fr build deps.zip
+    - autoreconf -fi
+    - ./configure
+    - make dist
+    - mv trust_router-*.gz ../moonshot-trust-router_3.3.0.orig.tar.gz
+    - debuild -us -uc
+    - mkdir build
+    - cp ../*.deb build
+  artifacts:
+    paths:
+        - build/*.deb
+
+debian9:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/debian9:latest
+  stage: build
+  tags:
+    - moonshot
+  script:
+    - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=debian9 -o deps.zip; unzip deps.zip; done"
+    - "dpkg -i build/*.deb || true"
+    - apt-get install -fy
+    - rm -fr build deps.zip
+    - autoreconf -fi
+    - ./configure
+    - make dist
+    - mv trust_router-*.gz ../moonshot-trust-router_3.3.0.orig.tar.gz
+    - debuild -us -uc
+    - mkdir build
+    - cp ../*.deb build
+  artifacts:
+    paths:
+        - build/*.deb
+
+ubuntu14:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/ubuntu14:latest
+  stage: build
+  tags:
+    - moonshot
+  script:
+    - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu14 -o deps.zip; unzip deps.zip; done"
+    - "dpkg -i build/*.deb || true"
+    - apt-get install -fy
+    - rm -fr build deps.zip
+    - autoreconf -fi
+    - ./configure
+    - make dist
+    - mv trust_router-*.gz ../moonshot-trust-router_3.3.0.orig.tar.gz
+    - debuild -us -uc
+    - mkdir build
+    - cp ../*.deb build
+  artifacts:
+    paths:
+        - build/*.deb
+
+ubuntu16:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/ubuntu16:latest
+  stage: build
+  tags:
+    - moonshot
+  script:
+    - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu16 -o deps.zip; unzip deps.zip; done"
+    - "dpkg -i build/*.deb || true"
+    - apt-get install -fy
+    - rm -fr build deps.zip
+    - autoreconf -fi
+    - ./configure
+    - make dist
+    - mv trust_router-*.gz ../moonshot-trust-router_3.3.0.orig.tar.gz
+    - debuild -us -uc
+    - mkdir build
+    - cp ../*.deb build
+  artifacts:
+    paths:
+        - build/*.deb
+
+ubuntu18:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/ubuntu18:latest
+  stage: build
+  tags:
+    - moonshot
+  script:
+    - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu18 -o deps.zip; unzip deps.zip; done"
+    - "dpkg -i build/*.deb || true"
+    - apt-get install -fy
+    - rm -fr build deps.zip
+    - autoreconf -fi
+    - ./configure
+    - make dist
+    - mv trust_router-*.gz ../moonshot-trust-router_3.3.0.orig.tar.gz
+    - debuild -us -uc
+    - mkdir build
+    - cp ../*.deb build
+  artifacts:
+    paths:
+        - build/*.deb
