@@ -135,7 +135,7 @@ ubuntu18:
   tags:
     - moonshot
   script:
-    - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu18 -o deps.zip; unzip deps.zip; done"
+    - "for i in ui mech_eap; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu18 -O deps.zip; unzip deps.zip; done"
     - "dpkg -i build/*.deb || true"
     - apt-get install -fy
     - rm -fr build deps.zip
