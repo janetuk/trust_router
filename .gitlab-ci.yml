@@ -13,6 +13,7 @@ centos6:
   tags:
     - moonshot
   script:
+    - sed -i "s/\(.\)%{?dist}/\1b$CI_PIPELINE_ID%{?dist}/g" trust_router.spec
     - "for i in ui mech_eap libradsec; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=centos6 -o deps.zip; unzip deps.zip; done"
     - yum -y install RPMS/x86_64/*.rpm
     - rm -fr RPMS deps.zip
@@ -32,6 +33,7 @@ centos7:
   tags:
     - moonshot
   script:
+    - sed -i "s/\(.\)%{?dist}/\1b$CI_PIPELINE_ID%{?dist}/g" trust_router.spec
     - "for i in ui mech_eap libradsec; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=centos7 -o deps.zip; unzip deps.zip; done"
     - yum -y install RPMS/x86_64/*.rpm
     - rm -fr RPMS deps.zip
@@ -51,6 +53,7 @@ debian8:
   tags:
     - moonshot
   script:
+    - dch -l "b$CI_PIPELINE_ID" "Include job ID"
     - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=debian8 -o deps.zip; unzip deps.zip; done"
     - "dpkg -i build/*.deb || true"
     - apt-get install -fy
@@ -72,7 +75,8 @@ debian9:
   tags:
     - moonshot
   script:
-    - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=debian9 -o deps.zip; unzip deps.zip; done"
+    - dch -l "b$CI_PIPELINE_ID" "Include job ID"
+    - "for i in ui mech_eap libradsec; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=debian9 -o deps.zip; unzip deps.zip; done"
     - "dpkg -i build/*.deb || true"
     - apt-get install -fy
     - rm -fr build deps.zip
@@ -93,6 +97,7 @@ ubuntu14:
   tags:
     - moonshot
   script:
+    - dch -l "b$CI_PIPELINE_ID" "Include job ID"
     - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu14 -o deps.zip; unzip deps.zip; done"
     - "dpkg -i build/*.deb || true"
     - apt-get install -fy
@@ -114,6 +119,7 @@ ubuntu16:
   tags:
     - moonshot
   script:
+    - dch -l "b$CI_PIPELINE_ID" "Include job ID"
     - "for i in ui mech_eap; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu16 -o deps.zip; unzip deps.zip; done"
     - "dpkg -i build/*.deb || true"
     - apt-get install -fy
@@ -135,7 +141,8 @@ ubuntu18:
   tags:
     - moonshot
   script:
-    - "for i in ui mech_eap; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu18 -O deps.zip; unzip deps.zip; done"
+    - dch -l "b$CI_PIPELINE_ID" "Include job ID"
+    - "for i in ui mech_eap libradsec; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=ubuntu18 -O deps.zip; unzip deps.zip; done"
     - "dpkg -i build/*.deb || true"
     - apt-get install -fy
     - rm -fr build deps.zip
