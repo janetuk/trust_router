@@ -14,9 +14,8 @@ centos6:
     - moonshot
   script:
     - sed -i "s/\(.\)%{?dist}/\1b$CI_PIPELINE_ID%{?dist}/g" trust_router.spec
-    - "for i in ui mech_eap libradsec; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=centos6 -o deps.zip; unzip deps.zip; done"
-    - yum -y install RPMS/x86_64/*.rpm
-    - rm -fr RPMS deps.zip
+    - printf "[moonshot]\nname=moonshot\nbaseurl=https://$NEXUS_USER:$NEXUS_PWD@nexus.ci.ti.ja.net/repository/moonshot/centos6\nenabled=1\ngpgcheck=0" > /etc/yum.repos.d/moonshot.repo
+    - yum -y install libradsec-devel moonshot-ui-devel moonshot-gss-eap
     - autoreconf -fi
     - ./configure
     - make dist
@@ -34,9 +33,8 @@ centos7:
     - moonshot
   script:
     - sed -i "s/\(.\)%{?dist}/\1b$CI_PIPELINE_ID%{?dist}/g" trust_router.spec
-    - "for i in ui mech_eap libradsec; do curl -L -H \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/develop/download?job=centos7 -o deps.zip; unzip deps.zip; done"
-    - yum -y install RPMS/x86_64/*.rpm
-    - rm -fr RPMS deps.zip
+    - printf "[moonshot]\nname=moonshot\nbaseurl=https://$NEXUS_USER:$NEXUS_PWD@nexus.ci.ti.ja.net/repository/moonshot/centos7\nenabled=1\ngpgcheck=0" > /etc/yum.repos.d/moonshot.repo
+    - yum -y install libradsec-devel moonshot-ui-devel moonshot-gss-eap
     - autoreconf -fi
     - ./configure
     - make dist
