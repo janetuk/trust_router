@@ -71,7 +71,7 @@ TIDC_INSTANCE *tidc_create(void)
     tidc->client_dh = NULL;
     talloc_set_destructor((void *)tidc, tidc_destructor);
 
-    tr_msg_tid_init(); /* ensure TR_MSG can handle TID messages */
+    tid_tr_msg_init(); /* ensure TR_MSG can handle TID messages */
   }
   return tidc;
 }
@@ -185,7 +185,7 @@ int tidc_fwd_request(TIDC_INSTANCE *tidc,
     goto error;
 
   /* Construct the request message */
-  tr_msg_set_req(msg, tid_req);
+  tid_set_tr_msg_req(msg, tid_req);
 
 
   tr_debug( "tidc_fwd_request: Sending TID request\n");
@@ -196,7 +196,7 @@ int tidc_fwd_request(TIDC_INSTANCE *tidc,
     goto error;
 
   /* TBD -- Check if this is actually a valid response */
-  tid_resp = tr_msg_get_resp(resp_msg);
+  tid_resp = tid_get_tr_msg_resp(resp_msg);
   if (tid_resp == NULL) {
     tr_err( "tidc_fwd_request: Error, no response in the response!\n");
     goto error;
@@ -220,7 +220,7 @@ int tidc_fwd_request(TIDC_INSTANCE *tidc,
   if (resp_handler) {
     /* Call the caller's response function. It must copy any data it needs before returning. */
     tr_debug("tidc_fwd_request: calling response callback function.");
-    (*resp_handler)(tidc, tid_req, tr_msg_get_resp(resp_msg), cookie);
+    (*resp_handler)(tidc, tid_req, tid_get_tr_msg_resp(resp_msg), cookie);
   }
 
   goto cleanup;

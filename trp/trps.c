@@ -93,7 +93,7 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
 
     talloc_set_destructor((void *)trps, trps_destructor);
 
-    tr_msg_trp_init(); /* ensure TR_MSG can handle TRP messages */
+    trp_tr_msg_init(); /* ensure TR_MSG can handle TRP messages */
     trp_filter_init(); /* ensure we can filter on TRP message fields */
   }
   return trps;
@@ -362,15 +362,15 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   }
 
   /* verify we received a message we support, otherwise drop it now */
-  if (NULL != tr_msg_get_trp_upd(*msg)) {
+  if (NULL != trp_get_tr_msg_upd(*msg)) {
     /* Received an update */
-    trp_upd_set_peer(tr_msg_get_trp_upd(*msg), tr_dup_name(conn_peer));
+    trp_upd_set_peer(trp_get_tr_msg_upd(*msg), tr_dup_name(conn_peer));
     /* update provenance if necessary */
-    trp_upd_add_to_provenance(tr_msg_get_trp_upd(*msg), trp_peer_get_label(peer));
+    trp_upd_add_to_provenance(trp_get_tr_msg_upd(*msg), trp_peer_get_label(peer));
 
-  } else if (NULL != tr_msg_get_trp_req(*msg)) {
+  } else if (NULL != trp_get_tr_msg_req(*msg)) {
     /* Received a request */
-    trp_req_set_peer(tr_msg_get_trp_req(*msg), tr_dup_name(conn_peer));
+    trp_req_set_peer(trp_get_tr_msg_req(*msg), tr_dup_name(conn_peer));
 
   } else {
     /* Received an unknown type */
@@ -1053,7 +1053,7 @@ static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
   }
 
   /* tr_filter_apply() and tr_filter_set_get() handle null filter sets/filters by rejecting */
-  target= tr_filter_target_trp_inforec(NULL, upd, rec);
+  target= trp_filter_target_inforec(NULL, upd, rec);
   if (target==NULL) {
     /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
     tr_crit("trps_filter_inbound_inforec: Unable to allocate filter target, cannot apply filter!");
@@ -1757,7 +1757,7 @@ static void trps_filter_one_outbound_update(TR_FILTER *filt, TRP_UPD *upd)
 
   for(this=trp_upd_get_inforec(upd); this!=NULL; this=next) {
     next=this->next;
-    target= tr_filter_target_trp_inforec(NULL, upd, this);
+    target= trp_filter_target_inforec(NULL, upd, this);
     if (target==NULL) {
       /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
       tr_crit("trps_filter_one_outbound_update: Unable to allocate filter target, cannot apply filter!");
@@ -1898,7 +1898,7 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
       for (ii=0; ii<updates->len; ii++) {
         upd = (TRP_UPD *) g_ptr_array_index(updates, ii);
         /* now encode the update message */
-        tr_msg_set_trp_upd(&msg, upd);
+        trp_set_tr_msg_upd(&msg, upd);
         encoded = tr_msg_encode(NULL, &msg);
         if (encoded == NULL) {
           tr_err("trps_update_one_peer: error encoding update.");
@@ -2043,18 +2043,18 @@ TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg)
 {
   TRP_RC rc=TRP_ERROR;
 
-  if (NULL != tr_msg_get_trp_upd(tr_msg)) {
+  if (NULL != trp_get_tr_msg_upd(tr_msg)) {
     /* Received update */
-    rc=trps_handle_update(trps, tr_msg_get_trp_upd(tr_msg));
+    rc=trps_handle_update(trps, trp_get_tr_msg_upd(tr_msg));
     if (rc==TRP_SUCCESS) {
       rc=trps_update_active_routes(trps);
       trps_update(trps, TRP_UPDATE_TRIGGERED); /* send any triggered routes */
     }
     return rc;
 
-  } else if (NULL != tr_msg_get_trp_req(tr_msg)) {
+  } else if (NULL != trp_get_tr_msg_req(tr_msg)) {
     /* Received request */
-    rc=trps_handle_request(trps, tr_msg_get_trp_req(tr_msg));
+    rc=trps_handle_request(trps, trp_get_tr_msg_req(tr_msg));
     return rc;
 
   } else {
@@ -2084,7 +2084,7 @@ TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_servicename)
     goto cleanup;
   }
 
-  tr_msg_set_trp_req(&msg, req);
+  trp_set_tr_msg_req(&msg, req);
   encoded= tr_msg_encode(NULL, &msg);
   if (encoded==NULL) {
     tr_err("trps_wildcard_route_req: error encoding wildcard TRP request.");

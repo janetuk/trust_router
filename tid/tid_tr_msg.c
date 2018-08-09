@@ -54,10 +54,10 @@
 #include <tr_inet_util.h>
 
 /* Prototypes */
-static json_t *tr_msg_encode_tidreq(void *msg_rep);
-static void *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq);
-static json_t * tr_msg_encode_tidresp(void *msg_rep);
-static void *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp);
+static json_t *tid_req_encode(void *msg_rep);
+static void *tid_req_decode(TALLOC_CTX *mem_ctx, json_t *jreq);
+static json_t *tid_resp_encode(void *msg_rep);
+static void *tid_resp_decode(TALLOC_CTX *mem_ctx, json_t *jresp);
 
 /* Global handle for message types */
 static struct {
@@ -66,26 +66,26 @@ static struct {
 } tid_msg_type = {TR_MSG_TYPE_UNKNOWN, TR_MSG_TYPE_UNKNOWN};
 
 /* Must call this before sending or receiving TID messages */
-int tr_msg_tid_init(void)
+int tid_tr_msg_init(void)
 {
   int result = 1; /* 1 is success */
 
   if (tid_msg_type.tid_request == TR_MSG_TYPE_UNKNOWN) {
     tid_msg_type.tid_request = tr_msg_register_type("tid_request",
-                                                    tr_msg_decode_tidreq,
-                                                    tr_msg_encode_tidreq);
+                                                    tid_req_decode,
+                                                    tid_req_encode);
     if (tid_msg_type.tid_request == TR_MSG_TYPE_UNKNOWN) {
-      tr_err("tr_msg_tid_init: unable to register TID request message type");
+      tr_err("tid_tr_msg_init: unable to register TID request message type");
       result = 0;
     }
   }
 
   if (tid_msg_type.tid_response == TR_MSG_TYPE_UNKNOWN) {
     tid_msg_type.tid_response = tr_msg_register_type("tid_response",
-                                                     tr_msg_decode_tidresp,
-                                                     tr_msg_encode_tidresp);
+                                                     tid_resp_decode,
+                                                     tid_resp_encode);
     if (tid_msg_type.tid_response == TR_MSG_TYPE_UNKNOWN) {
-      tr_err("tr_msg_tid_init: unable to register TID response message type");
+      tr_err("tid_tr_msg_init: unable to register TID response message type");
       result = 0;
     }
   }
@@ -98,7 +98,7 @@ int tr_msg_tid_init(void)
  *
  * Sets the message type
  */
-void tr_msg_set_req(TR_MSG *msg, TID_REQ *req)
+void tid_set_tr_msg_req(TR_MSG *msg, TID_REQ *req)
 {
   tr_msg_set_msg_type(msg, tid_msg_type.tid_request);
   tr_msg_set_rep(msg, req);
@@ -109,7 +109,7 @@ void tr_msg_set_req(TR_MSG *msg, TID_REQ *req)
  *
  * Returns null if the message is not a TID_REQUEST
  */
-TID_REQ *tr_msg_get_req(TR_MSG *msg)
+TID_REQ *tid_get_tr_msg_req(TR_MSG *msg)
 {
   if (tr_msg_get_msg_type(msg) == tid_msg_type.tid_request)
     return (TID_REQ *) tr_msg_get_rep(msg);
@@ -121,7 +121,7 @@ TID_REQ *tr_msg_get_req(TR_MSG *msg)
  *
  * Sets the message type
  */
-void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp)
+void tid_set_tr_msg_resp(TR_MSG *msg, TID_RESP *resp)
 {
   tr_msg_set_msg_type(msg, tid_msg_type.tid_response);
   tr_msg_set_rep(msg, resp);
@@ -132,7 +132,7 @@ void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp)
  *
  * Returns null if the message is not a TID response
  */
-TID_RESP *tr_msg_get_resp(TR_MSG *msg)
+TID_RESP *tid_get_tr_msg_resp(TR_MSG *msg)
 {
   if (tr_msg_get_msg_type(msg) == tid_msg_type.tid_response)
     return (TID_RESP *) tr_msg_get_rep(msg);
@@ -141,7 +141,7 @@ TID_RESP *tr_msg_get_resp(TR_MSG *msg)
 
 
 
-static json_t *tr_msg_encode_dh(DH *dh)
+static json_t *tid_encode_dh(DH *dh)
 {
   json_t *jdh = NULL;
   json_t *jbn = NULL;
@@ -167,7 +167,7 @@ static json_t *tr_msg_encode_dh(DH *dh)
   return jdh;
 }
 
-static DH *tr_msg_decode_dh(json_t *jdh)
+static DH *tid_decode_dh(json_t *jdh)
 {
   DH *dh = NULL;
   json_t *jp = NULL;
@@ -175,7 +175,7 @@ static DH *tr_msg_decode_dh(json_t *jdh)
   json_t *jpub_key = NULL;
 
   if (!(dh=tr_dh_new())) {
-    tr_crit("tr_msg_decode_dh(): Error allocating DH structure.");
+    tr_crit("tid_decode_dh(): Error allocating DH structure.");
     return NULL;
   }
 
@@ -183,7 +183,7 @@ static DH *tr_msg_decode_dh(json_t *jdh)
   if ((NULL == (jp = json_object_get(jdh, "dh_p"))) ||
       (NULL == (jg = json_object_get(jdh, "dh_g"))) ||
       (NULL == (jpub_key = json_object_get(jdh, "dh_pub_key")))) {
-    tr_debug("tr_msg_decode_dh(): Error parsing dh_info.");
+    tr_debug("tid_decode_dh(): Error parsing dh_info.");
     tr_dh_destroy(dh);
     return NULL;
   }
@@ -196,7 +196,7 @@ static DH *tr_msg_decode_dh(json_t *jdh)
 }
 
 
-static json_t *tr_msg_encode_tidreq(void *msg_rep)
+static json_t *tid_req_encode(void *msg_rep)
 {
   TID_REQ *req = (TID_REQ *) msg_rep;
   json_t *jreq = NULL;
@@ -227,7 +227,7 @@ static json_t *tr_msg_encode_tidreq(void *msg_rep)
     json_object_set_new(jreq, "request_id", jstr);
   }
 
-  json_object_set_new(jreq, "dh_info", tr_msg_encode_dh(req->tidc_dh));
+  json_object_set_new(jreq, "dh_info", tid_encode_dh(req->tidc_dh));
 
   if (req->cons)
     json_object_set(jreq, "constraints", (json_t *) req->cons);
@@ -241,7 +241,7 @@ static json_t *tr_msg_encode_tidreq(void *msg_rep)
   return jreq;
 }
 
-static void *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq)
+static void *tid_req_decode(TALLOC_CTX *mem_ctx, json_t *jreq)
 {
   TID_REQ *treq = NULL;
   json_t *jrp_realm = NULL;
@@ -254,7 +254,7 @@ static void *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq)
   json_t *jexpire_interval = NULL;
 
   if (!(treq =tid_req_new())) {
-    tr_crit("tr_msg_decode_tidreq(): Error allocating TID_REQ structure.");
+    tr_crit("tid_req_decode(): Error allocating TID_REQ structure.");
     return NULL;
   }
   talloc_steal(mem_ctx, treq);
@@ -281,7 +281,7 @@ static void *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq)
     tid_req_free(treq);
     return NULL;
   }
-  treq->tidc_dh = tr_msg_decode_dh(jdh);
+  treq->tidc_dh = tid_decode_dh(jdh);
 
   /* store optional "orig_coi" field */
   if (NULL != (jorig_coi = json_object_get(jreq, "orig_coi"))) {
@@ -314,7 +314,7 @@ static void *tr_msg_decode_tidreq(TALLOC_CTX *mem_ctx, json_t *jreq)
   return (void *)treq;
 }
 
-static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
+static json_t *tid_encode_one_server(TID_SRVR_BLK *srvr)
 {
   json_t *jsrvr = NULL;
   json_t *jstr = NULL;
@@ -333,14 +333,14 @@ static json_t *tr_msg_encode_one_server(TID_SRVR_BLK *srvr)
   /* Server DH Block */
   jstr = tr_name_to_json_string(srvr->key_name);
   json_object_set_new(jsrvr, "key_name", jstr);
-  json_object_set_new(jsrvr, "server_dh", tr_msg_encode_dh(srvr->aaa_server_dh));
+  json_object_set_new(jsrvr, "server_dh", tid_encode_dh(srvr->aaa_server_dh));
   if (srvr->path)
     /* The path is owned by the srvr, so grab an extra ref*/
     json_object_set(jsrvr, "path", (json_t *)(srvr->path));
   return jsrvr;
 }
 
-static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
+static int tid_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
 {
   json_t *jsrvr_addr = NULL;
   json_t *jsrvr_kn = NULL;
@@ -354,13 +354,13 @@ static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
   if ((NULL == (jsrvr_addr = json_object_get(jsrvr, "server_addr"))) ||
       (NULL == (jsrvr_kn = json_object_get(jsrvr, "key_name"))) ||
       (NULL == (jsrvr_dh = json_object_get(jsrvr, "server_dh")))) {
-    tr_notice("tr_msg_decode_one_server(): Error parsing required fields.");
+    tr_notice("tid_decode_one_server(): Error parsing required fields.");
     return -1;
   }
 
   srvr->aaa_server_addr=talloc_strdup(srvr, json_string_value(jsrvr_addr));
   srvr->key_name = tr_new_name((char *)json_string_value(jsrvr_kn));
-  srvr->aaa_server_dh = tr_msg_decode_dh(jsrvr_dh);
+  srvr->aaa_server_dh = tid_decode_dh(jsrvr_dh);
   tid_srvr_blk_set_path(srvr, (TID_PATH *) json_object_get(jsrvr, "path"));
   jsrvr_expire = json_object_get(jsrvr, "key_expiration");
   if (jsrvr_expire && json_is_string(jsrvr_expire)) {
@@ -372,7 +372,7 @@ static int tr_msg_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
   return 0;
 }
 
-static json_t *tr_msg_encode_servers(TID_RESP *resp)
+static json_t *tid_encode_servers(TID_RESP *resp)
 {
   json_t *jservers = NULL;
   json_t *jsrvr = NULL;
@@ -382,18 +382,15 @@ static json_t *tr_msg_encode_servers(TID_RESP *resp)
   jservers = json_array();
 
   tid_resp_servers_foreach(resp, srvr, index) {
-    if ((NULL == (jsrvr = tr_msg_encode_one_server(srvr))) ||
+    if ((NULL == (jsrvr = tid_encode_one_server(srvr))) ||
 	(-1 == json_array_append_new(jservers, jsrvr))) {
       return NULL;
     }
   }
-
-  //  tr_debug("tr_msg_encode_servers(): servers contains:");
-  //  tr_debug("%s", json_dumps(jservers, 0));
   return jservers;
 }
 
-static TID_SRVR_BLK *tr_msg_decode_servers(TALLOC_CTX *mem_ctx, json_t *jservers)
+static TID_SRVR_BLK *tid_decode_servers(TALLOC_CTX *mem_ctx, json_t *jservers)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TID_SRVR_BLK *servers=NULL;
@@ -402,10 +399,10 @@ static TID_SRVR_BLK *tr_msg_decode_servers(TALLOC_CTX *mem_ctx, json_t *jservers
   size_t i, num_servers;
 
   num_servers = json_array_size(jservers);
-  tr_debug("tr_msg_decode_servers(): Number of servers = %u.", (unsigned) num_servers);
+  tr_debug("tid_decode_servers(): Number of servers = %u.", (unsigned) num_servers);
 
   if (0 == num_servers) {
-    tr_debug("tr_msg_decode_servers(): Server array is empty.");
+    tr_debug("tid_decode_servers(): Server array is empty.");
     goto cleanup;
   }
 
@@ -418,7 +415,7 @@ static TID_SRVR_BLK *tr_msg_decode_servers(TALLOC_CTX *mem_ctx, json_t *jservers
       goto cleanup;
     }
 
-    if (0 != tr_msg_decode_one_server(jsrvr, new_srvr)) {
+    if (0 != tid_decode_one_server(jsrvr, new_srvr)) {
       servers=NULL; /* it's all in tmp_ctx, so we can just let go */
       goto cleanup;
     }
@@ -433,7 +430,7 @@ cleanup:
   return servers;
 }
 
-static json_t * tr_msg_encode_tidresp(void *msg_rep)
+static json_t * tid_resp_encode(void *msg_rep)
 {
   TID_RESP *resp = (TID_RESP *) msg_rep;
   json_t *jresp = NULL;
@@ -478,10 +475,10 @@ static json_t * tr_msg_encode_tidresp(void *msg_rep)
   }
 
   if (NULL == resp->servers) {
-    tr_debug("tr_msg_encode_tidresp(): No servers to encode.");
+    tr_debug("tid_resp_encode(): No servers to encode.");
   }
   else {
-    jservers = tr_msg_encode_servers(resp);
+    jservers = tid_encode_servers(resp);
     json_object_set_new(jresp, "servers", jservers);
   }
   if (resp->error_path)
@@ -491,7 +488,7 @@ static json_t * tr_msg_encode_tidresp(void *msg_rep)
   return jresp;
 }
 
-static void *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp)
+static void *tid_resp_decode(TALLOC_CTX *mem_ctx, json_t *jresp)
 {
   TID_RESP *tresp = NULL;
   json_t *jresult = NULL;
@@ -504,7 +501,7 @@ static void *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp)
   json_t *jerr_msg = NULL;
 
   if (!(tresp=tid_resp_new(mem_ctx))) {
-    tr_crit("tr_msg_decode_tidresp(): Error allocating TID_RESP structure.");
+    tr_crit("tid_resp_decode(): Error allocating TID_RESP structure.");
     return NULL;
   }
 
@@ -517,16 +514,16 @@ static void *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp)
       (!json_is_string(jrealm)) ||
       (NULL == (jcomm = json_object_get(jresp, "comm"))) ||
       (!json_is_string(jcomm))) {
-    tr_debug("tr_msg_decode_tidresp(): Error parsing response.");
+    tr_debug("tid_resp_decode(): Error parsing response.");
     talloc_free(tresp);
     return NULL;
   }
 
   if (0 == (strcmp(json_string_value(jresult), "success"))) {
-    tr_debug("tr_msg_decode_tidresp(): Success! result = %s.", json_string_value(jresult));
+    tr_debug("tid_resp_decode(): Success! result = %s.", json_string_value(jresult));
     if ((NULL != (jservers = json_object_get(jresp, "servers"))) ||
 	(!json_is_array(jservers))) {
-      tresp->servers = tr_msg_decode_servers(tresp, jservers);
+      tresp->servers = tid_decode_servers(tresp, jservers);
     }
     else {
       talloc_free(tresp);
@@ -536,7 +533,7 @@ static void *tr_msg_decode_tidresp(TALLOC_CTX *mem_ctx, json_t *jresp)
   }
   else {
     tresp->result = TID_ERROR;
-    tr_debug("tr_msg_decode_tidresp(): Error! result = %s.", json_string_value(jresult));
+    tr_debug("tid_resp_decode(): Error! result = %s.", json_string_value(jresult));
     if ((NULL != (jerr_msg = json_object_get(jresp, "err_msg"))) ||
 	(!json_is_string(jerr_msg))) {
       tresp->err_msg = tr_new_name(json_string_value(jerr_msg));

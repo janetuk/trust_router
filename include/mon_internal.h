@@ -180,9 +180,9 @@ MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *r
 
 /* mon_tr_msg.c */
 int mon_tr_msg_init(void);
-MON_REQ *tr_msg_get_mon_req(TR_MSG *msg);
-void tr_msg_set_mon_req(TR_MSG *msg, MON_REQ *req);
-MON_RESP *tr_msg_get_mon_resp(TR_MSG *msg);
-void tr_msg_set_mon_resp(TR_MSG *msg, MON_RESP *resp);
+MON_REQ *mon_get_tr_msg_req(TR_MSG *msg);
+void mon_set_tr_msg_req(TR_MSG *msg, MON_REQ *req);
+MON_RESP *mon_get_tr_msg_resp(TR_MSG *msg);
+void mon_set_tr_msg_resp(TR_MSG *msg, MON_RESP *resp);
 
 #endif //TRUST_ROUTER_MON_REQ_H

@@ -66,7 +66,7 @@ TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
     } else
       talloc_set_destructor((void *)trpc, trpc_destructor);
 
-    tr_msg_trp_init(); /* ensure TR_MSG can handle TRP messages */
+    trp_tr_msg_init(); /* ensure TR_MSG can handle TRP messages */
     trp_filter_init(); /* ensure we can filter on TRP message fields */
   }
   return trpc;

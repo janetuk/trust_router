@@ -83,13 +83,13 @@ MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *r
   if (!(msg = talloc_zero(tmp_ctx, TR_MSG)))
     goto cleanup;
 
-  tr_msg_set_mon_req(msg, req);
+  mon_set_tr_msg_req(msg, req);
 
   resp_msg = tr_gssc_exchange_msgs(tmp_ctx, monc->gssc, msg);
   if (resp_msg == NULL)
     goto cleanup;
 
-  resp = tr_msg_get_mon_resp(resp_msg);
+  resp = mon_get_tr_msg_resp(resp_msg);
 
   /* if we got a response, steal it from resp_msg's context so we can return it */
   if (resp)

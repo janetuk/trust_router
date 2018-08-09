@@ -147,7 +147,7 @@ static char *tids_encode_response(TALLOC_CTX *mem_ctx, TID_RESP *resp)
   char *resp_buf = NULL;
 
   /* Construct the response message */
-  tr_msg_set_resp(&mresp, resp);
+  tid_set_tr_msg_resp(&mresp, resp);
 
   /* Encode the message to JSON */
   resp_buf = tr_msg_encode(mem_ctx, &mresp);
@@ -270,7 +270,7 @@ static TR_GSS_RC tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, TR_MSG **mresp, 
   TR_GSS_RC rc = TR_GSS_ERROR;
 
   /* Get a handle on the request itself. Don't free req - it belongs to mreq */
-  req = tr_msg_get_req(mreq);
+  req = tid_get_tr_msg_req(mreq);
   if (NULL == req) {
     /* This isn't a TID Request, just drop it. */
     tr_debug("tids_req_cb: Not a TID request, dropped.");
@@ -300,7 +300,7 @@ static TR_GSS_RC tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, TR_MSG **mresp, 
     goto cleanup;
   }
   /* Now officially assign the response to the message. */
-  tr_msg_set_resp(*mresp, resp);
+  tid_set_tr_msg_resp(*mresp, resp);
 
   /* Handle the request and fill in resp */
   if (tids_handle_request(tids, req, resp) >= 0)
@@ -339,7 +339,7 @@ TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
     }
     talloc_set_destructor((void *)tids, tids_destructor);
 
-    tr_msg_tid_init(); /* ensure TR_MSG can handle TID messages */
+    tid_tr_msg_init(); /* ensure TR_MSG can handle TID messages */
   }
   return tids;
 }

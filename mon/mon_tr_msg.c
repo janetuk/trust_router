@@ -94,7 +94,7 @@ int mon_tr_msg_init(void)
  *
  * Sets the message type
  */
-void tr_msg_set_mon_req(TR_MSG *msg, MON_REQ *req)
+void mon_set_tr_msg_req(TR_MSG *msg, MON_REQ *req)
 {
   tr_msg_set_msg_type(msg, mon_msg_type.mon_request);
   tr_msg_set_rep(msg, req);
@@ -105,7 +105,7 @@ void tr_msg_set_mon_req(TR_MSG *msg, MON_REQ *req)
  *
  * Returns null if the message is not a MON request
  */
-MON_REQ *tr_msg_get_mon_req(TR_MSG *msg)
+MON_REQ *mon_get_tr_msg_req(TR_MSG *msg)
 {
   if (tr_msg_get_msg_type(msg) == mon_msg_type.mon_request)
     return (MON_REQ *) tr_msg_get_rep(msg);
@@ -117,7 +117,7 @@ MON_REQ *tr_msg_get_mon_req(TR_MSG *msg)
  *
  * Sets the message type
  */
-void tr_msg_set_mon_resp(TR_MSG *msg, MON_RESP *resp)
+void mon_set_tr_msg_resp(TR_MSG *msg, MON_RESP *resp)
 {
   tr_msg_set_msg_type(msg, mon_msg_type.mon_response);
   tr_msg_set_rep(msg, resp);
@@ -128,7 +128,7 @@ void tr_msg_set_mon_resp(TR_MSG *msg, MON_RESP *resp)
  *
  * Returns null if the message is not a MON response
  */
-MON_RESP *tr_msg_get_mon_resp(TR_MSG *msg)
+MON_RESP *mon_get_tr_msg_resp(TR_MSG *msg)
 {
   if (tr_msg_get_msg_type(msg) == mon_msg_type.mon_response)
     return (MON_RESP *) tr_msg_get_rep(msg);
