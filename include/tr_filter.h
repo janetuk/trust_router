@@ -145,6 +145,10 @@ typedef TR_LIST_ITER TR_FLINE_ITER;
 #define tr_fline_iter_next(ITER) (tr_list_iter_next(ITER))
 #define tr_fline_add_spec(LINE, SPEC) ((TR_NAME *) tr_list_add((LINE)->specs, (SPEC), 1))
 
+
+/* Function types for handling filter fields generally. All target values
+ * are represented as strings in a TR_NAME. */
+
 /* CMP functions return values like strcmp: 0 on match, <0 on target<val, >0 on target>val */
 typedef int (TR_FILTER_FIELD_CMP)(TR_FILTER_TARGET *target, TR_NAME *val);
 /* get functions return TR_NAME format of the field value. Caller must free it. */

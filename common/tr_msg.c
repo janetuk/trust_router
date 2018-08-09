@@ -51,6 +51,22 @@
 #include <tr_debug.h>
 #include <tr_inet_util.h>
 
+/**
+ * Notes on message encoders/decoders
+ *
+ * A dynamic table of protocol-specific message types, encoders, and decoders
+ * is maintained.
+ *
+ * In order to send/receive messages, an encoder/decoder function must
+ * be added to the table using the tr_msg_register_type()
+ * function. This requires a label for the message type (which appears
+ * in the protocol message header) and at least encoder with signature
+ * TR_MESSAGE_ENCODE_FUNC and/or a decoder with signature
+ * TR_MESSAGE_DECODE_FUNC. At least one of these is required.
+ *
+ * This call returns an opaque TR_MSG_TYPE token which the caller
+ * should record to use when creating / retrieving messages.
+ */
 #define MAX_MSG_TYPES 10
 static TR_MSG_TYPE_HANDLER msg_type_handler_table[MAX_MSG_TYPES] = {{0}};
 

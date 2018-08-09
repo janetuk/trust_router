@@ -40,10 +40,22 @@
 #include <tid_internal.h>
 #include <tr_debug.h>
 
-/* Function types for handling filter fields generally. All target values
- * are represented as strings in a TR_NAME.
+/**
+ * Notes on filter field handlers
+ *
+ * A dynamic table of fields is maintained. A protocol should register
+ * a compare function with signature TR_FILTER_FIELD_CMP and a getter
+ * function with signature TR_FILTER_FIELD_GET. These handlers are
+ * registered with tr_filter_add_field_handler().
+ *
+ * Field handlers for the TID protocol are initialized automatically.
+ * This could be broken out, but it is unclear that this module will
+ * ever be used in programs that do not need to handle TID messages.
+ *
+ * The filter types must be defined in the TR_FILTER_TYPE enum. This
+ * could be done dynamically (like in tr_msg.c), but it's unclear that
+ * this would be practically useful.
  */
-
 TR_FILTER_TARGET *tr_filter_target_new(TALLOC_CTX *mem_ctx)
 {
   TR_FILTER_TARGET *target=talloc(mem_ctx, TR_FILTER_TARGET);
