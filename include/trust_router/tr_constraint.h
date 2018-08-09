@@ -54,4 +54,8 @@ int TR_EXPORT tr_constraint_set_get_match_strings(TID_REQ *,
                                                   const char * constraint_type,
                                                   tr_const_string **output,
                                                   size_t *output_len);
+
+/* This is not meant to be public, but is in the symbol list for Debian */
+TR_EXPORT int tr_prefix_wildcard_match(const char *str, const char *wc_str);
+
 #endif

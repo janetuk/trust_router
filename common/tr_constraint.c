@@ -153,7 +153,7 @@ cleanup:
  * Allows for a single '*' as the wildcard character if it is the first character. Leading white
  * space is significant.
  */
-static int tr_prefix_wildcard_match(const char *str, const char *wc_str)
+int tr_prefix_wildcard_match(const char *str, const char *wc_str)
 {
   const char *wc_post = wc_str;
   size_t len = 0;
