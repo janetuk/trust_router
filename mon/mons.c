@@ -100,6 +100,8 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
       talloc_free(mons);
       return NULL;
     }
+
+    mon_tr_msg_init(); /* Prepare to send messages */
   }
   return mons;
 }
@@ -123,12 +125,10 @@ static TR_GSS_RC mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, TR_MSG **resp
   if (req_msg == NULL)
     goto cleanup;
 
-  req = tr_msg_get_mon_req(req_msg);
+  req = mon_get_tr_msg_req(req_msg);
   if (req == NULL) {
     /* this is an internal error */
-    tr_err("mons_req_cb: Received incorrect message type (was %d, expected %d)",
-           tr_msg_get_msg_type(req_msg),
-           MON_REQUEST);
+    tr_err("mons_req_cb: Received incorrect message type");
     /* TODO send an error response */
     goto cleanup;
   }
@@ -151,7 +151,7 @@ static TR_GSS_RC mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, TR_MSG **resp
   }
 
   /* Set the response message payload */
-  tr_msg_set_mon_resp(*resp_msg, resp);
+  mon_set_tr_msg_resp(*resp_msg, resp);
 
   /* Put the response message in the caller's context so it does not get freed when we exit */
   talloc_steal(mem_ctx, *resp_msg);

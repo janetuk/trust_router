@@ -67,7 +67,7 @@ static TID_RESP *tids_create_response(TALLOC_CTX *mem_ctx, TID_REQ *req)
     tr_crit("tids_create_response: Error allocating response structure.");
     return NULL;
   }
-  
+
   resp->result = TID_SUCCESS; /* presume success */
   if ((NULL == (resp->rp_realm = tr_dup_name(req->rp_realm))) ||
       (NULL == (resp->realm = tr_dup_name(req->realm))) ||
@@ -115,7 +115,7 @@ static int tids_handle_request(TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp
 
   tr_debug("tids_handle_request: adding self to req path.");
   tid_req_add_path(req, tids->hostname, tids->tids_port);
-  
+
   /* Call the caller's request handler */
   /* TBD -- Handle different error returns/msgs */
   if (0 > (rc = (*tids->req_handler)(tids, req, resp, tids->cookie))) {
@@ -130,7 +130,7 @@ static int tids_handle_request(TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp
     tid_resp_set_result(resp, TID_SUCCESS);
     resp->err_msg = NULL;	/* No error msg on successful return */
   }
-    
+
   return rc;
 }
 
@@ -147,8 +147,7 @@ static char *tids_encode_response(TALLOC_CTX *mem_ctx, TID_RESP *resp)
   char *resp_buf = NULL;
 
   /* Construct the response message */
-  mresp.msg_type = TID_RESPONSE;
-  tr_msg_set_resp(&mresp, resp);
+  tid_set_tr_msg_resp(&mresp, resp);
 
   /* Encode the message to JSON */
   resp_buf = tr_msg_encode(mem_ctx, &mresp);
@@ -270,15 +269,14 @@ static TR_GSS_RC tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, TR_MSG **mresp, 
   TID_RESP *resp = NULL;
   TR_GSS_RC rc = TR_GSS_ERROR;
 
-  /* If this isn't a TID Request, just drop it. */
-  if (mreq->msg_type != TID_REQUEST) {
+  /* Get a handle on the request itself. Don't free req - it belongs to mreq */
+  req = tid_get_tr_msg_req(mreq);
+  if (NULL == req) {
+    /* This isn't a TID Request, just drop it. */
     tr_debug("tids_req_cb: Not a TID request, dropped.");
     rc = TR_GSS_INTERNAL_ERROR;
     goto cleanup;
   }
-
-  /* Get a handle on the request itself. Don't free req - it belongs to mreq */
-  req = tr_msg_get_req(mreq);
 
   /* Allocate a response message */
   *mresp = talloc(tmp_ctx, TR_MSG);
@@ -302,7 +300,7 @@ static TR_GSS_RC tids_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *mreq, TR_MSG **mresp, 
     goto cleanup;
   }
   /* Now officially assign the response to the message. */
-  tr_msg_set_resp(*mresp, resp);
+  tid_set_tr_msg_resp(*mresp, resp);
 
   /* Handle the request and fill in resp */
   if (tids_handle_request(tids, req, resp) >= 0)
@@ -340,6 +338,8 @@ TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx)
       return NULL;
     }
     talloc_set_destructor((void *)tids, tids_destructor);
+
+    tid_tr_msg_init(); /* ensure TR_MSG can handle TID messages */
   }
   return tids;
 }
@@ -377,7 +377,7 @@ nfds_t tids_get_listener(TIDS_INSTANCE *tids,
   else {
     /* opening port succeeded */
     tr_info("tids_get_listener: Opened port %d.", port);
-    
+
     /* make this socket non-blocking */
     for (ii=0; ii<n_fd; ii++) {
       if (0 != fcntl(fd_out[ii], F_SETFL, O_NONBLOCK)) {

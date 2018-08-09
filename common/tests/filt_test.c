@@ -120,7 +120,7 @@ TRP_INFOREC *load_inforec(const char *fname)
 
   assert(encoded);
   assert(msg= tr_msg_decode(NULL, encoded, strlen(encoded)));
-  assert(upd=tr_msg_get_trp_upd(msg));
+  assert(upd= trp_get_tr_msg_upd(msg));
   assert(inforec=trp_upd_get_inforec(upd));
   /* now remove the inforec from the update context */
   talloc_steal(NULL, inforec);
@@ -151,11 +151,11 @@ TID_REQ *load_tid_req(const char *fname)
   msgbuf=NULL;
 
   assert(msg);
-  assert(tr_msg_get_msg_type(msg)==TID_REQUEST);
+  assert(NULL != tid_get_tr_msg_req(msg)); /* checks that this is a TID request */
 
   /* take the tid req out of the msg */
-  out=tr_msg_get_req(msg);
-  tr_msg_set_req(msg, NULL);
+  out= tid_get_tr_msg_req(msg);
+  tid_set_tr_msg_req(msg, NULL);
   assert(out);
 
   tr_msg_free_decoded(msg);
@@ -197,7 +197,7 @@ int test_one_filter(char *filt_fname,
     case TR_FILTER_TYPE_TRP_INBOUND:
     case TR_FILTER_TYPE_TRP_OUTBOUND:
       /* TODO: read realm and community */
-      target= tr_filter_target_trp_inforec(NULL, NULL, load_inforec(target_fname));
+      target= trp_filter_target_inforec(NULL, NULL, load_inforec(target_fname));
       break;
 
     default:
@@ -269,6 +269,10 @@ int test_filter(void)
 
 int main(void)
 {
+  tid_tr_msg_init();
+  trp_tr_msg_init();
+  trp_filter_init();
+
   assert(test_load_filter());
   assert(test_filter());
   printf("Success\n");
