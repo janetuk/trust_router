@@ -345,6 +345,23 @@ if HAVE_SYSTEMD
 systemdsystemunit_DATA = tids.service
 endif
 
-EXTRA_DIST = trust_router.spec common/tests.json schema.sql tids.service \
+EXTRA_DIST = \
+	CMakeLists.txt \
+	m4/.ignore-this-file \
+	trust_router.spec \
+	common/tests.json \
+	common/tests/idp.cfg \
+	common/tests/test-filters/filt-inforec-1-msg.json \
+	common/tests/test-filters/filt-inforec-1.json \
+	common/tests/test-filters/filt-tidreq-1-msg.json \
+	common/tests/test-filters/filt-tidreq-1.json \
+	common/tests/test-filters/filter-tests.json \
+	common/tests/test-filters/invalid-filt-repeated-key.json \
+	common/tests/test-filters/invalid-filt-unknown-field.json \
+	common/tests/test-filters/valid-filt.json \
+	mon/tests/req_show_all_options.test \
+	mon/tests/req_show_no_options.test \
+	mon/tests/resp_show_success.test \
+	schema.sql tids.service \
 	tr/internal.cfg tr/organizations.cfg \
 	redhat/tids.init

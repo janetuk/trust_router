@@ -151,13 +151,10 @@ typedef int (TR_FILTER_FIELD_CMP)(TR_FILTER_TARGET *target, TR_NAME *val);
 typedef TR_NAME *(TR_FILTER_FIELD_GET)(TR_FILTER_TARGET *target);
 
 
-/*In tr_constraint.c and exported, but not really a public symbol; needed by tr_filter.c and by tr_constraint.c*/
-int TR_EXPORT tr_prefix_wildcard_match(const char *str, const char *wc_str);
-
 int tr_filter_apply(TR_FILTER_TARGET *target, TR_FILTER *filt, TR_CONSTRAINT_SET **constraints, TR_FILTER_ACTION *out_action);
 
-TR_FILTER_TARGET TR_EXPORT *tr_filter_target_new(TALLOC_CTX *mem_ctx);
-void TR_EXPORT tr_filter_target_free(TR_FILTER_TARGET *target);
+TR_FILTER_TARGET *tr_filter_target_new(TALLOC_CTX *mem_ctx);
+void tr_filter_target_free(TR_FILTER_TARGET *target);
 TR_FILTER_TARGET *tr_filter_target_tid_req(TALLOC_CTX *mem_ctx, TID_REQ *req);
 
 TR_CONSTRAINT_SET *tr_constraint_set_from_fline(TR_FLINE *fline);
@@ -167,7 +164,7 @@ int tr_filter_validate_spec_field(TR_FILTER_TYPE ftype, TR_FSPEC *fspec);
 const char *tr_filter_type_to_string(TR_FILTER_TYPE ftype);
 TR_FILTER_TYPE tr_filter_type_from_string(const char *s);
 
-int TR_EXPORT tr_filter_add_field_handler(TR_FILTER_TYPE ftype,
+int tr_filter_add_field_handler(TR_FILTER_TYPE ftype,
                                           const char *name,
                                           TR_FILTER_FIELD_CMP *cmp,
                                           TR_FILTER_FIELD_GET *get);
