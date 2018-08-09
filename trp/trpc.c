@@ -65,7 +65,9 @@ TRPC_INSTANCE *trpc_new (TALLOC_CTX *mem_ctx)
       trpc=NULL;
     } else
       talloc_set_destructor((void *)trpc, trpc_destructor);
-    
+
+    tr_msg_trp_init(); /* ensure TR_MSG can handle TRP messages */
+    trp_filter_init(); /* ensure we can filter on TRP message fields */
   }
   return trpc;
 }
@@ -205,7 +207,7 @@ TRP_RC trpc_connect(TRPC_INSTANCE *trpc)
 }
 
 /* simple function, based on tidc_send_req */
-TRP_RC trpc_send_msg (TRPC_INSTANCE *trpc, 
+TRP_RC trpc_send_msg (TRPC_INSTANCE *trpc,
                       const char *msg_content)
 {
   int err=0;
@@ -214,7 +216,7 @@ TRP_RC trpc_send_msg (TRPC_INSTANCE *trpc,
   /* Send the request over the connection */
   if (err = gsscon_write_encrypted_token(trp_connection_get_fd(trpc_get_conn(trpc)),
                                          *trp_connection_get_gssctx(trpc_get_conn(trpc)),
-                                         msg_content, 
+                                         msg_content,
                                          strlen(msg_content))) {
     tr_err( "trpc_send_msg: Error sending message over connection.");
     rc=TRP_ERROR;

@@ -151,7 +151,7 @@ TID_REQ *load_tid_req(const char *fname)
   msgbuf=NULL;
 
   assert(msg);
-  assert(tr_msg_get_msg_type(msg)==TID_REQUEST);
+  assert(NULL != tr_msg_get_req(msg)); /* checks that this is a TID request */
 
   /* take the tid req out of the msg */
   out=tr_msg_get_req(msg);
@@ -269,6 +269,10 @@ int test_filter(void)
 
 int main(void)
 {
+  tr_msg_tid_init();
+  tr_msg_trp_init();
+  trp_filter_init();
+
   assert(test_load_filter());
   assert(test_filter());
   printf("Success\n");

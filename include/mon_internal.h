@@ -142,10 +142,10 @@ size_t mon_req_opt_count(MON_REQ *req);
 MON_OPT *mon_req_opt_index(MON_REQ *req, size_t index);
 
 /* mon_req_encode.c */
-json_t *mon_req_encode(MON_REQ *req);
+json_t *mon_req_encode(void *msg_rep);
 
 /* mon_req_decode.c */
-MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json);
+void *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json);
 MON_REQ *mon_req_parse(TALLOC_CTX *mem_ctx, const char *input);
 
 /* mon_resp.c */
@@ -155,10 +155,10 @@ int mon_resp_set_message(MON_RESP *resp, const char *new_msg);
 void mon_resp_set_payload(MON_RESP *resp, json_t *new_payload);
 
 /* mon_resp_encode.c */
-json_t *mon_resp_encode(MON_RESP *resp);
+json_t *mon_resp_encode(void *msg_rep);
 
 /* mon_resp_decode.c */
-MON_RESP * mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json);
+void * mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json);
 
 /* mons.c */
 MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx);
@@ -177,5 +177,12 @@ MONC_INSTANCE *monc_new(TALLOC_CTX *mem_ctx);
 void monc_free(MONC_INSTANCE *monc);
 int monc_open_connection(MONC_INSTANCE *monc, const char *server, int port);
 MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *req);
+
+/* mon_tr_msg.c */
+int mon_tr_msg_init(void);
+MON_REQ *tr_msg_get_mon_req(TR_MSG *msg);
+void tr_msg_set_mon_req(TR_MSG *msg, MON_REQ *req);
+MON_RESP *tr_msg_get_mon_resp(TR_MSG *msg);
+void tr_msg_set_mon_resp(TR_MSG *msg, MON_RESP *resp);
 
 #endif //TRUST_ROUTER_MON_REQ_H

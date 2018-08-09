@@ -105,8 +105,8 @@ typedef struct trps_instance TRPS_INSTANCE;
 
 typedef enum trp_connection_status {
   TRP_CONNECTION_CLOSED=0,
-  TRP_CONNECTION_DOWN,  
-  TRP_CONNECTION_AUTHORIZING,  
+  TRP_CONNECTION_DOWN,
+  TRP_CONNECTION_AUTHORIZING,
   TRP_CONNECTION_UP,
   TRP_CONNECTION_UNKNOWN,
 } TRP_CONNECTION_STATUS;
@@ -305,5 +305,16 @@ TRP_RC trp_inforec_set_role(TRP_INFOREC *rec, TR_REALM_ROLE role);
 TR_APC *trp_inforec_get_apcs(TRP_INFOREC *rec);
 TRP_RC trp_inforec_set_apcs(TRP_INFOREC *rec, TR_APC *apcs);
 TR_NAME *trp_inforec_dup_origin(TRP_INFOREC *rec);
+
+/* From trp_tr_msg.c */
+int tr_msg_trp_init(void);
+TRP_UPD *tr_msg_get_trp_upd(TR_MSG *msg);
+void tr_msg_set_trp_upd(TR_MSG *msg, TRP_UPD *upd);
+TRP_REQ *tr_msg_get_trp_req(TR_MSG *msg);
+void tr_msg_set_trp_req(TR_MSG *msg, TRP_REQ *req);
+
+/* From trp_filter.c */
+void trp_filter_init(void);
+TR_FILTER_TARGET *tr_filter_target_trp_inforec(TALLOC_CTX *mem_ctx, TRP_UPD *upd, TRP_INFOREC *inforec);
 
 #endif /* TRP_INTERNAL_H */

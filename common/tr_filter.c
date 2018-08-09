@@ -32,28 +32,19 @@
  *
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <talloc.h>
-#include <assert.h>
 
 #include <tr_filter.h>
-#include <trp_internal.h>
 #include <tid_internal.h>
-#include <tr_inet_util.h>
 #include <tr_debug.h>
 
 /* Function types for handling filter fields generally. All target values
  * are represented as strings in a TR_NAME.
  */
 
-/* CMP functions return values like strcmp: 0 on match, <0 on target<val, >0 on target>val */
-typedef int (*TR_FILTER_FIELD_CMP)(TR_FILTER_TARGET *target, TR_NAME *val);
-/* get functions return TR_NAME format of the field value. Caller must free it. */
-typedef TR_NAME *(*TR_FILTER_FIELD_GET)(TR_FILTER_TARGET *target);
-
-static TR_FILTER_TARGET *tr_filter_target_new(TALLOC_CTX *mem_ctx)
+TR_FILTER_TARGET *tr_filter_target_new(TALLOC_CTX *mem_ctx)
 {
   TR_FILTER_TARGET *target=talloc(mem_ctx, TR_FILTER_TARGET);
   if (target) {
@@ -84,25 +75,6 @@ TR_FILTER_TARGET *tr_filter_target_tid_req(TALLOC_CTX *mem_ctx, TID_REQ *req)
   return target;
 }
 
-/**
- * Create a filter target for a TRP inforec. Does not change the context of the inforec or duplicate TR_NAMEs,
- * so this is only valid until those are freed.
- *
- * @param mem_ctx talloc context for the object
- * @param upd Update containing the TRP inforec
- * @param inforec TRP inforec
- * @return pointer to a TR_FILTER_TARGET structure, or null on allocation failure
- */
-TR_FILTER_TARGET *tr_filter_target_trp_inforec(TALLOC_CTX *mem_ctx, TRP_UPD *upd, TRP_INFOREC *inforec)
-{
-  TR_FILTER_TARGET *target=tr_filter_target_new(mem_ctx);
-  if (target) {
-    target->trp_inforec = inforec; /* borrowed, not adding to our context */
-    target->trp_upd=upd;
-  }
-  return target;
-}
-
 /** Handler functions for TID RP_REALM field */
 static int tr_ff_cmp_tid_rp_realm(TR_FILTER_TARGET *target, TR_NAME *val)
 {
@@ -112,45 +84,6 @@ static int tr_ff_cmp_tid_rp_realm(TR_FILTER_TARGET *target, TR_NAME *val)
 static TR_NAME *tr_ff_get_tid_rp_realm(TR_FILTER_TARGET *target)
 {
   return tr_dup_name(tid_req_get_rp_realm(target->tid_req));
-}
-
-/** Handler functions for TRP info_type field */
-static int tr_ff_cmp_trp_info_type(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  TRP_INFOREC *inforec=target->trp_inforec;
-  char *valstr=NULL;
-  int val_type=0;
-
-  assert(val);
-  assert(inforec);
-
-  /* nothing matches unknown */
-  if (inforec->type==TRP_INFOREC_TYPE_UNKNOWN)
-    return 0;
-
-  valstr = tr_name_strdup(val); /* get this as an official null-terminated string */
-  val_type = trp_inforec_type_from_string(valstr);
-  free(valstr);
-
-  /* we do not define an ordering of info types */
-  return (val_type==inforec->type);
-}
-
-static TR_NAME *tr_ff_get_trp_info_type(TR_FILTER_TARGET *target)
-{
-  TRP_INFOREC *inforec=target->trp_inforec;
-  return tr_new_name(trp_inforec_type_to_string(inforec->type));
-}
-
-/** Handlers for TRP realm field */
-static int tr_ff_cmp_trp_realm(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  return tr_name_cmp(trp_upd_get_realm(target->trp_upd), val);
-}
-
-static TR_NAME *tr_ff_get_trp_realm(TR_FILTER_TARGET *target)
-{
-  return tr_dup_name(trp_upd_get_realm(target->trp_upd));
 }
 
 /** Handlers for TID realm field */
@@ -164,17 +97,6 @@ static TR_NAME *tr_ff_get_tid_realm(TR_FILTER_TARGET *target)
   return tr_dup_name(tid_req_get_realm(target->tid_req));
 }
 
-/** Handlers for TRP community field */
-static int tr_ff_cmp_trp_comm(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  return tr_name_cmp(trp_upd_get_comm(target->trp_upd), val);
-}
-
-static TR_NAME *tr_ff_get_trp_comm(TR_FILTER_TARGET *target)
-{
-  return tr_dup_name(trp_upd_get_comm(target->trp_upd));
-}
-
 /** Handlers for TID community field */
 static int tr_ff_cmp_tid_comm(TR_FILTER_TARGET *target, TR_NAME *val)
 {
@@ -184,167 +106,6 @@ static int tr_ff_cmp_tid_comm(TR_FILTER_TARGET *target, TR_NAME *val)
 static TR_NAME *tr_ff_get_tid_comm(TR_FILTER_TARGET *target)
 {
   return tr_dup_name(tid_req_get_comm(target->tid_req));
-}
-
-/** Handlers for TRP community_type field */
-static TR_NAME *tr_ff_get_trp_comm_type(TR_FILTER_TARGET *target)
-{
-  TR_NAME *type=NULL;
-
-  switch(trp_inforec_get_comm_type(target->trp_inforec)) {
-    case TR_COMM_APC:
-      type=tr_new_name("apc");
-      break;
-    case TR_COMM_COI:
-      type=tr_new_name("coi");
-      break;
-    default:
-      type=NULL;
-      break; /* unknown types always fail */
-  }
-
-  return type;
-}
-
-static int tr_ff_cmp_trp_comm_type(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  TR_NAME *type=tr_ff_get_trp_comm_type(target);
-  int retval=0;
-
-  if (type==NULL)
-    retval=1;
-  else {
-    retval = tr_name_cmp(val, type);
-    tr_free_name(type);
-  }
-  return retval;
-}
-
-/** Handlers for TRP realm_role field */
-static TR_NAME *tr_ff_get_trp_realm_role(TR_FILTER_TARGET *target)
-{
-  TR_NAME *type=NULL;
-
-  switch(trp_inforec_get_role(target->trp_inforec)) {
-    case TR_ROLE_IDP:
-      type=tr_new_name("idp");
-      break;
-    case TR_ROLE_RP:
-      type=tr_new_name("rp");
-      break;
-    default:
-      type=NULL;
-      break; /* unknown types always fail */
-  }
-
-  return type;
-}
-
-static int tr_ff_cmp_trp_realm_role(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  TR_NAME *type=tr_ff_get_trp_realm_role(target);
-  int retval=0;
-
-  if (type==NULL)
-    retval=1;
-  else {
-    retval = tr_name_cmp(val, type);
-    tr_free_name(type);
-  }
-  return retval;
-}
-
-/** Handlers for TRP apc field */
-/* TODO: Handle multiple APCs, not just the first */
-static int tr_ff_cmp_trp_apc(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  return tr_name_cmp(tr_apc_get_id(trp_inforec_get_apcs(target->trp_inforec)), val);
-}
-
-static TR_NAME *tr_ff_get_trp_apc(TR_FILTER_TARGET *target)
-{
-  TR_APC *apc=trp_inforec_get_apcs(target->trp_inforec);
-  if (apc==NULL)
-    return NULL;
-
-  return tr_dup_name(tr_apc_get_id(apc));
-}
-
-/** Handlers for TRP owner_realm field */
-static int tr_ff_cmp_trp_owner_realm(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  return tr_name_cmp(trp_inforec_get_owner_realm(target->trp_inforec), val);
-}
-
-static TR_NAME *tr_ff_get_trp_owner_realm(TR_FILTER_TARGET *target)
-{
-  return tr_dup_name(trp_inforec_get_owner_realm(target->trp_inforec));
-}
-
-/** Generic handlers for host:port fields*/
-static TR_NAME *tr_ff_get_hostname_and_port(TR_NAME *hn, int port)
-{
-  return tr_hostname_and_port_to_name(hn, port);
-}
-
-static int tr_ff_cmp_hostname_and_port(TR_NAME *hn, int port, int default_port, TR_NAME *val)
-{
-  int cmp = -1;
-  TR_NAME *n = NULL;
-
-  /* allow a match without :port if the default port is in use */
-  if ((port == default_port) && (tr_name_cmp(hn, val) == 0))
-    return 0;
-
-  /* need to match with the :port */
-  n = tr_ff_get_hostname_and_port(hn, port);
-
-  if (n) {
-    cmp = tr_name_cmp(n, val);
-    tr_free_name(n);
-  }
-  return cmp;
-}
-
-/** Handlers for TRP trust_router field */
-static int tr_ff_cmp_trp_trust_router(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  return tr_ff_cmp_hostname_and_port(trp_inforec_get_trust_router(target->trp_inforec),
-                                     trp_inforec_get_trust_router_port(target->trp_inforec),
-                                     TRP_PORT,
-                                     val);
-}
-
-static TR_NAME *tr_ff_get_trp_trust_router(TR_FILTER_TARGET *target)
-{
-  return tr_ff_get_hostname_and_port(trp_inforec_get_trust_router(target->trp_inforec),
-                                     trp_inforec_get_trust_router_port(target->trp_inforec));
-}
-
-/** Handlers for TRP next_hop field */
-static int tr_ff_cmp_trp_next_hop(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  return tr_ff_cmp_hostname_and_port(trp_inforec_get_next_hop(target->trp_inforec),
-                                     trp_inforec_get_next_hop_port(target->trp_inforec),
-                                     TID_PORT,
-                                     val);
-}
-
-static TR_NAME *tr_ff_get_trp_next_hop(TR_FILTER_TARGET *target)
-{
-  return tr_ff_get_hostname_and_port(trp_inforec_get_next_hop(target->trp_inforec),
-                                     trp_inforec_get_next_hop_port(target->trp_inforec));
-}
-
-/** Handlers for TRP owner_contact field */
-static int tr_ff_cmp_trp_owner_contact(TR_FILTER_TARGET *target, TR_NAME *val)
-{
-  return tr_name_cmp(trp_inforec_get_owner_contact(target->trp_inforec), val);
-}
-
-static TR_NAME *tr_ff_get_trp_owner_contact(TR_FILTER_TARGET *target)
-{
-  return tr_dup_name(trp_inforec_get_owner_contact(target->trp_inforec));
 }
 
 /** Handlers for TID req original_coi field */
@@ -361,64 +122,67 @@ static TR_NAME *tr_ff_get_tid_orig_coi(TR_FILTER_TARGET *target)
 /**
  * Filter field handler table
  */
+#define FILTER_FIELD_NAME_LEN 50
 struct tr_filter_field_entry {
   TR_FILTER_TYPE filter_type;
-  const char *name;
-  TR_FILTER_FIELD_CMP cmp;
-  TR_FILTER_FIELD_GET get;
+  char name[FILTER_FIELD_NAME_LEN+1];
+  TR_FILTER_FIELD_CMP *cmp;
+  TR_FILTER_FIELD_GET *get;
 };
-static struct tr_filter_field_entry tr_filter_field_table[] = {
-    /* realm */
-    {TR_FILTER_TYPE_TID_INBOUND, "realm", tr_ff_cmp_tid_realm, tr_ff_get_tid_realm},
-    {TR_FILTER_TYPE_TRP_INBOUND, "realm", tr_ff_cmp_trp_realm, tr_ff_get_trp_realm},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "realm", tr_ff_cmp_trp_realm, tr_ff_get_trp_realm},
+/* As of now, we use 24 of these when the TRP module is present */
+#define FILTER_FIELD_TABLE_LEN 30
+static struct tr_filter_field_entry tr_filter_field_table[FILTER_FIELD_TABLE_LEN] = {
+  /* realm */
+  {TR_FILTER_TYPE_TID_INBOUND, "realm", tr_ff_cmp_tid_realm, tr_ff_get_tid_realm},
 
-    /* community */
-    {TR_FILTER_TYPE_TID_INBOUND, "comm", tr_ff_cmp_tid_comm, tr_ff_get_tid_comm},
-    {TR_FILTER_TYPE_TRP_INBOUND, "comm", tr_ff_cmp_trp_comm, tr_ff_get_trp_comm},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "comm", tr_ff_cmp_trp_comm, tr_ff_get_trp_comm},
+  /* community */
+  {TR_FILTER_TYPE_TID_INBOUND, "comm", tr_ff_cmp_tid_comm, tr_ff_get_tid_comm},
 
-    /* community type */
-    {TR_FILTER_TYPE_TRP_INBOUND, "comm_type", tr_ff_cmp_trp_comm_type, tr_ff_get_trp_comm_type},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "comm_type", tr_ff_cmp_trp_comm_type, tr_ff_get_trp_comm_type},
+  /* rp_realm */
+  {TR_FILTER_TYPE_TID_INBOUND, "rp_realm", tr_ff_cmp_tid_rp_realm, tr_ff_get_tid_rp_realm},
 
-    /* realm role */
-    {TR_FILTER_TYPE_TRP_INBOUND, "realm_role", tr_ff_cmp_trp_realm_role, tr_ff_get_trp_realm_role},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "realm_role", tr_ff_cmp_trp_realm_role, tr_ff_get_trp_realm_role},
+  /* original coi */
+  {TR_FILTER_TYPE_TID_INBOUND, "original_coi", tr_ff_cmp_tid_orig_coi, tr_ff_get_tid_orig_coi},
 
-    /* apc */
-    {TR_FILTER_TYPE_TRP_INBOUND, "apc", tr_ff_cmp_trp_apc, tr_ff_get_trp_apc},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "apc", tr_ff_cmp_trp_apc, tr_ff_get_trp_apc},
-
-    /* trust_router */
-    {TR_FILTER_TYPE_TRP_INBOUND, "trust_router", tr_ff_cmp_trp_trust_router, tr_ff_get_trp_trust_router},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "trust_router", tr_ff_cmp_trp_trust_router, tr_ff_get_trp_trust_router},
-
-    /* next_hop */
-    {TR_FILTER_TYPE_TRP_INBOUND, "next_hop", tr_ff_cmp_trp_next_hop, tr_ff_get_trp_next_hop},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "next_hop", tr_ff_cmp_trp_next_hop, tr_ff_get_trp_next_hop},
-
-    /* owner_realm */
-    {TR_FILTER_TYPE_TRP_INBOUND, "owner_realm", tr_ff_cmp_trp_owner_realm, tr_ff_get_trp_owner_realm},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "owner_realm", tr_ff_cmp_trp_owner_realm, tr_ff_get_trp_owner_realm},
-
-    /* owner_contact */
-    {TR_FILTER_TYPE_TRP_INBOUND, "owner_contact", tr_ff_cmp_trp_owner_contact, tr_ff_get_trp_owner_contact},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "owner_contact", tr_ff_cmp_trp_owner_contact, tr_ff_get_trp_owner_contact},
-
-    /* rp_realm */
-    {TR_FILTER_TYPE_TID_INBOUND, "rp_realm", tr_ff_cmp_tid_rp_realm, tr_ff_get_tid_rp_realm},
-
-    /* original coi */
-    {TR_FILTER_TYPE_TID_INBOUND, "original_coi", tr_ff_cmp_tid_orig_coi, tr_ff_get_tid_orig_coi},
-
-    /* info_type */
-    {TR_FILTER_TYPE_TRP_INBOUND, "info_type", tr_ff_cmp_trp_info_type, tr_ff_get_trp_info_type},
-    {TR_FILTER_TYPE_TRP_OUTBOUND, "info_type", tr_ff_cmp_trp_info_type, tr_ff_get_trp_info_type},
-
-    /* Unknown */
-    {TR_FILTER_TYPE_UNKNOWN, NULL } /* This must be the final entry */
+  /* The rest start off as 0 (TYPE_UNKNOWN) */
+  {0}
 };
+
+int tr_filter_add_field_handler(TR_FILTER_TYPE ftype,
+                                const char *name,
+                                TR_FILTER_FIELD_CMP *cmp,
+                                TR_FILTER_FIELD_GET *get)
+{
+  size_t ii;
+  struct tr_filter_field_entry *handler;
+
+  for (ii=0; ii < FILTER_FIELD_TABLE_LEN; ii++) {
+    handler = &(tr_filter_field_table[ii]);
+    if ((handler->filter_type == TR_FILTER_TYPE_UNKNOWN)
+       || ((handler->filter_type == ftype)
+          && (0 == strcmp(name, handler->name)))) {
+      /* Entry already exists */
+      break;
+    }
+  }
+
+  if (ii >= FILTER_FIELD_TABLE_LEN) {
+    tr_debug("tr_filter_add_field_handler: table full adding filter_type=%d, name=%s",
+             ftype,
+             name);
+    return 0;
+  }
+
+  /* Now fill in the table, replacing one if it already existed.
+   * If we're here, handler points at the correct entry in the table. */
+  handler->filter_type = ftype;
+  strncpy(handler->name, name, FILTER_FIELD_NAME_LEN);
+  handler->name[FILTER_FIELD_NAME_LEN] = '\0'; /* just to be sure */
+  handler->cmp = cmp;
+  handler->get = get;
+
+  return 1;
+}
 
 /* TODO: support TRP metric field (requires > < comparison instead of wildcard match) */
 
@@ -673,7 +437,7 @@ int tr_filter_validate(TR_FILTER *filt)
   TR_FLINE *this_fline = NULL;
   TR_FLINE_ITER *fline_iter = tr_fline_iter_new(tmp_ctx);
   TR_FSPEC *this_fspec = NULL;
-  
+
   if ((!filt) || (!filt_iter) || (!fline_iter)) {
     talloc_free(tmp_ctx);
     return 0;
@@ -690,7 +454,7 @@ int tr_filter_validate(TR_FILTER *filt)
       talloc_free(tmp_ctx);
       return 0; /* if we get here, either TR_FILTER_TYPE_UNKNOWN or an invalid value was found */
   }
-  
+
   for (this_fline = tr_filter_iter_first(filt_iter, filt);
        this_fline != NULL;
        this_fline = tr_filter_iter_next(filt_iter)) {
@@ -846,4 +610,3 @@ TR_FILTER_TYPE tr_filter_type_from_string(const char *s)
   }
   return TR_FILTER_TYPE_UNKNOWN;
 }
-

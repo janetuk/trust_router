@@ -8,29 +8,30 @@ bin_PROGRAMS= tr/trust_router tr/trpc tid/example/tidc tid/example/tids common/t
 AM_CPPFLAGS=-I$(srcdir)/include $(GLIB_CFLAGS)
 AM_CFLAGS = -Wall -Werror=missing-prototypes -Werror -Wno-parentheses $(GLIB_CFLAGS)
 SUBDIRS = gsscon
-common_srcs = common/tr_name.c \
-	common/tr_constraint.c \
-	common/jansson_iterators.h \
-	common/tr_msg.c \
-	common/tr_dh.c \
+common_srcs = \
+    common/tr_name.c \
+    common/jansson_iterators.h \
+    common/tr_dh.c \
     common/tr_debug.c \
-	common/tr_util.c \
-	common/tr_inet_util.c \
-	common/tr_apc.c \
-	common/tr_comm.c \
-	common/tr_comm_encoders.c \
-	common/tr_rp.c \
-	common/tr_rp_client.c \
-	common/tr_rp_client_encoders.c \
-	common/tr_idp.c \
-	common/tr_aaa_server.c \
-	common/tr_idp_encoders.c \
-	common/tr_filter.c \
-	common/tr_filter_encoders.c \
-	common/tr_gss_names.c \
-	common/tr_socket.c \
-	common/tr_list.c \
-	$(mon_srcs)
+    common/tr_util.c \
+    common/tr_inet_util.c \
+    common/tr_apc.c \
+    common/tr_comm.c \
+    common/tr_comm_encoders.c \
+    common/tr_rp.c \
+    common/tr_idp.c \
+    common/tr_aaa_server.c \
+    common/tr_idp_encoders.c \
+    common/tr_gss_names.c \
+    common/tr_socket.c \
+    common/tr_list.c \
+    common/tr_msg.c \
+    common/tr_constraint.c \
+    common/tr_filter.c \
+    common/tr_filter_encoders.c \
+    common/tr_rp_client.c \
+    common/tr_rp_client_encoders.c \
+    $(mon_srcs)
 
 ## TR gss sources
 gss_srcs = \
@@ -43,6 +44,7 @@ tid_srcs = \
     tid/tid_req.c \
     tid/tids.c \
     tid/tidc.c \
+    tid/tid_tr_msg.c \
     common/tr_rand_id.c
 
 ## TRP processing sources
@@ -60,6 +62,8 @@ trp_srcs = \
     trp/trp_rtable_encoders.c \
     trp/trp_req.c \
     trp/trp_upd.c \
+    trp/trp_tr_msg.c \
+    trp/trp_filter.c \
     common/tr_mq.c \
     $(config_srcs)
 
@@ -82,7 +86,8 @@ mon_srcs =                   \
     mon/mon_req_decode.c     \
     mon/mon_resp.c           \
     mon/mon_resp_decode.c    \
-    mon/mon_resp_encode.c
+    mon/mon_resp_encode.c    \
+    mon/mon_tr_msg.c
 
 ## monitoring server sources - must also include gss_srcs
 mons_srcs = \
@@ -139,9 +144,14 @@ tr_trust_router_SOURCES = \
     tr/tr_trp.c \
     tr/tr_trp_mons.c \
     tr/tr_mon.c \
+    $(tid_srcs) \
     $(trp_srcs) \
     $(gss_srcs) \
     $(mons_srcs)
+
+## These last three should not be here, but are required until we untangle dependencies
+## between tr_msg.c, tr_constraint.c, and the tid internal code. We ought to be able to
+## implement a trust router using only the public interface of libtr_tid
 
 tr_trust_router_LDFLAGS = $(AM_LDFLAGS) -levent_pthreads -pthread
 tr_trust_router_LDADD = gsscon/libgsscon.la $(GLIB_LIBS) $(lib_LTLIBRARIES)
@@ -203,12 +213,16 @@ trp_test_ptbl_test_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tidc_SOURCES = \
     $(common_srcs) \
+    $(tid_srcs) \
+    $(gss_srcs) \
     tid/example/tidc_main.c
 tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS) $(lib_LTLIBRARIES)
 tid_example_tidc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tids_SOURCES = \
     $(common_srcs) \
+    $(tid_srcs) \
+    $(gss_srcs) \
     tid/example/tids_main.c
 tid_example_tids_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS) $(lib_LTLIBRARIES)
 tid_example_tids_LDFLAGS = $(AM_LDFLAGS) -pthread
@@ -273,6 +287,8 @@ common_tests_filt_test_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 mon_tests_test_mon_req_encode_SOURCES = \
     mon/tests/test_mon_req_encode.c \
     $(mon_srcs) \
+    common/tr_msg.c \
+    common/tr_debug.c \
     common/tr_name.c
 mon_tests_test_mon_req_encode_LDADD = $(GLIB_LIBS)
 mon_tests_test_mon_req_encode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
@@ -280,6 +296,8 @@ mon_tests_test_mon_req_encode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 mon_tests_test_mon_req_decode_SOURCES = \
     mon/tests/test_mon_req_decode.c \
     $(mon_srcs) \
+    common/tr_msg.c \
+    common/tr_debug.c \
     common/tr_name.c
 mon_tests_test_mon_req_decode_LDADD = $(GLIB_LIBS)
 mon_tests_test_mon_req_decode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
@@ -287,6 +305,8 @@ mon_tests_test_mon_req_decode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 mon_tests_test_mon_resp_encode_SOURCES = \
     mon/tests/test_mon_resp_encode.c \
     $(mon_srcs) \
+    common/tr_msg.c \
+    common/tr_debug.c \
     common/tr_name.c
 mon_tests_test_mon_resp_encode_LDADD = $(GLIB_LIBS)
 mon_tests_test_mon_resp_encode_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)

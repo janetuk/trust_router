@@ -70,6 +70,8 @@ TIDC_INSTANCE *tidc_create(void)
     tidc->gssc->service_name = "trustidentity";
     tidc->client_dh = NULL;
     talloc_set_destructor((void *)tidc, tidc_destructor);
+
+    tr_msg_tid_init(); /* ensure TR_MSG can handle TID messages */
   }
   return tidc;
 }
@@ -182,7 +184,7 @@ int tidc_fwd_request(TIDC_INSTANCE *tidc,
   if (!(msg = talloc_zero(tmp_ctx, TR_MSG)))
     goto error;
 
-  msg->msg_type = TID_REQUEST;
+  /* Construct the request message */
   tr_msg_set_req(msg, tid_req);
 
 

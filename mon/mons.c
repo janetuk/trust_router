@@ -100,6 +100,8 @@ MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx)
       talloc_free(mons);
       return NULL;
     }
+
+    mon_tr_msg_init(); /* Prepare to send messages */
   }
   return mons;
 }
@@ -126,9 +128,7 @@ static TR_GSS_RC mons_req_cb(TALLOC_CTX *mem_ctx, TR_MSG *req_msg, TR_MSG **resp
   req = tr_msg_get_mon_req(req_msg);
   if (req == NULL) {
     /* this is an internal error */
-    tr_err("mons_req_cb: Received incorrect message type (was %d, expected %d)",
-           tr_msg_get_msg_type(req_msg),
-           MON_REQUEST);
+    tr_err("mons_req_cb: Received incorrect message type");
     /* TODO send an error response */
     goto cleanup;
   }
