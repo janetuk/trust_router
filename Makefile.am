@@ -26,7 +26,6 @@ common_srcs = \
     common/tr_socket.c \
     common/tr_list.c \
     common/tr_msg.c \
-    common/tr_constraint.c \
     common/tr_filter.c \
     common/tr_filter_encoders.c \
     common/tr_rp_client.c \
@@ -45,6 +44,7 @@ tid_srcs = \
     tid/tids.c \
     tid/tidc.c \
     tid/tid_tr_msg.c \
+    common/tr_constraint.c \
     common/tr_rand_id.c
 
 ## TRP processing sources
@@ -144,7 +144,6 @@ tr_trust_router_SOURCES = \
     tr/tr_trp.c \
     tr/tr_trp_mons.c \
     tr/tr_mon.c \
-    $(tid_srcs) \
     $(trp_srcs) \
     $(gss_srcs) \
     $(mons_srcs)
@@ -181,6 +180,7 @@ tr_trmon_LDFLAGS = $(AM_LDFLAGS) -pthread
 trp_msgtst_SOURCES = \
     trp/msgtst.c \
     $(common_srcs) \
+    common/tr_constraint.c \
     common/tr_rand_id.c \
     trp/trp_req.c \
     trp/trp_upd.c \
@@ -213,16 +213,12 @@ trp_test_ptbl_test_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tidc_SOURCES = \
     $(common_srcs) \
-    $(tid_srcs) \
-    $(gss_srcs) \
     tid/example/tidc_main.c
 tid_example_tidc_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS) $(lib_LTLIBRARIES)
 tid_example_tidc_LDFLAGS = $(AM_LDFLAGS) -pthread
 
 tid_example_tids_SOURCES = \
     $(common_srcs) \
-    $(tid_srcs) \
-    $(gss_srcs) \
     tid/example/tids_main.c
 tid_example_tids_LDADD = gsscon/libgsscon.la  $(GLIB_LIBS) $(lib_LTLIBRARIES)
 tid_example_tids_LDFLAGS = $(AM_LDFLAGS) -pthread

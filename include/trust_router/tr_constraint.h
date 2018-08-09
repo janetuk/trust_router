@@ -40,6 +40,8 @@
 
 typedef struct tr_constraint TR_CONSTRAINT;
 
+TR_EXPORT TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
+TR_EXPORT void tr_constraint_free(TR_CONSTRAINT *cons);
 void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
 int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
 TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
