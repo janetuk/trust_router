@@ -1,5 +1,6 @@
 usr/bin/tidc
 usr/bin/tids
+usr/bin/trmon
 usr/bin/trpc
 usr/bin/trust_router
 usr/share/trust_router/*

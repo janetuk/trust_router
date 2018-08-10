@@ -39,214 +39,12 @@
 #include <time.h>
 
 #include <tr_name_internal.h>
+#include <trp_route.h>
 #include <trp_internal.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
 #include <trust_router/trp.h>
 #include <trust_router/tid.h>
-
-/* Note: be careful mixing talloc with glib. */
-
-static int trp_route_destructor(void *obj)
-{
-  TRP_ROUTE *entry=talloc_get_type_abort(obj, TRP_ROUTE);
-  if (entry->comm!=NULL)
-    tr_free_name(entry->comm);
-  if (entry->realm!=NULL)
-    tr_free_name(entry->realm);
-  if (entry->trust_router!=NULL)
-    tr_free_name(entry->trust_router);
-  if (entry->peer!=NULL)
-    tr_free_name(entry->peer);
-  if (entry->next_hop!=NULL)
-    tr_free_name(entry->next_hop);
-  return 0;
-}
-
-TRP_ROUTE *trp_route_new(TALLOC_CTX *mem_ctx)
-{
-  TRP_ROUTE *entry=talloc(mem_ctx, TRP_ROUTE);
-  if (entry!=NULL) {
-    entry->comm=NULL;
-    entry->realm=NULL;
-    entry->trust_router=NULL;
-    entry->trp_port=TRP_PORT;
-    entry->tid_port=TID_PORT;
-    entry->peer=NULL;
-    entry->next_hop=NULL;
-    entry->selected=0;
-    entry->interval=0;
-    entry->expiry=talloc(entry, struct timespec);
-    if (entry->expiry==NULL) {
-      talloc_free(entry);
-      return NULL;
-    }
-    *(entry->expiry)=(struct timespec){0,0};
-    entry->local=0;
-    entry->triggered=0;
-    talloc_set_destructor((void *)entry, trp_route_destructor);
-  }
-  return entry;
-}
-
-void trp_route_free(TRP_ROUTE *entry)
-{
-  if (entry!=NULL)
-    talloc_free(entry);
-}
-
-void trp_route_set_comm(TRP_ROUTE *entry, TR_NAME *comm)
-{
-  if (entry->comm!=NULL)
-    tr_free_name(entry->comm);
-  entry->comm=comm;
-}
-
-TR_NAME *trp_route_get_comm(TRP_ROUTE *entry)
-{
-  return entry->comm;
-}
-
-TR_NAME *trp_route_dup_comm(TRP_ROUTE *entry)
-{
-  return tr_dup_name(trp_route_get_comm(entry));
-}
-
-void trp_route_set_realm(TRP_ROUTE *entry, TR_NAME *realm)
-{
-  if (entry->realm!=NULL)
-    tr_free_name(entry->realm);
-  entry->realm=realm;
-}
-
-TR_NAME *trp_route_get_realm(TRP_ROUTE *entry)
-{
-  return entry->realm;
-}
-
-TR_NAME *trp_route_dup_realm(TRP_ROUTE *entry)
-{
-  return tr_dup_name(trp_route_get_realm(entry));
-}
-
-void trp_route_set_trust_router(TRP_ROUTE *entry, TR_NAME *tr)
-{
-  if (entry->trust_router!=NULL)
-    tr_free_name(entry->trust_router);
-  entry->trust_router=tr;
-}
-
-TR_NAME *trp_route_get_trust_router(TRP_ROUTE *entry)
-{
-  return entry->trust_router;
-}
-
-TR_NAME *trp_route_dup_trust_router(TRP_ROUTE *entry)
-{
-  return tr_dup_name(trp_route_get_trust_router(entry));
-}
-
-void trp_route_set_peer(TRP_ROUTE *entry, TR_NAME *peer)
-{
-  if (entry->peer!=NULL)
-    tr_free_name(entry->peer);
-  entry->peer=peer;
-}
-
-TR_NAME *trp_route_get_peer(TRP_ROUTE *entry)
-{
-  return entry->peer;
-}
-
-TR_NAME *trp_route_dup_peer(TRP_ROUTE *entry)
-{
-  return tr_dup_name(trp_route_get_peer(entry));
-}
-
-void trp_route_set_metric(TRP_ROUTE *entry, unsigned int metric)
-{
-  entry->metric=metric;
-}
-
-unsigned int trp_route_get_metric(TRP_ROUTE *entry)
-{
-  return entry->metric;
-}
-
-/* TODO: set the hostname and port for the next hop. Currently assume default TID port. --jlr */
-void trp_route_set_next_hop(TRP_ROUTE *entry, TR_NAME *next_hop)
-{
-  if (entry->next_hop!=NULL)
-    tr_free_name(entry->next_hop);
-  entry->next_hop=next_hop;
-}
-
-TR_NAME *trp_route_get_next_hop(TRP_ROUTE *entry)
-{
-  return entry->next_hop;
-}
-
-TR_NAME *trp_route_dup_next_hop(TRP_ROUTE *entry)
-{
-  return tr_dup_name(trp_route_get_next_hop(entry));
-}
-
-void trp_route_set_selected(TRP_ROUTE *entry, int sel)
-{
-  entry->selected=sel;
-}
-
-int trp_route_is_selected(TRP_ROUTE *entry)
-{
-  return entry->selected;
-}
-
-void trp_route_set_interval(TRP_ROUTE *entry, int interval)
-{
-  entry->interval=interval;
-}
-
-int trp_route_get_interval(TRP_ROUTE *entry)
-{
-  return entry->interval;
-}
-
-/* copies incoming value, does not assume responsibility for freeing */
-void trp_route_set_expiry(TRP_ROUTE *entry, struct timespec *exp)
-{
-  entry->expiry->tv_sec=exp->tv_sec;
-  entry->expiry->tv_nsec=exp->tv_nsec;
-}
-
-struct timespec *trp_route_get_expiry(TRP_ROUTE *entry)
-{
-  return entry->expiry;
-}
-
-void trp_route_set_local(TRP_ROUTE *entry, int local)
-{
-  entry->local=local;
-}
-
-int trp_route_is_local(TRP_ROUTE *entry)
-{
-  return entry->local;
-}
-
-void trp_route_set_triggered(TRP_ROUTE *entry, int trig)
-{
-  tr_debug("trp_route_set_triggered: setting route to %.*s/%.*s through %.*s to %s",
-           entry->comm->len, entry->comm->buf,
-           entry->realm->len, entry->realm->buf,
-           entry->peer->len, entry->peer->buf,
-           trig ? "triggered" : "not triggered");
-  entry->triggered=trig;
-}
-
-int trp_route_is_triggered(TRP_ROUTE *entry)
-{
-  return entry->triggered;
-}
 
 
 /* result must be freed with g_free */
@@ -431,9 +229,9 @@ size_t trp_rtable_realm_size(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm)
 }
 
 /* Returns an array of pointers to TRP_ROUTE, length of array in n_out.
- * Caller must free the array (in the talloc NULL context), but must
+ * Caller must free the array (in the mem_ctx context), but must
  * not free its contents. */
-TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
+TRP_ROUTE **trp_rtable_get_entries(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, size_t *n_out)
 {
   TRP_ROUTE **ret=NULL;
   TR_NAME **comm=NULL;
@@ -446,7 +244,7 @@ TRP_ROUTE **trp_rtable_get_entries(TRP_RTABLE *rtbl, size_t *n_out)
   if (*n_out==0)
     return NULL;
 
-  ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
+  ret=talloc_array(mem_ctx, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
     tr_crit("trp_rtable_get_entries: unable to allocate return array.");
     *n_out=0;
@@ -573,7 +371,9 @@ TRP_ROUTE **trp_rtable_get_comm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, size_t 
 
 /* Get all entries in an comm/realm. Returns an array of pointers in NULL talloc context.
  * Caller must free this list with talloc_free, but must not free the entries in the
- * list.. */
+ * list.
+ *
+ * If *n_out is 0, then no memory is allocated and NULL is returned. */
 TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm, size_t *n_out)
 {
   size_t ii=0;
@@ -582,16 +382,23 @@ TRP_ROUTE **trp_rtable_get_realm_entries(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAM
 
   tr_debug("trp_rtable_get_realm_entries: entered.");
   peer=trp_rtable_get_comm_realm_peers(rtbl, comm, realm, n_out);
+  if ((peer == NULL) || (*n_out == 0)) {
+    *n_out = 0; /* May be redundant. That's ok, compilers are smart. */
+    goto cleanup;
+  }
+
   ret=talloc_array(NULL, TRP_ROUTE *, *n_out);
   if (ret==NULL) {
     tr_crit("trp_rtable_get_realm_entries: could not allocate return array.");
-    talloc_free(peer);
     n_out=0;
-    return NULL;
+    goto cleanup;
   }
   for (ii=0; ii<*n_out; ii++)
     ret[ii]=trp_rtable_get_entry(rtbl, comm, realm, peer[ii]);
-  talloc_free(peer);
+
+cleanup:
+  if (peer)
+    talloc_free(peer);
   return ret;
 }
 
@@ -632,25 +439,6 @@ TRP_ROUTE *trp_rtable_get_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm,
   return g_hash_table_lookup(realm_tbl, peer); /* does not copy or increment ref count */
 }
 
-static char *timespec_to_str(struct timespec *ts)
-{
-  struct tm tm;
-  char *s=NULL;
-
-  if (localtime_r(&(ts->tv_sec), &tm)==NULL)
-    return NULL;
-
-  s=malloc(40); /* long enough to contain strftime result */
-  if (s==NULL)
-    return NULL;
-
-  if (strftime(s, 40, "%F %T", &tm)==0) {
-    free(s);
-    return NULL;
-  }
-  return s;
-}
-
 TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAME *realm)
 {
   size_t n=0;
@@ -675,46 +463,10 @@ TRP_ROUTE *trp_rtable_get_selected_entry(TRP_RTABLE *rtbl, TR_NAME *comm, TR_NAM
   return selected;
 }
 
-/* Pretty print a route table entry to a newly allocated string. If sep is NULL,
- * returns comma+space separated string. */
-char *trp_route_to_str(TALLOC_CTX *mem_ctx, TRP_ROUTE *entry, const char *sep)
-{
-  char *comm=tr_name_strdup(entry->comm);
-  char *realm=tr_name_strdup(entry->realm);
-  char *peer=tr_name_strdup(entry->peer);
-  char *trust_router=tr_name_strdup(entry->trust_router);
-  char *next_hop=tr_name_strdup(entry->next_hop);
-  char *expiry=timespec_to_str(entry->expiry);
-  char *result=NULL;
-
-  if (sep==NULL)
-    sep=", ";
-
-  result=talloc_asprintf(mem_ctx,
-                         "%s%s%s%s%s%s%u%s%s%s%s%s%u%s%u%s%s%s%u",
-                         comm, sep,
-                         realm, sep,
-                         peer, sep,
-                         entry->metric, sep,
-                         trust_router, sep,
-                         next_hop, sep,
-                         entry->selected, sep,
-                         entry->local, sep,
-                         expiry, sep,
-                         entry->triggered);
-  free(comm);
-  free(realm);
-  free(peer);
-  free(trust_router);
-  free(next_hop);
-  free(expiry);
-  return result;
-}
-
 void trp_rtable_clear_triggered(TRP_RTABLE *rtbl)
 {
   size_t n_entries=0;
-  TRP_ROUTE **entries=trp_rtable_get_entries(rtbl, &n_entries);
+  TRP_ROUTE **entries= trp_rtable_get_entries(NULL, rtbl, &n_entries);
   size_t ii=0;
 
   if (entries!=NULL) {
@@ -722,85 +474,4 @@ void trp_rtable_clear_triggered(TRP_RTABLE *rtbl)
       trp_route_set_triggered(entries[ii], 0);
     talloc_free(entries);
   }
-}
-
-static int sort_tr_names_cmp(const void *a, const void *b)
-{
-  TR_NAME **n1=(TR_NAME **)a;
-  TR_NAME **n2=(TR_NAME **)b;
-  return tr_name_cmp(*n1, *n2);
-}
-
-static void sort_tr_names(TR_NAME **names, size_t n_names)
-{
-  qsort(names, n_names, sizeof(TR_NAME *), sort_tr_names_cmp);
-}
-
-char *trp_rtable_to_str(TALLOC_CTX *mem_ctx, TRP_RTABLE *rtbl, const char *sep, const char *lineterm)
-{
-  TALLOC_CTX *tmp_ctx=talloc_new(NULL);
-  TR_NAME **comms=NULL;
-  size_t n_comms=0;
-  TR_NAME **realms=NULL;
-  size_t n_realms=0;
-  TRP_ROUTE **entries=NULL;
-  size_t n_entries=0;
-  char **tbl_strings=NULL;
-  size_t ii_tbl=0; /* counts tbl_strings */
-  size_t tbl_size=0;
-  size_t len=0;
-  size_t ii=0, jj=0, kk=0;
-  char *p=NULL;
-  char *result=NULL;
-
-  if (lineterm==NULL)
-    lineterm="\n";
-
-  tbl_size=trp_rtable_size(rtbl);
-  if (tbl_size==0) {
-    result=talloc_strdup(mem_ctx, lineterm);
-    goto cleanup;
-  }
-
-  tbl_strings=talloc_array(tmp_ctx, char *, tbl_size);
-  if (tbl_strings==NULL) {
-    result=talloc_strdup(mem_ctx, "error");
-    goto cleanup;
-  }
-  
-  comms=trp_rtable_get_comms(rtbl, &n_comms);
-  talloc_steal(tmp_ctx, comms);
-  sort_tr_names(comms, n_comms);
-  ii_tbl=0;
-  len=0;
-  for (ii=0; ii<n_comms; ii++) {
-    realms=trp_rtable_get_comm_realms(rtbl, comms[ii], &n_realms);
-    talloc_steal(tmp_ctx, realms);
-    sort_tr_names(realms, n_realms);
-    for (jj=0; jj<n_realms; jj++) {
-      entries=trp_rtable_get_realm_entries(rtbl, comms[ii], realms[jj], &n_entries);
-      talloc_steal(tmp_ctx, entries);
-      for (kk=0; kk<n_entries; kk++) {
-        tbl_strings[ii_tbl]=trp_route_to_str(tmp_ctx, entries[kk], sep);
-        len+=strlen(tbl_strings[ii_tbl]);
-        ii_tbl++;
-      }
-      talloc_free(entries);
-    }
-    talloc_free(realms);
-  }
-  talloc_free(comms);
-
-  /* now combine all the strings */
-  len += tbl_size*strlen(lineterm); /* space for line terminations*/
-  len += 1; /* nul terminator */
-  result=(char *)talloc_size(tmp_ctx, len);
-  for (p=result,ii=0; ii < tbl_size; ii++) {
-    p+=sprintf(p, "%s%s", tbl_strings[ii], lineterm);
-  }
-  talloc_steal(mem_ctx, result);
-  
-cleanup:
-  talloc_free(tmp_ctx);
-  return result;
 }

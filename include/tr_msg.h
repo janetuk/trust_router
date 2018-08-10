@@ -38,40 +38,44 @@
 #include <jansson.h>
 #include <trust_router/tid.h>
 #include <trust_router/trp.h>
+#include <mon.h>
+
 typedef struct tr_msg TR_MSG;
 
-enum msg_type {
-  TR_UNKNOWN = 0,
-  TID_REQUEST,
-  TID_RESPONSE,
-  TRP_UPDATE,
-  TRP_REQUEST
-};
+#define TR_MSG_TYPE_UNKNOWN 0
+typedef unsigned int TR_MSG_TYPE;
 
 /* Union of TR message types to hold message of any type. */
 struct tr_msg {
-  enum msg_type msg_type;
+  TR_MSG_TYPE msg_type;
   void *msg_rep;
 };
 
-/* Accessors */
-enum msg_type tr_msg_get_msg_type(TR_MSG *msg);
-void tr_msg_set_msg_type(TR_MSG *msg, enum msg_type type);
-TID_REQ *tr_msg_get_req(TR_MSG *msg);
-void tr_msg_set_req(TR_MSG *msg, TID_REQ *req);
-TID_RESP *tr_msg_get_resp(TR_MSG *msg);
-void tr_msg_set_resp(TR_MSG *msg, TID_RESP *resp);
-TRP_UPD *tr_msg_get_trp_upd(TR_MSG *msg);
-void tr_msg_set_trp_upd(TR_MSG *msg, TRP_UPD *req);
-TRP_REQ *tr_msg_get_trp_req(TR_MSG *msg);
-void tr_msg_set_trp_req(TR_MSG *msg, TRP_REQ *req);
+typedef void *(TR_MSG_DECODE_FUNC)(TALLOC_CTX *, json_t *);
+typedef json_t *(TR_MSG_ENCODE_FUNC)(void *);
 
+#define MSG_TYPE_LABEL_LEN 30
+typedef struct tr_msg_type_handler {
+  TR_MSG_TYPE msg_type;
+  char msg_type_label[MSG_TYPE_LABEL_LEN+1]; /* +1 to allow space for null term */
+  TR_MSG_DECODE_FUNC *decode;
+  TR_MSG_ENCODE_FUNC *encode;
+} TR_MSG_TYPE_HANDLER;
+
+TR_MSG_TYPE tr_msg_register_type(const char *msg_type_label,
+                                 TR_MSG_DECODE_FUNC *decode,
+                                 TR_MSG_ENCODE_FUNC *encode);
+
+/* Accessors */
+int tr_msg_set_rep(TR_MSG *msg, void *msg_rep);
+void *tr_msg_get_rep(TR_MSG *msg);
+TR_MSG_TYPE tr_msg_get_msg_type(TR_MSG *msg);
+void tr_msg_set_msg_type(TR_MSG *msg, TR_MSG_TYPE type);
 
 /* Encoders/Decoders */
-char *tr_msg_encode(TR_MSG *msg);
-TR_MSG *tr_msg_decode(const char *jmsg, size_t len);
+char *tr_msg_encode(TALLOC_CTX *mem_ctx, TR_MSG *msg);
+TR_MSG *tr_msg_decode(TALLOC_CTX *mem_ctx, const char *jmsg, size_t len);
 void tr_msg_free_encoded(char *jmsg);
 void tr_msg_free_decoded(TR_MSG *msg);
-
 
 #endif

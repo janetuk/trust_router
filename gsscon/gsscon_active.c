@@ -73,7 +73,6 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
   struct sockaddr_in saddr;
   char *port=NULL;
   gss_name_t serviceName = NULL;
-  gss_name_t clientName = NULL;
   gss_cred_id_t clientCredentials = GSS_C_NO_CREDENTIAL;
   gss_ctx_id_t gssContext = GSS_C_NO_CONTEXT;
   OM_uint32 actualFlags = 0;
@@ -83,6 +82,7 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
   gss_buffer_desc nameBuffer;
   gss_buffer_t inputTokenPtr = GSS_C_NO_BUFFER;
   char *name;
+  int len = 0;
 
   if (!inServiceName) { err = EINVAL; }
   if (!outGSSContext) { err = EINVAL; }
@@ -128,7 +128,7 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
   if (fd >= 0) { close (fd); }
 
   if (!err) {
-    majorStatus = gss_acquire_cred (&minorStatus, clientName, GSS_C_INDEFINITE, GSS_C_NO_OID_SET, 
+    majorStatus = gss_acquire_cred (&minorStatus, GSS_C_NO_NAME, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
                                     GSS_C_INITIATE, &clientCredentials, NULL, NULL); 
     if (majorStatus != GSS_S_COMPLETE) { 
       gsscon_print_gss_errors ("gss_acquire_cred", majorStatus, minorStatus);
@@ -185,16 +185,27 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
    */
     
   if (!err) {
-    nameBuffer.length = asprintf(&name, "%s@%s", inServiceName, inHost);
-    nameBuffer.value = name;
+    len = asprintf(&name, "%s@%s", inServiceName, inHost);
+    if (len < 0) {
+      /* asprintf failed, pick an error to return... */
+      err = GSS_S_BAD_NAME;
+    } else {
+      nameBuffer.length = (size_t) len;
+      nameBuffer.value = name;
 
-    majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName); 
-    if (majorStatus != GSS_S_COMPLETE) { 
-      gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
-      err = minorStatus ? minorStatus : majorStatus; 
+      majorStatus = gss_import_name (&minorStatus, &nameBuffer, (gss_OID) GSS_C_NT_HOSTBASED_SERVICE, &serviceName);
+      if (majorStatus != GSS_S_COMPLETE) {
+        gsscon_print_gss_errors ("gss_import_name(inServiceName)", majorStatus, minorStatus);
+        err = minorStatus ? minorStatus : majorStatus;
+      }
+
+      /* free the input name and null pointers to avoid reuse */
+      free(name);
+      name = NULL;
+      nameBuffer.value = NULL;
     }
   }
-    
+
   /* 
    * The main authentication loop:
    *
@@ -271,7 +282,6 @@ int gsscon_connect (const char *inHost, unsigned int inPort, const char *inServi
 
   if (inputTokenBuffer) { free (inputTokenBuffer); }
   if (serviceName     ) { gss_release_name (&minorStatus, &serviceName); }
-  if (clientName      ) { gss_release_name (&minorStatus, &clientName); }
   if (ai_head         ) { freeaddrinfo(ai_head); }
 
   if (clientCredentials != GSS_C_NO_CREDENTIAL) { 

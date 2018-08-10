@@ -35,24 +35,13 @@
 #ifndef TR_CONSTRAINT_H
 #define TR_CONSTRAINT_H
 
-#include <talloc.h>
-
 #include <trust_router/tr_name.h>
 #include <trust_router/tid.h>
 
+typedef struct tr_constraint TR_CONSTRAINT;
 
-#define TR_MAX_CONST_MATCHES 24
-
-
-typedef struct tr_constraint {
-    TR_NAME *type;
-    TR_NAME *matches[TR_MAX_CONST_MATCHES];
-} TR_CONSTRAINT;
-
-TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
-void tr_constraint_free(TR_CONSTRAINT *cons);
-TR_CONSTRAINT *tr_constraint_dup(TALLOC_CTX *mem_ctx, TR_CONSTRAINT *cons);
-
+TR_EXPORT TR_CONSTRAINT *tr_constraint_new(TALLOC_CTX *mem_ctx);
+TR_EXPORT void tr_constraint_free(TR_CONSTRAINT *cons);
 void TR_EXPORT tr_constraint_add_to_set (TR_CONSTRAINT_SET **cs, TR_CONSTRAINT *c);
 int TR_EXPORT tr_constraint_set_validate( TR_CONSTRAINT_SET *);
 TR_EXPORT TR_CONSTRAINT_SET *tr_constraint_set_filter(TID_REQ *request,
@@ -66,5 +55,7 @@ int TR_EXPORT tr_constraint_set_get_match_strings(TID_REQ *,
                                                   tr_const_string **output,
                                                   size_t *output_len);
 
+/* This is not meant to be public, but is in the symbol list for Debian */
+TR_EXPORT int tr_prefix_wildcard_match(const char *str, const char *wc_str);
 
 #endif

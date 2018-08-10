@@ -60,6 +60,7 @@ typedef enum trp_rc {
   TRP_UNSUPPORTED, /* unsupported feature */
   TRP_BADARG, /* bad argument */
   TRP_CLOCKERR, /* error reading time */
+  TRP_MISSING, /* value not present */
 } TRP_RC;
 
 typedef enum trp_inforec_type {
@@ -90,7 +91,7 @@ void trp_upd_set_comm(TRP_UPD *upd, TR_NAME *comm);
 TR_EXPORT TR_NAME *trp_upd_get_peer(TRP_UPD *upd);
 TR_NAME *trp_upd_dup_peer(TRP_UPD *upd);
 void trp_upd_set_peer(TRP_UPD *upd, TR_NAME *peer);
-void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, unsigned int port);
+void trp_upd_set_next_hop(TRP_UPD *upd, const char *hostname, int port);
 void trp_upd_add_to_provenance(TRP_UPD *upd, TR_NAME *name);
 
 /* Functions for TRP_REQ structures */

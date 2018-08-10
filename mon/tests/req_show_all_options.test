@@ -1,0 +1,1 @@
+{"command": "show", "options": [{"type": "serial"}, {"type": "version"}, {"type": "uptime"}, {"type": "tid_req_count"}, {"type": "tid_req_pending"}, {"type": "routes"}, {"type": "communities"}]}

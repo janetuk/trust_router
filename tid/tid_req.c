@@ -63,6 +63,8 @@ static int destroy_tid_req(TID_REQ *req)
     tr_free_name(req->comm);
   if (req->orig_coi!=NULL)
     tr_free_name(req->orig_coi);
+  if (req->request_id!=NULL)
+    tr_free_name(req->request_id);
   return 0;
 }
 
@@ -76,6 +78,7 @@ TID_REQ *tid_req_new()
   assert(req->json_references);
   req->conn = -1;
   req->free_conn = 1;
+  req->request_id = NULL;
   return req;
 }
 
@@ -169,6 +172,16 @@ void tid_req_set_orig_coi(TID_REQ *req, TR_NAME *orig_coi)
   req->orig_coi = orig_coi;
 }
 
+void tid_req_set_request_id(TID_REQ *req, TR_NAME *request_id)
+{
+  req->request_id = request_id;
+}
+
+TR_NAME *tid_req_get_request_id(TID_REQ *req)
+{
+  return(req->request_id);
+}
+
 TIDC_RESP_FUNC *tid_req_get_resp_func(TID_REQ *req)
 {
   return(req->resp_func);
@@ -215,7 +228,13 @@ TID_REQ *tid_dup_req (TID_REQ *orig_req)
       tr_crit("tid_dup_req: Can't duplicate request (orig_coi).");
     }
   }
-  
+
+  if (orig_req->request_id) {
+    if (NULL == (new_req->request_id = tr_dup_name(orig_req->request_id))) {
+      tr_crit("tid_dup_req: Can't duplicate request (request_id).");
+    }
+  }
+
   return new_req;
 }
 
@@ -234,7 +253,7 @@ void tid_req_free(TID_REQ *req)
 }
 
 int tid_req_add_path(TID_REQ *req,
-		     const char *this_system, unsigned port)
+                     const char *this_system, int port)
 {
   char *path_element = talloc_asprintf(req, "%s:%u",
 				       this_system, port);
