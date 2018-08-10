@@ -44,6 +44,7 @@
 #include <trust_router/tr_versioning.h>
 
 #include <gssapi.h>
+#include <poll.h>
 
 
 #define TID_PORT	12309
@@ -80,25 +81,27 @@ TR_EXPORT TID_REQ *tid_req_new(void);
 TR_EXPORT TID_REQ *tid_req_get_next_req(TID_REQ *req);
 void tid_req_set_next_req(TID_REQ *req, TID_REQ *next_req);
 TR_EXPORT int tid_req_get_resp_sent(TID_REQ *req);
-void tid_req_set_resp_sent(TID_REQ *req, int resp_sent);
+TR_EXPORT void tid_req_set_resp_sent(TID_REQ *req, int resp_sent);
 TR_EXPORT int tid_req_get_conn(TID_REQ *req);
-void tid_req_set_conn(TID_REQ *req, int conn);
+TR_EXPORT void tid_req_set_conn(TID_REQ *req, int conn);
 TR_EXPORT gss_ctx_id_t tid_req_get_gssctx(TID_REQ *req);
-void tid_req_set_gssctx(TID_REQ *req, gss_ctx_id_t gssctx);
+TR_EXPORT void tid_req_set_gssctx(TID_REQ *req, gss_ctx_id_t gssctx);
 TR_EXPORT int tid_req_get_resp_rcvd(TID_REQ *req);
-void tid_req_set_resp_rcvd(TID_REQ *req, int resp_rcvd);
+TR_EXPORT void tid_req_set_resp_rcvd(TID_REQ *req, int resp_rcvd);
 TR_EXPORT TR_NAME *tid_req_get_rp_realm(TID_REQ *req);
-void tid_req_set_rp_realm(TID_REQ *req, TR_NAME *rp_realm);
+TR_EXPORT void tid_req_set_rp_realm(TID_REQ *req, TR_NAME *rp_realm);
 TR_EXPORT TR_NAME *tid_req_get_realm(TID_REQ *req);
-void tid_req_set_realm(TID_REQ *req, TR_NAME *realm);
+TR_EXPORT void tid_req_set_realm(TID_REQ *req, TR_NAME *realm);
 TR_EXPORT TR_NAME *tid_req_get_comm(TID_REQ *req);
-void tid_req_set_comm(TID_REQ *req, TR_NAME *comm);
+TR_EXPORT void tid_req_set_comm(TID_REQ *req, TR_NAME *comm);
 TR_EXPORT TR_NAME *tid_req_get_orig_coi(TID_REQ *req);
-void tid_req_set_orig_coi(TID_REQ *req, TR_NAME *orig_coi);
+TR_EXPORT void tid_req_set_orig_coi(TID_REQ *req, TR_NAME *orig_coi);
+TR_EXPORT TR_NAME *tid_req_get_request_id(TID_REQ *req);
+TR_EXPORT void tid_req_set_request_id(TID_REQ *req, TR_NAME *request_id);
 TR_EXPORT TIDC_RESP_FUNC *tid_req_get_resp_func(TID_REQ *req);
-void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
+TR_EXPORT void tid_req_set_resp_func(TID_REQ *req, TIDC_RESP_FUNC *resp_func);
 TR_EXPORT void *tid_req_get_cookie(TID_REQ *req);
-void tid_req_set_cookie(TID_REQ *req, void *cookie);
+TR_EXPORT void tid_req_set_cookie(TID_REQ *req, void *cookie);
 TR_EXPORT TID_REQ *tid_dup_req (TID_REQ *orig_req);
 TR_EXPORT void tid_req_free( TID_REQ *req);
 
@@ -106,44 +109,48 @@ TR_EXPORT void tid_req_free( TID_REQ *req);
 
 TID_RESP *tid_resp_new(TALLOC_CTX *mem_ctx);
 void tid_resp_free(TID_RESP *resp);
-TID_RESP *tid_resp_dup(TALLOC_CTX *mem_ctx, TID_RESP *resp);
+TR_EXPORT TID_RC tid_resp_cpy(TID_RESP *dst, TID_RESP *src);
+TR_EXPORT TID_RESP *tid_resp_dup(TALLOC_CTX *mem_ctx, TID_RESP *resp);
 TR_EXPORT int tid_resp_get_result(TID_RESP *resp);
-void tid_resp_set_result(TID_RESP *resp, int result);
+TR_EXPORT void tid_resp_set_result(TID_RESP *resp, int result);
 TR_EXPORT TR_NAME *tid_resp_get_err_msg(TID_RESP *resp);
-void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg);
+TR_EXPORT void tid_resp_set_err_msg(TID_RESP *resp, TR_NAME *err_msg);
 TR_EXPORT TR_NAME *tid_resp_get_rp_realm(TID_RESP *resp);
-void tid_resp_set_rp_realm(TID_RESP *resp, TR_NAME *rp_realm);
+TR_EXPORT void tid_resp_set_rp_realm(TID_RESP *resp, TR_NAME *rp_realm);
 TR_EXPORT TR_NAME *tid_resp_get_realm(TID_RESP *resp);
-void tid_resp_set_realm(TID_RESP *resp, TR_NAME *realm);
+TR_EXPORT void tid_resp_set_realm(TID_RESP *resp, TR_NAME *realm);
 TR_EXPORT TR_NAME *tid_resp_get_comm(TID_RESP *resp);
-void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm);
+TR_EXPORT void tid_resp_set_comm(TID_RESP *resp, TR_NAME *comm);
 TR_EXPORT TR_NAME *tid_resp_get_orig_coi(TID_RESP *resp);
-void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi);
+TR_EXPORT void tid_resp_set_orig_coi(TID_RESP *resp, TR_NAME *orig_coi);
+TR_EXPORT TR_NAME *tid_resp_get_request_id(TID_RESP *resp);
+TR_EXPORT void tid_resp_set_request_id(TID_RESP *resp, TR_NAME *request_id);
 TR_EXPORT TID_SRVR_BLK *tid_resp_get_server(TID_RESP *resp, size_t index);
 TR_EXPORT size_t tid_resp_get_num_servers(const TID_RESP *resp);
-TR_EXPORT const TID_PATH *tid_resp_get_error_path(const TID_RESP *);
+const TID_PATH TR_EXPORT *tid_resp_get_error_path(const TID_RESP *);
+TR_EXPORT void tids_sweep_procs(TIDS_INSTANCE *tids);
 
 /** Get either the error_path or the path of the first server block for
  * a successful response*/
-TR_EXPORT const TID_PATH *tid_resp_get_a_path(const TID_RESP *);
+const TID_PATH TR_EXPORT *tid_resp_get_a_path(const TID_RESP *);
 /* Server blocks*/
 TR_EXPORT void tid_srvr_get_address(const TID_SRVR_BLK *,
 				    const struct sockaddr **out_addr, size_t *out_sa_len);
 TR_EXPORT DH *tid_srvr_get_dh(TID_SRVR_BLK *);
-TR_EXPORT const TR_NAME *tid_srvr_get_key_name(const TID_SRVR_BLK *);
-TR_EXPORT const TID_PATH *tid_srvr_get_path(const TID_SRVR_BLK *);
+const TR_NAME TR_EXPORT *tid_srvr_get_key_name(const TID_SRVR_BLK *);
+const TID_PATH TR_EXPORT *tid_srvr_get_path(const TID_SRVR_BLK *);
 /* Key expiration time is expressed as time since 1970-01-01 00:00:00 UTC */
 TR_EXPORT int tid_srvr_get_key_expiration(const TID_SRVR_BLK *, struct timeval *tv_out);
 
 #define tid_resp_servers_foreach(RESP, SERVER, INDEX) \
-  for (INDEX=0,SERVER=NULL;						\
-       ((INDEX < tid_resp_get_num_servers(RESP))&&(SERVER = tid_resp_get_server(resp, INDEX))); \
-       INDEX++)
+  for ((INDEX)=0,(SERVER)=NULL;						\
+       (((INDEX) < tid_resp_get_num_servers(RESP))&&((SERVER) = tid_resp_get_server(resp, (INDEX)))); \
+       (INDEX)++)
 
 
 /* TID Client functions, in tid/tidc.c */
 TR_EXPORT TIDC_INSTANCE *tidc_create (void);
-TR_EXPORT int tidc_open_connection (TIDC_INSTANCE *tidc, const char *server, unsigned int port, gss_ctx_id_t *gssctx);
+TR_EXPORT int tidc_open_connection(TIDC_INSTANCE *tidc, const char *server, int port, gss_ctx_id_t *gssctx);
 TR_EXPORT int tidc_send_request (TIDC_INSTANCE *tidc, int conn, gss_ctx_id_t gssctx, const char *rp_realm, const char *realm, const char *coi, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT int tidc_fwd_request (TIDC_INSTANCE *tidc, TID_REQ *req, TIDC_RESP_FUNC *resp_handler, void *cookie);
 TR_EXPORT DH *tidc_get_dh(TIDC_INSTANCE *);
@@ -151,13 +158,14 @@ TR_EXPORT DH *tidc_set_dh(TIDC_INSTANCE *, DH *);
 TR_EXPORT void tidc_destroy(TIDC_INSTANCE *tidc);
 
 /* TID Server functions, in tid/tids.c */
+TR_EXPORT TIDS_INSTANCE *tids_new(TALLOC_CTX *mem_ctx);
 TR_EXPORT TIDS_INSTANCE *tids_create (void);
-TR_EXPORT int tids_start (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-                          tids_auth_func *auth_handler, const char *hostname,
-                          unsigned int port, void *cookie);
-TR_EXPORT int tids_get_listener (TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
-                                 tids_auth_func *auth_handler, const char *hostname, 
-                                 unsigned int port, void *cookie, int *fd_out, size_t max_fd);
+TR_EXPORT int tids_start(TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
+                         tids_auth_func *auth_handler, const char *hostname,
+                         int port, void *cookie);
+TR_EXPORT nfds_t tids_get_listener(TIDS_INSTANCE *tids, TIDS_REQ_FUNC *req_handler,
+                                   tids_auth_func *auth_handler, const char *hostname,
+                                   int port, void *cookie, int *fd_out, size_t max_fd);
 TR_EXPORT int tids_accept(TIDS_INSTANCE *tids, int listen);
 TR_EXPORT int tids_send_response (TIDS_INSTANCE *tids, TID_REQ *req, TID_RESP *resp);
 TR_EXPORT int tids_send_err_response (TIDS_INSTANCE *tids, TID_REQ *req, const char *err_msg);

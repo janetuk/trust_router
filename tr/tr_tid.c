@@ -40,9 +40,11 @@
 #include <tr_comm.h>
 #include <tr_idp.h>
 #include <tr_rp.h>
+#include <tr_rp_client.h>
 #include <tr_event.h>
 #include <tr_debug.h>
 #include <gsscon.h>
+#include <trp_route.h>
 #include <trp_internal.h>
 #include <tr_config.h>
 #include <tr_mq.h>
@@ -85,7 +87,7 @@ struct tr_tids_fwd_cookie {
   int thread_id;
   pthread_mutex_t mutex; /* lock on the mq (separate from the locking within the mq, see below) */
   TR_MQ *mq; /* messages from thread to main process; set to NULL to disable response */
-  TR_NAME *aaa_hostname;
+  TR_AAA_SERVER *aaa; /* AAA server to contact */
   DH *dh_params;
   TID_REQ *fwd_req; /* the req to duplicate */
 };
@@ -93,8 +95,6 @@ struct tr_tids_fwd_cookie {
 static int tr_tids_fwd_cookie_destructor(void *obj)
 {
   struct tr_tids_fwd_cookie *c=talloc_get_type_abort(obj, struct tr_tids_fwd_cookie);
-  if (c->aaa_hostname!=NULL)
-    tr_free_name(c->aaa_hostname);
   if (c->dh_params!=NULL)
     tr_destroy_dh_params(c->dh_params);
   return 0;
@@ -134,6 +134,8 @@ static void *tr_tids_req_fwd_thread(void *arg)
   TIDC_INSTANCE *tidc=tidc_create();
   TR_MQ_MSG *msg=NULL;
   TR_RESP_COOKIE *cookie=NULL;
+  char *aaa_hostname = NULL;
+  int aaa_port;
   int rc=0;
   int success=0;
 
@@ -145,7 +147,7 @@ static void *tr_tids_req_fwd_thread(void *arg)
   /* create the cookie we will use for our response */
   cookie=talloc(tmp_ctx, TR_RESP_COOKIE);
   if (cookie==NULL) {
-    tr_notice("tr_tids_req_fwd_thread: unable to allocate response cookie.");
+    tr_crit("tr_tids_req_fwd_thread: unable to allocate response cookie.");
     success=0;
     goto cleanup;
   }
@@ -162,19 +164,31 @@ static void *tr_tids_req_fwd_thread(void *arg)
   }
 
   /* Set-up TID connection */
+  aaa_hostname = tr_name_strdup(tr_aaa_server_get_hostname(args->aaa));
+  if (aaa_hostname == NULL) {
+    tr_crit("tr_tids_req_fwd_thread: unable to allocate AAA hostname string");
+    success=0;
+    goto cleanup;
+  }
+  aaa_port = tr_aaa_server_get_port(args->aaa);
+  if ((aaa_port <= 0) || (aaa_port > 65535)) {
+    tr_notice("tr_tids_req_fwd_thread: invalid port (%d) for %s", aaa_port, aaa_hostname);
+    success=0;
+    goto cleanup;
+  }
+
   if (-1==(args->fwd_req->conn = tidc_open_connection(tidc, 
-                                                      args->aaa_hostname->buf,
-                                                      TID_PORT, /* TODO: make this configurable */
-                                                     &(args->fwd_req->gssctx)))) {
+                                                      aaa_hostname,
+                                                      aaa_port,
+                                                      &(args->fwd_req->gssctx)))) {
     tr_notice("tr_tids_req_fwd_thread: Error in tidc_open_connection.");
     /* tids_send_err_response(tids, orig_req, "Can't open connection to next hop TIDS"); */
     /* TODO: encode reason for failure */
     success=0;
     goto cleanup;
   };
-  tr_debug("tr_tids_req_fwd_thread: thread %d opened TID connection to %s.",
-           cookie->thread_id,
-           args->aaa_hostname->buf);
+  tr_debug("tr_tids_req_fwd_thread: thread %d opened TID connection to %s:%d.",
+           cookie->thread_id, aaa_hostname, aaa_port);
 
   /* Send a TID request. */
   if (0 > (rc = tidc_fwd_request(tidc, args->fwd_req, tr_tidc_resp_handler, (void *)cookie))) {
@@ -194,9 +208,9 @@ cleanup:
     /* mq is still valid, so we can queue our response */
     tr_debug("tr_tids_req_fwd_thread: thread %d using valid msg queue.", cookie->thread_id);
     if (success)
-      msg=tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_SUCCESS, TR_MQ_PRIO_NORMAL);
+      msg= tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_SUCCESS);
     else
-      msg=tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_FAILURE, TR_MQ_PRIO_NORMAL);
+      msg= tr_mq_msg_new(tmp_ctx, TR_TID_MQMSG_FAILURE);
 
     if (msg==NULL)
       tr_notice("tr_tids_req_fwd_thread: thread %d unable to allocate response msg.", cookie->thread_id);
@@ -210,6 +224,9 @@ cleanup:
     if (0!=tr_tids_fwd_release_mutex(args))
       tr_notice("tr_tids_req_fwd_thread: Error releasing mutex.");
   }
+
+  if (aaa_hostname != NULL)
+    free(aaa_hostname);
 
   talloc_free(tmp_ctx);
   return NULL;
@@ -288,6 +305,18 @@ static enum map_coi_result map_coi(TR_COMM_TABLE *ctable, TID_REQ *req)
   return MAP_COI_SUCCESS; /* successfully mapped */
 }
 
+/**
+ * Process a TID request
+ *
+ * Return value of -1 means to send a TID_ERROR response. Fill in resp->err_msg or it will
+ * be returned as a generic error.
+ *
+ * @param tids
+ * @param orig_req
+ * @param resp
+ * @param cookie_in
+ * @return
+ */
 static int tr_tids_req_handler(TIDS_INSTANCE *tids,
                                TID_REQ *orig_req, 
                                TID_RESP *resp,
@@ -332,12 +361,17 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
 
   tr_debug("tr_tids_req_handler: Request received (conn = %d)! Realm = %s, Comm = %s", orig_req->conn, 
            orig_req->realm->buf, orig_req->comm->buf);
+  if (orig_req->request_id)
+    tr_debug("tr_tids_req_handler: TID request ID: %.*s", orig_req->request_id->len, orig_req->request_id->buf);
+  else
+    tr_debug("tr_tids_req_handler: TID request ID: none");
+
   tids->req_count++;
 
   /* Duplicate the request, so we can modify and forward it */
   if (NULL == (fwd_req=tid_dup_req(orig_req))) {
     tr_debug("tr_tids_req_handler: Unable to duplicate request.");
-    retval=-1;
+    retval=-1; /* response will be a generic internal error */
     goto cleanup;
   }
   talloc_steal(tmp_ctx, fwd_req);
@@ -345,7 +379,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   /* cfg_comm is now the community (APC or CoI) of the incoming request */
   if (NULL == (cfg_comm=tr_comm_table_find_comm(cfg_mgr->active->ctable, orig_req->comm))) {
     tr_notice("tr_tids_req_hander: Request for unknown comm: %s.", orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "Unknown community");
+    tid_resp_set_err_msg(resp, tr_new_name("Unknown community"));
     retval=-1;
     goto cleanup;
   }
@@ -358,7 +392,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
 
   if (!tids->gss_name) {
     tr_notice("tr_tids_req_handler: No GSS name for incoming request.");
-    tids_send_err_response(tids, orig_req, "No GSS name for request");
+    tid_resp_set_err_msg(resp, tr_new_name("No GSS name for request"));
     retval=-1;
     goto cleanup;
   }
@@ -370,7 +404,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   target=tr_filter_target_tid_req(tmp_ctx, orig_req);
   if (target==NULL) {
     tr_crit("tid_req_handler: Unable to allocate filter target, cannot apply filter!");
-    tids_send_err_response(tids, orig_req, "Incoming TID request filter error");
+    tid_resp_set_err_msg(resp, tr_new_name("Incoming TID request filter error"));
     retval=-1;
     goto cleanup;
   }
@@ -399,8 +433,9 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   /* We get here whether or not a filter matched. If tr_filter_apply() doesn't match, it returns
    * a default action of reject, so we don't have to check why we exited the loop. */
   if (oaction != TR_FILTER_ACTION_ACCEPT) {
-    tr_notice("tr_tids_req_handler: Incoming TID request rejected by filter for GSS name", orig_req->rp_realm->buf);
-    tids_send_err_response(tids, orig_req, "Incoming TID request filter error");
+    tr_notice("tr_tids_req_handler: Incoming TID request rejected by RP client filter for GSS name %.*s",
+              tids->gss_name->len, tids->gss_name->buf);
+    tid_resp_set_err_msg(resp, tr_new_name("Incoming TID request filter error"));
     retval = -1;
     goto cleanup;
   }
@@ -409,7 +444,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   if (NULL == tr_comm_find_rp(cfg_mgr->active->ctable, cfg_comm, orig_req->rp_realm)) {
     tr_notice("tr_tids_req_handler: RP Realm (%s) not member of community (%s).",
               orig_req->rp_realm->buf, orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "RP community membership error");
+    tid_resp_set_err_msg(resp, tr_new_name("RP community membership error"));
     retval=-1;
     goto cleanup;
   }
@@ -429,20 +464,20 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     case MAP_COI_ALREADY_MAPPED:
       tr_notice("tr_tids_req_handler: community %.*s is COI but COI to APC mapping already occurred. Dropping request.",
                 tid_req_get_comm(orig_req)->len, tid_req_get_comm(orig_req)->buf);
-      tids_send_err_response(tids, orig_req, "Second COI to APC mapping would result, permitted only once.");
+      tid_resp_set_err_msg(resp, tr_new_name("Second COI to APC mapping would result, permitted only once."));
       retval = -1;
       goto cleanup;
 
     case MAP_COI_NO_APC:
       tr_notice("No valid APC for COI %.*s.",
                 tid_req_get_comm(orig_req)->len, tid_req_get_comm(orig_req)->buf);
-      tids_send_err_response(tids, orig_req, "No valid APC for community");
+      tid_resp_set_err_msg(resp, tr_new_name("No valid APC for community"));
       retval = -1;
       goto cleanup;
 
     case MAP_COI_INVALID_APC:
       tr_notice("tr_tids_req_hander: Request for unknown APC.");
-      tids_send_err_response(tids, orig_req, "Unknown APC");
+      tid_resp_set_err_msg(resp, tr_new_name("Unknown APC"));
       retval = -1;
       goto cleanup;
 
@@ -461,7 +496,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     tr_notice("tr_tids_req_hander: RP Realm (%.*s) not member of mapped APC (%.*s).",
               tid_req_get_rp_realm(fwd_req)->len, tid_req_get_rp_realm(fwd_req)->buf,
               tr_comm_get_id(cfg_apc)->len, tr_comm_get_id(cfg_apc)->buf);
-    tids_send_err_response(tids, orig_req, "RP community membership error");
+    tid_resp_set_err_msg(resp, tr_new_name("RP community membership error"));
     retval=-1;
     goto cleanup;
   }
@@ -475,7 +510,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
     if (NULL == (aaa_servers = tr_default_server_lookup(cfg_mgr->active->default_servers,
                                                         fwd_req->comm))) {
       tr_notice("tr_tids_req_handler: No default AAA servers, discarded.");
-      tids_send_err_response(tids, orig_req, "No path to AAA Server(s) for realm");
+      tid_resp_set_err_msg(resp, tr_new_name("No path to AAA Server(s) for realm"));
       retval = -1;
       goto cleanup;
     }
@@ -491,20 +526,32 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
                                              &idp_shared);
     } else {
       tr_debug("tr_tids_req_handler: route not local.");
-      aaa_servers = tr_aaa_server_new(tmp_ctx, trp_route_get_next_hop(route));
+      aaa_servers = tr_aaa_server_new(tmp_ctx); /* cleaned up via talloc */
+      if (aaa_servers == NULL) {
+        tr_err("tr_tids_req_handler: error allocating next hop");
+        retval=-1;
+        goto cleanup;
+      }
+      tr_aaa_server_set_hostname(aaa_servers, trp_route_dup_next_hop(route));
+      if (tr_aaa_server_get_hostname(aaa_servers) == NULL) {
+        tr_err("tr_tids_req_handler: error allocating next hop");
+        retval=-1;
+        goto cleanup;
+      }
+      tr_aaa_server_set_port(aaa_servers, trp_route_get_next_hop_port(route));
       idp_shared = 0;
     }
 
     /* Since we aren't defaulting, check idp coi and apc membership of the original request */
     if (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_comm, orig_req->realm))) {
       tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of community (%s).", orig_req->realm->buf, cfg_comm->id->buf);
-      tids_send_err_response(tids, orig_req, "IDP community membership error");
+      tid_resp_set_err_msg(resp, tr_new_name("IDP community membership error"));
       retval=-1;
       goto cleanup;
     }
     if ( cfg_apc && (NULL == (tr_comm_find_idp(cfg_mgr->active->ctable, cfg_apc, orig_req->realm)))) {
       tr_notice("tr_tids_req_handler: IDP Realm (%s) not member of APC (%s).", orig_req->realm->buf, cfg_apc->id->buf);
-      tids_send_err_response(tids, orig_req, "IDP APC membership error");
+      tid_resp_set_err_msg(resp, tr_new_name("IDP APC membership error"));
       retval=-1;
       goto cleanup;
     }
@@ -515,7 +562,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   if (NULL == aaa_servers) {
     tr_notice("tr_tids_req_handler: no route or AAA server for realm (%s) in community (%s).",
               orig_req->realm->buf, orig_req->comm->buf);
-    tids_send_err_response(tids, orig_req, "Missing trust route error");
+    tid_resp_set_err_msg(resp, tr_new_name("Missing trust route error"));
     retval = -1;
     goto cleanup;
   }
@@ -566,7 +613,7 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
       goto cleanup;
     }
     aaa_cookie[n_aaa]->mq=mq;
-    aaa_cookie[n_aaa]->aaa_hostname=tr_dup_name(this_aaa->hostname);
+    aaa_cookie[n_aaa]->aaa=this_aaa;
     aaa_cookie[n_aaa]->dh_params=tr_dh_dup(orig_req->tidc_dh);
     aaa_cookie[n_aaa]->fwd_req=tid_dup_req(fwd_req);
     talloc_steal(aaa_cookie[n_aaa], aaa_cookie[n_aaa]->fwd_req);
@@ -680,13 +727,19 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
   }
 
   if (n_responses==0) {
-    /* No requests succeeded. Forward an error if we got any error responses. */
+    /* No requests succeeded, so this will be an error */
+    retval = -1;
+
+    /* If we got any error responses, send an arbitrarily chosen one. */
     for (ii=0; ii<n_aaa; ii++) {
-      if (aaa_resp[ii]!=NULL)
-        tids_send_response(tids, orig_req, aaa_resp[ii]);
-      else
-        tids_send_err_response(tids, orig_req, "Unable to contact AAA server(s).");
+      if (aaa_resp[ii] != NULL) {
+        tid_resp_cpy(resp, aaa_resp[ii]);
+        goto cleanup;
+      }
     }
+    /* No error responses at all, so generate our own error. */
+    tid_resp_set_err_msg(resp, tr_new_name("Unable to contact AAA server(s)."));
+    goto cleanup;
   }
 
   /* success! */
@@ -728,7 +781,7 @@ static int tr_tids_gss_handler(gss_name_t client_name, TR_NAME *gss_name,
 /* called when a connection to the TIDS port is received */
 static void tr_tids_event_cb(int listener, short event, void *arg)
 {
-  TIDS_INSTANCE *tids = (TIDS_INSTANCE *)arg;
+  TIDS_INSTANCE *tids = talloc_get_type_abort(arg, TIDS_INSTANCE);
 
   if (0==(event & EV_READ))
     tr_debug("tr_tids_event_cb: unexpected event on TIDS socket (event=0x%X)", event);
@@ -736,23 +789,38 @@ static void tr_tids_event_cb(int listener, short event, void *arg)
     tids_accept(tids, listener);
 }
 
-/* Configure the tids instance and set up its event handler.
+/* called when it's time to sweep for completed TID child processes */
+static void tr_tids_sweep_cb(int listener, short event, void *arg)
+{
+  TIDS_INSTANCE *tids = talloc_get_type_abort(arg, TIDS_INSTANCE);
+
+  if (0==(event & EV_TIMEOUT))
+    tr_debug("tr_tids_event_cb: unexpected event on TID process sweep timer (event=0x%X)", event);
+  else
+    tids_sweep_procs(tids);
+}
+
+/* Configure the tids instance and set up its event handlers.
  * Returns 0 on success, nonzero on failure. Fills in
  * *tids_event (which should be allocated by caller). */
-int tr_tids_event_init(struct event_base *base,
-                       TIDS_INSTANCE *tids,
-                       TR_CFG_MGR *cfg_mgr,
-                       TRPS_INSTANCE *trps,
-                       struct tr_socket_event *tids_ev)
+int tr_tids_event_init(struct event_base *base, TIDS_INSTANCE *tids, TR_CFG_MGR *cfg_mgr, TRPS_INSTANCE *trps,
+                       struct tr_socket_event *tids_ev, struct event **sweep_ev)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct tr_tids_event_cookie *cookie=NULL;
+  struct timeval sweep_interval;
   int retval=0;
-  size_t ii=0;
+  int ii=0;
 
   if (tids_ev == NULL) {
     tr_debug("tr_tids_event_init: Null tids_ev.");
     retval=1;
+    goto cleanup;
+  }
+
+  if (sweep_ev == NULL) {
+    tr_debug("tr_tids_event_init: Null sweep_ev.");
+    retval = 1;
     goto cleanup;
   }
 
@@ -770,21 +838,21 @@ int tr_tids_event_init(struct event_base *base,
   talloc_steal(tids, cookie);
 
   /* get a tids listener */
-  tids_ev->n_sock_fd=tids_get_listener(tids,
-                                       tr_tids_req_handler,
-                                       tr_tids_gss_handler,
-                                       cfg_mgr->active->internal->hostname,
-                                       cfg_mgr->active->internal->tids_port,
-                                       (void *)cookie,
-                                       tids_ev->sock_fd,
-                                       TR_MAX_SOCKETS);
+  tids_ev->n_sock_fd = (int)tids_get_listener(tids,
+                                              tr_tids_req_handler,
+                                              tr_tids_gss_handler,
+                                              cfg_mgr->active->internal->hostname,
+                                              cfg_mgr->active->internal->tids_port,
+                                              (void *)cookie,
+                                              tids_ev->sock_fd,
+                                              TR_MAX_SOCKETS);
   if (tids_ev->n_sock_fd==0) {
     tr_crit("Error opening TID server socket.");
     retval=1;
     goto cleanup;
   }
 
-  /* Set up events */
+  /* Set up listener events */
   for (ii=0; ii<tids_ev->n_sock_fd; ii++) {
     tids_ev->ev[ii]=event_new(base,
                               tids_ev->sock_fd[ii],
@@ -793,6 +861,12 @@ int tr_tids_event_init(struct event_base *base,
                               (void *)tids);
     event_add(tids_ev->ev[ii], NULL);
   }
+
+  /* Set up a periodic check for completed TID handler processes */
+  *sweep_ev = event_new(base, -1, EV_TIMEOUT|EV_PERSIST, tr_tids_sweep_cb, tids);
+  sweep_interval.tv_sec = 10;
+  sweep_interval.tv_usec = 0;
+  event_add(*sweep_ev, &sweep_interval);
 
 cleanup:
   talloc_free(tmp_ctx);

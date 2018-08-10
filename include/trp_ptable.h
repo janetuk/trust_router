@@ -39,31 +39,10 @@
 #include <talloc.h>
 
 #include <tr_name_internal.h>
-#include <tr_gss.h>
+#include <tr_gss_names.h>
 #include <trust_router/trp.h>
 #include <tr_filter.h>
-
-typedef enum trp_peer_conn_status {
-  PEER_DISCONNECTED=0,
-  PEER_CONNECTED
-} TRP_PEER_CONN_STATUS;
-
-typedef struct trp_peer TRP_PEER;
-struct trp_peer {
-  TRP_PEER *next; /* for making a linked list */
-  TR_NAME *label; /* often null, set on first call to trp_peer_get_label or dup_label */
-  char *server;
-  TR_GSS_NAMES *gss_names;
-  TR_NAME *servicename;
-  unsigned int port;
-  unsigned int linkcost;
-  struct timespec last_conn_attempt;
-  TRP_PEER_CONN_STATUS outgoing_status;
-  TRP_PEER_CONN_STATUS incoming_status;
-  void (*conn_status_cb)(TRP_PEER *, void *); /* callback for connected status change */
-  void *conn_status_cookie;
-  TR_FILTER_SET *filters;
-};
+#include <trp_peer.h>
 
 typedef struct trp_ptable {
   TRP_PEER *head; /* head of a peer table list */
@@ -78,38 +57,14 @@ TRP_RC trp_ptable_add(TRP_PTABLE *ptbl, TRP_PEER *newpeer);
 TRP_RC trp_ptable_remove(TRP_PTABLE *ptbl, TRP_PEER *peer);
 TRP_PEER *trp_ptable_find_gss_name(TRP_PTABLE *ptbl, TR_NAME *gssname);
 TRP_PEER *trp_ptable_find_servicename(TRP_PTABLE *ptbl, TR_NAME *servicename);
-char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, const char *lineterm);
 
 TRP_PTABLE_ITER *trp_ptable_iter_new(TALLOC_CTX *mem_ctx);
 TRP_PEER *trp_ptable_iter_first(TRP_PTABLE_ITER *iter, TRP_PTABLE *ptbl);
 TRP_PEER *trp_ptable_iter_next(TRP_PTABLE_ITER *iter);
 void trp_ptable_iter_free(TRP_PTABLE_ITER *iter);
 
-TRP_PEER *trp_peer_new(TALLOC_CTX *memctx);
-void trp_peer_free(TRP_PEER *peer);
-TR_NAME *trp_peer_get_label(TRP_PEER *peer);
-TR_NAME *trp_peer_dup_label(TRP_PEER *peer);
-char *trp_peer_get_server(TRP_PEER *peer);
-void trp_peer_set_server(TRP_PEER *peer, const char *server);
-void trp_peer_add_gss_name(TRP_PEER *peer, TR_NAME *gssname);
-void trp_peer_set_gss_names(TRP_PEER *peer, TR_GSS_NAMES *gss_names);
-TR_GSS_NAMES *trp_peer_get_gss_names(TRP_PEER *peer);
-TR_NAME *trp_peer_get_servicename(TRP_PEER *peer);
-TR_NAME *trp_peer_dup_servicename(TRP_PEER *peer);
-unsigned int trp_peer_get_port(TRP_PEER *peer);
-void trp_peer_set_port(TRP_PEER *peer, unsigned int port);
-unsigned int trp_peer_get_linkcost(TRP_PEER *peer);
-struct timespec *trp_peer_get_last_conn_attempt(TRP_PEER *peer);
-void trp_peer_set_last_conn_attempt(TRP_PEER *peer, struct timespec *time);
-TRP_PEER_CONN_STATUS trp_peer_get_outgoing_status(TRP_PEER *peer);
-void trp_peer_set_outgoing_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status);
-TRP_PEER_CONN_STATUS trp_peer_get_incoming_status(TRP_PEER *peer);
-void trp_peer_set_incoming_status(TRP_PEER *peer, TRP_PEER_CONN_STATUS status);
-int trp_peer_is_connected(TRP_PEER *peer);
-void trp_peer_set_linkcost(TRP_PEER *peer, unsigned int linkcost);
-void trp_peer_set_conn_status_cb(TRP_PEER *peer, void (*cb)(TRP_PEER *, void *), void *cookie);
-void trp_peer_set_filters(TRP_PEER *peer, TR_FILTER_SET *filts);
-TR_FILTER *trp_peer_get_filter(TRP_PEER *peer, TR_FILTER_TYPE ftype);
-char *trp_peer_to_str(TALLOC_CTX *memctx, TRP_PEER *peer, const char *sep);
+/* trp_ptable_encoders.c */
+char *trp_ptable_to_str(TALLOC_CTX *memctx, TRP_PTABLE *ptbl, const char *sep, const char *lineterm);
+json_t *trp_ptable_to_json(TRP_PTABLE *ptbl);
 
 #endif /* _TRP_PTABLE_H_ */

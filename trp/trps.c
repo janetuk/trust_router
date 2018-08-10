@@ -39,18 +39,22 @@
 #include <sys/time.h>
 #include <glib.h>
 #include <string.h>
+#include <poll.h> // for nfds_t
 
 #include <gsscon.h>
 #include <tr_comm.h>
 #include <tr_apc.h>
 #include <tr_rp.h>
 #include <tr_name_internal.h>
+#include <trp_route.h>
 #include <trp_internal.h>
-#include <tr_gss.h>
+#include <tr_gss_names.h>
+#include <trp_peer.h>
 #include <trp_ptable.h>
 #include <trp_rtable.h>
 #include <tr_debug.h>
 #include <tr_util.h>
+#include <tr_socket.h>
 
 static int trps_destructor(void *object)
 {
@@ -65,7 +69,7 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
   TRPS_INSTANCE *trps=talloc(mem_ctx, TRPS_INSTANCE);
   if (trps!=NULL)  {
     trps->hostname=NULL;
-    trps->port=0;
+    trps->trps_port=0;
     trps->cookie=NULL;
     trps->conn=NULL;
     trps->trpc=NULL;
@@ -88,6 +92,9 @@ TRPS_INSTANCE *trps_new (TALLOC_CTX *mem_ctx)
     }
 
     talloc_set_destructor((void *)trps, trps_destructor);
+
+    trp_tr_msg_init(); /* ensure TR_MSG can handle TRP messages */
+    trp_filter_init(); /* ensure we can filter on TRP message fields */
   }
   return trps;
 }
@@ -192,7 +199,7 @@ TR_NAME *trps_dup_label(TRPS_INSTANCE *trps)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_NAME *label=NULL;
-  char *s=talloc_asprintf(tmp_ctx, "%s:%u", trps->hostname, trps->port);
+  char *s=talloc_asprintf(tmp_ctx, "%s:%u", trps->hostname, trps->trps_port);
   if (s==NULL)
     goto cleanup;
   label=tr_new_name(s);
@@ -261,12 +268,15 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
 
   /* get the connection for this peer */
   trpc=trps_find_trpc(trps, peer);
-  /* instead, let's let that happen and then clear the queue when an attempt to
-   * connect fails */
+  /* The peer connection (trpc) usually exists even if the connection is down.
+   * We will queue messages even if the connection is down. To prevent this from
+   * endlessly increasing the size of the queue, the trpc handler needs to clear
+   * its queue periodically, even if it is unable to send the messages
+   */
   if (trpc==NULL) {
     tr_warning("trps_send_msg: skipping message queued for missing TRP client entry.");
   } else {
-    mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND, TR_MQ_PRIO_NORMAL);
+    mq_msg=tr_mq_msg_new(tmp_ctx, TR_MQMSG_TRPC_SEND);
     msg_dup=talloc_strdup(mq_msg, msg); /* get local copy in mq_msg context */
     tr_mq_msg_set_payload(mq_msg, msg_dup, NULL); /* no need for a free() func */
     trpc_mq_add(trpc, mq_msg);
@@ -274,82 +284,6 @@ TRP_RC trps_send_msg(TRPS_INSTANCE *trps, TRP_PEER *peer, const char *msg)
   }
   talloc_free(tmp_ctx);
   return rc;
-}
-
-/* Listens on all interfaces. Returns number of sockets opened. Their
- * descriptors are stored in *fd_out, which should point to space for
- * up to max_fd of them. */
-static size_t trps_listen(TRPS_INSTANCE *trps, int port, int *fd_out, size_t max_fd) 
-{
-  int rc = 0;
-  int conn = -1;
-  int optval=0;
-  struct addrinfo *ai=NULL;
-  struct addrinfo *ai_head=NULL;
-  struct addrinfo hints={.ai_flags=AI_PASSIVE,
-                         .ai_family=AF_UNSPEC,
-                         .ai_socktype=SOCK_STREAM,
-                         .ai_protocol=IPPROTO_TCP};
-  char *port_str=NULL;
-  size_t n_opened=0;
-
-  port_str=talloc_asprintf(NULL, "%d", port);
-  if (port_str==NULL) {
-    tr_debug("trps_listen: unable to allocate port.");
-    return -1;
-  }
-  getaddrinfo(NULL, port_str, &hints, &ai_head);
-  talloc_free(port_str);
-
-  for (ai=ai_head,n_opened=0; (ai!=NULL)&&(n_opened<max_fd); ai=ai->ai_next) {
-    if (0 > (conn = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol))) {
-      tr_debug("trps_listen: unable to open socket.");
-      continue;
-    }
-
-    optval=1;
-    if (0!=setsockopt(conn, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)))
-      tr_debug("trps_listen: unable to set SO_REUSEADDR."); /* not fatal? */
-
-    if (ai->ai_family==AF_INET6) {
-      /* don't allow IPv4-mapped IPv6 addresses (per RFC4942, not sure
-       * if still relevant) */
-      if (0!=setsockopt(conn, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval))) {
-        tr_debug("trps_listen: unable to set IPV6_V6ONLY. Skipping interface.");
-        close(conn);
-        continue;
-      }
-    }
-
-    rc=bind(conn, ai->ai_addr, ai->ai_addrlen);
-    if (rc<0) {
-      tr_debug("trps_listen: unable to bind to socket.");
-      close(conn);
-      continue;
-    }
-
-    if (0>listen(conn, 512)) {
-      tr_debug("trps_listen: unable to listen on bound socket.");
-      close(conn);
-      continue;
-    }
-
-    /* ok, this one worked. Save it */
-    fd_out[n_opened++]=conn;
-  }
-  freeaddrinfo(ai_head);
-
-  if (n_opened==0) {
-    tr_debug("trps_listen: no addresses available for listening.");
-    return -1;
-  }
-  
-  tr_debug("trps_listen: TRP Server listening on port %d on %d socket%s",
-           port,
-           n_opened,
-           (n_opened==1)?"":"s");
-
-  return n_opened;
 }
 
 /* get the currently selected route if available */
@@ -398,7 +332,7 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
 
   tr_debug("trps_read_message: started");
   if (err = gsscon_read_encrypted_token(trp_connection_get_fd(conn),
-                                       *(trp_connection_get_gssctx(conn)), 
+                                       *(trp_connection_get_gssctx(conn)),
                                        &buf,
                                        &buflen)) {
     tr_debug("trps_read_message: error");
@@ -410,7 +344,7 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   tr_debug("trps_read_message: message received, %u bytes.", (unsigned) buflen);
   tr_debug("trps_read_message: %.*s", buflen, buf);
 
-  *msg=tr_msg_decode(buf, buflen);
+  *msg= tr_msg_decode(NULL, buf, buflen);
   free(buf);
   if (*msg==NULL)
     return TRP_NOPARSE;
@@ -428,25 +362,26 @@ static TRP_RC trps_read_message(TRPS_INSTANCE *trps, TRP_CONNECTION *conn, TR_MS
   }
 
   /* verify we received a message we support, otherwise drop it now */
-  switch (tr_msg_get_msg_type(*msg)) {
-  case TRP_UPDATE:
-    trp_upd_set_peer(tr_msg_get_trp_upd(*msg), tr_dup_name(conn_peer));
-    trp_upd_set_next_hop(tr_msg_get_trp_upd(*msg), trp_peer_get_server(peer), 0); /* TODO: 0 should be the configured TID port */
+  if (NULL != trp_get_tr_msg_upd(*msg)) {
+    /* Received an update */
+    trp_upd_set_peer(trp_get_tr_msg_upd(*msg), tr_dup_name(conn_peer));
     /* update provenance if necessary */
-    trp_upd_add_to_provenance(tr_msg_get_trp_upd(*msg), trp_peer_get_label(peer));
-    break;
+    trp_upd_add_to_provenance(trp_get_tr_msg_upd(*msg), trp_peer_get_label(peer));
 
-  case TRP_REQUEST:
-    trp_req_set_peer(tr_msg_get_trp_req(*msg), tr_dup_name(conn_peer));
-    break;
+  } else if (NULL != trp_get_tr_msg_req(*msg)) {
+    /* Received a request */
+    trp_req_set_peer(trp_get_tr_msg_req(*msg), tr_dup_name(conn_peer));
 
-  default:
-    tr_debug("trps_read_message: received unsupported message from %.*s", conn_peer->len, conn_peer->buf);
+  } else {
+    /* Received an unknown type */
+    tr_debug("trps_read_message: received unsupported message from %.*s",
+             conn_peer->len,
+             conn_peer->buf);
     tr_msg_free_decoded(*msg);
     *msg=NULL;
     return TRP_UNSUPPORTED;
   }
-  
+
   return TRP_SUCCESS;
 }
 
@@ -454,21 +389,22 @@ int trps_get_listener(TRPS_INSTANCE *trps,
                       TRPS_MSG_FUNC msg_handler,
                       TRP_AUTH_FUNC auth_handler,
                       const char *hostname,
-                      unsigned int port,
+                      int port,
                       void *cookie,
                       int *fd_out,
                       size_t max_fd)
 {
-  size_t n_fd=0;
-  size_t ii=0;
+  nfds_t n_fd=0;
+  nfds_t ii=0;
 
-  n_fd=trps_listen(trps, port, fd_out, max_fd);
-  if (n_fd==0)
-    tr_err("trps_get_listener: Error opening port %d.");
+  n_fd = tr_sock_listen_all(port, fd_out, max_fd);
+
+  if (n_fd == 0)
+    tr_err("trps_get_listener: Error opening port %d.", port);
   else {
     /* opening port succeeded */
     tr_info("trps_get_listener: Opened port %d.", port);
-    
+
     /* make the sockets non-blocking */
     for (ii=0; ii<n_fd; ii++) {
       if (0 != fcntl(fd_out[ii], F_SETFL, O_NONBLOCK)) {
@@ -477,33 +413,33 @@ int trps_get_listener(TRPS_INSTANCE *trps,
           close(fd_out[ii]);
           fd_out[ii]=-1;
         }
-        n_fd=0;
+        n_fd = 0;
         break;
       }
     }
   }
 
-  if (n_fd>0) {
+  if (n_fd > 0) {
     /* store the caller's request handler & cookie */
     trps->msg_handler = msg_handler;
     trps->auth_handler = auth_handler;
     trps->hostname = talloc_strdup(trps, hostname);
-    trps->port = port;
+    trps->trps_port = port;
     trps->cookie = cookie;
   }
 
-  return n_fd;
+  return (int) n_fd;
 }
 
 TRP_RC trps_authorize_connection(TRPS_INSTANCE *trps, TRP_CONNECTION *conn)
 {
   /* try to establish a GSS context */
   if (0!=trp_connection_auth(conn, trps->auth_handler, trps->cookie)) {
-    tr_notice("trps_authorize_connection: failed to authorize connection");
+    tr_debug("trps_authorize_connection: failed to authorize connection");
     trp_connection_close(conn);
     return TRP_ERROR;
   }
-  tr_notice("trps_authorize_connection: authorized connection");
+  tr_debug("trps_authorize_connection: authorized connection");
   return TRP_SUCCESS;
 }
 
@@ -560,7 +496,7 @@ static TRP_RC trps_validate_update(TRPS_INSTANCE *trps, TRP_UPD *upd)
     return TRP_ERROR;
   }
 
-  
+
   return TRP_SUCCESS;
 }
 
@@ -570,12 +506,27 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
   switch(trp_inforec_get_type(rec)) {
   case TRP_INFOREC_TYPE_ROUTE:
     if ((trp_inforec_get_trust_router(rec)==NULL)
-       || (trp_inforec_get_next_hop(rec)==NULL)) {
+        || (trp_inforec_get_next_hop(rec)==NULL)) {
       tr_debug("trps_validate_inforec: missing record info.");
       return TRP_ERROR;
     }
 
-    /* check for valid metric */
+    /* check for valid ports */
+    if ((trp_inforec_get_trust_router_port(rec) <= 0)
+        || (trp_inforec_get_trust_router_port(rec) > 65535)) {
+      tr_debug("trps_validate_inforec: invalid trust router port (%d)",
+               trp_inforec_get_trust_router_port(rec));
+      return TRP_ERROR;
+    }
+
+      if ((trp_inforec_get_next_hop_port(rec) <= 0)
+          || (trp_inforec_get_next_hop_port(rec) > 65535)) {
+        tr_debug("trps_validate_inforec: invalid next hop port (%d)",
+                 trp_inforec_get_next_hop_port(rec));
+        return TRP_ERROR;
+      }
+
+      /* check for valid metric */
     if (trp_metric_is_invalid(trp_inforec_get_metric(rec))) {
       tr_debug("trps_validate_inforec: invalid metric (%u).", trp_inforec_get_metric(rec));
       return TRP_ERROR;
@@ -591,7 +542,7 @@ static TRP_RC trps_validate_inforec(TRPS_INSTANCE *trps, TRP_INFOREC *rec)
   case TRP_INFOREC_TYPE_COMMUNITY:
     /* TODO: validate community updates */
     break;
-    
+
   default:
     tr_notice("trps_validate_inforec: unsupported record type.");
     return TRP_UNSUPPORTED;
@@ -635,7 +586,7 @@ static int trps_check_feasibility(TRPS_INSTANCE *trps, TR_NAME *realm, TR_NAME *
      && (0==tr_name_cmp(next_hop,trp_inforec_get_next_hop(rec)))) {
     return 1;
   }
-    
+
 
   /* compare the existing metric we advertise to what we would advertise
    * if we accept this update */
@@ -661,6 +612,17 @@ static struct timespec *trps_compute_expiry(TRPS_INSTANCE *trps, unsigned int in
   return ts;
 }
 
+
+/* compare hostname/port of the trust router, return 0 if they match */
+static int trust_router_changed(TRP_ROUTE *route, TRP_INFOREC *rec)
+{
+  if (trp_route_get_trust_router_port(route) != trp_inforec_get_trust_router_port(rec))
+    return 1;
+
+  return tr_name_cmp(trp_route_get_trust_router(route),
+                     trp_inforec_get_trust_router(rec));
+}
+
 static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC *rec)
 {
   TRP_ROUTE *entry=NULL;
@@ -680,8 +642,9 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
     trp_route_set_realm(entry, trp_upd_dup_realm(upd));
     trp_route_set_peer(entry, trp_upd_dup_peer(upd));
     trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec));
+    trp_route_set_trust_router_port(entry, trp_inforec_get_trust_router_port(rec));
     trp_route_set_next_hop(entry, trp_inforec_dup_next_hop(rec));
-    /* TODO: pass next hop port (now defaults to TID_PORT) --jlr */
+    trp_route_set_next_hop_port(entry, trp_inforec_get_next_hop_port(rec));
     if ((trp_route_get_comm(entry)==NULL)
        ||(trp_route_get_realm(entry)==NULL)
        ||(trp_route_get_peer(entry)==NULL)
@@ -703,13 +666,13 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
   trp_route_set_metric(entry, trp_inforec_get_metric(rec));
   trp_route_set_interval(entry, trp_inforec_get_interval(rec));
 
-  /* check whether the trust router has changed */
-  if (0!=tr_name_cmp(trp_route_get_trust_router(entry),
-                     trp_inforec_get_trust_router(rec))) {
+  /* check whether the trust router has changed (either name or port) */
+  if (trust_router_changed(entry, rec)) {
     /* The name changed. Set this route as triggered. */
     tr_debug("trps_accept_update: trust router for route changed.");
     trp_route_set_triggered(entry, 1);
     trp_route_set_trust_router(entry, trp_inforec_dup_trust_router(rec)); /* frees old name */
+    trp_route_set_trust_router_port(entry, trp_inforec_get_trust_router_port(rec));
   }
   if (!trps_route_retracted(trps, entry)) {
     tr_debug("trps_accept_update: route not retracted, setting expiry timer.");
@@ -724,36 +687,50 @@ static TRP_RC trps_accept_update(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC 
 static TRP_RC trps_handle_inforec_route(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_INFOREC *rec)
 {
   TRP_ROUTE *route=NULL;
+  TR_COMM *comm = NULL;
   unsigned int feas=0;
 
   /* determine feasibility */
   feas=trps_check_feasibility(trps, trp_upd_get_realm(upd), trp_upd_get_comm(upd), rec);
   tr_debug("trps_handle_update: record feasibility=%d", feas);
 
-  /* do we have an existing route? */
-  route=trps_get_route(trps,
-                       trp_upd_get_comm(upd),
-                       trp_upd_get_realm(upd),
-                       trp_upd_get_peer(upd));
-  if (route!=NULL) {
-    /* there was a route table entry already */
-    tr_debug("trps_handle_updates: route entry already exists.");
-    if (feas) {
-      /* Update is feasible. Accept it. */
-      trps_accept_update(trps, upd, rec);
-    } else {
-      /* Update is infeasible. Ignore it unless the trust router has changed. */
-      if (0!=tr_name_cmp(trp_route_get_trust_router(route),
-                         trp_inforec_get_trust_router(rec))) {
-        /* the trust router associated with the route has changed, treat update as a retraction */
-        trps_retract_route(trps, route);
-      }
-    }
+  /* verify that the community is an APC */
+  comm = tr_comm_table_find_comm(trps->ctable, trp_upd_get_comm(upd));
+  if (comm == NULL) {
+    /* We don't know this community. Reject the route. */
+    tr_debug("trps_handle_updates: community %.*s unknown, ignoring route for %.*s",
+             trp_upd_get_comm(upd)->len, trp_upd_get_comm(upd)->buf,
+             trp_upd_get_realm(upd)->len, trp_upd_get_realm(upd)->buf);
+  } else if (tr_comm_get_type(comm) != TR_COMM_APC) {
+    /* The community in a route request *must* be an APC. This was not - ignore it. */
+    tr_debug("trps_handle_updates: community %.*s is not an APC, ignoring route for %.*s",
+             trp_upd_get_comm(upd)->len, trp_upd_get_comm(upd)->buf,
+             trp_upd_get_realm(upd)->len, trp_upd_get_realm(upd)->buf);
   } else {
-    /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
-    tr_debug("trps_handle_update: no route entry exists yet.");
-    if (feas && trp_metric_is_finite(trp_inforec_get_metric(rec)))
-      trps_accept_update(trps, upd, rec);
+    /* do we have an existing route? */
+    route=trps_get_route(trps,
+                         trp_upd_get_comm(upd),
+                         trp_upd_get_realm(upd),
+                         trp_upd_get_peer(upd));
+    if (route!=NULL) {
+      /* there was a route table entry already */
+      tr_debug("trps_handle_updates: route entry already exists.");
+      if (feas) {
+        /* Update is feasible. Accept it. */
+        trps_accept_update(trps, upd, rec);
+      } else {
+        /* Update is infeasible. Ignore it unless the trust router has changed. */
+        if (trust_router_changed(route, rec)) {
+          /* the trust router associated with the route has changed, treat update as a retraction */
+          trps_retract_route(trps, route);
+        }
+      }
+    } else {
+      /* No existing route table entry. Ignore it unless it is feasible and not a retraction. */
+      tr_debug("trps_handle_update: no route entry exists yet.");
+      if (feas && trp_metric_is_finite(trp_inforec_get_metric(rec)))
+        trps_accept_update(trps, upd, rec);
+    }
   }
 
   return TRP_SUCCESS;
@@ -794,7 +771,7 @@ static TR_COMM *trps_create_new_comm(TALLOC_CTX *mem_ctx, TR_NAME *comm_id, TRP_
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_COMM *comm=tr_comm_new(tmp_ctx);
-  
+
   if (comm==NULL) {
     tr_debug("trps_create_new_comm: unable to allocate new community.");
     goto cleanup;
@@ -833,17 +810,17 @@ static TR_COMM *trps_create_new_comm(TALLOC_CTX *mem_ctx, TR_NAME *comm_id, TRP_
   }
   comm->expiration_interval=trp_inforec_get_exp_interval(rec);
   talloc_steal(mem_ctx, comm);
-  
+
 cleanup:
   talloc_free(tmp_ctx);
   return comm;
 }
 
-static TR_RP_REALM *trps_create_new_rp_realm(TALLOC_CTX *mem_ctx, TR_NAME *realm_id, TRP_INFOREC *rec)
+static TR_RP_REALM *trps_create_new_rp_realm(TALLOC_CTX *mem_ctx, TR_NAME *comm, TR_NAME *realm_id, TRP_INFOREC *rec)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_RP_REALM *rp=tr_rp_realm_new(tmp_ctx);
-  
+
   if (rp==NULL) {
     tr_debug("trps_create_new_rp_realm: unable to allocate new realm.");
     goto cleanup;
@@ -856,17 +833,21 @@ static TR_RP_REALM *trps_create_new_rp_realm(TALLOC_CTX *mem_ctx, TR_NAME *realm
     goto cleanup;
   }
   talloc_steal(mem_ctx, rp);
-  
+
 cleanup:
   talloc_free(tmp_ctx);
   return rp;
 }
 
-static TR_IDP_REALM *trps_create_new_idp_realm(TALLOC_CTX *mem_ctx, TR_NAME *realm_id, TRP_INFOREC *rec)
+static TR_IDP_REALM *trps_create_new_idp_realm(TALLOC_CTX *mem_ctx,
+                                               TR_NAME *comm_id,
+                                               TR_NAME *realm_id,
+                                               TRP_INFOREC *rec)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TR_IDP_REALM *idp=tr_idp_realm_new(tmp_ctx);
-  
+  TR_APC *realm_apcs = NULL;
+
   if (idp==NULL) {
     tr_debug("trps_create_new_idp_realm: unable to allocate new realm.");
     goto cleanup;
@@ -878,18 +859,56 @@ static TR_IDP_REALM *trps_create_new_idp_realm(TALLOC_CTX *mem_ctx, TR_NAME *rea
     idp=NULL;
     goto cleanup;
   }
-  if (trp_inforec_get_apcs(rec)!=NULL) {
-    tr_idp_realm_set_apcs(idp, tr_apc_dup(tmp_ctx, trp_inforec_get_apcs(rec)));
-    if (tr_idp_realm_get_apcs(idp)==NULL) {
-      tr_debug("trps_create_new_idp_realm: unable to allocate APC list.");
-      idp=NULL;
+
+  /* Set the APCs. If the community is a CoI, copy its APCs. If it is an APC, then
+   * that community itself is the APC for the realm. */
+  if (trp_inforec_get_comm_type(rec) == TR_COMM_APC) {
+    /* the community is an APC for this realm */
+    realm_apcs = tr_apc_new(tmp_ctx);
+    if (realm_apcs == NULL) {
+      tr_debug("trps_create_new_idp_realm: unable to allocate new APC list.");
+      idp = NULL;
+      goto cleanup;
+    }
+
+    tr_apc_set_id(realm_apcs, tr_dup_name(comm_id));
+    if (tr_apc_get_id(realm_apcs) == NULL) {
+      tr_debug("trps_create_new_idp_realm: unable to allocate new APC name.");
+      idp = NULL;
+      goto cleanup;
+    }
+  } else {
+    /* the community is not an APC for this realm */
+    realm_apcs = trp_inforec_get_apcs(rec);
+    if (realm_apcs == NULL) {
+      tr_debug("trps_create_new_idp_realm: no APCs for realm %.*s/%.*s, cannot add.",
+               realm_id->len, realm_id->buf,
+               comm_id->len, comm_id->buf);
+      idp = NULL;
+      goto cleanup;
+    }
+
+    /* we have APCs, make our own copy */
+    realm_apcs = tr_apc_dup(tmp_ctx, realm_apcs);
+    if (realm_apcs == NULL) {
+      tr_debug("trps_create_new_idp_realm: unable to duplicate APC list.");
+      idp = NULL;
       goto cleanup;
     }
   }
+
+  /* Whether the community is an APC or CoI, the APCs for the realm are in realm_apcs */
+  tr_idp_realm_set_apcs(idp, realm_apcs); /* takes realm_apcs out of tmp_ctx on success */
+  if (tr_idp_realm_get_apcs(idp) == NULL) {
+    tr_debug("trps_create_new_idp_realm: unable to set APC list for new realm.");
+    idp=NULL;
+    goto cleanup;
+  }
+
   idp->origin=TR_REALM_DISCOVERED;
-  
+
   talloc_steal(mem_ctx, idp);
-  
+
 cleanup:
   talloc_free(tmp_ctx);
   return idp;
@@ -914,7 +933,7 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
   origin_id=trp_inforec_dup_origin(rec);
   if (origin_id==NULL)
     goto cleanup;
-    
+
   /* see whether we want to add this */
   our_peer_label=trps_dup_label(trps);
   if (our_peer_label==NULL) {
@@ -935,7 +954,11 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
         tr_debug("trps_handle_inforec_comm: unable to create new community.");
         goto cleanup;
       }
-      tr_comm_table_add_comm(trps->ctable, comm);
+      if (tr_comm_table_add_comm(trps->ctable, comm) != 0)
+      {
+        tr_debug("trps_handle_inforec_comm: unable to add community to community table.");
+        goto cleanup;
+      }
     }
     /* TODO: see if other comm data match the new inforec and update or complain */
 
@@ -949,7 +972,7 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
       if (rp_realm==NULL) {
         tr_debug("trps_handle_inforec_comm: unknown RP realm %.*s in inforec, creating it.",
                  realm_id->len, realm_id->buf);
-        rp_realm=trps_create_new_rp_realm(tmp_ctx, realm_id, rec);
+        rp_realm= trps_create_new_rp_realm(tmp_ctx, tr_comm_get_id(comm), realm_id, rec);
         if (rp_realm==NULL) {
           tr_debug("trps_handle_inforec_comm: unable to create new RP realm.");
           /* we may leave an unused community in the table, but it will only last until
@@ -970,7 +993,7 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
       if (idp_realm==NULL) {
         tr_debug("trps_handle_inforec_comm: unknown IDP realm %.*s in inforec, creating it.",
                  realm_id->len, realm_id->buf);
-        idp_realm=trps_create_new_idp_realm(tmp_ctx, realm_id, rec);
+        idp_realm= trps_create_new_idp_realm(tmp_ctx, tr_comm_get_id(comm), realm_id, rec);
         if (idp_realm==NULL) {
           tr_debug("trps_handle_inforec_comm: unable to create new IDP realm.");
           /* we may leave an unused community in the table, but it will only last until
@@ -990,7 +1013,7 @@ static TRP_RC trps_handle_inforec_comm(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
       tr_debug("trps_handle_inforec_comm: unable to add realm.");
       goto cleanup;
     }
-  } 
+  }
 
   rc=TRP_SUCCESS;
 
@@ -1030,7 +1053,7 @@ static int trps_filter_inbound_inforec(TRPS_INSTANCE *trps, TRP_UPD *upd, TRP_IN
   }
 
   /* tr_filter_apply() and tr_filter_set_get() handle null filter sets/filters by rejecting */
-  target= tr_filter_target_trp_inforec(NULL, upd, rec);
+  target= trp_filter_target_inforec(NULL, upd, rec);
   if (target==NULL) {
     /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
     tr_crit("trps_filter_inbound_inforec: Unable to allocate filter target, cannot apply filter!");
@@ -1107,28 +1130,29 @@ static TRP_RC trps_validate_request(TRPS_INSTANCE *trps, TRP_REQ *req)
     tr_notice("trps_validate_request: received TRP request with null community.");
     return TRP_ERROR;
   }
-  
+
   if (trp_req_get_realm(req)==NULL) {
     tr_notice("trps_validate_request: received TRP request with null realm.");
     return TRP_ERROR;
   }
-  
+
   if (trp_req_get_peer(req)==NULL) {
     tr_notice("trps_validate_request: received TRP request without origin peer information.");
     return TRP_ERROR;
   }
-  
+
   return TRP_SUCCESS;
 }
 
 /* choose the best route to comm/realm, optionally excluding routes to a particular peer */
 static TRP_ROUTE *trps_find_best_route(TRPS_INSTANCE *trps,
-                                        TR_NAME *comm,
-                                        TR_NAME *realm,
-                                        TR_NAME *exclude_peer)
+                                       TR_NAME *comm,
+                                       TR_NAME *realm,
+                                       TR_NAME *exclude_peer_label)
 {
   TRP_ROUTE **entry=NULL;
   TRP_ROUTE *best=NULL;
+  TRP_PEER *route_peer = NULL;
   size_t n_entry=0;
   unsigned int kk=0;
   unsigned int kk_min=0;
@@ -1137,16 +1161,34 @@ static TRP_ROUTE *trps_find_best_route(TRPS_INSTANCE *trps,
   entry=trp_rtable_get_realm_entries(trps->rtable, comm, realm, &n_entry);
   for (kk=0; kk<n_entry; kk++) {
     if (trp_route_get_metric(entry[kk]) < min_metric) {
-      if ((exclude_peer==NULL) || (0!=tr_name_cmp(trp_route_get_peer(entry[kk]),
-                                                  exclude_peer))) {
-        kk_min=kk;
-        min_metric=trp_route_get_metric(entry[kk]);
-      } 
+      if (exclude_peer_label != NULL) {
+        if (!trp_route_is_local(entry[kk])) {
+          /* route is not local, check the peer label */
+          route_peer = trp_ptable_find_gss_name(trps->ptable,
+                                                trp_route_get_peer(entry[kk]));
+          if (route_peer == NULL) {
+            tr_err("trps_find_best_route: unknown peer GSS name (%.*s) for route %d to %.*s/%.*s",
+                   trp_route_get_peer(entry[kk])->len, trp_route_get_peer(entry[kk])->buf,
+                   kk,
+                   realm->len, realm->buf,
+                   comm->len, comm->buf);
+            continue; /* unknown peer, skip the route */
+          }
+          if (0 == tr_name_cmp(exclude_peer_label, trp_peer_get_label(route_peer))) {
+            /* we're excluding this peer - skip the route */
+            continue;
+          }
+        }
+      }
+      /* if we get here, we're not excluding the route */
+      kk_min = kk;
+      min_metric = trp_route_get_metric(entry[kk]);
     }
   }
+
   if (trp_metric_is_finite(min_metric))
     best=entry[kk_min];
-  
+
   talloc_free(entry);
   return best;
 }
@@ -1218,7 +1260,7 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
     return TRP_ERROR;
   }
 
-  entry=trp_rtable_get_entries(trps->rtable, &n_entry); /* must talloc_free *entry */
+  entry= trp_rtable_get_entries(NULL, trps->rtable, &n_entry); /* must talloc_free *entry */
 
   /* loop over the entries */
   for (ii=0; ii<n_entry; ii++) {
@@ -1245,31 +1287,12 @@ TRP_RC trps_sweep_routes(TRPS_INSTANCE *trps)
 }
 
 
-static char *timespec_to_str(struct timespec *ts)
-{
-  struct tm tm;
-  char *s=NULL;
-
-  if (localtime_r(&(ts->tv_sec), &tm)==NULL)
-    return NULL;
-
-  s=malloc(40); /* long enough to contain strftime result */
-  if (s==NULL)
-    return NULL;
-
-  if (strftime(s, 40, "%F %T", &tm)==0) {
-    free(s);
-    return NULL;
-  }
-  return s;
-}
-
-
 /* Sweep for expired communities/realms/memberships. */
 TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   struct timespec sweep_time={0,0};
+  struct timespec tmp = {0};
   TR_COMM_MEMB *memb=NULL;
   TR_COMM_ITER *iter=NULL;
   TRP_RC rc=TRP_ERROR;
@@ -1302,7 +1325,7 @@ TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
                  tr_comm_memb_get_realm_id(memb)->len, tr_comm_memb_get_realm_id(memb)->buf,
                  tr_comm_get_id(tr_comm_memb_get_comm(memb))->len, tr_comm_get_id(tr_comm_memb_get_comm(memb))->buf,
                  tr_comm_memb_get_origin(memb)->len, tr_comm_memb_get_origin(memb)->buf,
-                 timespec_to_str(tr_comm_memb_get_expiry(memb)));
+                 timespec_to_str(tr_comm_memb_get_expiry_realtime(memb, &tmp)));
         tr_comm_table_remove_memb(trps->ctable, memb);
         tr_comm_memb_free(memb);
       } else {
@@ -1310,8 +1333,8 @@ TRP_RC trps_sweep_ctable(TRPS_INSTANCE *trps)
         tr_comm_memb_expire(memb);
         trps_compute_expiry(trps, tr_comm_memb_get_interval(memb), tr_comm_memb_get_expiry(memb));
         tr_debug("trps_sweep_ctable: community membership expired at %s, resetting expiry to %s (%.*s in %.*s, origin %.*s).",
-                 timespec_to_str(&sweep_time),
-                 timespec_to_str(tr_comm_memb_get_expiry(memb)),
+                 timespec_to_str(tr_clock_convert(TRP_CLOCK, &sweep_time, CLOCK_REALTIME, &tmp)),
+                 timespec_to_str(tr_comm_memb_get_expiry_realtime(memb, &tmp)),
                  tr_comm_memb_get_realm_id(memb)->len, tr_comm_memb_get_realm_id(memb)->buf,
                  tr_comm_get_id(tr_comm_memb_get_comm(memb))->len, tr_comm_get_id(tr_comm_memb_get_comm(memb))->buf,
                  tr_comm_memb_get_origin(memb)->len, tr_comm_memb_get_origin(memb)->buf);
@@ -1356,13 +1379,23 @@ static TRP_INFOREC *trps_route_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *tr
                                                               trp_route_get_peer(route)));
     }
 
-    /* Note that we leave the next hop empty since the recipient fills that in.
-     * This is where we add the link cost (currently always 1) to the next peer. */
-    if ((trp_inforec_set_trust_router(rec, trp_route_dup_trust_router(route)) != TRP_SUCCESS)
-       ||(trp_inforec_set_metric(rec,
-                                 trps_metric_add(trp_route_get_metric(route),
-                                                 linkcost)) != TRP_SUCCESS)
-       ||(trp_inforec_set_interval(rec, trps_get_update_interval(trps)) != TRP_SUCCESS)) {
+    /*
+     * This is where we add the link cost (currently always 1) to the next peer.
+     *
+     * Here, set next_hop to our TID address/port rather than passing along our own
+     * next_hop. That is the one *we* use to forward requests. We are advertising
+     * ourselves as a hop for our peers.
+     */
+    if ((TRP_SUCCESS != trp_inforec_set_trust_router(rec,
+                                                     trp_route_dup_trust_router(route),
+                                                     trp_route_get_trust_router_port(route)))
+        ||(TRP_SUCCESS != trp_inforec_set_next_hop(rec,
+                                                   tr_new_name(trps->hostname),
+                                                   trps->tids_port))
+        ||(TRP_SUCCESS != trp_inforec_set_metric(rec,
+                                                 trps_metric_add(trp_route_get_metric(route),
+                                                                 linkcost)))
+        ||(TRP_SUCCESS != trp_inforec_set_interval(rec, trps_get_update_interval(trps)))) {
       tr_err("trps_route_to_inforec: error creating route update.");
       talloc_free(rec);
       rec=NULL;
@@ -1412,26 +1445,67 @@ cleanup:
 }
 
 /* select the correct route to comm/realm to be announced to peer */
-static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer_gssname)
+static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, TR_NAME *realm, TR_NAME *peer_label)
 {
-  TRP_ROUTE *route;
+  TRP_ROUTE *route = NULL;
+  TRP_PEER *route_peer = NULL;
+  TR_NAME *route_peer_label = NULL;
 
   /* Take the currently selected route unless it is through the peer we're sending the update to.
-   * I.e., enforce the split horizon rule. */
+   * I.e., enforce the split horizon rule. Start by looking up the currently selected route. */
   route=trp_rtable_get_selected_entry(trps->rtable, comm, realm);
   if (route==NULL) {
     /* No selected route, this should only happen if the only route has been retracted,
      * in which case we do not want to advertise it. */
     return NULL;
   }
-  tr_debug("trps_select_realm_update: %s vs %s", peer_gssname->buf,
-           trp_route_get_peer(route)->buf);
-  if (0==tr_name_cmp(peer_gssname, trp_route_get_peer(route))) {
-    tr_debug("trps_select_realm_update: matched, finding alternate route");
-    /* the selected entry goes through the peer we're reporting to, choose an alternate */
-    route=trps_find_best_route(trps, comm, realm, peer_gssname);
-    if ((route==NULL) || (!trp_metric_is_finite(trp_route_get_metric(route))))
-      return NULL; /* don't advertise a nonexistent or retracted route */
+
+  /* Check whether it's local. */
+  if (trp_route_is_local(route)) {
+    /* It is always ok to announce a local route */
+    tr_debug("trps_select_realm_update: selected route for %.*s/%.*s is local",
+             realm->len, realm->buf,
+             comm->len, comm->buf);
+  } else {
+    /* It's not local. Get the route's peer and check whether it's the same place we
+     * got the selected route from. Peer should always correspond to an entry in our
+     * peer table. */
+    tr_debug("trps_select_realm_update: selected route for %.*s/%.*s is not local",
+             realm->len, realm->buf,
+             comm->len, comm->buf);
+    route_peer = trp_ptable_find_gss_name(trps->ptable, trp_route_get_peer(route));
+    if (route_peer == NULL) {
+      tr_err("trps_select_realm_update: unknown peer GSS name (%.*s) for selected route for %.*s/%.*s",
+             trp_route_get_peer(route)->len, trp_route_get_peer(route)->buf,
+             realm->len, realm->buf,
+             comm->len, comm->buf);
+      return NULL;
+    }
+    route_peer_label = trp_peer_get_label(route_peer);
+    if (route_peer_label == NULL) {
+      tr_err("trps_select_realm_update: error retrieving peer label for selected route for %.*s/%.*s",
+             realm->len, realm->buf,
+             comm->len, comm->buf);
+      return NULL;
+    }
+
+    /* see if these match */
+    tr_debug("trps_select_realm_update: %.*s vs %.*s",
+             peer_label->len, peer_label->buf,
+             route_peer_label->len, route_peer_label->buf);
+
+    if (0==tr_name_cmp(peer_label, route_peer_label)) {
+      /* the selected entry goes through the peer we're reporting to, choose an alternate */
+      tr_debug("trps_select_realm_update: matched, finding alternate route");
+      route=trps_find_best_route(trps, comm, realm, peer_label);
+      if ((route==NULL) || (!trp_metric_is_finite(trp_route_get_metric(route)))) {
+        tr_debug("trps_select_realm_update: no route to %.*s/%.*s suitable to advertise to %.*s",
+                 realm->len, realm->buf,
+                 comm->len, comm->buf,
+                 peer_label->len, peer_label->buf);
+        return NULL; /* don't advertise a nonexistent or retracted route */
+      }
+    }
   }
   return route;
 }
@@ -1440,7 +1514,7 @@ static TRP_ROUTE *trps_select_realm_update(TRPS_INSTANCE *trps, TR_NAME *comm, T
 static TRP_RC trps_select_route_updates_for_peer(TALLOC_CTX *mem_ctx,
                                                  GPtrArray *updates,
                                                  TRPS_INSTANCE *trps,
-                                                 TR_NAME *peer_gssname,
+                                                 TR_NAME *peer_label,
                                                  int triggered)
 {
   size_t n_comm=0;
@@ -1457,7 +1531,7 @@ static TRP_RC trps_select_route_updates_for_peer(TALLOC_CTX *mem_ctx,
   for (ii=0; ii<n_comm; ii++) {
     realm=trp_rtable_get_comm_realms(trps->rtable, comm[ii], &n_realm);
     for (jj=0; jj<n_realm; jj++) {
-      best=trps_select_realm_update(trps, comm[ii], realm[jj], peer_gssname);
+      best=trps_select_realm_update(trps, comm[ii], realm[jj], peer_label);
       /* If we found a route, add it to the list. If triggered!=0, then only
        * add triggered routes. */
       if ((best!=NULL) && ((!triggered) || trp_route_is_triggered(best))) {
@@ -1469,7 +1543,7 @@ static TRP_RC trps_select_route_updates_for_peer(TALLOC_CTX *mem_ctx,
         g_ptr_array_add(updates, upd);
       }
     }
-    
+
     if (realm!=NULL)
       talloc_free(realm);
     realm=NULL;
@@ -1478,7 +1552,7 @@ static TRP_RC trps_select_route_updates_for_peer(TALLOC_CTX *mem_ctx,
 
   if (comm!=NULL)
     talloc_free(comm);
-  
+
   return TRP_SUCCESS;
 }
 
@@ -1495,12 +1569,12 @@ static TRP_INFOREC *trps_memb_to_inforec(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trp
   rec=trp_inforec_new(tmp_ctx, TRP_INFOREC_TYPE_COMMUNITY);
   if (rec==NULL)
     goto cleanup;
-  
+
   if (TRP_SUCCESS!=trp_inforec_set_comm_type(rec, tr_comm_get_type(comm))) {
     rec=NULL;
     goto cleanup;
   }
-  
+
   if (TRP_SUCCESS!=trp_inforec_set_role(rec, tr_comm_memb_get_role(memb))) {
     rec=NULL;
     goto cleanup;
@@ -1548,7 +1622,11 @@ cleanup:
 }
 
 /* construct an update with all the inforecs for comm/realm/role to be sent to peer */
-static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NAME *peer_gssname, TR_COMM *comm, TR_REALM *realm)
+static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx,
+                                 TRPS_INSTANCE *trps,
+                                 TR_NAME *peer_label,
+                                 TR_COMM *comm,
+                                 TR_REALM *realm)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
   TRP_UPD *upd=trp_upd_new(tmp_ctx);
@@ -1558,7 +1636,7 @@ static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NA
 
   if (upd==NULL)
     goto cleanup;
-  
+
   trp_upd_set_comm(upd, tr_comm_dup_id(comm));
   trp_upd_set_realm(upd, tr_realm_dup_id(realm));
   /* leave peer empty */
@@ -1569,7 +1647,7 @@ static TRP_UPD *trps_comm_update(TALLOC_CTX *mem_ctx, TRPS_INSTANCE *trps, TR_NA
     upd=NULL;
     goto cleanup;
   }
-  
+
   /* now add inforecs */
   switch (realm->role) {
   case TR_ROLE_IDP:
@@ -1614,7 +1692,7 @@ cleanup:
 static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx,
                                                 GPtrArray *updates,
                                                 TRPS_INSTANCE *trps,
-                                                TR_NAME *peer_gssname,
+                                                TR_NAME *peer_label,
                                                 int triggered)
 {
   TALLOC_CTX *tmp_ctx=talloc_new(NULL);
@@ -1654,7 +1732,7 @@ static TRP_RC trps_select_comm_updates_for_peer(TALLOC_CTX *mem_ctx,
       tr_debug("trps_select_comm_updates_for_peer: adding realm %.*s",
                tr_realm_get_id(realm)->len,
                tr_realm_get_id(realm)->buf);
-      upd=trps_comm_update(mem_ctx, trps, peer_gssname, comm, realm);
+      upd=trps_comm_update(mem_ctx, trps, peer_label, comm, realm);
       if (upd!=NULL)
         g_ptr_array_add(updates, upd);
     }
@@ -1679,7 +1757,7 @@ static void trps_filter_one_outbound_update(TR_FILTER *filt, TRP_UPD *upd)
 
   for(this=trp_upd_get_inforec(upd); this!=NULL; this=next) {
     next=this->next;
-    target= tr_filter_target_trp_inforec(NULL, upd, this);
+    target= trp_filter_target_inforec(NULL, upd, this);
     if (target==NULL) {
       /* TODO: signal that filtering failed. Until then, just filter everything and give an error message. */
       tr_crit("trps_filter_one_outbound_update: Unable to allocate filter target, cannot apply filter!");
@@ -1820,8 +1898,8 @@ static TRP_RC trps_update_one_peer(TRPS_INSTANCE *trps,
       for (ii=0; ii<updates->len; ii++) {
         upd = (TRP_UPD *) g_ptr_array_index(updates, ii);
         /* now encode the update message */
-        tr_msg_set_trp_upd(&msg, upd);
-        encoded = tr_msg_encode(&msg);
+        trp_set_tr_msg_upd(&msg, upd);
+        encoded = tr_msg_encode(NULL, &msg);
         if (encoded == NULL) {
           tr_err("trps_update_one_peer: error encoding update.");
           rc = TRP_ERROR;
@@ -1884,12 +1962,12 @@ TRP_RC trps_update(TRPS_INSTANCE *trps, TRP_UPDATE_TYPE update_type)
   trp_rtable_clear_triggered(trps->rtable); /* don't re-send triggered updates */
   talloc_free(tmp_ctx);
   return rc;
-}        
+}
 
 TRP_RC trps_add_route(TRPS_INSTANCE *trps, TRP_ROUTE *route)
 {
   trp_rtable_add(trps->rtable, route); /* should return status */
-  return TRP_SUCCESS; 
+  return TRP_SUCCESS;
 }
 
 /* steals the peer object */
@@ -1965,21 +2043,22 @@ TRP_RC trps_handle_tr_msg(TRPS_INSTANCE *trps, TR_MSG *tr_msg)
 {
   TRP_RC rc=TRP_ERROR;
 
-  switch (tr_msg_get_msg_type(tr_msg)) {
-  case TRP_UPDATE:
-    rc=trps_handle_update(trps, tr_msg_get_trp_upd(tr_msg));
+  if (NULL != trp_get_tr_msg_upd(tr_msg)) {
+    /* Received update */
+    rc=trps_handle_update(trps, trp_get_tr_msg_upd(tr_msg));
     if (rc==TRP_SUCCESS) {
       rc=trps_update_active_routes(trps);
       trps_update(trps, TRP_UPDATE_TRIGGERED); /* send any triggered routes */
     }
     return rc;
 
-  case TRP_REQUEST:
-    rc=trps_handle_request(trps, tr_msg_get_trp_req(tr_msg));
+  } else if (NULL != trp_get_tr_msg_req(tr_msg)) {
+    /* Received request */
+    rc=trps_handle_request(trps, trp_get_tr_msg_req(tr_msg));
     return rc;
 
-  default:
-    /* unknown error or one we don't care about (e.g., TID messages) */
+  } else {
+    /* unknown error or a message we don't care about (e.g., TID messages) */
     return TRP_ERROR;
   }
 }
@@ -2005,8 +2084,8 @@ TRP_RC trps_wildcard_route_req(TRPS_INSTANCE *trps, TR_NAME *peer_servicename)
     goto cleanup;
   }
 
-  tr_msg_set_trp_req(&msg, req);
-  encoded=tr_msg_encode(&msg);
+  trp_set_tr_msg_req(&msg, req);
+  encoded= tr_msg_encode(NULL, &msg);
   if (encoded==NULL) {
     tr_err("trps_wildcard_route_req: error encoding wildcard TRP request.");
     rc=TRP_ERROR;
