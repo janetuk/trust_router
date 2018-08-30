@@ -30,5 +30,5 @@ AC_CHECK_LIB([jansson], [json_object],,[AC_MSG_ERROR([Please install libjansson 
 AC_CHECK_LIB([crypto], [DH_new])
 AC_CHECK_LIB([event], [event_base_new],,[AC_MSG_ERROR([Please install libevent development])])
 AC_CHECK_HEADERS(gssapi.h gssapi_ext.h jansson.h talloc.h openssl/dh.h openssl/bn.h syslog.h event2/event.h)
-AC_CONFIG_FILES([Makefile gsscon/Makefile])
+AC_CONFIG_FILES([Makefile gsscon/Makefile trust_router.spec])
 AC_OUTPUT
