@@ -3,7 +3,7 @@
 set -e
 
 echo "Removing /var/lib/trust_router/"
-rm -f /var/lib/trust_router/
+rm -fr /var/lib/trust_router/
 
 echo "Removing trustrouter user from system"
 deluser trustrouter

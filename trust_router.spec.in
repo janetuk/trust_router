@@ -118,7 +118,7 @@ chown trustrouter:trustrouter ${tr_home}/keys
 chmod 660 ${tr_home}/keys
 
 %postun
-rm -f /var/lib/trust_router/
+rm -fr /var/lib/trust_router/
 userdel trustrouter
 
 # Log Directory
