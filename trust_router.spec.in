@@ -141,6 +141,7 @@ chmod 770 /var/log/trust_router
 %{_initrddir}/trust_router
 
 %{?el7:%{_unitdir}/tids.service}
+%{?el7:%{_unitdir}/trust_router.service}
 
 %config(noreplace) %{_sysconfdir}/sysconfig/tids
 %config(noreplace) %{_sysconfdir}/sysconfig/trust_router

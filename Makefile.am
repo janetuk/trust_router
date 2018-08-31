@@ -342,7 +342,7 @@ pkgdata_DATA=schema.sql
 nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/organizations.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-internal.cfg redhat/default-internal.cfg redhat/tids-wrapper redhat/sysconfig.tids
 
 if HAVE_SYSTEMD
-systemdsystemunit_DATA = tids.service
+systemdsystemunit_DATA = tids.service trust_router.service
 endif
 
 EXTRA_DIST = \
@@ -362,7 +362,6 @@ EXTRA_DIST = \
 	mon/tests/req_show_all_options.test \
 	mon/tests/req_show_no_options.test \
 	mon/tests/resp_show_success.test \
-	schema.sql tids.service \
+	schema.sql tids.service trust_router.service \
 	tr/internal.cfg tr/organizations.cfg \
-	redhat/tids.init \
-    redhat/tids.service
+	redhat/tids.init redhat/tids.service
