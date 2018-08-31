@@ -364,4 +364,5 @@ EXTRA_DIST = \
 	mon/tests/resp_show_success.test \
 	schema.sql tids.service \
 	tr/internal.cfg tr/organizations.cfg \
-	redhat/tids.init
+	redhat/tids.init \
+    redhat/tids.service

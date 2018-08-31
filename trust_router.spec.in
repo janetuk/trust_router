@@ -73,6 +73,11 @@ install -D -m 640 redhat/sysconfig $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/trus
 install -D -m 640 redhat/sysconfig.tids $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/tids
 install -D -m 755 redhat/tids.init $RPM_BUILD_ROOT/%{_initrddir}/tids
 
+# Overwrite Debian's service file
+%if 0%{?el7}
+install -D -m 755 redhat/tids.service $RPM_BUILD_ROOT/%{_unitdir}/tids.service
+%endif
+
 # Link shared config
 ln -s ../../organizations.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/organizations.cfg
 ln -s ../../organizations.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/tr-test/organizations.cfg
