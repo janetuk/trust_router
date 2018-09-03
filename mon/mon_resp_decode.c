@@ -59,7 +59,7 @@
  * @param resp_json reference to JSON request object
  * @return decoded request struct or NULL on failure
  */
-MON_RESP *mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json)
+void *mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   MON_RESP *resp = NULL;

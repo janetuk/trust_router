@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -e
+
+case "$1" in
+    purge)
+        echo "Removing /var/lib/trust_router/"
+        rm -fr /var/lib/trust_router/
+
+        echo "Removing trustrouter user from system"
+        deluser --quiet trustrouter
+        ;;
+
+    *)
+        ;;
+
+esac
+
+#DEBHELPER#
+
+exit 0

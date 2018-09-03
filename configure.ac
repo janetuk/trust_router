@@ -1,6 +1,6 @@
 AC_PREREQ(2.63)
-AC_INIT([trust_router],[3.4.0],
-[bugs@project-moonshot.org])
+AC_INIT([trust_router],[3.4.2],
+[assent@jisc.ac.uk])
 AC_CONFIG_MACRO_DIR(m4)
 AC_CONFIG_AUX_DIR(build-aux)
 AC_USE_SYSTEM_EXTENSIONS
@@ -30,5 +30,5 @@ AC_CHECK_LIB([jansson], [json_object],,[AC_MSG_ERROR([Please install libjansson 
 AC_CHECK_LIB([crypto], [DH_new])
 AC_CHECK_LIB([event], [event_base_new],,[AC_MSG_ERROR([Please install libevent development])])
 AC_CHECK_HEADERS(gssapi.h gssapi_ext.h jansson.h talloc.h openssl/dh.h openssl/bn.h syslog.h event2/event.h)
-AC_CONFIG_FILES([Makefile gsscon/Makefile])
+AC_CONFIG_FILES([Makefile gsscon/Makefile trust_router.spec])
 AC_OUTPUT

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2014-2018, JANET(UK)
+ * Copyright (c) 2018, JANET(UK)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,70 +32,28 @@
  *
  */
 
-#include <stdio.h>
-#include <jansson.h>
-#include <talloc.h>
+#include <assert.h>
+#include <trust_router/tid.h>
 
-#include <trust_router/tr_dh.h>
-#include <mon_internal.h>
-#include <tr_msg.h>
-#include <gsscon.h>
-#include <tr_debug.h>
-
-
-MONC_INSTANCE *monc_new(TALLOC_CTX *mem_ctx)
+/**
+ * Test that we can instantiate a TIDC instance
+ *
+ * The real purpose of this test is to ensure that the tidc_create()
+ * function is present in the libtr_tid shared library. This is the
+ * test that, e.g., FreeRADIUS uses to check that this library is present.
+ */
+static int tidc_create_exists(void)
 {
-  MONC_INSTANCE *monc=talloc(mem_ctx, MONC_INSTANCE);
-  if (monc!=NULL) {
-    monc->gssc = tr_gssc_instance_new(monc);
-    if (monc->gssc == NULL) {
-      talloc_free(monc);
-      return NULL;
-    }
-
-    monc->gssc->service_name = "trustmonitor";
-
-    mon_tr_msg_init(); /* Prepare to send messages */
-  }
-  return monc;
+  TIDC_INSTANCE *tidc = tidc_create();
+  if (!tidc)
+    return 0;
+  tidc_destroy(tidc);
+  return 1;
 }
 
-void monc_free(MONC_INSTANCE *monc)
-{
-  talloc_free(monc);
-}
-
-int monc_open_connection(MONC_INSTANCE *monc,
-                         const char *server,
-                         int port)
-{
-  return tr_gssc_open_connection(monc->gssc, server, port);
-}
-
-MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *req)
-{
-  TALLOC_CTX *tmp_ctx = talloc_new(NULL);
-  TR_MSG *msg = NULL;
-  TR_MSG *resp_msg = NULL;
-  MON_RESP *resp = NULL;
-
-  /* Create and populate a msg structure */
-  if (!(msg = talloc_zero(tmp_ctx, TR_MSG)))
-    goto cleanup;
-
-  mon_set_tr_msg_req(msg, req);
-
-  resp_msg = tr_gssc_exchange_msgs(tmp_ctx, monc->gssc, msg);
-  if (resp_msg == NULL)
-    goto cleanup;
-
-  resp = mon_get_tr_msg_resp(resp_msg);
-
-  /* if we got a response, steal it from resp_msg's context so we can return it */
-  if (resp)
-    talloc_steal(mem_ctx, resp);
-
-cleanup:
-  talloc_free(tmp_ctx);
-  return resp;
-}
+ /* Test linking against libtr_tid */
+ int main(void)
+ {
+   assert(tidc_create_exists());
+   return 0;
+ }

@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <poll.h> // for nfds_t
+#include <sys/socket.h>
 
 #include <tr_debug.h>
 #include <tr_socket.h>
@@ -180,19 +181,25 @@ static const char *tr_sock_ip_address(struct sockaddr *s, char *dst, size_t dst_
 int tr_sock_accept(int sock)
 {
   int conn = -1;
-  struct sockaddr_storage peeraddr;
+  union {
+    /* This gives us a block of memory the size of sockaddr_storage that is also labeled by
+     * a sockaddr. This avoids strict-aliasing problems with gcc. */
+    struct sockaddr_storage storage;
+    struct sockaddr addr;
+  } peeraddr;
   socklen_t addr_len = sizeof(peeraddr);
   char peeraddr_string[INET6_ADDRSTRLEN];
-  char err[80];
+#define TR_S_A_MAX_ERR_LEN 80
+  char err[TR_S_A_MAX_ERR_LEN];
 
-  if (0 > (conn = accept(sock, (struct sockaddr *)&(peeraddr), &addr_len))) {
+  if (0 > (conn = accept(sock, &(peeraddr.addr), &addr_len))) {
     if (strerror_r(errno, err, sizeof(err)))
       snprintf(err, sizeof(err), "errno = %d", errno);
     tr_debug("tr_sock_accept: Unable to accept connection: %s", err);
   } else {
     tr_info("tr_sock_accept: Incoming connection on fd %d from %s",
               conn,
-              tr_sock_ip_address((struct sockaddr *)&peeraddr,
+              tr_sock_ip_address(&(peeraddr.addr),
                                  peeraddr_string,
                                  sizeof(peeraddr_string)));
   }

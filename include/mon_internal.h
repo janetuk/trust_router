@@ -48,24 +48,7 @@
 #include <tr_name_internal.h>
 #include <mon.h>
 
-/* Typedefs */
-typedef struct mon_req MON_REQ;
-typedef struct mon_resp MON_RESP;
-
-typedef enum mon_cmd MON_CMD;
-typedef enum mon_resp_code MON_RESP_CODE;
-
-typedef struct mon_opt MON_OPT;
-typedef enum mon_opt_type MON_OPT_TYPE;
-
-typedef enum mon_rc MON_RC;
-
-typedef struct mons_instance MONS_INSTANCE;
-typedef struct monc_instance MONC_INSTANCE;
-
-typedef int (MONS_REQ_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
-typedef int (MONS_AUTH_FUNC)(gss_name_t client_name, TR_NAME *display_name, void *cookie);
-typedef int (MONC_RESP_FUNC)(MONS_INSTANCE *, MON_REQ *, MON_RESP *, void *);
+/* Typedefs go in mon.h */
 
 /* Struct and enum definitions */
 enum mon_rc {
@@ -159,10 +142,10 @@ size_t mon_req_opt_count(MON_REQ *req);
 MON_OPT *mon_req_opt_index(MON_REQ *req, size_t index);
 
 /* mon_req_encode.c */
-json_t *mon_req_encode(MON_REQ *req);
+json_t *mon_req_encode(void *msg_rep);
 
 /* mon_req_decode.c */
-MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json);
+void *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json);
 MON_REQ *mon_req_parse(TALLOC_CTX *mem_ctx, const char *input);
 
 /* mon_resp.c */
@@ -172,10 +155,10 @@ int mon_resp_set_message(MON_RESP *resp, const char *new_msg);
 void mon_resp_set_payload(MON_RESP *resp, json_t *new_payload);
 
 /* mon_resp_encode.c */
-json_t *mon_resp_encode(MON_RESP *resp);
+json_t *mon_resp_encode(void *msg_rep);
 
 /* mon_resp_decode.c */
-MON_RESP * mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json);
+void * mon_resp_decode(TALLOC_CTX *mem_ctx, json_t *resp_json);
 
 /* mons.c */
 MONS_INSTANCE *mons_new(TALLOC_CTX *mem_ctx);
@@ -194,5 +177,12 @@ MONC_INSTANCE *monc_new(TALLOC_CTX *mem_ctx);
 void monc_free(MONC_INSTANCE *monc);
 int monc_open_connection(MONC_INSTANCE *monc, const char *server, int port);
 MON_RESP *monc_send_request(TALLOC_CTX *mem_ctx, MONC_INSTANCE *monc, MON_REQ *req);
+
+/* mon_tr_msg.c */
+int mon_tr_msg_init(void);
+MON_REQ *mon_get_tr_msg_req(TR_MSG *msg);
+void mon_set_tr_msg_req(TR_MSG *msg, MON_REQ *req);
+MON_RESP *mon_get_tr_msg_resp(TR_MSG *msg);
+void mon_set_tr_msg_resp(TR_MSG *msg, MON_RESP *resp);
 
 #endif //TRUST_ROUTER_MON_REQ_H

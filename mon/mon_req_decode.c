@@ -134,7 +134,7 @@ MON_REQ *mon_req_parse(TALLOC_CTX *mem_ctx, const char *input)
  * @param req_json reference to JSON request object
  * @return decoded request struct or NULL on failure
  */
-MON_REQ *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json)
+void *mon_req_decode(TALLOC_CTX *mem_ctx, json_t *req_json)
 {
   TALLOC_CTX *tmp_ctx = talloc_new(NULL);
   MON_REQ *req = NULL;

@@ -1,0 +1,13 @@
+[Unit]
+Description = Trust Identity Protocol Server
+
+[Service]
+WorkingDirectory=/etc/trust_router/conf.d/default/
+ExecStart=/usr/bin/trust_router
+Restart=always
+StandardOutput=syslog
+StandardError=inherit
+User=trustrouter
+
+[Install]
+WantedBy=multi-user.target

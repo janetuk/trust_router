@@ -3,13 +3,23 @@
 ## /usr/bin/tids <ip-address> <gss-name> <hostname> <database-name>
 ##
 
-TIDS_SERVER_IP="127.0.0.1"                              # IP address that the TIDS is reachable on
-TIDS_SERVER_NAME="localhost"                            # The host name that the TIDS is known as
-TIDS_USER="trustrouter"					# The user that the TIDS is running as
-TIDS_GROUP="trustrouter"				# The group that the TIDS is running as 
+# IP address that the TIDS is reachable on
+TIDS_SERVER_IP="127.0.0.1"
 
-TIDS_GSS_NAME="trustrouter@apc.moonshot.ja.net"		# The GSS service name for the TIDS APC
-KEYFILE="/var/lib/trust_router/keys"			# The key file that the TIDS will store keys in
+# The host name that the TIDS is known as
+TIDS_SERVER_NAME="localhost"
+
+# The user that the TIDS is running as
+TIDS_USER="trustrouter"
+
+# The group that the TIDS is running as
+TIDS_GROUP="trustrouter"
+
+# The GSS service name for the TIDS APC
+TIDS_GSS_NAME="trustrouter@apc.moonshot.ja.net"
+
+# The key file that the TIDS will store keys in
+KEYFILE="/var/lib/trust_router/keys"
 
 ## Static variables that you can also adjust
 

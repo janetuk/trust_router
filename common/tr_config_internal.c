@@ -213,6 +213,11 @@ static TR_CFG_RC tr_cfg_parse_monitoring(TR_CFG *trc, json_t *jmon)
   NOPARSE_UNLESS(tr_cfg_parse_boolean(jmon, "enabled", &enabled));
   if (enabled) {
     NOPARSE_UNLESS(tr_cfg_parse_integer(jmon, "port", &(trc->internal->mons_port)));
+    if (trc->internal->mons_port == 0) {
+      /* Catch this as a special case because 0 means that monitoring is disabled. */
+      tr_debug("tr_cfg_parse_monitoring: invalid monitoring port (0). Use \"enabled\":false to disable monitoring.");
+      return TR_CFG_BAD_PARAMS;
+    }
     NOPARSE_UNLESS(tr_cfg_parse_gss_names(trc->internal,
                                           json_object_get(jmon, "authorized_credentials"),
                                           &(trc->internal->monitoring_credentials)));
@@ -365,7 +370,8 @@ TR_CFG_RC tr_cfg_validate_internal(TR_CFG_INTERNAL *int_cfg)
     rc = TR_CFG_ERROR;
   }
 
-  if (invalid_port(int_cfg->mons_port)) {
+  /* we allow 0 as the monitoring port - it means off */
+  if ((int_cfg->mons_port != 0) && invalid_port(int_cfg->mons_port)) {
     tr_debug("tr_cfg_validate_internal: Error: invalid monitoring port (%d).", int_cfg->mons_port);
     rc = TR_CFG_ERROR;
   }

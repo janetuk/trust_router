@@ -1,0 +1,9 @@
+usr/bin/tidc
+usr/bin/tids
+usr/bin/trmon
+usr/bin/trpc
+usr/bin/trust_router
+usr/share/trust_router/*
+lib/systemd/system/*
+
+debian/tids-wrapper usr/lib/trust_router

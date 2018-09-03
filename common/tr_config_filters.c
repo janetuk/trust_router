@@ -237,7 +237,11 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
           *rc = TR_CFG_NOMEM;
           goto cleanup;
         }
-        tr_fspec_add_match(fspec, name);
+        if (NULL == tr_fspec_add_match(fspec, name)) {
+          tr_debug("tr_cfg_parse_one_filter: Unable to add match to filter spec.");
+          *rc = TR_CFG_NOMEM;
+          goto cleanup;
+        }
       } else {
         /* jmatch is an array (we checked earlier) */
         json_array_foreach(jmatch, k, this_jmatch) {
@@ -246,7 +250,11 @@ static TR_FILTER *tr_cfg_parse_one_filter(TALLOC_CTX *mem_ctx, json_t *jfilt, TR
             *rc = TR_CFG_NOMEM;
             goto cleanup;
           }
-          tr_fspec_add_match(fspec, name);
+          if (NULL == tr_fspec_add_match(fspec, name)) {
+            tr_debug("tr_cfg_parse_one_filter: Unable to add match %d to filter spec.", k);
+            *rc = TR_CFG_NOMEM;
+            goto cleanup;
+          }
         }
       }
       if (!tr_filter_validate_spec_field(ftype, fspec)) {

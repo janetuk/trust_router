@@ -114,8 +114,9 @@ static json_t *mon_opts_encode(GArray *opts)
  * @param req request to encode
  * @return reference to a JSON object
  */
-json_t *mon_req_encode(MON_REQ *req)
+json_t *mon_req_encode(void *msg_rep)
 {
+  MON_REQ *req = (MON_REQ *) msg_rep;
   json_t *req_json = NULL;
   json_t *cmd_json = NULL;
   json_t *opts_json = NULL;
@@ -158,4 +159,3 @@ json_t *mon_req_encode(MON_REQ *req)
   /* That's it, we succeeded */
   return req_json;
 }
-

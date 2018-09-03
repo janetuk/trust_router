@@ -1,7 +1,7 @@
 %global optflags %{optflags} -Wno-parentheses
-%{!?_release_number: %define _release_number 2}
+%{!?_release_number: %define _release_number 1}
 Name:           trust_router
-Version:        3.4.0
+Version:        @PACKAGE_VERSION@
 Release:        %{_release_number}%{?dist}
 Summary:        Moonshot Trust Router
 
@@ -14,7 +14,14 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: autoconf, automake, m4, libtool
 BuildRequires:  krb5-devel, glib2-devel
 BuildRequires: jansson-devel >= 2.4
-BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel, libevent-devel
+BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
+
+%if 0%{?el6}
+BuildRequires: libevent2-devel
+%else
+BuildRequires: libevent-devel >= 2.0
+%endif
+
 %{?el7:BuildRequires: systemd}
 Requires:       moonshot-gss-eap >= 0.9.3, sqlite
 
@@ -34,10 +41,10 @@ The %{name}-devel package contains libraries and header files for
 developing applications that use %{name}-libs.
 
 %package libs
-Summary: Libraries needed by %{Name}
+Summary: Libraries needed by %{name}
 
 %description libs
-This package includes libraries needed by the %{Name} package or
+This package includes libraries needed by the %{name} package or
 packages that wish trust_router functionality.
 
 
@@ -65,6 +72,11 @@ install -D -m 640 redhat/tr-test-internal.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/tru
 install -D -m 640 redhat/sysconfig $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/trust_router
 install -D -m 640 redhat/sysconfig.tids $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/tids
 install -D -m 755 redhat/tids.init $RPM_BUILD_ROOT/%{_initrddir}/tids
+
+# Overwrite Debian's service file
+%if 0%{?el7}
+install -D -m 755 redhat/tids.service $RPM_BUILD_ROOT/%{_unitdir}/tids.service
+%endif
 
 # Link shared config
 ln -s ../../organizations.cfg $RPM_BUILD_ROOT/%{_sysconfdir}/trust_router/conf.d/default/organizations.cfg
@@ -105,6 +117,7 @@ touch $tr_schema
 chown trustrouter:trustrouter ${tr_home}/keys
 chmod 660 ${tr_home}/keys
 
+
 # Log Directory
 test -d /var/log/trust_router ||mkdir /var/log/trust_router
 chown root:trustrouter /var/log/trust_router
@@ -129,6 +142,7 @@ chmod 770 /var/log/trust_router
 %{_initrddir}/trust_router
 
 %{?el7:%{_unitdir}/tids.service}
+%{?el7:%{_unitdir}/trust_router.service}
 
 %config(noreplace) %{_sysconfdir}/sysconfig/tids
 %config(noreplace) %{_sysconfdir}/sysconfig/trust_router

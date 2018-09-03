@@ -1,0 +1,15 @@
+[Unit]
+Description = Trust Identity Protocol Server
+Before=freeradius.service
+
+[Service]
+EnvironmentFile=/etc/sysconfig/tids
+ExecStartPre=/bin/sh -c "/usr/bin/sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys"
+ExecStart=/usr/bin/tids  ${TIDS_SERVER_IP} ${TIDS_GSS_NAME} ${TIDS_SERVER_NAME} /var/lib/trust_router/keys
+Restart=always
+StandardOutput=syslog
+StandardError=inherit
+User=trustrouter
+
+[Install]
+WantedBy=multi-user.target

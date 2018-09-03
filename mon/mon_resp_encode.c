@@ -64,8 +64,9 @@
  * @param resp response to encode
  * @return response as a newly allocated JSON object
  */
-json_t *mon_resp_encode(MON_RESP *resp)
+json_t *mon_resp_encode(void *msg_rep)
 {
+  MON_RESP *resp = (MON_RESP *) msg_rep;
   json_t *resp_json = NULL;
   json_t *jval = NULL;
 

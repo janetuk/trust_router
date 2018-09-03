@@ -130,4 +130,11 @@ void tid_resp_set_error_path(TID_RESP *resp, json_t *ep);
 
 void tids_sweep_procs(TIDS_INSTANCE *tids);
 
+/* In tid_tr_msg.c */
+int tid_tr_msg_init(void);
+TID_REQ *tid_get_tr_msg_req(TR_MSG *msg);
+void tid_set_tr_msg_req(TR_MSG *msg, TID_REQ *req);
+TID_RESP *tid_get_tr_msg_resp(TR_MSG *msg);
+void tid_set_tr_msg_resp(TR_MSG *msg, TID_RESP *resp);
+
 #endif
