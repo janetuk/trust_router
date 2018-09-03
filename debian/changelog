@@ -1,3 +1,10 @@
+moonshot-trust-router (3.4.2-0) unstable; urgency=medium
+
+  * Add trust_router systemd unit
+  * Fix tids systemd unit
+
+ -- Jisc <assent@jisc.ac.uk>  Mon, 3 Sep 2018 13:00:08 -0000
+
 moonshot-trust-router (3.4.1-0) unstable; urgency=medium
 
   * Fix broken libtr_tid shared library
@@ -257,7 +264,7 @@ moonshot-trust-router (1.2-2) unstable; urgency=medium
 moonshot-trust-router (1.2-1) unstable; urgency=low
 
   * New upstream version.
-  * Includes constraints, gss-name change and settable port number. 
+  * Includes constraints, gss-name change and settable port number.
 
  -- Margaret Wasserman <mrw@painless-security.com>  Tue, 18 Mar 2014 18:00:19 -0400
 
