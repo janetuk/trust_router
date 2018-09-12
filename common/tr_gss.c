@@ -275,8 +275,6 @@ TR_GSS_RC tr_gss_handle_connection(int conn,
 
   /* Hand off the request for processing and get the response */
   rc = req_cb(tmp_ctx, req_msg, &resp_msg, req_cookie);
-  if (rc != TR_GSS_SUCCESS)
-    goto cleanup;
 
   if (resp_msg == NULL) {
     // no response, clean up
