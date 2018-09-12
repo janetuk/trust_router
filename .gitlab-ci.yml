@@ -41,7 +41,7 @@ before_script:
     - autoreconf -fi
     - ./configure
     - make dist
-    - mv trust_router-*.gz ../moonshot-trust-router_3.4.3.orig.tar.gz
+    - mv trust_router-*.gz ../moonshot-trust-router_3.4.4.orig.tar.gz
     - debuild -us -uc
     - mkdir build
     - cp ../*.deb build
