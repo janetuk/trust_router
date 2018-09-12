@@ -1,3 +1,9 @@
+moonshot-trust-router (3.4.3-0.DIST) unstable; urgency=medium
+
+  * New release
+
+ -- Jisc <assent@jisc.ac.uk>  Mon, 3 Sep 2018 13:00:08 -0000
+
 moonshot-trust-router (3.4.2-0) unstable; urgency=medium
 
   * Add trust_router systemd unit
