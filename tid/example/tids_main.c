@@ -113,14 +113,21 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
   intersected = tr_constraint_set_intersect(req, req->cons);
   if (!intersected)
     return -1;
+
+  /* Not having a match does not mean an error, but a failed authorisation.
+   * Hence, return 0 without inserting anything in the DB for these two cases. */
   if (0 != tr_constraint_set_get_match_strings(req,
 					       intersected, "domain",
-					       &domain_wc, &domain_len))
-    return -1;
+					       &domain_wc, &domain_len)) {
+        tr_debug("warn: tr_constraint_set_get_match_strings for domain constraints returned != 0");
+        return 0;
+  }
   if (0 != tr_constraint_set_get_match_strings(req,
 					       intersected, "realm",
-					       &realm_wc, &realm_len))
-    return -1;
+					       &realm_wc, &realm_len)) {
+        tr_debug("warn: tr_constraint_set_get_match_strings for realm constraints returned != 0");
+        return 0;
+  }
   tr_debug(" %u domain constraint matches and %u realm constraint matches",
 	   (unsigned) domain_len, (unsigned) realm_len);
   if (0 != sqlify_wc(req, domain_wc, domain_len, &error)) {
