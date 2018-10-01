@@ -94,7 +94,7 @@ static int sqlify_wc(
   return 0;
 }
 
-	
+
 
 static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
 				 size_t hash_len)
@@ -162,7 +162,7 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
 
 
 static int tids_req_handler (TIDS_INSTANCE *tids,
-		      TID_REQ *req, 
+		      TID_REQ *req,
 		      TID_RESP *resp,
 		      void *cookie)
 {
@@ -171,7 +171,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   char key_id[12];
   unsigned char *pub_digest=NULL;
   size_t pub_digest_len;
-  
+
 
   tr_debug("tids_req_handler: Request received! target_realm = %s, community = %s", req->realm->buf, req->comm->buf);
   if (!(resp) || !resp) {
@@ -218,8 +218,8 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   /* Generate the server key */
   // fprintf(stderr, "Generating the server key.\n");
 
-  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, 
-					req->tidc_dh->pub_key, 
+  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf,
+					req->tidc_dh->pub_key,
 				        resp->servers->aaa_server_dh))) {
     tr_debug("tids_req_handler: Key computation failed.");
     return -1;
@@ -252,11 +252,11 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     sqlite3_reset(insert_stmt);
     sqlite3_clear_bindings(insert_stmt);
   }
-  
+
   /* Print out the key. */
   // fprintf(stderr, "tids_req_handler(): Server Key Generated (len = %d):\n", s_keylen);
   // for (i = 0; i < s_keylen; i++) {
-  // fprintf(stderr, "%x", s_keybuf[i]); 
+  // fprintf(stderr, "%x", s_keybuf[i]);
   // }
   // fprintf(stderr, "\n");
 
@@ -265,7 +265,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
 
   if (pub_digest!=NULL)
     talloc_free(pub_digest);
-  
+
   return s_keylen;
 }
 
@@ -293,7 +293,15 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - Moonshot TID Server " PACKAGE_VERSION;
+static const char doc[]="\n"
+"  <ip-address>    This AAA server IP address.\n"
+"  <gss-name>      The GSS name required for the incoming request.\n"
+"                  Usually this is the (ie. the Trust Router's GSS name.\n"
+"  <hostname>      This AAA server hostname.\n"
+"  <database-name> Path to the SQlite3 database where keys are stored.\n"
+"\v"
+PACKAGE_NAME " - Moonshot TID Server " PACKAGE_VERSION;
+
 static const char arg_doc[]="<ip-address> <gss-name> <hostname> <database-name>"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
@@ -363,8 +371,8 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
 /* assemble the argp parser */
 static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
-int main (int argc, 
-          char *argv[]) 
+int main (int argc,
+          char *argv[])
 {
   TIDS_INSTANCE *tids;
   TR_NAME *gssname = NULL;
