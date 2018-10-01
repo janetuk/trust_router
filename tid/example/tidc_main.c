@@ -48,10 +48,10 @@ struct tidc_resp_cookie {
   int succeeded;
 };
 
-static void tidc_resp_handler (TIDC_INSTANCE * tidc, 
+static void tidc_resp_handler (TIDC_INSTANCE * tidc,
 			TID_REQ *req,
-			TID_RESP *resp, 
-			void *cookie) 
+			TID_RESP *resp,
+			void *cookie)
 {
   int c_keylen = 0;
   unsigned char *c_keybuf = NULL;
@@ -79,18 +79,18 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
     printf("Key expiration: %s", ctime(&tv.tv_sec));
 
 
-  if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf, 
-				      resp->servers->aaa_server_dh->pub_key, 
+  if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf,
+				      resp->servers->aaa_server_dh->pub_key,
 				      req->tidc_dh))) {
-    
+
     printf("tidc_resp_handler: Error computing client key.\n");
     return;
   }
-  
+
   /* Print out the client key. */
   printf("Client Key Generated (len = %d):\n", c_keylen);
   for (i = 0; i < c_keylen; i++) {
-    printf("%.2x", c_keybuf[i]); 
+    printf("%.2x", c_keybuf[i]);
   }
   printf("\n");
 
@@ -110,7 +110,16 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - Moonshot TID Client " PACKAGE_VERSION;
+static const char doc[]="\n"
+"  <server>       The hostname or IP address of the Trust Router server.\n"
+"  <RP-realm>     The RP realm of the requesting entity (this host's realm).\n"
+"  <target-realm> The IDP realm being queried.\n"
+"  <community>    The Community these two realms should both belong to.\n"
+"                 Typically the APC community.\n"
+"  [<port>]       [OPTIONAL] The port where to send the query.\n"
+"\v"
+PACKAGE_NAME " - Moonshot TID Client " PACKAGE_VERSION;
+
 static const char arg_doc[]="<server> <RP-realm> <target-realm> <community> [<port>]"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
@@ -202,8 +211,8 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
 /* assemble the argp parser */
 static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
-int main (int argc, 
-          char *argv[]) 
+int main (int argc,
+          char *argv[])
 {
   TIDC_INSTANCE *tidc;
   int conn = 0;
@@ -234,7 +243,7 @@ int main (int argc,
   tr_console_threshold(LOG_DEBUG);
 
   printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s, port = %i\n", opts.server, opts.rp_realm, opts.target_realm, opts.community, opts.port);
- 
+
   /* Create a TID client instance & the client DH */
   tidc = tidc_create();
   tidc_set_dh(tidc, tr_create_dh_params(NULL, 0));
@@ -251,13 +260,13 @@ int main (int argc,
   };
 
   /* Send a TID request */
-  if (0 > (rc = tidc_send_request(tidc, conn, gssctx, opts.rp_realm, opts.target_realm, opts.community, 
+  if (0 > (rc = tidc_send_request(tidc, conn, gssctx, opts.rp_realm, opts.target_realm, opts.community,
 				  &tidc_resp_handler, &cookie))) {
     /* Handle error */
     printf("Error in tidc_send_request, rc = %d.\n", rc);
     return EXIT_ERROR;
   }
-    
+
   /* Clean-up the TID client instance, and exit */
   tidc_destroy(tidc);
 
