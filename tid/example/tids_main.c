@@ -281,14 +281,12 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]="\n"
+static const char doc[] = PACKAGE_NAME " - Moonshot TID Server " PACKAGE_VERSION "\n\n"
 "  <ip-address>    This AAA server IP address.\n"
 "  <gss-name>      The GSS name required for the incoming request.\n"
 "                  Usually this is the (ie. the Trust Router's GSS name.\n"
 "  <hostname>      This AAA server hostname.\n"
-"  <database-name> Path to the SQlite3 database where keys are stored.\n"
-"\v"
-PACKAGE_NAME " - Moonshot TID Server " PACKAGE_VERSION;
+"  <database-name> Path to the SQlite3 database where keys are stored.\n";
 
 static const char arg_doc[]="<ip-address> <gss-name> <hostname> <database-name>"; /* string describing arguments, if any */
 

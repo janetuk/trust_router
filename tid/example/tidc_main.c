@@ -108,15 +108,13 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]="\n"
+static const char doc[] = PACKAGE_NAME " - Moonshot TID Client " PACKAGE_VERSION "\n\n"
 "  <server>       The hostname or IP address of the Trust Router server.\n"
 "  <RP-realm>     The RP realm of the requesting entity (this host's realm).\n"
 "  <target-realm> The IDP realm being queried.\n"
 "  <community>    The Community these two realms should both belong to.\n"
 "                 Typically the APC community.\n"
-"  [<port>]       [OPTIONAL] The port where to send the query.\n"
-"\v"
-PACKAGE_NAME " - Moonshot TID Client " PACKAGE_VERSION;
+"  [<port>]       [OPTIONAL] The port where to send the query.\n";
 
 static const char arg_doc[]="<server> <RP-realm> <target-realm> <community> [<port>]"; /* string describing arguments, if any */
 
