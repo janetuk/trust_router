@@ -55,44 +55,42 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
 {
   int c_keylen = 0;
   unsigned char *c_keybuf = NULL;
-  int i;
   struct timeval tv;
   struct tidc_resp_cookie *data = (struct tidc_resp_cookie *) cookie;
 
-  printf ("Response received! Realm = %s, Community = %s.\n", resp->realm->buf, resp->comm->buf);
+  tr_info("Response received! Realm = %s, Community = %s.", resp->realm->buf, resp->comm->buf);
 
   data->succeeded = 0;
 
   /* Generate the client key -- TBD, handle more than one server */
   if (TID_SUCCESS != resp->result) {
-    fprintf(stderr, "tidc_resp_handler: Response is an error.\n");
+    tr_err("tidc_resp_handler: Response is an error.");
     return;
   }
 
   if (!resp->servers) {
-    fprintf(stderr, "tidc_resp_handler: Response does not contain server info.\n");
+    tr_err("tidc_resp_handler: Response does not contain server info.");
     return;
   }
   if (tid_srvr_get_key_expiration(tid_resp_get_server(resp, 0), &tv))
-    printf("Error reading key expiration\n");
+    tr_warning("Error reading key expiration\n");
   else
-    printf("Key expiration: %s", ctime(&tv.tv_sec));
+    tr_info("Key expiration: %s", ctime(&tv.tv_sec));
 
 
   if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf,
 				      resp->servers->aaa_server_dh->pub_key,
 				      req->tidc_dh))) {
 
-    printf("tidc_resp_handler: Error computing client key.\n");
+    tr_err("tidc_resp_handler: Error computing client key.");
     return;
   }
 
   /* Print out the client key. */
-  printf("Client Key Generated (len = %d):\n", c_keylen);
-  for (i = 0; i < c_keylen; i++) {
-    printf("%.2x", c_keybuf[i]);
-  }
-  printf("\n");
+  tr_info("Client Key Generated (len = %d):", c_keylen);
+  char tmp[c_keylen * 2 + 1];
+  tr_bin_to_hex(c_keybuf, c_keylen, tmp, c_keylen * 2 + 1);
+  tr_info(tmp);
 
   data->succeeded = 1;
   return;
@@ -101,7 +99,7 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
 
 static void print_version_info(void)
 {
-  printf("Moonshot TID Client %s\n\n", PACKAGE_VERSION);
+  tr_info("Moonshot TID Client %s\n\n", PACKAGE_VERSION);
 }
 
 /* command-line option setup */
@@ -168,11 +166,11 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
       if (arguments->port < 0) {
         switch(-(arguments->port)) {
           case ERANGE:
-            printf("\nError parsing port (%s): port must be an integer in the range 1 - 65535\n\n", arg);
+            tr_warning("\nError parsing port (%s): port must be an integer in the range 1 - 65535\n\n", arg);
             break;
 
           default:
-            printf("\nError parsing port (%s): %s\n\n", arg, strerror(-arguments->port));
+            tr_warning("\nError parsing port (%s): %s\n\n", arg, strerror(-arguments->port));
             break;
         }
         argp_usage(state);
@@ -242,20 +240,20 @@ int main (int argc,
   tr_log_threshold(LOG_CRIT);
   tr_console_threshold(LOG_DEBUG);
 
-  printf("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s, port = %i\n", opts.server, opts.rp_realm, opts.target_realm, opts.community, opts.port);
+  tr_info("TIDC Client:\nServer = %s, rp_realm = %s, target_realm = %s, community = %s, port = %i", opts.server, opts.rp_realm, opts.target_realm, opts.community, opts.port);
 
   /* Create a TID client instance & the client DH */
   tidc = tidc_create();
   tidc_set_dh(tidc, tr_create_dh_params(NULL, 0));
   if (tidc_get_dh(tidc) == NULL) {
-    printf("Error creating client DH params.\n");
+    tr_err("Error creating client DH params.");
     return EXIT_ERROR;
   }
 
   /* Set-up TID connection */
   if (-1 == (conn = tidc_open_connection(tidc, opts.server, opts.port, &gssctx))) {
     /* Handle error */
-    printf("Error in tidc_open_connection.\n");
+    tr_err("Error in tidc_open_connection.");
     return EXIT_ERROR;
   };
 
@@ -263,7 +261,7 @@ int main (int argc,
   if (0 > (rc = tidc_send_request(tidc, conn, gssctx, opts.rp_realm, opts.target_realm, opts.community,
 				  &tidc_resp_handler, &cookie))) {
     /* Handle error */
-    printf("Error in tidc_send_request, rc = %d.\n", rc);
+    tr_err("Error in tidc_send_request, rc = %d.", rc);
     return EXIT_ERROR;
   }
 

@@ -57,7 +57,7 @@
 
 static void print_version_info(void)
 {
-  printf("Moonshot Trust Router %s\n\n", PACKAGE_VERSION);
+  tr_info("Moonshot Trust Router %s\n\n", PACKAGE_VERSION);
 }
 
 /* Strip trailing / from a path name.*/
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
 
   /***** Exit here if we are just validating our configuration *****/
   if (opts.validate_config_and_exit) {
-    printf("Valid configuration found in %s.\n", opts.config_dir);
+    tr_info("Valid configuration found in %s.\n", opts.config_dir);
     return 0;
   }
   /***** Set up the event loop *****/

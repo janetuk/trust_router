@@ -200,9 +200,6 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   }
 
   /* Generate the server DH block based on the client DH block */
-  // fprintf(stderr, "Generating the server DH block.\n");
-  // fprintf(stderr, "...from client DH block, dh_g = %s, dh_p = %s.\n", BN_bn2hex(req->tidc_dh->g), BN_bn2hex(req->tidc_dh->p));
-
   if (NULL == (resp->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
     tr_debug("tids_req_handler: Can't create server DH params.");
     return -1;
@@ -216,8 +213,6 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   resp->servers->key_name = tr_new_name(key_id);
 
   /* Generate the server key */
-  // fprintf(stderr, "Generating the server key.\n");
-
   if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf,
 					req->tidc_dh->pub_key,
 				        resp->servers->aaa_server_dh))) {
@@ -253,13 +248,6 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     sqlite3_clear_bindings(insert_stmt);
   }
 
-  /* Print out the key. */
-  // fprintf(stderr, "tids_req_handler(): Server Key Generated (len = %d):\n", s_keylen);
-  // for (i = 0; i < s_keylen; i++) {
-  // fprintf(stderr, "%x", s_keybuf[i]);
-  // }
-  // fprintf(stderr, "\n");
-
   if (s_keybuf!=NULL)
     free(s_keybuf);
 
@@ -284,7 +272,7 @@ static int auth_handler(gss_name_t gss_name, TR_NAME *client,
 
 static void print_version_info(void)
 {
-  printf("Moonshot TID Server %s\n\n", PACKAGE_VERSION);
+  tr_info("Moonshot TID Server %s\n\n", PACKAGE_VERSION);
 }
 
 /* command-line option setup */
