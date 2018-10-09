@@ -43,6 +43,7 @@
 #include <trust_router/tr_dh.h>
 #include <trust_router/tid.h>
 #include <tr_inet_util.h>
+#include <ssl-compat.h>
 
 struct tidc_resp_cookie {
   int succeeded;
@@ -57,6 +58,7 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
   unsigned char *c_keybuf = NULL;
   struct timeval tv;
   struct tidc_resp_cookie *data = (struct tidc_resp_cookie *) cookie;
+  const BIGNUM *pub_key = NULL;
 
   tr_info("Response received! Realm = %s, Community = %s.", resp->realm->buf, resp->comm->buf);
 
@@ -78,8 +80,9 @@ static void tidc_resp_handler (TIDC_INSTANCE * tidc,
     tr_info("Key expiration: %s", ctime(&tv.tv_sec));
 
 
+  DH_get0_key(resp->servers->aaa_server_dh, &pub_key, NULL);
   if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf,
-				      resp->servers->aaa_server_dh->pub_key,
+				      pub_key,
 				      req->tidc_dh))) {
 
     tr_err("tidc_resp_handler: Error computing client key.");

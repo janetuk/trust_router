@@ -30,6 +30,7 @@ common_srcs = \
     common/tr_filter_encoders.c \
     common/tr_rp_client.c \
     common/tr_rp_client_encoders.c \
+    common/ssl-compat.c \
     $(mon_srcs)
 
 ## TR gss sources
@@ -226,6 +227,7 @@ tid_example_tids_LDFLAGS = $(AM_LDFLAGS) -pthread
 common_tests_tr_dh_test_SOURCES = \
     common/tr_dh.c \
     common/tr_debug.c \
+    common/ssl-compat.c \
     common/tests/dh_test.c
 
 common_tests_mq_test_SOURCES = \

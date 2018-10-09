@@ -40,7 +40,7 @@
 #include <assert.h>
 #include <tid_internal.h>
 #include <tr_debug.h>
-
+#include <ssl-compat.h>
 
 unsigned char tr_2048_dhprime[2048/8] = {
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -87,25 +87,30 @@ DH *tr_create_dh_params(unsigned char *priv_key,
 
   DH *dh = NULL;
   int dh_err = 0;
+  BIGNUM *p = NULL, *q = NULL, *g = NULL;
 
   if (NULL == (dh = DH_new()))
     return NULL;
 
-  if ((NULL == (dh->g = BN_new())) ||
-      (NULL == (dh->p = BN_new())) ||
-      (NULL == (dh->q = BN_new()))) {
+  if ((NULL == (g = BN_new())) ||
+      (NULL == (p = BN_new())) ||
+      (NULL == (q = BN_new()))) {
     DH_free(dh);
+    BN_free(g);
+    BN_free(p);
+    BN_free(q);
     return NULL;
   }
 
-  BN_set_word(dh->g, 2);
-  dh->p = BN_bin2bn(tr_2048_dhprime, sizeof(tr_2048_dhprime), NULL);
-  BN_rshift1(dh->q, dh->p);
+  BN_set_word(g, 2);
+  BN_bin2bn(tr_2048_dhprime, sizeof(tr_2048_dhprime), p);
+  BN_rshift1(q, p);
+
+  DH_set0_pqg(dh, p, q, g);
+  DH_generate_key(dh);    /* generates the public key */
 
   if ((priv_key) && (keylen > 0))
-    dh->priv_key = BN_bin2bn(priv_key, keylen, NULL);
-
-  DH_generate_key(dh);		/* generates the public key */
+    DH_set0_key(dh, NULL, BN_bin2bn(priv_key, keylen, NULL));
 
   DH_check(dh, &dh_err);
   if (0 != dh_err) {
@@ -130,6 +135,7 @@ DH *tr_create_matching_dh (unsigned char *priv_key,
 			   DH *in_dh) {
   DH *dh = NULL;
   int dh_err = 0;
+  const BIGNUM *in_p = NULL, *in_g = NULL;
 
   if (!in_dh)
     return NULL;
@@ -139,18 +145,20 @@ DH *tr_create_matching_dh (unsigned char *priv_key,
     return NULL;
   }
 
-  if ((NULL == (dh->g = BN_dup(in_dh->g))) ||
-      (NULL == (dh->p = BN_dup(in_dh->p)))) {
+  DH_get0_pqg(in_dh, &in_p, NULL, &in_g);
+
+  if (0 == DH_set0_pqg(dh, BN_dup(in_p), NULL, BN_dup(in_g))) {
     DH_free(dh);
     tr_debug("tr_create_matching_dh: Invalid dh parameter values, can't be duped.");
     return NULL;
   }
 
   /* TBD -- share code with previous function */
-  if ((priv_key) && (keylen > 0))
-    dh->priv_key = BN_bin2bn(priv_key, keylen, NULL);
+  DH_generate_key(dh);    /* generates the public key */
 
-  DH_generate_key(dh);		/* generates the public key */
+  if ((priv_key) && (keylen > 0))
+    DH_set0_key(dh, NULL, BN_bin2bn(priv_key, keylen, NULL));
+
   DH_check(dh, &dh_err);
   if (0 != dh_err) {
     tr_warning("Warning: dh_check failed with %d", dh_err);
@@ -178,66 +186,81 @@ void tr_destroy_dh_params(DH *dh) {
 
 DH *tr_dh_dup(DH *in)
 {
-  DH *out=DH_new();
+  DH *out = DH_new();
+  const BIGNUM *in_g = NULL, *in_p = NULL, *in_q = NULL, *in_pubkey = NULL, *in_privkey = NULL;
+  BIGNUM *out_g = NULL, *out_p = NULL, *out_q = NULL, *out_pubkey = NULL, *out_privkey = NULL;
 
-  if (out==NULL)
+  DH_get0_pqg(in, &in_p, &in_q, &in_g);
+  DH_get0_key(in, &in_pubkey, &in_privkey);
+
+  if (out == NULL)
     return NULL;
 
-  if (in->g==NULL)
-    out->g=NULL;
+  if (in_g==NULL)
+    out_g=NULL;
   else {
-    out->g=BN_dup(in->g);
-    if (out->g==NULL) {
+    out_g=BN_dup(in_g);
+    if (out_g==NULL) {
       DH_free(out);
       return NULL;
     }
   }
 
-  if (in->p==NULL)
-    out->p=NULL;
+  if (in_p==NULL)
+    out_p=NULL;
   else {
-    out->p=BN_dup(in->p);
-    if (out->p==NULL) {
+    out_p=BN_dup(in_p);
+    if (out_p==NULL) {
       DH_free(out);
       return NULL;
     }
   }
 
-  if (in->q==NULL)
-    out->q=NULL;
+  if (in_q==NULL)
+    out_q=NULL;
   else {
-    out->q=BN_dup(in->q);
-    if (out->q==NULL) {
+    out_q=BN_dup(in_q);
+    if (out_q==NULL) {
       DH_free(out);
       return NULL;
     }
   }
 
-  if (in->priv_key==NULL)
-    out->priv_key=NULL;
+  if (in_privkey==NULL)
+    out_privkey=NULL;
   else {
-    out->priv_key=BN_dup(in->priv_key);
-    if (out->priv_key==NULL) {
+    out_privkey=BN_dup(in_privkey);
+    if (out_privkey==NULL) {
       DH_free(out);
       return NULL;
     }
   }
 
-  if (in->pub_key==NULL)
-    out->pub_key=NULL;
+  if (in_pubkey==NULL)
+    out_pubkey=NULL;
   else {
-    out->pub_key=BN_dup(in->pub_key);
-    if (out->g==NULL) {
+    out_pubkey=BN_dup(in_pubkey);
+    if (out_pubkey==NULL) {
       DH_free(out);
       return NULL;
     }
+  }
+
+  if (0 == DH_set0_pqg(out, out_p, out_q, out_g)) {
+    DH_free(out);
+    return NULL;
+  }
+
+  if (0 == DH_set0_key(out, out_pubkey, out_privkey)) {
+    DH_free(out);
+    return NULL;
   }
 
   return out;
 }
 
 int tr_compute_dh_key(unsigned char **pbuf,
-		      BIGNUM *pub_key,
+		      const BIGNUM *pub_key,
 		      DH *priv_dh) {
   size_t buflen;
   unsigned char *buf = NULL;;
@@ -274,9 +297,13 @@ int tr_dh_pub_hash(TID_REQ *request,
 		   unsigned char **out_digest,
 		   size_t *out_len)
 {
-  const BIGNUM *pub = request->tidc_dh->pub_key;
-  unsigned char *bn_bytes = talloc_zero_size(request, BN_num_bytes(pub));
-  unsigned char *digest = talloc_zero_size(request, SHA_DIGEST_LENGTH+1);
+  const BIGNUM *pub = NULL;
+  unsigned char *bn_bytes, *digest;
+
+  DH_get0_key(request->tidc_dh, &pub, NULL);
+  bn_bytes = talloc_zero_size(request, BN_num_bytes(pub));
+  digest = talloc_zero_size(request, SHA_DIGEST_LENGTH + 1);
+
   assert(bn_bytes && digest);
   BN_bn2bin(pub, bn_bytes);
   SHA1(bn_bytes, BN_num_bytes(pub), digest);

@@ -46,6 +46,7 @@
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
 #include <openssl/rand.h>
+#include <ssl-compat.h>
 
 static sqlite3 *db = NULL;
 static sqlite3_stmt *insert_stmt = NULL;
@@ -63,7 +64,7 @@ static int  create_key_id(char *out_id, size_t len)
   if (sizeof(rand_buf)*2+1 < len)
     len = sizeof(rand_buf)*2 + 1;
   bin_len = (len-1)/2;
-  if (-1 == RAND_pseudo_bytes(rand_buf, bin_len))
+  if (-1 == RAND_bytes(rand_buf, bin_len))
       return -1;
   tr_bin_to_hex(rand_buf, bin_len, out_id, len);
   out_id[bin_len*2] = '\0';
@@ -171,7 +172,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   char key_id[12];
   unsigned char *pub_digest=NULL;
   size_t pub_digest_len;
-
+  const BIGNUM *p = NULL, *g = NULL, *pub_key = NULL;
 
   tr_debug("tids_req_handler: Request received! target_realm = %s, community = %s", req->realm->buf, req->comm->buf);
   if (!(resp) || !resp) {
@@ -194,7 +195,8 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if ((!req->tidc_dh->p) || (!req->tidc_dh->g)) {
+  DH_get0_pqg(req->tidc_dh, &p, NULL, &g);
+  if ((!p) || (!g)) {
     tr_debug("tids_req_handler: NULL dh values.");
     return -1;
   }
@@ -213,8 +215,9 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   resp->servers->key_name = tr_new_name(key_id);
 
   /* Generate the server key */
+  DH_get0_key(req->tidc_dh, &pub_key, NULL);
   if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf,
-					req->tidc_dh->pub_key,
+					pub_key,
 				        resp->servers->aaa_server_dh))) {
     tr_debug("tids_req_handler: Key computation failed.");
     return -1;

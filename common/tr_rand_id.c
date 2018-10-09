@@ -63,7 +63,7 @@ static char *bytes_to_hex(TALLOC_CTX *mem_ctx, const unsigned char *bytes, size_
  */
 static int random_bytes(unsigned char *dst, size_t n)
 {
-  return RAND_pseudo_bytes(dst, n);
+  return RAND_bytes(dst, n);
 }
 
 #define ID_LENGTH 15
