@@ -125,6 +125,7 @@ common_t_constraint_SOURCES = \
     common/tr_constraint.c \
     common/tr_dh.c \
     common/tr_rand_id.c \
+    common/ssl-compat.c \
     tid/tid_req.c \
     tid/tid_resp.c
 
@@ -338,7 +339,8 @@ noinst_HEADERS = include/gsscon.h \
 	include/tr_name_internal.h \
 	include/tr_util.h include/tr_json_util.h include/tr_inet_util.h\
 	include/tr_rand_id.h include/tr_socket.h \
-	include/tr_constraint_internal.h
+	include/tr_constraint_internal.h \
+	include/ssl-compat.h
 
 pkgdata_DATA=schema.sql
 nobase_dist_pkgdata_DATA=redhat/init redhat/sysconfig redhat/organizations.cfg redhat/tidc-wrapper redhat/trust_router-wrapper redhat/tr-test-internal.cfg redhat/default-internal.cfg redhat/tids-wrapper redhat/sysconfig.tids
