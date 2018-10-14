@@ -1,5 +1,6 @@
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
 #include <ssl-compat.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 
 void DH_get0_pqg(const DH *dh,
                  const BIGNUM **p, const BIGNUM **q, const BIGNUM **g)

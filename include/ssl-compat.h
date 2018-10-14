@@ -1,6 +1,7 @@
 #ifndef TR_SSL_COMPAT_H
 #define TR_SSL_COMPAT_H
 
+#include <openssl/opensslv.h>
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 #include <openssl/dh.h>
 
