@@ -24,6 +24,7 @@ before_script:
     - mv trust_router*.tar.gz SOURCES
     - rpmbuild -bb trust_router.spec --define "_topdir `pwd`"
   artifacts:
+    expire_in: 6 months
     paths:
         - RPMS
 
@@ -46,6 +47,7 @@ before_script:
     - mkdir build
     - cp ../*.deb build
   artifacts:
+    expire_in: 6 months
     paths:
         - build/*.deb
 
