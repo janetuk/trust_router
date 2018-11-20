@@ -8,7 +8,7 @@ url="https://gitlab.ci.ti.ja.net/moonshot/trust_router"
 arch="all"
 license="BSD-3-Clause"
 depends=""
-makedepends="alpine-sdk automake autoconf libtool libressl-dev jansson-dev moonshot-ui-dev libradsec-dev mech_eap-dev krb5-dev talloc-dev sqlite-dev
+makedepends="alpine-sdk automake autoconf libtool libressl-dev jansson-dev moonshot-ui-dev libradsec-dev moonshot-gss-eap-dev krb5-dev talloc-dev sqlite-dev
 argp-standalone"
 pkggroups="trustrouter"
 pkgusers="trustrouter"
