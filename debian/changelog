@@ -1,6 +1,7 @@
 moonshot-trust-router (3.4.4-0.DIST) unstable; urgency=medium
 
-  * CHANGES
+  * Improve tidc/tids/trmon command help
+  * Support OpenSSL 1.1
 
  -- Jisc <assent@jisc.ac.uk>  Mon, 12 Sep 2018 00:00:00 -0000
 
