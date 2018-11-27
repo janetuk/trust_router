@@ -59,7 +59,8 @@
 /* --------------------------------------------------------------------------- */
 /* Display the contents of the buffer in hex and ascii                         */
 
-static void PrintBuffer (const char *inBuffer, 
+/*
+static void PrintBuffer (const char *inBuffer,
                          size_t      inLength)
 {
     int i;  
@@ -84,6 +85,7 @@ static void PrintBuffer (const char *inBuffer,
     }
     printf ("\n");
 }
+*/
 
 /* --------------------------------------------------------------------------- */
 /* Standard network read loop, accounting for EINTR, EOF and incomplete reads  */

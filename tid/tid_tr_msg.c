@@ -52,6 +52,7 @@
 #include <trust_router/tr_dh.h>
 #include <tr_debug.h>
 #include <tr_inet_util.h>
+#include <ssl-compat.h>
 
 /* Prototypes */
 static json_t *tid_req_encode(void *msg_rep);
@@ -146,21 +147,28 @@ static json_t *tid_encode_dh(DH *dh)
   json_t *jdh = NULL;
   json_t *jbn = NULL;
   char *s=NULL;
+  const BIGNUM *p = NULL, *g = NULL, *pub_key = NULL;
 
-  if ((!dh) || (!dh->p) || (!dh->g) || (!dh->pub_key))
+  if (!dh)
+    return NULL;
+
+  DH_get0_pqg(dh, &p, NULL, &g);
+  DH_get0_key(dh, &pub_key, NULL);
+
+  if ((!p) || (!g) || (!pub_key))
     return NULL;
 
   jdh = json_object();
 
-  jbn = json_string(s=BN_bn2hex(dh->p));
+  jbn = json_string(s=BN_bn2hex(p));
   OPENSSL_free(s);
   json_object_set_new(jdh, "dh_p", jbn);
 
-  jbn = json_string(s=BN_bn2hex(dh->g));
+  jbn = json_string(s=BN_bn2hex(g));
   OPENSSL_free(s);
   json_object_set_new(jdh, "dh_g", jbn);
 
-  jbn = json_string(s=BN_bn2hex(dh->pub_key));
+  jbn = json_string(s=BN_bn2hex(pub_key));
   OPENSSL_free(s);
   json_object_set_new(jdh, "dh_pub_key", jbn);
 
@@ -173,6 +181,7 @@ static DH *tid_decode_dh(json_t *jdh)
   json_t *jp = NULL;
   json_t *jg = NULL;
   json_t *jpub_key = NULL;
+  BIGNUM *p = NULL, *g = NULL, *pub_key = NULL;
 
   if (!(dh=tr_dh_new())) {
     tr_crit("tid_decode_dh(): Error allocating DH structure.");
@@ -188,9 +197,13 @@ static DH *tid_decode_dh(json_t *jdh)
     return NULL;
   }
 
-  BN_hex2bn(&(dh->p), json_string_value(jp));
-  BN_hex2bn(&(dh->g), json_string_value(jg));
-  BN_hex2bn(&(dh->pub_key), json_string_value(jpub_key));
+
+  BN_hex2bn(&(p), json_string_value(jp));
+  BN_hex2bn(&(g), json_string_value(jg));
+  BN_hex2bn(&(pub_key), json_string_value(jpub_key));
+
+  DH_set0_pqg(dh, p, NULL, g);
+  DH_set0_key(dh, pub_key, NULL);
 
   return dh;
 }

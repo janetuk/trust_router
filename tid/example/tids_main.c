@@ -46,6 +46,7 @@
 #include <trust_router/tr_constraint.h>
 #include <trust_router/tr_dh.h>
 #include <openssl/rand.h>
+#include <ssl-compat.h>
 
 static sqlite3 *db = NULL;
 static sqlite3_stmt *insert_stmt = NULL;
@@ -63,7 +64,7 @@ static int  create_key_id(char *out_id, size_t len)
   if (sizeof(rand_buf)*2+1 < len)
     len = sizeof(rand_buf)*2 + 1;
   bin_len = (len-1)/2;
-  if (-1 == RAND_pseudo_bytes(rand_buf, bin_len))
+  if (-1 == RAND_bytes(rand_buf, bin_len))
       return -1;
   tr_bin_to_hex(rand_buf, bin_len, out_id, len);
   out_id[bin_len*2] = '\0';
@@ -94,7 +95,7 @@ static int sqlify_wc(
   return 0;
 }
 
-	
+
 
 static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
 				 size_t hash_len)
@@ -162,7 +163,7 @@ static int handle_authorizations(TID_REQ *req, const unsigned char *dh_hash,
 
 
 static int tids_req_handler (TIDS_INSTANCE *tids,
-		      TID_REQ *req, 
+		      TID_REQ *req,
 		      TID_RESP *resp,
 		      void *cookie)
 {
@@ -171,7 +172,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   char key_id[12];
   unsigned char *pub_digest=NULL;
   size_t pub_digest_len;
-  
+  const BIGNUM *p = NULL, *g = NULL, *pub_key = NULL;
 
   tr_debug("tids_req_handler: Request received! target_realm = %s, community = %s", req->realm->buf, req->comm->buf);
   if (!(resp) || !resp) {
@@ -194,15 +195,13 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  if ((!req->tidc_dh->p) || (!req->tidc_dh->g)) {
+  DH_get0_pqg(req->tidc_dh, &p, NULL, &g);
+  if ((!p) || (!g)) {
     tr_debug("tids_req_handler: NULL dh values.");
     return -1;
   }
 
   /* Generate the server DH block based on the client DH block */
-  // fprintf(stderr, "Generating the server DH block.\n");
-  // fprintf(stderr, "...from client DH block, dh_g = %s, dh_p = %s.\n", BN_bn2hex(req->tidc_dh->g), BN_bn2hex(req->tidc_dh->p));
-
   if (NULL == (resp->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
     tr_debug("tids_req_handler: Can't create server DH params.");
     return -1;
@@ -216,10 +215,9 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   resp->servers->key_name = tr_new_name(key_id);
 
   /* Generate the server key */
-  // fprintf(stderr, "Generating the server key.\n");
-
-  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, 
-					req->tidc_dh->pub_key, 
+  DH_get0_key(req->tidc_dh, &pub_key, NULL);
+  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf,
+					pub_key,
 				        resp->servers->aaa_server_dh))) {
     tr_debug("tids_req_handler: Key computation failed.");
     return -1;
@@ -252,20 +250,13 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     sqlite3_reset(insert_stmt);
     sqlite3_clear_bindings(insert_stmt);
   }
-  
-  /* Print out the key. */
-  // fprintf(stderr, "tids_req_handler(): Server Key Generated (len = %d):\n", s_keylen);
-  // for (i = 0; i < s_keylen; i++) {
-  // fprintf(stderr, "%x", s_keybuf[i]); 
-  // }
-  // fprintf(stderr, "\n");
 
   if (s_keybuf!=NULL)
     free(s_keybuf);
 
   if (pub_digest!=NULL)
     talloc_free(pub_digest);
-  
+
   return s_keylen;
 }
 
@@ -284,7 +275,7 @@ static int auth_handler(gss_name_t gss_name, TR_NAME *client,
 
 static void print_version_info(void)
 {
-  printf("Moonshot TID Server %s\n\n", PACKAGE_VERSION);
+  tr_info("Moonshot TID Server %s\n\n", PACKAGE_VERSION);
 }
 
 /* command-line option setup */
@@ -293,7 +284,13 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[]=PACKAGE_NAME " - Moonshot TID Server " PACKAGE_VERSION;
+static const char doc[] = PACKAGE_NAME " - Moonshot TID Server " PACKAGE_VERSION "\n\n"
+"  <ip-address>    This AAA server IP address.\n"
+"  <gss-name>      The GSS name required for the incoming request.\n"
+"                  Usually this is the (ie. the Trust Router's GSS name.\n"
+"  <hostname>      This AAA server hostname.\n"
+"  <database-name> Path to the SQlite3 database where keys are stored.\n";
+
 static const char arg_doc[]="<ip-address> <gss-name> <hostname> <database-name>"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
@@ -363,8 +360,8 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
 /* assemble the argp parser */
 static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 
-int main (int argc, 
-          char *argv[]) 
+int main (int argc,
+          char *argv[])
 {
   TIDS_INSTANCE *tids;
   TR_NAME *gssname = NULL;

@@ -37,30 +37,31 @@
 #include <string.h>
 
 #include <trust_router/tr_dh.h>
+#include <ssl-compat.h>
 
-// char tmp_key1[32] = 
-//  {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
+// char tmp_key1[32] =
+//  {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
 //   0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
 //   0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
 //   0x19, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F};
 //
-// char tmp_key2[32] = 
-//  {0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 
+// char tmp_key2[32] =
+//  {0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
 //   0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
 //   0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
 //   0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04};
 //
 // int tmp_len = 32;
 
-int main (int argc, 
-	  const char *argv[]) 
+int main (int argc,
+	  const char *argv[])
 {
   DH *c_dh = NULL;
   DH *s_dh = NULL;
   unsigned char *c_keybuf = NULL;
   unsigned char *s_keybuf = NULL;
   int c_keylen = 0, s_keylen = 0, i = 0;
-
+  const BIGNUM *pub_key;
   /* TBD -- Generate random private keys */
 
   /* Generate initial DH params on the client side */
@@ -88,20 +89,22 @@ int main (int argc,
   /*** Would now send server's pub key to client ***/
 
   /* Compute key on client */
-  if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf, 
-				      s_dh->pub_key, 
+  DH_get0_key(s_dh, &pub_key, NULL);
+  if (0 > (c_keylen = tr_compute_dh_key(&c_keybuf,
+				      pub_key,
 				      c_dh))) {
-    
+    printf("Error: Can't compute client key.\n");
   }
-  
+
   /* Compute key on server */
-  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, 
-				      c_dh->pub_key, 
+  DH_get0_key(c_dh, &pub_key, NULL);
+  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf,
+				      pub_key,
 				      s_dh))) {
     printf("Error: Can't compute server key.\n");
     exit(1);
   }
-  
+
   /* Print out the client key. */
   printf("Client Key Generated (len = %d):\n", c_keylen);
   for (i = 0; i < c_keylen; i++) {
@@ -126,6 +129,6 @@ int main (int argc,
   printf("Success: Identical keys generated, key length = %d!\n", c_keylen);
   exit(0);
 }
-    
+
 
 

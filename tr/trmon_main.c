@@ -45,7 +45,7 @@
 /* command-line option setup */
 static void print_version_info(void)
 {
-  printf("Moonshot Trust Router Monitoring Client %s\n\n", PACKAGE_VERSION);
+  tr_info("Moonshot Trust Router Monitoring Client %s\n\n", PACKAGE_VERSION);
 }
 
 
@@ -53,30 +53,32 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[] =
-    PACKAGE_NAME " - Moonshot Trust Router Monitoring Client"
-    "\v" /* options list goes here */
-    "Supported monitoring commands:\n"
-    "\n"
-    "  show [<option> ...]\n"
-    "\n"
-    "     Show information about the Trust Router's current state.\n"
-    "\n"
-    "     Options:\n"
-    "       version            - current Trust Router software version\n"
-    "       config_files       - currently loaded configuration files\n"
-    "       uptime             - time, in seconds, since the Trust Router launched\n"
-    "       tid_reqs_processed - number of TID requests completed successfully\n"
-    "       tid_reqs_failed    - number of TID requests completed with errors\n"
-    "       tid_reqs_pending   - number of TID requests currently being processed\n"
-    "       tid_error_count    - number of unprocessable TID connections\n"
-    "       routes             - current TID routing table\n"
-    "       peers              - dynamic Trust Router peer table\n"
-    "       communities        - community table\n"
-    "       realms             - known realm table\n"
-    "       rp_clients         - authorized TID RP clients\n"
-    "\n"
-    "    If no options are specified, data for all options will be retrieved.\n";
+static const char doc[] = PACKAGE_NAME " - Moonshot Trust Router Monitoring Client " PACKAGE_VERSION "\n\n"
+"  <server>       The hostname or IP address of the Trust Router server.\n"
+"  <port>         The Trust Router Monitoring Port.\n"
+"  <command>      The command to the issued (see below).\n"
+"\v" /* options list goes here */
+"Supported monitoring commands:\n"
+"\n"
+"  show [<option> ...]\n"
+"\n"
+"     Show information about the Trust Router's current state.\n"
+"\n"
+"     Options:\n"
+"       version            - current Trust Router software version\n"
+"       config_files       - currently loaded configuration files\n"
+"       uptime             - time, in seconds, since the Trust Router launched\n"
+"       tid_reqs_processed - number of TID requests completed successfully\n"
+"       tid_reqs_failed    - number of TID requests completed with errors\n"
+"       tid_reqs_pending   - number of TID requests currently being processed\n"
+"       tid_error_count    - number of unprocessable TID connections\n"
+"       routes             - current TID routing table\n"
+"       peers              - dynamic Trust Router peer table\n"
+"       communities        - community table\n"
+"       realms             - known realm table\n"
+"       rp_clients         - authorized TID RP clients\n"
+"\n"
+"    If no options are specified, data for all options will be retrieved.\n";
 
 static const char arg_doc[]="<server> <port> <command> [<option> ...]"; /* string describing arguments, if any */
 
@@ -121,11 +123,11 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
           if (arguments->port < 0) {
             switch(-(arguments->port)) {
               case ERANGE:
-                printf("\nError parsing port (%s): port must be an integer in the range 1 - 65535\n\n", arg);
+                tr_err("\nError parsing port (%s): port must be an integer in the range 1 - 65535\n\n", arg);
                 break;
 
               default:
-                printf("\nError parsing port (%s): %s\n\n", arg, strerror(-arguments->port));
+                tr_err("\nError parsing port (%s): %s\n\n", arg, strerror(-arguments->port));
                 break;
             }
             argp_usage(state);
@@ -135,21 +137,21 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
         case 2:
           arguments->command=mon_cmd_from_string(arg);
           if (arguments->command == MON_CMD_UNKNOWN) {
-            printf("\nUnknown command '%s'\n\n", arg);
+            tr_err("\nUnknown command '%s'\n\n", arg);
             err = 1;
           }
           break;
 
         default:
           if (arguments->n_options >= MAX_OPTIONS) {
-            printf("\nToo many command options given, limit is %d\n\n", MAX_OPTIONS);
+            tr_err("\nToo many command options given, limit is %d\n\n", MAX_OPTIONS);
             err = 1;
             break;
           }
 
           arguments->options[arguments->n_options] = mon_opt_type_from_string(arg);
           if (arguments->options[arguments->n_options] == OPT_TYPE_UNKNOWN) {
-            printf("\nUnknown command option '%s'\n\n", arg);
+            tr_err("\nUnknown command option '%s'\n\n", arg);
             err = 1;
           }
           arguments->n_options++;
@@ -210,21 +212,21 @@ int main(int argc, char *argv[])
   /* Create a MON client instance */
   monc = monc_new(main_ctx);
   if (monc == NULL) {
-    printf("Error allocating client instance.\n");
+    tr_err("Error allocating client instance.\n");
     goto cleanup;
   }
 
   /* Set-up MON connection */
   if (0 != monc_open_connection(monc, opts.server, opts.port)) {
     /* Handle error */
-    printf("Error opening connection to %s:%d.\n", opts.server, opts.port);
+    tr_err("Error opening connection to %s:%d.\n", opts.server, opts.port);
     goto cleanup;
   };
 
   req = mon_req_new(main_ctx, opts.command);
   for (ii=0; ii < opts.n_options; ii++) {
     if (MON_SUCCESS != mon_req_add_option(req, opts.options[ii])) {
-      printf("Error adding option '%s' to request. Request not sent.\n",
+      tr_err("Error adding option '%s' to request. Request not sent.\n",
              mon_opt_type_to_string(opts.options[ii]));
       goto cleanup;
     }
@@ -236,13 +238,12 @@ int main(int argc, char *argv[])
 
   if (resp == NULL) {
     /* Handle error */
-    printf("Error executing monitoring request.\n");
+    tr_err("Error executing monitoring request.\n");
     goto cleanup;
   }
 
   /* Print the JSON to stdout */
   json_dumpf(mon_resp_encode(resp), stdout, JSON_INDENT(4));
-  printf("\n");
 
   /* success */
   retval = 0;
