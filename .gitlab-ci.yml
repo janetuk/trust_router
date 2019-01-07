@@ -93,6 +93,7 @@ debian9:
   <<: *debiancommon
 
 debian10:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/debian10:latest
   stage: build
   when: manual
   tags:
