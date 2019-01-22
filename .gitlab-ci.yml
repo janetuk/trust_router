@@ -102,12 +102,10 @@ debian10:
 
 raspbian8:
   image: registry.ci.ti.ja.net/jisc/moonshot-build/raspbian8:latest
-  when: manual
   <<: *debiancommon
 
 raspbian9:
   image: registry.ci.ti.ja.net/jisc/moonshot-build/raspbian9:latest
-  when: manual
   <<: *debiancommon
 
 ubuntu14:
@@ -128,5 +126,4 @@ alpine38:
 
 alpine38_armhf:
   image: registry.ci.ti.ja.net/jisc/moonshot-build/alpine38_arm:latest
-  when: manual
   <<: *alpinecommon
