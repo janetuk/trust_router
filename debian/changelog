@@ -1,4 +1,10 @@
-moonshot-trust-router (3.4.4-0.DIST) unstable; urgency=medium
+moonshot-trust-router (3.4.5-0.DIST) unstable; urgency=medium
+
+  * Include Build for Debian Buster
+
+ -- Jisc <assent@jisc.ac.uk>  Tue, 22 Jan 2019 00:00:00 -0000
+
+moonshot-trust-router (3.4.4-0) unstable; urgency=medium
 
   * Improve tidc/tids/trmon command help
   * Support OpenSSL 1.1

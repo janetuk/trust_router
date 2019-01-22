@@ -9,11 +9,13 @@ before_script:
 
 .centoscommon: &centoscommon
   stage: build
+  except:
+    - tags
   tags:
     - moonshot
   script:
     - yum -y upgrade
-    - "for i in ui mech_eap libradsec; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/master/download?job=$CI_JOB_NAME -O deps.zip; unzip deps.zip; done"
+    - "for i in ui mech_eap libradsec; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/api/v4/projects/moonshot%2F$i/jobs/artifacts/master/download?job=$CI_JOB_NAME -O deps.zip; unzip deps.zip; done"
     - yum -y install RPMS/x86_64/*.rpm
     - rm -fr RPMS deps.zip
     - autoreconf -fi
@@ -29,19 +31,21 @@ before_script:
 
 .debiancommon: &debiancommon
   stage: build
+  except:
+    - tags
   tags:
     - moonshot
   script:
     - apt-get -y update && apt-get -y dist-upgrade
     - sed -i "s/DIST/$CI_JOB_NAME/g" debian/changelog
-    - "for i in ui mech_eap libradsec; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/master/download?job=$CI_JOB_NAME -O deps.zip; unzip deps.zip; done"
+    - "for i in ui mech_eap libradsec; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/api/v4/projects/moonshot%2F$i/jobs/artifacts/master/download?job=$CI_JOB_NAME -O deps.zip; unzip deps.zip; done"
     - "dpkg -i build/*.deb || true"
     - apt-get install -fy
     - rm -fr build deps.zip
     - autoreconf -fi
     - ./configure
     - make dist
-    - mv trust_router-*.gz ../moonshot-trust-router_3.4.4.orig.tar.gz
+    - mv trust_router-*.gz ../moonshot-trust-router_3.4.5.orig.tar.gz
     - debuild -us -uc
     - mkdir build
     - cp ../*.deb build
@@ -52,10 +56,12 @@ before_script:
 
 .alpinecommon: &alpinecommon
   stage: build
+  except:
+    - tags
   tags:
     - moonshot
   script:
-    - "for i in ui libradsec mech_eap; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/moonshot/$i/-/jobs/artifacts/master/download?job=$CI_JOB_NAME -O deps.zip; unzip deps.zip; done"
+    - "for i in ui libradsec mech_eap; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/api/v4/projects/moonshot%2F$i/jobs/artifacts/master/download?job=$CI_JOB_NAME -O deps.zip; unzip deps.zip; done"
     - apk add apks/*/*.apk --allow-untrusted
     - rm -fr apks deps.zip
     - adduser -D tmpuser -s /bin/sh
@@ -90,12 +96,18 @@ debian9:
   image: registry.ci.ti.ja.net/jisc/moonshot-build/debian9:latest
   <<: *debiancommon
 
+debian10:
+  image: registry.ci.ti.ja.net/jisc/moonshot-build/debian10:latest
+  <<: *debiancommon
+
 raspbian8:
   image: registry.ci.ti.ja.net/jisc/moonshot-build/raspbian8:latest
+  when: manual
   <<: *debiancommon
 
 raspbian9:
   image: registry.ci.ti.ja.net/jisc/moonshot-build/raspbian9:latest
+  when: manual
   <<: *debiancommon
 
 ubuntu14:
@@ -116,4 +128,5 @@ alpine38:
 
 alpine38_armhf:
   image: registry.ci.ti.ja.net/jisc/moonshot-build/alpine38_arm:latest
+  when: manual
   <<: *alpinecommon
