@@ -18,7 +18,7 @@ before_script:
     - sed -i "s/\(.\)%{?dist}/\1.$CI_PIPELINE_ID%{?dist}/g" trust_router.spec.in
     - "for i in ui mech_eap libradsec; do wget --header \"PRIVATE-TOKEN: $TOKEN\" https://gitlab.ci.ti.ja.net/api/v4/projects/moonshot%2F$i/jobs/artifacts/develop/download?job=$CI_JOB_NAME -O deps.zip; unzip deps.zip; done"
     - yum -y install RPMS/x86_64/*.rpm
-    - rm -fr RPMS deps.zip
+    - rm -fr RPMS SRPMS deps.zip
     - autoreconf -fi
     - ./configure
     - make dist
