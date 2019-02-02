@@ -1,4 +1,10 @@
-moonshot-trust-router (3.4.6.DIST) unstable; urgency=medium
+moonshot-trust-router (3.4.7.DIST) unstable; urgency=medium
+
+  * TBA
+
+ -- Jisc <assent@jisc.ac.uk>  Sat, 2 Feb 2019 00:00:00 -0000
+
+moonshot-trust-router (3.4.6) unstable; urgency=medium
 
   * Build source package
 
