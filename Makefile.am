@@ -350,7 +350,6 @@ systemdsystemunit_DATA = tids.service trust_router.service
 endif
 
 EXTRA_DIST = \
-	CMakeLists.txt \
 	m4/.ignore-this-file \
 	trust_router.spec \
 	common/tests.json \
