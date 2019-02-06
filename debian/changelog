@@ -2,40 +2,40 @@ moonshot-trust-router (3.4.7.DIST) unstable; urgency=medium
 
   * TBA
 
- -- Jisc <assent@jisc.ac.uk>  Sat, 2 Feb 2019 00:00:00 -0000
+ -- Jisc <moonshot@jisc.ac.uk>  Sat, 2 Feb 2019 00:00:00 -0000
 
 moonshot-trust-router (3.4.6) unstable; urgency=medium
 
   * Build source package
 
- -- Jisc <assent@jisc.ac.uk>  Sat, 2 Feb 2019 00:00:00 -0000
+ -- Jisc <moonshot@jisc.ac.uk>  Sat, 2 Feb 2019 00:00:00 -0000
 
 moonshot-trust-router (3.4.5-0) unstable; urgency=medium
 
   * Include Build for Debian Buster
 
- -- Jisc <assent@jisc.ac.uk>  Tue, 22 Jan 2019 00:00:00 -0000
+ -- Jisc <moonshot@jisc.ac.uk>  Tue, 22 Jan 2019 00:00:00 -0000
 
 moonshot-trust-router (3.4.4-0) unstable; urgency=medium
 
   * Improve tidc/tids/trmon command help
   * Support OpenSSL 1.1
 
- -- Jisc <assent@jisc.ac.uk>  Tue, 27 Nov 2018 00:00:00 -0000
+ -- Jisc <moonshot@jisc.ac.uk>  Tue, 27 Nov 2018 00:00:00 -0000
 
 moonshot-trust-router (3.4.3-0) unstable; urgency=medium
 
   * Fix bug making trustrouter server not sending error responses.
   * Fix "internal error" caused not finding authorisations.
 
- -- Jisc <assent@jisc.ac.uk>  Wed, 12 Sep 2018 00:00:00 -0000
+ -- Jisc <moonshot@jisc.ac.uk>  Wed, 12 Sep 2018 00:00:00 -0000
 
 moonshot-trust-router (3.4.2-0) unstable; urgency=medium
 
   * Add trust_router systemd unit
   * Fix tids systemd unit
 
- -- Jisc <assent@jisc.ac.uk>  Mon, 3 Sep 2018 13:00:08 -0000
+ -- Jisc <moonshot@jisc.ac.uk>  Mon, 3 Sep 2018 13:00:08 -0000
 
 moonshot-trust-router (3.4.1-0) unstable; urgency=medium
 
