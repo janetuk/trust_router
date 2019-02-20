@@ -50,7 +50,7 @@
 /* result must be freed with g_free */
 static gchar *tr_name_to_g_str(const TR_NAME *n)
 {
-  gchar *s=g_strndup(n->buf, n->len);
+  gchar *s=g_ascii_strdown(n->buf, n->len);
   if (s==NULL)
     tr_debug("tr_name_to_g_str: allocation failure.");
   return s;
