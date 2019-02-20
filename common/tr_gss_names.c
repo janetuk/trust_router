@@ -123,7 +123,7 @@ int tr_gss_names_matches(TR_GSS_NAMES *gn, TR_NAME *name)
   for (this = tr_gss_names_iter_first(&iter, gn);
       this != NULL;
       this = tr_gss_names_iter_next(&iter)) {
-    if (tr_name_cmp(name, this) == 0)
+    if (tr_name_cmp_case_sensitive(name, this) == 0)
       return 1;
   }
   return 0;
