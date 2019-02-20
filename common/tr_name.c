@@ -105,6 +105,26 @@ int tr_name_cmp(const TR_NAME *one, const TR_NAME *two)
   return cmp;
 }
 
+int tr_name_cmp_case_sensitive(const TR_NAME *one, const TR_NAME *two)
+{
+  int len=one->len;
+  int cmp=0;
+
+  if (two->len<one->len)
+    len=two->len; /* len now min(one->len,two->len) */
+
+  cmp=strncmp(one->buf, two->buf, (size_t) len);
+  if (cmp==0) {
+    if (one->len<two->len)
+      return -1;
+    else if (one->len==two->len)
+      return 0;
+    else
+      return 1;
+  }
+  return cmp;
+}
+
 /**
  * Compare a TR_NAME with a null-terminated string.
  *
