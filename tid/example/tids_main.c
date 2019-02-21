@@ -39,6 +39,8 @@
 #include <sqlite3.h>
 #include <argp.h>
 #include <poll.h>
+#include <unistd.h>
+#include <netdb.h>
 
 #include <tr_debug.h>
 #include <tr_util.h>
@@ -284,18 +286,22 @@ static void print_version_info(void)
 const char *argp_program_bug_address=PACKAGE_BUGREPORT; /* bug reporting address */
 
 /* doc strings */
-static const char doc[] = PACKAGE_NAME " - Moonshot TID Server " PACKAGE_VERSION "\n\n"
-"  <ip-address>    This AAA server IP address.\n"
-"  <gss-name>      The GSS name required for the incoming request.\n"
-"                  Usually this is the (ie. the Trust Router's GSS name.\n"
-"  <hostname>      This AAA server hostname.\n"
-"  <database-name> Path to the SQlite3 database where keys are stored.\n";
+static const char doc[] = "Starts a TID server that accepts requests coming from a "
+"Trust Router server named TRUST_ROUTER_NAME (e.g. trustrouter@test.apc).\n";
 
-static const char arg_doc[]="<ip-address> <gss-name> <hostname> <database-name>"; /* string describing arguments, if any */
+static const char arg_doc[]="TRUST_ROUTER_NAME"; /* string describing arguments, if any */
 
 /* define the options here. Fields are:
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
+  { "ip", 'i', "IP_ADDRESS[:PORT]", 0,
+    "IP address (and port) of the AAA server. This is the value included in TID response "
+    "messages. Defaults to the IP address corresponding to the configured hostname."},
+  { "hostname", 'h', "HOSTNAME", 0,
+    "Hostname of the AAA server. Used for generating the GSS acceptor name. "
+    "Defaults to the current hostname."},
+  { "database", 'd', "FILE", 0,
+    "Path to the SQlite3 database where keys are stored. Defaults to /var/lib/trust_router/keys"},
   { "version", 'v', NULL, 0, "Print version information and exit"},
   { NULL }
 };
@@ -316,32 +322,15 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
 
   switch (key) {
   case ARGP_KEY_ARG: /* handle argument (not option) */
-    switch (state->arg_num) {
-    case 0:
-      arguments->ip_address=arg;
-      break;
-
-    case 1:
-      arguments->gss_name=arg;
-      break;
-
-    case 2:
-      arguments->hostname=arg;
-      break;
-
-    case 3:
-      arguments->database_name=arg;
-      break;
-
-    default:
-      /* too many arguments */
-      argp_usage(state);
-    }
+    /* Too many arguments. */
+    if (state->arg_num > 1)
+      argp_usage (state);
+    arguments->gss_name = arg;
     break;
 
   case ARGP_KEY_END: /* no more arguments */
-    if (state->arg_num < 4) {
-      /* not enough arguments encountered */
+    /* not enough arguments encountered */
+    if (state->arg_num < 1) {
       argp_usage(state);
     }
     break;
@@ -349,6 +338,18 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
   case 'v':
     print_version_info();
     exit(0);
+
+  case 'i':
+    arguments->ip_address = arg;
+    break;
+
+  case 'h':
+    arguments->hostname = arg;
+    break;
+
+  case 'd':
+    arguments->database_name = arg;
+    break;
 
   default:
     return ARGP_ERR_UNKNOWN;
@@ -365,11 +366,35 @@ int main (int argc,
 {
   TIDS_INSTANCE *tids;
   TR_NAME *gssname = NULL;
-  struct cmdline_args opts={0};
+
+  struct cmdline_args opts={"", "", "", ""};
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
 
+  /* set default hostname if not passed */
+  if (strcmp(opts.hostname, "") == 0) {
+    opts.hostname = malloc(1024);
+    gethostname(opts.hostname, 1024);
+  }
+
+  /* set ip address if not passed */
+  if (strcmp(opts.ip_address, "") == 0) {
+    struct hostent *he = gethostbyname(opts.hostname);
+    if (he != NULL) {
+      opts.ip_address = inet_ntoa(*((struct in_addr*) he->h_addr_list[0]));
+    }
+  }
+
+  if (strcmp(opts.database_name, "") == 0)
+    opts.database_name = "/var/lib/trust_router/keys";
+
+  tr_debug("--------- Running with ---------------");
+  tr_debug("Trust Router name: %s", opts.gss_name);
+  tr_debug("Hostname:          %s", opts.hostname);
+  tr_debug("IP address:        %s", opts.ip_address);
+  tr_debug("PSK database:      %s", opts.database_name);
+  tr_debug("---------------------------------------");
   print_version_info();
 
   talloc_set_log_stderr();
