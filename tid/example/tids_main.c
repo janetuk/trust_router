@@ -300,6 +300,7 @@ static const struct argp_option cmdline_options[] = {
   { "hostname", 'h', "HOSTNAME", 0,
     "Hostname of the AAA server. Used for generating the GSS acceptor name. "
     "Defaults to the current hostname."},
+  { "port", 'p', "PORT", 0, "Port where the TID server listen for requets. Defaults to 12309"},
   { "database", 'd', "FILE", 0,
     "Path to the SQlite3 database where keys are stored. Defaults to /var/lib/trust_router/keys"},
   { "version", 'v', NULL, 0, "Print version information and exit"},
@@ -312,6 +313,7 @@ struct cmdline_args {
   char *gss_name;
   char *hostname;
   char *database_name;
+  int port;
 };
 
 /* parser for individual options - fills in a struct cmdline_args */
@@ -343,6 +345,10 @@ static error_t parse_option(int key, char *arg, struct argp_state *state)
     arguments->ip_address = arg;
     break;
 
+  case 'p':
+    arguments->port = atoi(arg);
+    break;
+
   case 'h':
     arguments->hostname = arg;
     break;
@@ -364,10 +370,10 @@ static struct argp argp = {cmdline_options, parse_option, arg_doc, doc};
 int main (int argc,
           char *argv[])
 {
-  TIDS_INSTANCE *tids;
+  TIDS_INSTANCE *tids = NULL;
   TR_NAME *gssname = NULL;
 
-  struct cmdline_args opts={"", "", "", ""};
+  struct cmdline_args opts={"", "", "", "", TID_PORT};
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
@@ -393,6 +399,7 @@ int main (int argc,
   tr_debug("Trust Router name: %s", opts.gss_name);
   tr_debug("Hostname:          %s", opts.hostname);
   tr_debug("IP address:        %s", opts.ip_address);
+  tr_debug("Port:              %d", opts.port);
   tr_debug("PSK database:      %s", opts.database_name);
   tr_debug("---------------------------------------");
   print_version_info();
@@ -424,7 +431,7 @@ int main (int argc,
   }
 
   tids->ipaddr = opts.ip_address;
-  (void) tids_start(tids, &tids_req_handler, auth_handler, opts.hostname, TID_PORT, gssname);
+  (void) tids_start(tids, &tids_req_handler, auth_handler, opts.hostname, opts.port, gssname);
 
   /* Clean-up the TID server instance */
   tids_destroy(tids);
