@@ -272,14 +272,26 @@ void tid_srvr_get_address(const TID_SRVR_BLK *blk,
 			  const struct sockaddr **out_addr,
 			  size_t *out_len)
 {
-  struct sockaddr_in *sa = NULL;
+    struct sockaddr_in *sa = NULL;
+    char *colon = NULL;
+    int port = 2083; /* radsec port */
     assert(blk);
+    char *aaa_server_addr = talloc_strdup(blk, blk->aaa_server_addr);
     sa = talloc_zero(blk, struct sockaddr_in);
     sa->sin_family = AF_INET;
-    inet_aton(blk->aaa_server_addr, &(sa->sin_addr));
-    sa->sin_port = htons(2083); /* radsec port */
+
+    /* address might contain AAA port number. If so, process it */
+    colon = strchr(aaa_server_addr, ':');
+    if (colon != NULL) {
+      *colon = '\0';
+      port = atoi(colon + 1);
+    }
+
+    inet_aton(aaa_server_addr, &(sa->sin_addr));
+    sa->sin_port = htons(port);
     *out_addr = (struct sockaddr *) sa;
-    *out_len = sizeof( struct sockaddr_in);
+    *out_len = sizeof(struct sockaddr_in);
+    talloc_free(aaa_server_addr);
 }
 
 DH *tid_srvr_get_dh( TID_SRVR_BLK *blk)
