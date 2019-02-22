@@ -651,5 +651,5 @@ void tids_destroy (TIDS_INSTANCE *tids)
   tr_log_close();
 
   if (tids)
-    free(tids);
+    talloc_free(tids);
 }
