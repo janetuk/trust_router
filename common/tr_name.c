@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <jansson.h>
+#include <glib.h>
 
 #include <tr_name_internal.h>
 
@@ -85,6 +86,26 @@ TR_NAME *tr_dup_name (const TR_NAME *from)
 }
 
 int tr_name_cmp(const TR_NAME *one, const TR_NAME *two)
+{
+  int len=one->len;
+  int cmp=0;
+
+  if (two->len<one->len)
+    len=two->len; /* len now min(one->len,two->len) */
+
+  cmp=g_ascii_strncasecmp(one->buf, two->buf, (size_t) len);
+  if (cmp==0) {
+    if (one->len<two->len)
+      return -1;
+    else if (one->len==two->len)
+      return 0;
+    else
+      return 1;
+  }
+  return cmp;
+}
+
+int tr_name_cmp_case_sensitive(const TR_NAME *one, const TR_NAME *two)
 {
   int len=one->len;
   int cmp=0;
@@ -160,7 +181,7 @@ int tr_name_prefix_wildcard_match(const TR_NAME *str, const TR_NAME *wc_str)
     return 0;
 
   /* Now we compare the last wc_len characters of str against wc_post */
-  return (0 == strncmp(str->buf + str->len - wc_len, wc_post, wc_len));
+  return (0 == g_ascii_strncasecmp(str->buf + str->len - wc_len, wc_post, wc_len));
 }
 
 void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)

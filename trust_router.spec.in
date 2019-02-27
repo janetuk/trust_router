@@ -7,7 +7,7 @@ Summary:        Moonshot Trust Router
 
 Group:          System Environment/Libraries
 License:        BSD
-URL:            http://www.project-moonshot.org/
+URL:            https://github.com/janetuk/trust_router
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
