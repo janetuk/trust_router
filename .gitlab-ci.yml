@@ -14,7 +14,6 @@ before_script:
   tags:
     - moonshot
   script:
-    - yum -y upgrade
     - sed -i "s/\(.\)%{?dist}/\1.$CI_PIPELINE_ID%{?dist}/g" trust_router.spec.in
     - autoreconf -fi
     - ./configure
@@ -35,7 +34,6 @@ before_script:
   tags:
     - moonshot
   script:
-    - apt-get -y update && apt-get -y dist-upgrade
     - sed -i "s/DIST/$CI_JOB_NAME.$CI_PIPELINE_ID/g" debian/changelog
     - debuild -us -uc
     - mkdir build
