@@ -373,7 +373,7 @@ int main (int argc,
   TIDS_INSTANCE *tids = NULL;
   TR_NAME *gssname = NULL;
 
-  struct cmdline_args opts={"", "", "", "", TID_PORT};
+  struct cmdline_args opts={"", "", "", "", 0};
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
@@ -394,6 +394,9 @@ int main (int argc,
 
   if (strcmp(opts.database_name, "") == 0)
     opts.database_name = "/var/lib/trust_router/keys";
+
+  if (opts.port == 0)
+    opts.port = TID_PORT;
 
   tr_debug("--------- Running with ---------------");
   tr_debug("Trust Router name: %s", opts.gss_name);
