@@ -41,7 +41,7 @@ LOGFILE="$TIDS_LOGDIR/tids.log"
 
 [ -f "$LOGFILE" ] || touch $LOGFILE && chown $TIDS_USER:$TIDS_GROUP $LOGFILE
 
-OPTIONS="$PIDFILE $LOGFILE --ip $ipaddr --hostname $hostname $gssname"
+OPTIONS="$PIDFILE $LOGFILE --ip $ipaddr --hostname $hostname --port $port $gssname"
 
 case $1 in
     start)
