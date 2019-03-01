@@ -60,7 +60,7 @@ case $1 in
         timestamp=$(date)
         echo "$timestamp Starting TIDS..." >> $LOGFILE
         log_daemon_msg "Starting TIDS" "tids"
-        start-stop-daemon --start --chuid $TIDS_USER --pidfile $PIDFILE --oknodo --startas $prog $OPTIONS
+        start-stop-daemon --start --chuid $TIDS_USER --pidfile $PIDFILE --oknodo -x $prog -- $OPTIONS
         status=$?
         log_end_msg $status
         ;;
