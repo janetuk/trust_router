@@ -385,7 +385,7 @@ int main (int argc,
   }
 
   /* set ip address if not passed */
-  if (strcmp(opts.ip_address, "") == 0 strcmp(opts.ip_address, "auto") == 0) {
+  if (strcmp(opts.ip_address, "") == 0 || strcmp(opts.ip_address, "auto") == 0) {
     struct hostent *he = gethostbyname(opts.hostname);
     if (he != NULL) {
       opts.ip_address = inet_ntoa(*((struct in_addr*) he->h_addr_list[0]));
