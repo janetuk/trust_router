@@ -41,7 +41,7 @@ LOGFILE="$TIDS_LOGDIR/tids.log"
 
 [ -f "$LOGFILE" ] || touch $LOGFILE && chown $TIDS_USER:$TIDS_GROUP $LOGFILE
 
-OPTIONS="$PIDFILE $LOGFILE --ip $ipaddr --hostname $hostname $gssname"
+OPTIONS="$PIDFILE $LOGFILE --ip ${ipaddr:-auto} --hostname ${hostname:-auto} --port ${port:-auto} $gssname"
 
 case $1 in
     start)
@@ -60,7 +60,7 @@ case $1 in
         timestamp=$(date)
         echo "$timestamp Starting TIDS..." >> $LOGFILE
         log_daemon_msg "Starting TIDS" "tids"
-        start-stop-daemon --start --chuid $TIDS_USER --pidfile $PIDFILE --oknodo --startas $prog $OPTIONS
+        start-stop-daemon --start --chuid $TIDS_USER --pidfile $PIDFILE --oknodo -x $prog -- $OPTIONS
         status=$?
         log_end_msg $status
         ;;

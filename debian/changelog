@@ -1,4 +1,10 @@
-moonshot-trust-router (3.4.7.DIST) unstable; urgency=medium
+moonshot-trust-router (3.4.8.DIST) unstable; urgency=medium
+
+  * Rework of tids command line arguments and init scripts
+
+ -- Jisc <moonshot@jisc.ac.uk>  Tue, 4 Feb 2019 00:00:00 -0000
+
+ moonshot-trust-router (3.4.7.DIST) unstable; urgency=medium
 
   * Update source URL
   * Allow realms to be case insensitive

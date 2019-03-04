@@ -5,7 +5,7 @@ Before=freeradius.service
 [Service]
 EnvironmentFile=/etc/default/trust_router
 ExecStartPre=/bin/sh -c "/usr/bin/sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys"
-ExecStart=/usr/bin/tids --ip ${ipaddr} --hostname ${hostname} ${gssname}
+ExecStart=/usr/bin/tids --ip ${ipaddr:-auto} --hostname ${hostname:-auto} --port ${port:-auto} ${gssname}
 Restart=always
 StandardOutput=syslog
 StandardError=inherit

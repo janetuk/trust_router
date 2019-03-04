@@ -373,27 +373,30 @@ int main (int argc,
   TIDS_INSTANCE *tids = NULL;
   TR_NAME *gssname = NULL;
 
-  struct cmdline_args opts={"", "", "", "", TID_PORT};
+  struct cmdline_args opts={"", "", "", "", 0};
 
   /* parse the command line*/
   argp_parse(&argp, argc, argv, 0, 0, &opts);
 
   /* set default hostname if not passed */
-  if (strcmp(opts.hostname, "") == 0) {
+  if (strcmp(opts.hostname, "") == 0 || strcmp(opts.hostname, "auto") == 0) {
     opts.hostname = malloc(1024);
     gethostname(opts.hostname, 1024);
   }
 
   /* set ip address if not passed */
-  if (strcmp(opts.ip_address, "") == 0) {
+  if (strcmp(opts.ip_address, "") == 0 || strcmp(opts.ip_address, "auto") == 0) {
     struct hostent *he = gethostbyname(opts.hostname);
     if (he != NULL) {
       opts.ip_address = inet_ntoa(*((struct in_addr*) he->h_addr_list[0]));
     }
   }
 
-  if (strcmp(opts.database_name, "") == 0)
+  if (strcmp(opts.database_name, "") == 0 || strcmp(opts.database_name, "auto") == 0)
     opts.database_name = "/var/lib/trust_router/keys";
+
+  if (opts.port == 0)
+    opts.port = TID_PORT;
 
   tr_debug("--------- Running with ---------------");
   tr_debug("Trust Router name: %s", opts.gss_name);
