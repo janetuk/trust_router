@@ -10,7 +10,7 @@ Vcs-Git: https://github.com/janetuk/trust_router
 Package: moonshot-trust-router
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, moonshot-gss-eap (>= 0.9.2-3+deb8u1), adduser, sqlite3
-Description: Moonshot Trust Router
+Description: Moonshot Trust Router server
  Moonshot allows services using GSS-API applications to gain federated
  access to identities provided by other organizations.  Moonshot uses
  EAP and RADIUS over TLS for authentication and federation and SAML

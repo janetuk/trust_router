@@ -1,5 +1,5 @@
 [Unit]
-Description = Trust Identity Protocol Server
+Description=Trust Identity Protocol Server
 
 [Service]
 WorkingDirectory=/etc/trust_router/conf.d/default/
