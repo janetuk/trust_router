@@ -1,6 +1,6 @@
 moonshot-trust-router (3.4.9.DIST) unstable; urgency=medium
 
-  * TBA
+  * Fix how default values are set for systemd units
 
  -- Jisc <moonshot@jisc.ac.uk>  Tue, 5 Mar 2019 00:00:00 -0000
 
