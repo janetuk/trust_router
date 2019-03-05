@@ -3,9 +3,12 @@ Description = Trust Identity Protocol Server
 Before=freeradius.service
 
 [Service]
+Environment="ipaddr=auto"
+Environment="hostname=auto"
+Environment="port=auto"
 EnvironmentFile=/etc/default/trust_router
 ExecStartPre=/bin/sh -c "/usr/bin/sqlite3 </usr/share/trust_router/schema.sql /var/lib/trust_router/keys"
-ExecStart=/usr/bin/tids --ip ${ipaddr:-auto} --hostname ${hostname:-auto} --port ${port:-auto} ${gssname}
+ExecStart=/usr/bin/tids --ip ${ipaddr} --hostname ${hostname} --port ${port} ${gssname}
 Restart=always
 StandardOutput=syslog
 StandardError=inherit
