@@ -62,7 +62,7 @@ static int cb_print_names(gss_name_t clientName,
   assert(clientName != NULL);
   assert(data == NULL);
   printf("Gss name: %-*s\n",
-	 displayName->length, displayName->value);
+	 (int) displayName->length, displayName->value);
   return 0;
 }
 

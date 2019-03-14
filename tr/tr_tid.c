@@ -456,6 +456,12 @@ static int tr_tids_req_handler(TIDS_INSTANCE *tids,
 
     case MAP_COI_SUCCESS:
       cfg_apc = tr_comm_table_find_comm(cfg_mgr->active->ctable, tid_req_get_comm(fwd_req));
+      if (!cfg_apc) {
+        tr_err("tid_req_handler: Unable to find APC for Community %.*s.",
+               tid_req_get_orig_coi(fwd_req)->len, tid_req_get_orig_coi(fwd_req)->buf);
+        retval=-1;
+        goto cleanup;
+      }
       tr_debug("tr_tids_req_handler: Community %.*s is a COI, mapping to APC %.*s.",
                tid_req_get_orig_coi(fwd_req)->len, tid_req_get_orig_coi(fwd_req)->buf,
                tr_comm_get_id(cfg_apc)->len, tr_comm_get_id(cfg_apc)->buf);
