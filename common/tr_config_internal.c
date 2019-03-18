@@ -250,17 +250,8 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   NOPARSE_UNLESS(tr_cfg_parse_string(jint, "hostname", &(trc->internal->hostname)));
   talloc_steal(trc->internal, trc->internal->hostname);
-
-  NOPARSE_UNLESS(tr_cfg_parse_integer(jint, "tids_port",                &(trc->internal->tids_port)));
-  NOPARSE_UNLESS(tr_cfg_parse_integer(jint, "trps_port",                &(trc->internal->trps_port)));
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "cfg_poll_interval",        &(trc->internal->cfg_poll_interval)));
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "cfg_settling_time",        &(trc->internal->cfg_settling_time)));
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "trp_connect_interval",     &(trc->internal->trp_connect_interval)));
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "trp_sweep_interval",       &(trc->internal->trp_sweep_interval)));
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "trp_update_interval",      &(trc->internal->trp_update_interval)));
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "tid_request_timeout",      &(trc->internal->tid_req_timeout)));
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "tid_response_numerator",   &(trc->internal->tid_resp_numer)));
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "tid_response_denominator", &(trc->internal->tid_resp_denom)));
 
   /* Parse the logging section */
   if (NULL != (jtmp = json_object_get(jint, "logging"))) {
@@ -280,6 +271,22 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
   /* Parse the monitoring section */
   if (NULL != (jtmp = json_object_get(jint, "monitoring"))) {
     NOPARSE_UNLESS(tr_cfg_parse_monitoring(trc, jtmp));
+  }
+
+  /* Parse the tid_protocol section */
+  if (NULL != (jtmp = json_object_get(jint, "tid_protocol"))) {
+    NOPARSE_UNLESS(tr_cfg_parse_integer(jtmp, "port", &(trc->internal->tids_port)));
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "request_timeout",      &(trc->internal->tid_req_timeout)));
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "response_numerator",   &(trc->internal->tid_resp_numer)));
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "response_denominator", &(trc->internal->tid_resp_denom)));
+  }
+
+  /* Parse the tr_protocol section */
+  if (NULL != (jtmp = json_object_get(jint, "tr_protocol"))) {
+    NOPARSE_UNLESS(tr_cfg_parse_integer(jtmp, "port", &(trc->internal->trps_port)));
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "connect_interval",     &(trc->internal->trp_connect_interval)));
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "sweep_interval",       &(trc->internal->trp_sweep_interval)));
+    NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "update_interval",      &(trc->internal->trp_update_interval)));
   }
 
   tr_debug("tr_cfg_parse_internal: Internal config parsed.");
