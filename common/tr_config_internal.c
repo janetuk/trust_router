@@ -182,7 +182,6 @@ static TR_CFG_RC tr_cfg_parse_string(json_t *src, const char *key, const char **
  */
 static void set_defaults(TR_CFG_INTERNAL *cfg)
 {
-  cfg->max_tree_depth = TR_DEFAULT_MAX_TREE_DEPTH;
   cfg->tids_port = TR_DEFAULT_TIDS_PORT;
   cfg->trps_port = TR_DEFAULT_TRPS_PORT;
   cfg->mons_port = TR_DEFAULT_MONITORING_PORT;
@@ -252,7 +251,6 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
   NOPARSE_UNLESS(tr_cfg_parse_string(jint, "hostname", &(trc->internal->hostname)));
   talloc_steal(trc->internal, trc->internal->hostname);
 
-  NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "max_tree_depth",           &(trc->internal->max_tree_depth)));
   NOPARSE_UNLESS(tr_cfg_parse_integer(jint, "tids_port",                &(trc->internal->tids_port)));
   NOPARSE_UNLESS(tr_cfg_parse_integer(jint, "trps_port",                &(trc->internal->trps_port)));
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "cfg_poll_interval",        &(trc->internal->cfg_poll_interval)));

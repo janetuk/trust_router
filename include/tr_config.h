@@ -50,7 +50,6 @@
 #include <trp_ptable.h>
 #include <trp_internal.h>
 
-#define TR_DEFAULT_MAX_TREE_DEPTH 12
 #define TR_DEFAULT_TRPS_PORT 12308
 #define TR_DEFAULT_TIDS_PORT 12309
 #define TR_DEFAULT_MONITORING_PORT 0 /* defaults to being turned off */
@@ -83,7 +82,6 @@ typedef enum tr_cfg_rc {
 } TR_CFG_RC;
 
 typedef struct tr_cfg_internal {
-  unsigned int max_tree_depth;
   int tids_port;
   int trps_port;
   int mons_port;
