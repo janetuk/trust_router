@@ -30,6 +30,14 @@ This section configures the Trust Router itself. It is a JSON object with the fo
   * `cfg_settling_time`
     * number of seconds to wait after a configuration change is detected before reloading
     * default: `5`
+  * `tids_port`. OBSOLETE. Use `tid_protocol.port`.
+  * `trps_port`. OBSOLETE. Use `tr_protocol.port`.
+  * `trp_connect_interval`. OBSOLETE. Use `tr_protocol.connect_interval`.
+  * `trp_sweep_interval`. OBSOLETE. Use `tr_protocol.sweep_interval`.
+  * `trp_update_interval`. OBSOLETE. Use `tr_protocol.update_interval`.
+  * `tid_request_timeout`. OBSOLETE. Use `tid_protocol.request_timeout`.
+  * `tid_response_numerator`. OBSOLETE. Use `tid_protocol.response_numerator`.
+  * `tid_response_denominator`. OBSOLETE. Use `tid_protocol.response_denominator`.
   * `tid_protocol`
     * `port`
       * TCP port for the Temporary Identity Protocol server
@@ -63,7 +71,6 @@ This section configures the Trust Router itself. It is a JSON object with the fo
       * minimum message severity to report to the console
       * options: debug, info, notice, warning, err, crit, alert
       * default: `notice`
-
 
 ## Communities
 
