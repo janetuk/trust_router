@@ -186,13 +186,22 @@ static int check_allowed_keys(json_t* obj, const char* allowed_keys[])
     /* obj is a JSON object */
   const char *key = NULL;
   void *iter = json_object_iter(obj);
+  const char **allowed = NULL;
+  int found = FALSE;
   while(iter) {
-      key = json_object_iter_key(iter);
-      if (!g_strv_contains(allowed_keys, key)) {
-        tr_err("Invalid configuration item found: %s", key);
-        return FALSE;
+    key = json_object_iter_key(iter);
+    found = FALSE;
+    for (allowed = allowed_keys; *allowed != NULL; allowed++) {
+      if (strcmp(*allowed, key) == 0) {
+        found = TRUE;
+        break;
       }
-      iter = json_object_iter_next(obj, iter);
+    }
+    if (!found) {
+      tr_err("Invalid configuration item found: %s", key);
+      return FALSE;
+    }
+    iter = json_object_iter_next(obj, iter);
   }
   return TRUE;
 }
