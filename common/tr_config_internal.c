@@ -176,6 +176,37 @@ static TR_CFG_RC tr_cfg_parse_string(json_t *src, const char *key, const char **
 }
 
 /**
+ * Checks a JSON object contaisn only the allowed keys
+ *
+ * @param obj JSON object
+ * @param allowed_keys A NULL-terminated tring array with the allowed keys
+ */
+static int check_keys_in_list(json_t* obj, const char* allowed_keys[])
+{
+    /* obj is a JSON object */
+  const char *key = NULL;
+  void *iter = json_object_iter(obj);
+  const char **allowed = NULL;
+  int found = FALSE;
+  while(iter) {
+      key = json_object_iter_key(iter);
+      found = FALSE;
+      for (allowed = allowed_keys; *allowed != NULL; allowed++) {
+        if (strcmp(*allowed, key) == 0) {
+          found = TRUE;
+          break;
+        }
+      }
+      if (!found) {
+        tr_err("Invalid configuration item found: %s", key);
+        return FALSE;
+      }
+      iter = json_object_iter_next(obj, iter);
+  }
+  return TRUE;
+}
+
+/**
  * Set default values for settings that have them
  *
  * @param cfg configuration structure to fill in, not null
@@ -209,6 +240,10 @@ static TR_CFG_RC tr_cfg_parse_monitoring(TR_CFG *trc, json_t *jmon)
 {
   int enabled = 1; /* assume we are enabled unless we are told not to be */
 
+  const char *allowed_root_keys[] = {"enabled", "port", "authorized_credentials", 0};
+  if (!check_keys_in_list(jmon, allowed_root_keys))
+    return TR_CFG_NOPARSE;
+
   NOPARSE_UNLESS(tr_cfg_parse_boolean(jmon, "enabled", &enabled));
   if (enabled) {
     NOPARSE_UNLESS(tr_cfg_parse_integer(jmon, "port", &(trc->internal->mons_port)));
@@ -224,6 +259,7 @@ static TR_CFG_RC tr_cfg_parse_monitoring(TR_CFG *trc, json_t *jmon)
 
   return TR_CFG_SUCCESS;
 }
+
 
 /**
  * Parse internal configuration JSON
@@ -248,6 +284,11 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
     set_defaults(trc->internal); /* Install defaults for any unspecified settings */
   }
 
+  const char *allowed_root_keys[] = {"hostname", "cfg_poll_interval", "cfg_settling_time", "logging", "tid_protocol",
+                                     "tr_protocol", "monitoring", 0};
+  if (!check_keys_in_list(jint, allowed_root_keys))
+    return TR_CFG_NOPARSE;
+
   NOPARSE_UNLESS(tr_cfg_parse_string(jint, "hostname", &(trc->internal->hostname)));
   talloc_steal(trc->internal, trc->internal->hostname);
   NOPARSE_UNLESS(tr_cfg_parse_unsigned(jint, "cfg_poll_interval",        &(trc->internal->cfg_poll_interval)));
@@ -255,6 +296,9 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   /* Parse the logging section */
   if (NULL != (jtmp = json_object_get(jint, "logging"))) {
+    const char *allowed_root_keys[] = {"log_threshold", "console_threshold", 0};
+    if (!check_keys_in_list(jtmp, allowed_root_keys))
+      return TR_CFG_NOPARSE;
     NOPARSE_UNLESS(tr_cfg_parse_string(jtmp, "log_threshold", &s));
     if (s) {
       trc->internal->log_threshold = str2sev(s);
@@ -275,6 +319,10 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   /* Parse the tid_protocol section */
   if (NULL != (jtmp = json_object_get(jint, "tid_protocol"))) {
+    const char *allowed_root_keys[] = {"port", "request_timeout", "response_numerator", "response_denominator", 0};
+    if (!check_keys_in_list(jtmp, allowed_root_keys))
+      return TR_CFG_NOPARSE;
+
     NOPARSE_UNLESS(tr_cfg_parse_integer(jtmp, "port", &(trc->internal->tids_port)));
     NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "request_timeout",      &(trc->internal->tid_req_timeout)));
     NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "response_numerator",   &(trc->internal->tid_resp_numer)));
@@ -283,6 +331,10 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   /* Parse the tr_protocol section */
   if (NULL != (jtmp = json_object_get(jint, "tr_protocol"))) {
+    const char *allowed_root_keys[] = {"port", "connect_interval", "sweep_interval", "update_interval", 0};
+    if (!check_keys_in_list(jtmp, allowed_root_keys))
+      return TR_CFG_NOPARSE;
+
     NOPARSE_UNLESS(tr_cfg_parse_integer(jtmp, "port", &(trc->internal->trps_port)));
     NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "connect_interval",     &(trc->internal->trp_connect_interval)));
     NOPARSE_UNLESS(tr_cfg_parse_unsigned(jtmp, "sweep_interval",       &(trc->internal->trp_sweep_interval)));
