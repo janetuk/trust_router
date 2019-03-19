@@ -176,28 +176,19 @@ static TR_CFG_RC tr_cfg_parse_string(json_t *src, const char *key, const char **
 }
 
 /**
- * Checks a JSON object contaisn only the allowed keys
+ * Checks a JSON object contains only allowed keys
  *
  * @param obj JSON object
  * @param allowed_keys A NULL-terminated tring array with the allowed keys
  */
-static int check_keys_in_list(json_t* obj, const char* allowed_keys[])
+static int check_allowed_keys(json_t* obj, const char* allowed_keys[])
 {
     /* obj is a JSON object */
   const char *key = NULL;
   void *iter = json_object_iter(obj);
-  const char **allowed = NULL;
-  int found = FALSE;
   while(iter) {
       key = json_object_iter_key(iter);
-      found = FALSE;
-      for (allowed = allowed_keys; *allowed != NULL; allowed++) {
-        if (strcmp(*allowed, key) == 0) {
-          found = TRUE;
-          break;
-        }
-      }
-      if (!found) {
+      if (!g_strv_contains(allowed_keys, key)) {
         tr_err("Invalid configuration item found: %s", key);
         return FALSE;
       }
@@ -240,8 +231,8 @@ static TR_CFG_RC tr_cfg_parse_monitoring(TR_CFG *trc, json_t *jmon)
 {
   int enabled = 1; /* assume we are enabled unless we are told not to be */
 
-  const char *allowed_root_keys[] = {"enabled", "port", "authorized_credentials", 0};
-  if (!check_keys_in_list(jmon, allowed_root_keys))
+  const char *allowed_keys[] = {"enabled", "port", "authorized_credentials", 0};
+  if (!check_allowed_keys(jmon, allowed_keys))
     return TR_CFG_NOPARSE;
 
   NOPARSE_UNLESS(tr_cfg_parse_boolean(jmon, "enabled", &enabled));
@@ -284,9 +275,9 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
     set_defaults(trc->internal); /* Install defaults for any unspecified settings */
   }
 
-  const char *allowed_root_keys[] = {"hostname", "cfg_poll_interval", "cfg_settling_time", "logging", "tid_protocol",
+  const char *allowed_keys[] = {"hostname", "cfg_poll_interval", "cfg_settling_time", "logging", "tid_protocol",
                                      "tr_protocol", "monitoring", 0};
-  if (!check_keys_in_list(jint, allowed_root_keys))
+  if (!check_allowed_keys(jint, allowed_keys))
     return TR_CFG_NOPARSE;
 
   NOPARSE_UNLESS(tr_cfg_parse_string(jint, "hostname", &(trc->internal->hostname)));
@@ -296,8 +287,8 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   /* Parse the logging section */
   if (NULL != (jtmp = json_object_get(jint, "logging"))) {
-    const char *allowed_root_keys[] = {"log_threshold", "console_threshold", 0};
-    if (!check_keys_in_list(jtmp, allowed_root_keys))
+    const char *allowed_keys[] = {"log_threshold", "console_threshold", 0};
+    if (!check_allowed_keys(jtmp, allowed_keys))
       return TR_CFG_NOPARSE;
     NOPARSE_UNLESS(tr_cfg_parse_string(jtmp, "log_threshold", &s));
     if (s) {
@@ -319,8 +310,8 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   /* Parse the tid_protocol section */
   if (NULL != (jtmp = json_object_get(jint, "tid_protocol"))) {
-    const char *allowed_root_keys[] = {"port", "request_timeout", "response_numerator", "response_denominator", 0};
-    if (!check_keys_in_list(jtmp, allowed_root_keys))
+    const char *allowed_keys[] = {"port", "request_timeout", "response_numerator", "response_denominator", 0};
+    if (!check_allowed_keys(jtmp, allowed_keys))
       return TR_CFG_NOPARSE;
 
     NOPARSE_UNLESS(tr_cfg_parse_integer(jtmp, "port", &(trc->internal->tids_port)));
@@ -331,8 +322,8 @@ TR_CFG_RC tr_cfg_parse_internal(TR_CFG *trc, json_t *jint)
 
   /* Parse the tr_protocol section */
   if (NULL != (jtmp = json_object_get(jint, "tr_protocol"))) {
-    const char *allowed_root_keys[] = {"port", "connect_interval", "sweep_interval", "update_interval", 0};
-    if (!check_keys_in_list(jtmp, allowed_root_keys))
+    const char *allowed_keys[] = {"port", "connect_interval", "sweep_interval", "update_interval", 0};
+    if (!check_allowed_keys(jtmp, allowed_keys))
       return TR_CFG_NOPARSE;
 
     NOPARSE_UNLESS(tr_cfg_parse_integer(jtmp, "port", &(trc->internal->trps_port)));
