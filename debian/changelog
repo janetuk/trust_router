@@ -1,8 +1,11 @@
 moonshot-trust-router (3.4.10.DIST) unstable; urgency=medium
 
-  * TBA
+  * Reorganise some of the "internal" configuration options into groups
+  * Fix some issues found by the CLANG static analyser
+  * Add a log message indicating that changes to hostname or ports require
+    a restart to take effect.
 
- -- Jisc <moonshot@jisc.ac.uk>  Wed, 6 Mar 2019 00:00:00 -0000
+ -- Jisc <moonshot@jisc.ac.uk>  Wed, 20 Mar 2019 00:00:00 -0000
 
 moonshot-trust-router (3.4.9) unstable; urgency=medium
 
