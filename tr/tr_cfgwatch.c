@@ -327,6 +327,7 @@ static void tr_cfgwatch_event_cb(int listener, short event, void *arg)
     timersub(&now, &cfg_status->last_change_detected, &diff);
     if (!timercmp(&diff, &cfg_status->settling_time, <)) {
       tr_notice("Configuration file change settled, attempting to update configuration.");
+      tr_notice("Note that changes made to 'hostname' or any of the listening 'port' would require a restart to take effect.");
       if (0 != tr_read_and_apply_config(cfg_status))
         tr_warning("Configuration file update failed. Using previous configuration.");
       else
