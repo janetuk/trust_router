@@ -150,6 +150,7 @@ static void tr_cfg_parse_comm_rps(TR_CFG *trc, json_t *jrps, TR_COMM *comm, TR_C
     if (rp_name==NULL) {
       tr_err("tr_cfg_parse_comm_rps: unable to allocate RP name for %s in community %.*s.",
              s, tr_comm_get_id(comm)->len, tr_comm_get_id(comm)->buf);
+      continue;
     }
 
     /* see if we already have this RP in this community */
