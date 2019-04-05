@@ -37,6 +37,9 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <talloc.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 #include <tid_internal.h>
 #include <tr_debug.h>
@@ -272,25 +275,36 @@ void tid_srvr_get_address(const TID_SRVR_BLK *blk,
 			  const struct sockaddr **out_addr,
 			  size_t *out_len)
 {
-    struct sockaddr_in *sa = NULL;
-    char *colon = NULL;
-    int port = 2083; /* radsec port */
+    char *hash = NULL;
     assert(blk);
     char *aaa_server_addr = talloc_strdup(blk, blk->aaa_server_addr);
-    sa = talloc_zero(blk, struct sockaddr_in);
-    sa->sin_family = AF_INET;
+    int s;
+    struct addrinfo *result;
+
+    // make sure we don't return garbage
+    *out_len = 0;
+    *out_addr = NULL;
 
     /* address might contain AAA port number. If so, process it */
-    colon = strchr(aaa_server_addr, ':');
-    if (colon != NULL) {
-      *colon = '\0';
-      port = atoi(colon + 1);
+    hash = strchr(aaa_server_addr, '#');
+    if (hash != NULL) {
+      *hash = '\0';
     }
 
-    inet_aton(aaa_server_addr, &(sa->sin_addr));
-    sa->sin_port = htons(port);
-    *out_addr = (struct sockaddr *) sa;
-    *out_len = sizeof(struct sockaddr_in);
+    s = getaddrinfo(aaa_server_addr,          // address
+                    hash ? hash + 1 : "2083", // port as a string
+                    NULL,                     // hints
+                    &result);
+    if (s != 0 || result == NULL) {
+      tr_crit("tid_srvr_get_address: Could not resolve an address from %s", aaa_server_addr);
+      return;
+    }
+
+    *out_addr = result->ai_addr;
+    *out_len = result->ai_addrlen;
+
+    result->ai_addr = NULL; // to avoid deleting it
+    freeaddrinfo(result);
     talloc_free(aaa_server_addr);
 }
 
