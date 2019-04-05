@@ -295,11 +295,10 @@ static const char arg_doc[]="TRUST_ROUTER_NAME"; /* string describing arguments,
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
   { "ip", 'i', "IP_ADDRESS[:PORT]", 0,
-    "IP address (and port) of the AAA server. This is the value included in TID response "
-    "messages. Defaults to the IP address corresponding to the configured hostname."},
+    "IP address/hostname and optionally port (separated by #) of the AAA server. "
+    "This is the value included in TID response messages. Defaults to the configured hostname."},
   { "hostname", 'h', "HOSTNAME", 0,
-    "Hostname of the AAA server. Used for generating the GSS acceptor name. "
-    "Defaults to the current hostname."},
+    "Hostname of the TIDS server. Used for generating the TIDS GSS acceptor name. Defaults to the current hostname."},
   { "port", 'p', "PORT", 0, "Port where the TID server listen for requets. Defaults to 12309"},
   { "database", 'd', "FILE", 0,
     "Path to the SQlite3 database where keys are stored. Defaults to /var/lib/trust_router/keys"},
@@ -386,10 +385,7 @@ int main (int argc,
 
   /* set ip address if not passed */
   if (strcmp(opts.ip_address, "") == 0 || strcmp(opts.ip_address, "auto") == 0) {
-    struct hostent *he = gethostbyname(opts.hostname);
-    if (he != NULL) {
-      opts.ip_address = inet_ntoa(*((struct in_addr*) he->h_addr_list[0]));
-    }
+      opts.ip_address = opts.hostname;
   }
 
   if (strcmp(opts.database_name, "") == 0 || strcmp(opts.database_name, "auto") == 0)
