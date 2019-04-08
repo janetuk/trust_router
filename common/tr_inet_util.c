@@ -109,7 +109,7 @@ static int tr_valid_ipv6_reference(const char *s)
  */
 static int tr_valid_host(const char *s)
 {
-  if (strchr(s, '[') || strchr(s, ']') || strchr(s, ':'))
+  if (strchr(s, '[') || strchr(s, ']'))
     return tr_valid_ipv6_reference(s);
 
   return 1;
@@ -169,6 +169,11 @@ char *tr_parse_host(TALLOC_CTX *mem_ctx, const char *s, int *port_out)
     colon = NULL;
   else
     colon = strrchr(s, ':');
+
+  /* If there are more than one colon, and the last one is not preceeded by ],
+     this is not a port separator, but an IPv6 address (likely) */
+  if (strchr(s, ':') != colon && *(colon - 1) != ']')
+    colon = NULL;
 
   /* Get a copy of the hostname portion, which may be the entire string. */
   if (colon == NULL)
