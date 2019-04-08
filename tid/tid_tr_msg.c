@@ -333,15 +333,14 @@ static json_t *tid_encode_one_server(TID_SRVR_BLK *srvr)
   json_t *jstr = NULL;
   gchar *time_str = g_time_val_to_iso8601(&srvr->key_expiration);
 
-  tr_debug("Encoding one server.");
+  tr_debug("Encoding one server. %s", srvr->aaa_server_addr);
 
   jsrvr = json_object();
 
   jstr = json_string(srvr->aaa_server_addr);
   json_object_set_new(jsrvr, "server_addr", jstr);
 
-  json_object_set_new(jsrvr,
-		      "key_expiration", json_string(time_str));
+  json_object_set_new(jsrvr, "key_expiration", json_string(time_str));
   g_free(time_str);
   /* Server DH Block */
   jstr = tr_name_to_json_string(srvr->key_name);

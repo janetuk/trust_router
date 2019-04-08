@@ -275,28 +275,47 @@ void tid_srvr_get_address(const TID_SRVR_BLK *blk,
 			  const struct sockaddr **out_addr,
 			  size_t *out_len)
 {
-    char *hash = NULL;
+    char colon = NULL;
     assert(blk);
-    char *aaa_server_addr = talloc_strdup(blk, blk->aaa_server_addr);
-    int s;
+    char *hostname = NULL, *port = NULL;
+    int s, len;
     struct addrinfo *result;
 
     // make sure we don't return garbage
     *out_len = 0;
     *out_addr = NULL;
 
+    /* get a copy of the address */
+    hostname = talloc_strdup(blk, blk->aaa_server_addr);
+
     /* address might contain AAA port number. If so, process it */
-    hash = strchr(aaa_server_addr, '#');
-    if (hash != NULL) {
-      *hash = '\0';
+    colon = strrchr(hostname, ':');
+
+    /* If there are more than one colon, and the last one is not preceeded by ],
+       this is not a port separator, but an IPv6 address (likely) */
+    if (strchr(hostname, ':') != colon && *(colon - 1) != ']')
+      colon = NULL;
+
+    /* we get two strings, the hostname without the colon, and the port number */
+    if (colon != NULL) {
+      *colon = '\0';
+      port = talloc_strdup(blk, colon + 1);
     }
 
-    s = getaddrinfo(aaa_server_addr,          // address
-                    hash ? hash + 1 : "2083", // port as a string
-                    NULL,                     // hints
+    /* IPv6 addresses might be surrounded by square brackets */
+    len = strlen(hostname);
+    if (hostname[0] == '[' && hostname[len - 1] == ']') {
+        char *copy = talloc_strndup(NULL, hostname + 1, len - 2);
+        talloc_free(hostname);
+        hostname = copy;
+    }
+
+    s = getaddrinfo(hostname,             // address
+                    port ? port : "2083", // port as a string
+                    NULL,                 // hints
                     &result);
     if (s != 0 || result == NULL) {
-      tr_crit("tid_srvr_get_address: Could not resolve an address from %s", aaa_server_addr);
+      tr_crit("tid_srvr_get_address: Could not resolve an address from %s", hostname);
       return;
     }
 
@@ -305,7 +324,8 @@ void tid_srvr_get_address(const TID_SRVR_BLK *blk,
 
     result->ai_addr = NULL; // to avoid deleting it
     freeaddrinfo(result);
-    talloc_free(aaa_server_addr);
+    talloc_free(hostname);
+    talloc_free(port);
 }
 
 DH *tid_srvr_get_dh( TID_SRVR_BLK *blk)
