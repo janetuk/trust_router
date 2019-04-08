@@ -175,22 +175,13 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   unsigned char *pub_digest=NULL;
   size_t pub_digest_len;
   const BIGNUM *p = NULL, *g = NULL, *pub_key = NULL;
+  gchar** ipaddrs = NULL, **ipaddr;
 
   tr_debug("tids_req_handler: Request received! target_realm = %s, community = %s", req->realm->buf, req->comm->buf);
   if (!(resp) || !resp) {
     tr_debug("tids_req_handler: No response structure.");
     return -1;
   }
-
-
-  /* Allocate a new server block */
-  tid_srvr_blk_add(resp->servers, tid_srvr_blk_new(resp));
-  if (NULL==resp->servers) {
-    tr_crit("tids_req_handler(): unable to allocate server block.");
-    return -1;
-  }
-
-  /* TBD -- Set up the server IP Address */
 
   if (!(req) || !(req->tidc_dh)) {
     tr_debug("tids_req_handler(): No client DH info.");
@@ -203,61 +194,77 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  /* Generate the server DH block based on the client DH block */
-  if (NULL == (resp->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
-    tr_debug("tids_req_handler: Can't create server DH params.");
-    return -1;
+  /* A AAA server might have more than one IP address. Iterate over them */
+  for (ipaddrs = ipaddr = g_strsplit(tids->ipaddr, " ", 0); *ipaddr != NULL; ipaddr++ ) {
+    /* Skip empty addresses */
+    if (*ipaddr[0] == '\0') {
+      tr_debug("tids_req_handler(): Skipping empty address");
+      continue;
+    }
+
+    TID_SRVR_BLK *new_server = tid_srvr_blk_new(resp);
+    tid_srvr_blk_add(resp->servers, new_server);
+
+    /* Allocate a new server block */
+    if (NULL==resp->servers) {
+      tr_crit("tids_req_handler(): unable to allocate server block.");
+      return -1;
+    }
+
+    /* Generate the server DH block based on the client DH block */
+    if (NULL == (new_server->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
+      tr_debug("tids_req_handler: Can't create server DH params.");
+      return -1;
+    }
+    new_server->aaa_server_addr = talloc_strdup(new_server, *ipaddr);
+
+    /* Set the key name */
+    if (-1 == create_key_id(key_id, sizeof(key_id)))
+      return -1;
+    new_server->key_name = tr_new_name(key_id);
+
+    /* Generate the server key */
+    DH_get0_key(req->tidc_dh, &pub_key, NULL);
+    if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, pub_key, new_server->aaa_server_dh))) {
+      tr_debug("tids_req_handler: Key computation failed.");
+      return -1;
+    }
+    if (0 != tr_dh_pub_hash(req, &pub_digest, &pub_digest_len)) {
+      tr_debug("tids_req_handler: Unable to digest client public key");
+      return -1;
+    }
+    if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
+      return -1;
+    tid_srvr_blk_set_path(new_server, (TID_PATH *)(req->path));
+
+    if (req->expiration_interval < 1)
+      req->expiration_interval = 1;
+    g_get_current_time(&new_server->key_expiration);
+    new_server->key_expiration.tv_sec += req->expiration_interval * 60 /*in minutes*/;
+
+    if (NULL != insert_stmt) {
+      int sqlite3_result;
+      gchar *expiration_str = g_time_val_to_iso8601(&new_server->key_expiration);
+      sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
+      sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
+      sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
+      sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
+      g_free(expiration_str); /* bind_text already made its own copy */
+      sqlite3_result = sqlite3_step(insert_stmt);
+      if (SQLITE_DONE != sqlite3_result)
+        tr_crit("sqlite3: failed to write to database");
+      sqlite3_reset(insert_stmt);
+      sqlite3_clear_bindings(insert_stmt);
+    }
+    if (s_keybuf!=NULL)
+      free(s_keybuf);
+
+    if (pub_digest!=NULL)
+      talloc_free(pub_digest);
   }
 
-  resp->servers->aaa_server_addr=talloc_strdup(resp->servers, tids->ipaddr);
-
-  /* Set the key name */
-  if (-1 == create_key_id(key_id, sizeof(key_id)))
-    return -1;
-  resp->servers->key_name = tr_new_name(key_id);
-
-  /* Generate the server key */
-  DH_get0_key(req->tidc_dh, &pub_key, NULL);
-  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf,
-					pub_key,
-				        resp->servers->aaa_server_dh))) {
-    tr_debug("tids_req_handler: Key computation failed.");
-    return -1;
-  }
-  if (0 != tr_dh_pub_hash(req,
-			  &pub_digest, &pub_digest_len)) {
-    tr_debug("tids_req_handler: Unable to digest client public key");
-    return -1;
-  }
-  if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
-    return -1;
-  tid_srvr_blk_set_path(resp->servers, (TID_PATH *)(req->path));
-
-  if (req->expiration_interval < 1)
-    req->expiration_interval = 1;
-  g_get_current_time(&resp->servers->key_expiration);
-  resp->servers->key_expiration.tv_sec += req->expiration_interval * 60 /*in minutes*/;
-
-  if (NULL != insert_stmt) {
-    int sqlite3_result;
-    gchar *expiration_str = g_time_val_to_iso8601(&resp->servers->key_expiration);
-    sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
-    sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
-    g_free(expiration_str); /* bind_text already made its own copy */
-    sqlite3_result = sqlite3_step(insert_stmt);
-    if (SQLITE_DONE != sqlite3_result)
-      tr_crit("sqlite3: failed to write to database");
-    sqlite3_reset(insert_stmt);
-    sqlite3_clear_bindings(insert_stmt);
-  }
-
-  if (s_keybuf!=NULL)
-    free(s_keybuf);
-
-  if (pub_digest!=NULL)
-    talloc_free(pub_digest);
+  if (ipaddrs != NULL)
+    g_strfreev(ipaddrs);
 
   return s_keylen;
 }
