@@ -275,7 +275,7 @@ void tid_srvr_get_address(const TID_SRVR_BLK *blk,
 			  const struct sockaddr **out_addr,
 			  size_t *out_len)
 {
-    char colon = NULL;
+    char *colon = NULL;
     assert(blk);
     char *hostname = NULL, *port = NULL;
     int s, len;
