@@ -36,6 +36,7 @@
 #include <string.h>
 #include <jansson.h>
 #include <glib.h>
+#include <fnmatch.h>
 
 #include <tr_name_internal.h>
 
@@ -151,37 +152,15 @@ int tr_name_cmp_str(const TR_NAME *one, const char *two_str)
  */
 int tr_name_prefix_wildcard_match(const TR_NAME *str, const TR_NAME *wc_str)
 {
-  const char *wc_post=NULL;
-  size_t wc_len = 0;
+  char *pattern, *string;
 
   if ((!str) || (!wc_str))
     return 0;
 
-  wc_len = (size_t) wc_str->len;
-  if (wc_len == 0)
-    return 0;
+  pattern = tr_name_strdup(wc_str);
+  string = tr_name_strdup(str);
 
-  if ('*' == wc_str->buf[0]) {
-    /* Wildcard, so the actual compare will start at the second character of wc_str */
-    wc_post = wc_str->buf + 1;
-    wc_len--;
-  } else if (str->len == wc_len) {
-    /* No wildcard, but the strings are the same length so may match.
-     * Compare the full strings. */
-    wc_post=wc_str->buf;
-    wc_len = (size_t) wc_str->len;
-  } else {
-    /* No wildcard and strings are different length, so no match */
-    return 0;
-  }
-
-  /* A match is not possible if the fixed part of the wildcard string is longer than
-   * the string to match it against. */
-  if (wc_len > str->len)
-    return 0;
-
-  /* Now we compare the last wc_len characters of str against wc_post */
-  return (0 == g_ascii_strncasecmp(str->buf + str->len - wc_len, wc_post, wc_len));
+  return (fnmatch(pattern, string, FNM_CASEFOLD | FNM_EXTMATCH) == 0);
 }
 
 void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
