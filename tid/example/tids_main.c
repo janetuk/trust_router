@@ -82,17 +82,23 @@ static int sqlify_wc(
   size_t lc;
   *error = NULL;
   for (lc = 0; lc < len; lc++) {
+    int i;
+    char* s;
     if (strchr(wc[lc], '%')) {
       *error = talloc_asprintf( req, "Constraint match `%s' is not appropriate for SQL",
 				  wc[lc]);
       return -1;
     }
-    if ('*' ==wc[lc][0]) {
-      char *s;
-      s = talloc_strdup(req, wc[lc]);
-      s[0] = '%';
-      wc[lc] = s;
+    /* create a writeable copy */
+    s = talloc_strdup(req, wc[lc]);
+    /* replace '*' with '%', and '?' with '_' */
+    for (i=0; i<strlen(s); i++) {
+      if ('*' == s[i])
+        s[i] = '%';
+      else if ('?' == s[i])
+        s[i] = '_';
     }
+    wc[lc] = s;
   }
   return 0;
 }
