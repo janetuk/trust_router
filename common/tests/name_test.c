@@ -70,6 +70,11 @@ int test_wildcards(void)
   test_wildcard_prefix_match("test", "te???", 0);
   test_wildcard_prefix_match("test", "test*", 1);
   test_wildcard_prefix_match("server1", "*ser*", 1);
+  test_wildcard_prefix_match("server1", "ser[a-z]er1", 1);
+  test_wildcard_prefix_match("server1", "ser[a-m]er1", 0);
+  test_wildcard_prefix_match("ser[v]er1", "ser\\[v\\]er1", 1);
+  test_wildcard_prefix_match("ser[v-z]er1", "ser\\[v-z\\]er1", 1);
+  test_wildcard_prefix_match("server.test", "ser*", 1);
   test_wildcard_prefix_match("*", "*", 1);
   test_wildcard_prefix_match(" *", " *", 1);
   test_wildcard_prefix_match(" x", " *", 1);
