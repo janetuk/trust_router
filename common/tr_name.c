@@ -142,6 +142,34 @@ int tr_name_cmp_str(const TR_NAME *one, const char *two_str)
 }
 
 /**
+ * Returns a a null-terminated string where '[' and ']' are escaped with '\'.
+ *
+ * @param one TR_NAME to escape
+ * @return The escaped string
+ */
+char * tr_name_escape_brackets(const TR_NAME *src)
+{
+  char *s = calloc(1 + (size_t) src->len * 2, 1);
+  if (s) {
+    char *p = s;
+    int i = 0;
+    for (i=0; i<src->len; i++) {
+      if (src->buf[i] == '[') {
+        *(p++) = '\\';
+        *(p++) = '[';
+      }
+      else if (src->buf[i] == ']') {
+        *(p++) = '\\';
+        *(p++) = ']';
+      }
+      else
+        *(p++) = src->buf[i];
+    }
+  }
+  return s;
+}
+
+/**
  * Compare strings, allowing one to have a single '*' as the wildcard character if it is the first character.
  * Leading whitespace is significant.
  *
@@ -153,14 +181,18 @@ int tr_name_cmp_str(const TR_NAME *one, const char *two_str)
 int tr_name_prefix_wildcard_match(const TR_NAME *str, const TR_NAME *wc_str)
 {
   char *pattern, *string;
-
+  int result = 0;
   if ((!str) || (!wc_str))
     return 0;
 
-  pattern = tr_name_strdup(wc_str);
+  /* escape brackets to disallow ranges */
+  pattern = tr_name_escape_brackets(wc_str);
   string = tr_name_strdup(str);
 
-  return (fnmatch(pattern, string, FNM_CASEFOLD) == 0);
+  result = fnmatch(pattern, string, FNM_CASEFOLD);
+  free(pattern);
+  free(string);
+  return (result == 0);
 }
 
 void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
