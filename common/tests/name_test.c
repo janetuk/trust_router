@@ -74,9 +74,6 @@ int test_wildcards(void)
   test_wildcard_prefix_match(" x", " *", 1);
   test_wildcard_prefix_match("*", "* ", 0);
   test_wildcard_prefix_match("test*", "*", 1);
-  test_wildcard_prefix_match("tecb", "te?(st|cb)", 1);
-  test_wildcard_prefix_match("tecb", "!(tecb)", 0);
-  test_wildcard_prefix_match("test", "!(tecb)", 1);
   test_wildcard_prefix_match("test*", "**", 1);
   test_wildcard_prefix_match("testx", "**", 1);
   return 1;

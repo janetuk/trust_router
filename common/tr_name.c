@@ -160,7 +160,7 @@ int tr_name_prefix_wildcard_match(const TR_NAME *str, const TR_NAME *wc_str)
   pattern = tr_name_strdup(wc_str);
   string = tr_name_strdup(str);
 
-  return (fnmatch(pattern, string, FNM_CASEFOLD | FNM_EXTMATCH) == 0);
+  return (fnmatch(pattern, string, FNM_CASEFOLD) == 0);
 }
 
 void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len)
