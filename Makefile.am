@@ -98,9 +98,11 @@ mons_srcs = \
 ## Called by make check
 check_PROGRAMS = \
     common/t_constraint \
+    common/tests/name_test \
     tests/t_libtr_tid_la
 TESTS = \
     common/t_constraint \
+    common/tests/name_test \
     tests/t_libtr_tid_la
 TEST_CFLAGS = -Wno-missing-prototypes
 

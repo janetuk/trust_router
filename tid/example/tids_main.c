@@ -82,17 +82,23 @@ static int sqlify_wc(
   size_t lc;
   *error = NULL;
   for (lc = 0; lc < len; lc++) {
+    int i;
+    char* s;
     if (strchr(wc[lc], '%')) {
       *error = talloc_asprintf( req, "Constraint match `%s' is not appropriate for SQL",
 				  wc[lc]);
       return -1;
     }
-    if ('*' ==wc[lc][0]) {
-      char *s;
-      s = talloc_strdup(req, wc[lc]);
-      s[0] = '%';
-      wc[lc] = s;
+    /* create a writeable copy */
+    s = talloc_strdup(req, wc[lc]);
+    /* replace '*' with '%', and '?' with '_' */
+    for (i=0; i<strlen(s); i++) {
+      if ('*' == s[i])
+        s[i] = '%';
+      else if ('?' == s[i])
+        s[i] = '_';
     }
+    wc[lc] = s;
   }
   return 0;
 }
@@ -175,22 +181,13 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
   unsigned char *pub_digest=NULL;
   size_t pub_digest_len;
   const BIGNUM *p = NULL, *g = NULL, *pub_key = NULL;
+  gchar** ipaddrs = NULL, **ipaddr;
 
   tr_debug("tids_req_handler: Request received! target_realm = %s, community = %s", req->realm->buf, req->comm->buf);
   if (!(resp) || !resp) {
     tr_debug("tids_req_handler: No response structure.");
     return -1;
   }
-
-
-  /* Allocate a new server block */
-  tid_srvr_blk_add(resp->servers, tid_srvr_blk_new(resp));
-  if (NULL==resp->servers) {
-    tr_crit("tids_req_handler(): unable to allocate server block.");
-    return -1;
-  }
-
-  /* TBD -- Set up the server IP Address */
 
   if (!(req) || !(req->tidc_dh)) {
     tr_debug("tids_req_handler(): No client DH info.");
@@ -203,61 +200,77 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     return -1;
   }
 
-  /* Generate the server DH block based on the client DH block */
-  if (NULL == (resp->servers->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
-    tr_debug("tids_req_handler: Can't create server DH params.");
-    return -1;
+  /* A AAA server might have more than one IP address. Iterate over them */
+  for (ipaddrs = ipaddr = g_strsplit(tids->ipaddr, " ", 0); *ipaddr != NULL; ipaddr++ ) {
+    /* Skip empty addresses */
+    if (*ipaddr[0] == '\0') {
+      tr_debug("tids_req_handler(): Skipping empty address");
+      continue;
+    }
+
+    TID_SRVR_BLK *new_server = tid_srvr_blk_new(resp);
+    tid_srvr_blk_add(resp->servers, new_server);
+
+    /* Allocate a new server block */
+    if (NULL==resp->servers) {
+      tr_crit("tids_req_handler(): unable to allocate server block.");
+      return -1;
+    }
+
+    /* Generate the server DH block based on the client DH block */
+    if (NULL == (new_server->aaa_server_dh = tr_create_matching_dh(NULL, 0, req->tidc_dh))) {
+      tr_debug("tids_req_handler: Can't create server DH params.");
+      return -1;
+    }
+    new_server->aaa_server_addr = talloc_strdup(new_server, *ipaddr);
+
+    /* Set the key name */
+    if (-1 == create_key_id(key_id, sizeof(key_id)))
+      return -1;
+    new_server->key_name = tr_new_name(key_id);
+
+    /* Generate the server key */
+    DH_get0_key(req->tidc_dh, &pub_key, NULL);
+    if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf, pub_key, new_server->aaa_server_dh))) {
+      tr_debug("tids_req_handler: Key computation failed.");
+      return -1;
+    }
+    if (0 != tr_dh_pub_hash(req, &pub_digest, &pub_digest_len)) {
+      tr_debug("tids_req_handler: Unable to digest client public key");
+      return -1;
+    }
+    if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
+      return -1;
+    tid_srvr_blk_set_path(new_server, (TID_PATH *)(req->path));
+
+    if (req->expiration_interval < 1)
+      req->expiration_interval = 1;
+    g_get_current_time(&new_server->key_expiration);
+    new_server->key_expiration.tv_sec += req->expiration_interval * 60 /*in minutes*/;
+
+    if (NULL != insert_stmt) {
+      int sqlite3_result;
+      gchar *expiration_str = g_time_val_to_iso8601(&new_server->key_expiration);
+      sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
+      sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
+      sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
+      sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
+      g_free(expiration_str); /* bind_text already made its own copy */
+      sqlite3_result = sqlite3_step(insert_stmt);
+      if (SQLITE_DONE != sqlite3_result)
+        tr_crit("sqlite3: failed to write to database");
+      sqlite3_reset(insert_stmt);
+      sqlite3_clear_bindings(insert_stmt);
+    }
+    if (s_keybuf!=NULL)
+      free(s_keybuf);
+
+    if (pub_digest!=NULL)
+      talloc_free(pub_digest);
   }
 
-  resp->servers->aaa_server_addr=talloc_strdup(resp->servers, tids->ipaddr);
-
-  /* Set the key name */
-  if (-1 == create_key_id(key_id, sizeof(key_id)))
-    return -1;
-  resp->servers->key_name = tr_new_name(key_id);
-
-  /* Generate the server key */
-  DH_get0_key(req->tidc_dh, &pub_key, NULL);
-  if (0 > (s_keylen = tr_compute_dh_key(&s_keybuf,
-					pub_key,
-				        resp->servers->aaa_server_dh))) {
-    tr_debug("tids_req_handler: Key computation failed.");
-    return -1;
-  }
-  if (0 != tr_dh_pub_hash(req,
-			  &pub_digest, &pub_digest_len)) {
-    tr_debug("tids_req_handler: Unable to digest client public key");
-    return -1;
-  }
-  if (0 != handle_authorizations(req, pub_digest, pub_digest_len))
-    return -1;
-  tid_srvr_blk_set_path(resp->servers, (TID_PATH *)(req->path));
-
-  if (req->expiration_interval < 1)
-    req->expiration_interval = 1;
-  g_get_current_time(&resp->servers->key_expiration);
-  resp->servers->key_expiration.tv_sec += req->expiration_interval * 60 /*in minutes*/;
-
-  if (NULL != insert_stmt) {
-    int sqlite3_result;
-    gchar *expiration_str = g_time_val_to_iso8601(&resp->servers->key_expiration);
-    sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
-    sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(insert_stmt, 4, expiration_str, -1, SQLITE_TRANSIENT);
-    g_free(expiration_str); /* bind_text already made its own copy */
-    sqlite3_result = sqlite3_step(insert_stmt);
-    if (SQLITE_DONE != sqlite3_result)
-      tr_crit("sqlite3: failed to write to database");
-    sqlite3_reset(insert_stmt);
-    sqlite3_clear_bindings(insert_stmt);
-  }
-
-  if (s_keybuf!=NULL)
-    free(s_keybuf);
-
-  if (pub_digest!=NULL)
-    talloc_free(pub_digest);
+  if (ipaddrs != NULL)
+    g_strfreev(ipaddrs);
 
   return s_keylen;
 }
@@ -295,11 +308,10 @@ static const char arg_doc[]="TRUST_ROUTER_NAME"; /* string describing arguments,
  * { long-name, short-name, variable name, options, help description } */
 static const struct argp_option cmdline_options[] = {
   { "ip", 'i', "IP_ADDRESS[:PORT]", 0,
-    "IP address (and port) of the AAA server. This is the value included in TID response "
-    "messages. Defaults to the IP address corresponding to the configured hostname."},
+    "IP address/hostname and optionally port (separated by #) of the AAA server. "
+    "This is the value included in TID response messages. Defaults to the configured hostname."},
   { "hostname", 'h', "HOSTNAME", 0,
-    "Hostname of the AAA server. Used for generating the GSS acceptor name. "
-    "Defaults to the current hostname."},
+    "Hostname of the TIDS server. Used for generating the TIDS GSS acceptor name. Defaults to the current hostname."},
   { "port", 'p', "PORT", 0, "Port where the TID server listen for requets. Defaults to 12309"},
   { "database", 'd', "FILE", 0,
     "Path to the SQlite3 database where keys are stored. Defaults to /var/lib/trust_router/keys"},
@@ -386,10 +398,7 @@ int main (int argc,
 
   /* set ip address if not passed */
   if (strcmp(opts.ip_address, "") == 0 || strcmp(opts.ip_address, "auto") == 0) {
-    struct hostent *he = gethostbyname(opts.hostname);
-    if (he != NULL) {
-      opts.ip_address = inet_ntoa(*((struct in_addr*) he->h_addr_list[0]));
-    }
+      opts.ip_address = opts.hostname;
   }
 
   if (strcmp(opts.database_name, "") == 0 || strcmp(opts.database_name, "auto") == 0)
