@@ -51,6 +51,7 @@ TR_EXPORT int tr_name_cmp (const TR_NAME *one, const TR_NAME *two);
 TR_EXPORT int tr_name_cmp_case_sensitive (const TR_NAME *one, const TR_NAME *two);
 TR_EXPORT void tr_name_strlcat(char *dest, const TR_NAME *src, size_t len);
 TR_EXPORT char *tr_name_strdup(const TR_NAME *);
+TR_EXPORT char *tr_name_escape_brackets(const TR_NAME *);
 TR_EXPORT TR_NAME *tr_name_cat(const TR_NAME *n1, const TR_NAME *n2);
 
 #endif
