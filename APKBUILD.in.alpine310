@@ -1,0 +1,35 @@
+# Contributor: Alejandro Perez-Mendez <alex.perez-mendez@jisc.ac.uk>
+# Maintainer: Alejandro Perez-Mendez <alex.perez-mendez@jisc.ac.uk>
+pkgname=@PACKAGE@
+pkgver=@PACKAGE_VERSION@
+pkgrel=0
+pkgdesc="Moonshot Trust Router"
+url="https://github.com/janetuk/trust_router"
+arch="all"
+license="BSD-3-Clause"
+depends=""
+makedepends="alpine-sdk automake autoconf libtool openssl-dev jansson-dev krb5-dev talloc-dev sqlite-dev argp-standalone"
+pkggroups="trustrouter"
+pkgusers="trustrouter"
+install="${pkgname}.pre-install"
+subpackages="$pkgname-dev"
+source="${pkgname}-${pkgver}.tar.gz"
+builddir="$srcdir/${pkgname}-${pkgver}"
+
+build() {
+    cd "$builddir"
+    ./configure \
+        --build=$CBUILD \
+        --host=$CHOST \
+        --prefix=/usr \
+        --sysconfdir=/etc \
+        --mandir=/usr/share/man \
+        --localstatedir=/var \
+        --disable-static
+    make
+}
+
+package() {
+    cd "$builddir"
+    make DESTDIR="$pkgdir" install
+}
