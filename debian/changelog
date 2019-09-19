@@ -1,8 +1,8 @@
 moonshot-trust-router (3.5.1.DIST) unstable; urgency=medium
 
-  * TBD
+  * Add CI for Alpine 3.9 and Raspbian 10
 
- -- Jisc <moonshot@jisc.ac.uk>  Sat, 27 Apr 2019 00:00:00 -0000
+ -- Jisc <moonshot@jisc.ac.uk>  Thu, 19 Sep 2019 00:00:00 -0000
 
 moonshot-trust-router (3.5.0) unstable; urgency=medium
 
