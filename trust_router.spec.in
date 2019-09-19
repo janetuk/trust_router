@@ -170,6 +170,9 @@ chmod 770 /var/log/trust_router
 
 
 %changelog
+* Thu Sep 19 2019 Jisc <moonshot@jisc.ac.uk> - 3.5.2
+- TBD
+
 * Thu Sep 19 2019 Jisc <moonshot@jisc.ac.uk> - 3.5.1
 - Add CI for Alpine 3.9 and Raspbian 10
 
