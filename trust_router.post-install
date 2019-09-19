@@ -1,0 +1,13 @@
+#!/bin/sh
+
+tr_home=/var/lib/trust_router
+tr_schema=${tr_home}/.schema_1.5.2
+test -d ${tr_home} ||mkdir ${tr_home}
+chown trustrouter:trustrouter ${tr_home}
+test -e $tr_schema || rm -f $tr_home/keys
+sqlite3 </usr/share/trust_router/schema.sql ${tr_home}/keys
+touch $tr_schema
+chown trustrouter:trustrouter ${tr_home}/keys
+chmod 660 ${tr_home}/keys
+
+exit 0

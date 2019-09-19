@@ -49,6 +49,7 @@ before_script:
   tags:
     - moonshot
   script:
+    - cp $APKBUILD APKBUILD.in
     - adduser -D tmpuser -s /bin/sh
     - adduser tmpuser abuild
     - autoreconf -fi
@@ -93,8 +94,8 @@ raspbian9:
   image: $DOCKER_REGISTRY_URL/raspbian9:latest
   <<: *debiancommon
 
-ubuntu14:
-  image: $DOCKER_REGISTRY_URL/ubuntu14:latest
+raspbian10:
+  image: $DOCKER_REGISTRY_URL/raspbian10:latest
   <<: *debiancommon
 
 ubuntu16:
@@ -107,8 +108,24 @@ ubuntu18:
 
 alpine38:
   image: $DOCKER_REGISTRY_URL/alpine38:latest
+  variables:
+    APKBUILD: APKBUILD.in.alpine38
   <<: *alpinecommon
 
 alpine38_armhf:
   image: $DOCKER_REGISTRY_URL/alpine38_arm:latest
+  variables:
+    APKBUILD: APKBUILD.in.alpine38
+  <<: *alpinecommon
+
+alpine39:
+  image: $DOCKER_REGISTRY_URL/alpine39:latest
+  variables:
+    APKBUILD: APKBUILD.in.alpine39
+  <<: *alpinecommon
+
+alpine39_armhf:
+  image: $DOCKER_REGISTRY_URL/alpine39_arm:latest
+  variables:
+    APKBUILD: APKBUILD.in.alpine39
   <<: *alpinecommon

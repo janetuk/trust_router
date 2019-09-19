@@ -1,8 +1,14 @@
-moonshot-trust-router (3.5.0.DIST) unstable; urgency=medium
+moonshot-trust-router (3.5.1.DIST) unstable; urgency=medium
+
+  * Add CI for Alpine 3.9 and Raspbian 10
+
+ -- Jisc <moonshot@jisc.ac.uk>  Thu, 19 Sep 2019 00:00:00 -0000
+
+moonshot-trust-router (3.5.0) unstable; urgency=medium
 
   * Add support for IPv6
   * Allow tids to receive a list IP addresses to listen from
-  * Allow constriants to contain multiple '*' and '?' wildcards anywhere
+  * Allow constraints to contain multiple '*' and '?' wildcards anywhere
 
  -- Jisc <moonshot@jisc.ac.uk>  Fri, 26 Apr 2019 00:00:00 -0000
 
