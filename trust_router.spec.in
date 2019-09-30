@@ -20,9 +20,9 @@ BuildRequires: sqlite-devel, openssl-devel, libtalloc-devel
 BuildRequires: libevent2-devel
 %else
 BuildRequires: libevent-devel >= 2.0
+BuildRequires: systemd
 %endif
 
-%{?el7:BuildRequires: systemd}
 Requires:       moonshot-gss-eap >= 0.9.3, sqlite
 
 %description
@@ -74,7 +74,7 @@ install -D -m 640 redhat/sysconfig.tids $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
 install -D -m 755 redhat/tids.init $RPM_BUILD_ROOT/%{_initrddir}/tids
 
 # Overwrite Debian's service file
-%if 0%{?el7}
+%if 0%{?rhel} >= 7
 install -D -m 755 redhat/tids.service $RPM_BUILD_ROOT/%{_unitdir}/tids.service
 %endif
 
@@ -141,8 +141,10 @@ chmod 770 /var/log/trust_router
 %{_initrddir}/tids
 %{_initrddir}/trust_router
 
-%{?el7:%{_unitdir}/tids.service}
-%{?el7:%{_unitdir}/trust_router.service}
+%if 0%{?rhel} >= 7
+%{_unitdir}/tids.service
+%{_unitdir}/trust_router.service
+%endif
 
 %config(noreplace) %{_sysconfdir}/sysconfig/tids
 %config(noreplace) %{_sysconfdir}/sysconfig/trust_router
