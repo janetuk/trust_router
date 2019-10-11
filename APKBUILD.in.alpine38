@@ -14,7 +14,9 @@ pkgusers="trustrouter"
 install="${pkgname}.pre-install ${pkgname}.post-install"
 subpackages="$pkgname-dev"
 source="${pkgname}-${pkgver}.tar.gz
-        ${pkgname}.initd"
+        ${pkgname}.initd
+        redhat/default-internal.cfg
+	redhat/organizations.cfg"
 builddir="$srcdir/${pkgname}-${pkgver}"
 
 build() {
@@ -33,6 +35,9 @@ build() {
 package() {
     cd "$builddir"
     make DESTDIR="$pkgdir" install
-    install -m755 -D "$srcdir"/$pkgname.initd \
-        "$pkgdir"/etc/init.d/trust_router
+    install -m755 -D "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/trust_router
+    install -m755 -D "$srcdir"/default-internal.cfg \
+                     "$pkgdir"/etc/trust_router/default-internal.cfg
+    install -m755 -D "$srcdir"/organizations.cfg \
+                     "$pkgdir"/etc/trust_router/organizations.cfg
 }
