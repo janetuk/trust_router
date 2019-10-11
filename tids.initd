@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+
+extra_started_commands="reload"
+run_dir="/var/run/tids"
+command="/usr/bin/tids"
+command_args="--ip ${ipaddr:-auto} --hostname ${hostname:-auto} --port ${port:-auto} ${gssname:-test@apc.org}"
+pidfile="$run_dir/tids.pid"
+name="tids"
+user=trustrouter
+group=trustrouter
+error_log="/var/log/tids.log"
+command_background=true
+start_stop_daemon_args="--wait 1000"
+
+depend() {
+    need net
+    after firewall
+    use dns
+}
+
+start_pre() {
+    checkpath --directory --owner ${user}:${group} --mode 0775 ${run_dir}
+}
