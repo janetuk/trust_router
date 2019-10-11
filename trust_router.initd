@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+
+extra_started_commands="reload"
+run_dir="/var/run/trust_router"
+command="/usr/bin/trust_router"
+command_args="-c /etc/trust_router"
+command_background=true
+pidfile="$run_dir/trust_routuer.pid"
+name="trust_router"
+user=trustrouter
+group=trustrouter
+error_log="/var/log/trust_router.log"
+
+depend() {
+    need net
+    after firewall
+    use dns
+}
+
+start_pre() {
+    checkpath --directory --owner ${user}:${group} --mode 0775 ${run_dir}
+    ${command} ${command_args} -C 2>> ${error_log}
+}
