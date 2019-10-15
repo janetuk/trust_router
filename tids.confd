@@ -1,0 +1,20 @@
+# Config file for /etc/init.d/tids
+
+# IP address/hostname and optionally port (separated by #) of the AAA server.
+# This is the value included in TID response messages.
+# Defaults to the configured hostname.
+# ipaddr="127.0.0.1"
+
+# Hostname of the TIDS server.
+# Used for generating the TIDS GSS acceptor name.
+# Defaults to the current hostname
+# hostname="localhost"
+
+# The port the TIDS is listening from
+# Defaults to 12309
+# port="12309"
+
+# The GSS service name for the Trust Router
+# Defaults to test@apc.org
+gssname="test@apc.org"
+
