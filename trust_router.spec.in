@@ -172,8 +172,10 @@ chmod 770 /var/log/trust_router
 
 
 %changelog
-* Thu Sep 19 2019 Jisc <moonshot@jisc.ac.uk> - 3.5.2
-- TBD
+* Thu Oct 15 2019 Jisc <moonshot@jisc.ac.uk> - 3.5.2
+- Add CI for CentOS 8
+- Added init scripts for Alpine
+- Removed old debian init scripts
 
 * Thu Sep 19 2019 Jisc <moonshot@jisc.ac.uk> - 3.5.1
 - Add CI for Alpine 3.9 and Raspbian 10
