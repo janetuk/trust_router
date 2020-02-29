@@ -245,12 +245,22 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
 
     if (req->expiration_interval < 1)
       req->expiration_interval = 1;
+#ifdef HAVE_DATETIME
+    new_server->key_expiration = g_get_real_time() + req->expiration_interval * 60 * 10^6 /*in minutes*/;
+#else
     g_get_current_time(&new_server->key_expiration);
     new_server->key_expiration.tv_sec += req->expiration_interval * 60 /*in minutes*/;
+#endif
 
     if (NULL != insert_stmt) {
       int sqlite3_result;
+#ifdef HAVE_DATETIME
+      GDateTime *dt = g_date_time_new_from_unix_utc(new_server->key_expiration);
+      gchar *expiration_str = g_date_time_format_iso8601 (dt);
+      g_date_time_unref (dt);
+#else
       gchar *expiration_str = g_time_val_to_iso8601(&new_server->key_expiration);
+#endif
       sqlite3_bind_text(insert_stmt, 1, key_id, -1, SQLITE_TRANSIENT);
       sqlite3_bind_blob(insert_stmt, 2, s_keybuf, s_keylen, SQLITE_TRANSIENT);
       sqlite3_bind_blob(insert_stmt, 3, pub_digest, pub_digest_len, SQLITE_TRANSIENT);
