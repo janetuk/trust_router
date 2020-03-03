@@ -246,7 +246,7 @@ static int tids_req_handler (TIDS_INSTANCE *tids,
     if (req->expiration_interval < 1)
       req->expiration_interval = 1;
 #ifdef HAVE_DATETIME
-    new_server->key_expiration = g_get_real_time() + req->expiration_interval * 60 * 10^6 /*in minutes*/;
+    new_server->key_expiration = g_get_real_time() / 1000000 + req->expiration_interval * 60 /*in minutes*/;
 #else
     g_get_current_time(&new_server->key_expiration);
     new_server->key_expiration.tv_sec += req->expiration_interval * 60 /*in minutes*/;

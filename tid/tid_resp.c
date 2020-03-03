@@ -327,7 +327,7 @@ TR_EXPORT int tid_srvr_get_key_expiration(const TID_SRVR_BLK *block, struct time
     return -1; /* error */
 
 #ifdef HAVE_DATETIME
-  tv_out->tv_sec=block->key_expiration / 10^6;
+  tv_out->tv_sec=block->key_expiration;
   tv_out->tv_usec=0;
 #else
   tv_out->tv_sec=block->key_expiration.tv_sec;
