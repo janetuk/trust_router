@@ -1,3 +1,9 @@
+moonshot-trust-router (3.5.3.DIST) unstable; urgency=medium
+
+  * Replace GTimeVal with gint64 as recommended to avoid 2038 effect
+
+ -- Jisc <moonshot@jisc.ac.uk>  Thu, 5 Mar 2020 00:00:00 -0000
+
 moonshot-trust-router (3.5.2.DIST) unstable; urgency=medium
 
   * Add CI for CentOS 8

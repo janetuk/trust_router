@@ -1,5 +1,5 @@
 AC_PREREQ(2.63)
-AC_INIT([trust_router],[3.5.2], [moonshot@jisc.ac.uk])
+AC_INIT([trust_router],[3.5.3], [moonshot@jisc.ac.uk])
 AC_CONFIG_MACRO_DIR(m4)
 AC_CONFIG_AUX_DIR(build-aux)
 AC_USE_SYSTEM_EXTENSIONS
@@ -18,6 +18,7 @@ AC_PROG_CC
            fi
            AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
 PKG_CHECK_MODULES([GLIB], [glib-2.0])
+AC_CHECK_LIB([glib-2.0], [g_date_time_format_iso8601], [AC_DEFINE([HAVE_DATETIME])])
 
 AC_CHECK_LIB([argp], [argp_parse],,[])
 AC_CHECK_LIB([gssapi_krb5], [gss_init_sec_context],,[AC_MSG_ERROR([Please install libkrb5 development])])

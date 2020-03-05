@@ -331,8 +331,13 @@ static json_t *tid_encode_one_server(TID_SRVR_BLK *srvr)
 {
   json_t *jsrvr = NULL;
   json_t *jstr = NULL;
+#ifdef HAVE_DATETIME
+  GDateTime *dt = g_date_time_new_from_unix_utc(srvr->key_expiration);
+  gchar *time_str = g_date_time_format_iso8601 (dt);
+  g_date_time_unref (dt);
+#else
   gchar *time_str = g_time_val_to_iso8601(&srvr->key_expiration);
-
+#endif
   tr_debug("Encoding one server. %s", srvr->aaa_server_addr);
 
   jsrvr = json_object();
@@ -376,9 +381,17 @@ static int tid_decode_one_server(json_t *jsrvr, TID_SRVR_BLK *srvr)
   tid_srvr_blk_set_path(srvr, (TID_PATH *) json_object_get(jsrvr, "path"));
   jsrvr_expire = json_object_get(jsrvr, "key_expiration");
   if (jsrvr_expire && json_is_string(jsrvr_expire)) {
-    if (!g_time_val_from_iso8601(json_string_value(jsrvr_expire),
-				 &srvr->key_expiration))
+#if HAVE_DATETIME
+    GDateTime *dt = g_date_time_new_from_iso8601(json_string_value(jsrvr_expire), NULL);
+    if (!dt)
       tr_notice("Key expiration %s cannot be parsed", json_string_value(jsrvr_expire));
+    srvr->key_expiration = g_date_time_to_unix (dt);
+    g_date_time_unref (dt);
+#else
+    if (!g_time_val_from_iso8601(json_string_value(jsrvr_expire),
+                                &srvr->key_expiration))
+      tr_notice("Key expiration %s cannot be parsed", json_string_value(jsrvr_expire));
+#endif
   }
 
   return 0;

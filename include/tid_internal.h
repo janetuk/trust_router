@@ -47,7 +47,11 @@ struct tid_srvr_blk {
   char *aaa_server_addr;
   TR_NAME *key_name;
   DH *aaa_server_dh;		/* AAA server's public dh information */
+#ifdef HAVE_DATETIME
+  gint64 key_expiration; /**< absolute time at which key expires*/
+#else
   GTimeVal key_expiration; /**< absolute time at which key expires*/
+#endif
   TID_PATH *path;/**< Path of trust routers that the request traversed*/
 };
 

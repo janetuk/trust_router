@@ -248,7 +248,11 @@ TR_EXPORT TID_SRVR_BLK *tid_srvr_blk_new(TALLOC_CTX *mem_ctx)
     srvr->aaa_server_addr=NULL;
     srvr->key_name=NULL;
     srvr->aaa_server_dh=NULL;
+#if HAVE_DATETIME
+    srvr->key_expiration=0;
+#else
     srvr->key_expiration=(GTimeVal){0};
+#endif
     srvr->path=NULL;
     talloc_set_destructor((void *)srvr, tid_srvr_blk_destructor);
   }
@@ -322,8 +326,13 @@ TR_EXPORT int tid_srvr_get_key_expiration(const TID_SRVR_BLK *block, struct time
   if ((block==NULL) || (tv_out==NULL))
     return -1; /* error */
 
+#ifdef HAVE_DATETIME
+  tv_out->tv_sec=block->key_expiration;
+  tv_out->tv_usec=0;
+#else
   tv_out->tv_sec=block->key_expiration.tv_sec;
   tv_out->tv_usec=block->key_expiration.tv_usec;
+#endif
   return 0;
 }
 
