@@ -172,7 +172,7 @@ chmod 770 /var/log/trust_router
 
 
 %changelog
-* Thu Mar 5 202 Jisc <moonshot@jisc.ac.uk> - 3.5.3
+* Thu Mar 5 2020 Jisc <moonshot@jisc.ac.uk> - 3.5.3
 - Replace GTimeVal with gint64 as recommended to avoid 2038 effect
 
 * Thu Oct 15 2019 Jisc <moonshot@jisc.ac.uk> - 3.5.2
