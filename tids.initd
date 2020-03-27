@@ -3,6 +3,11 @@
 extra_started_commands="reload"
 run_dir="/var/run/tids"
 command="/usr/bin/tids"
+conf=/etc/tids
+ipaddr="$(grep -v '#' $conf |grep 'ipaddr=' | cut -d "=" -f2)"
+hostname="$(grep -v '#' $conf |grep 'hostname=' | cut -d "=" -f2)"
+port="$(grep -v '#' $conf |grep 'port=' | cut -d "=" -f2)"
+gssname="$(grep -v '#' $conf |grep 'gssname=' | cut -d "=" -f2)"
 command_args="--ip ${ipaddr:-auto} --hostname ${hostname:-auto} --port ${port:-auto} ${gssname:-test@apc.org}"
 pidfile="$run_dir/tids.pid"
 name="tids"
