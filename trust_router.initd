@@ -3,13 +3,12 @@
 extra_started_commands="reload"
 run_dir="/var/run/trust_router"
 command="/usr/bin/trust_router"
-command_args="-c /etc/trust_router"
+command_args="-c /etc/trust_router/conf.d/default"
 command_background=true
-pidfile="$run_dir/trust_routuer.pid"
+pidfile="$run_dir/trust_router.pid"
 name="trust_router"
-user=trustrouter
-group=trustrouter
-error_log="/var/log/trust_router.log"
+command_user="trustrouter:trustrouter"
+error_log="/var/lib/trust_router/trust_router.log"
 start_stop_daemon_args="--wait 1000"
 
 depend() {

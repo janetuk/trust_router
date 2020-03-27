@@ -6,9 +6,8 @@ command="/usr/bin/tids"
 command_args="--ip ${ipaddr:-auto} --hostname ${hostname:-auto} --port ${port:-auto} ${gssname:-test@apc.org}"
 pidfile="$run_dir/tids.pid"
 name="tids"
-user=trustrouter
-group=trustrouter
-error_log="/var/log/tids.log"
+command_user="trustrouter:trustrouter"
+error_log="/var/lib/trust_router/tids.log"
 command_background=true
 start_stop_daemon_args="--wait 1000"
 
