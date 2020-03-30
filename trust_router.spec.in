@@ -172,6 +172,9 @@ chmod 770 /var/log/trust_router
 
 
 %changelog
+* Mon Mar 30 2020 Jisc <moonshot@jisc.ac.uk> - 3.5.4
+- Fix Alpine openrc scripts
+
 * Thu Mar 5 2020 Jisc <moonshot@jisc.ac.uk> - 3.5.3
 - Replace GTimeVal with gint64 as recommended to avoid 2038 effect
 
