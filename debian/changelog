@@ -1,3 +1,9 @@
+moonshot-trust-router (3.5.4.DIST) unstable; urgency=medium
+
+  * Fix Alpine openrc scripts
+
+ -- Jisc <moonshot@jisc.ac.uk>  Mon, 30 Mar 2020 00:00:00 -0000
+
 moonshot-trust-router (3.5.3.DIST) unstable; urgency=medium
 
   * Replace GTimeVal with gint64 as recommended to avoid 2038 effect

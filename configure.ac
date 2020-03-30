@@ -1,5 +1,5 @@
 AC_PREREQ(2.63)
-AC_INIT([trust_router],[3.5.3], [moonshot@jisc.ac.uk])
+AC_INIT([trust_router],[3.5.4], [moonshot@jisc.ac.uk])
 AC_CONFIG_MACRO_DIR(m4)
 AC_CONFIG_AUX_DIR(build-aux)
 AC_USE_SYSTEM_EXTENSIONS
