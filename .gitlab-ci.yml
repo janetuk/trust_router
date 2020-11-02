@@ -46,7 +46,6 @@ stages:
   tags:
     - moonshot
   script:
-    - cp $APKBUILD APKBUILD.in
     - adduser -D tmpuser -s /bin/sh
     - adduser tmpuser abuild
     - autoreconf -fi
@@ -63,10 +62,6 @@ stages:
     paths:
         - apks/*/*.apk
 
-centos6:
-  image: $DOCKER_REGISTRY_URL/centos6:latest
-  <<: *centoscommon
-
 centos7:
   image: $DOCKER_REGISTRY_URL/centos7:latest
   <<: *centoscommon
@@ -75,20 +70,12 @@ centos8:
   image: $DOCKER_REGISTRY_URL/centos8:latest
   <<: *centoscommon
 
-debian8:
-  image: $DOCKER_REGISTRY_URL/debian8:latest
-  <<: *debiancommon
-
 debian9:
   image: $DOCKER_REGISTRY_URL/debian9:latest
   <<: *debiancommon
 
 debian10:
   image: $DOCKER_REGISTRY_URL/debian10:latest
-  <<: *debiancommon
-
-raspbian8:
-  image: $DOCKER_REGISTRY_URL/raspbian8:latest
   <<: *debiancommon
 
 raspbian9:
@@ -111,38 +98,18 @@ ubuntu20:
   image: $DOCKER_REGISTRY_URL/ubuntu20:latest
   <<: *debiancommon
 
-alpine38:
-  image: $DOCKER_REGISTRY_URL/alpine38:latest
-  variables:
-    APKBUILD: APKBUILD.in.alpine38
-  <<: *alpinecommon
-
-alpine38_armhf:
-  image: $DOCKER_REGISTRY_URL/alpine38_arm:latest
-  variables:
-    APKBUILD: APKBUILD.in.alpine38
-  <<: *alpinecommon
-
-alpine39:
-  image: $DOCKER_REGISTRY_URL/alpine39:latest
-  variables:
-    APKBUILD: APKBUILD.in.alpine39
-  <<: *alpinecommon
-
-alpine39_armhf:
-  image: $DOCKER_REGISTRY_URL/alpine39_arm:latest
-  variables:
-    APKBUILD: APKBUILD.in.alpine39
-  <<: *alpinecommon
-
 alpine311:
   image: $DOCKER_REGISTRY_URL/alpine311:latest
-  variables:
-    APKBUILD: APKBUILD.in.alpine39
   <<: *alpinecommon
 
 alpine311_armhf:
   image: $DOCKER_REGISTRY_URL/alpine311_arm:latest
-  variables:
-    APKBUILD: APKBUILD.in.alpine39
+  <<: *alpinecommon
+
+alpine313:
+  image: $DOCKER_REGISTRY_URL/alpine313:latest
+  <<: *alpinecommon
+
+alpine313_armhf:
+  image: $DOCKER_REGISTRY_URL/alpine313_arm:latest
   <<: *alpinecommon
