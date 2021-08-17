@@ -8,8 +8,6 @@ stages:
   stage: build
   except:
     - tags
-  tags:
-    - moonshot
   script:
     - autoreconf -fi
     - ./configure
@@ -27,8 +25,6 @@ stages:
   stage: build
   except:
     - tags
-  tags:
-    - moonshot
   script:
     - sed -i "s/DIST/$CI_JOB_NAME/g" debian/changelog
     - debuild -us -uc
@@ -43,8 +39,6 @@ stages:
   stage: build
   except:
     - tags
-  tags:
-    - moonshot
   script:
     - adduser -D tmpuser -s /bin/sh
     - adduser tmpuser abuild
@@ -78,17 +72,28 @@ debian10:
   image: $DOCKER_REGISTRY_URL/debian10:latest
   <<: *debiancommon
 
+debian11:
+  image: $DOCKER_REGISTRY_URL/debian11:latest
+  <<: *debiancommon
+
 raspbian9:
   image: $DOCKER_REGISTRY_URL/raspbian9:latest
   <<: *debiancommon
+  tags:
+    - arm
 
 raspbian10:
   image: $DOCKER_REGISTRY_URL/raspbian10:latest
   <<: *debiancommon
+  tags:
+    - arm
 
-ubuntu16:
-  image: $DOCKER_REGISTRY_URL/ubuntu16:latest
+raspbian11:
+  image: $DOCKER_REGISTRY_URL/raspbian11:latest
+  when: manual
   <<: *debiancommon
+  tags:
+    - arm
 
 ubuntu18:
   image: $DOCKER_REGISTRY_URL/ubuntu18:latest
@@ -105,6 +110,8 @@ alpine311:
 alpine311_armhf:
   image: $DOCKER_REGISTRY_URL/alpine311_arm:latest
   <<: *alpinecommon
+  tags:
+    - arm
 
 alpine313:
   image: $DOCKER_REGISTRY_URL/alpine313:latest
@@ -113,3 +120,5 @@ alpine313:
 alpine313_armhf:
   image: $DOCKER_REGISTRY_URL/alpine313_arm:latest
   <<: *alpinecommon
+  tags:
+    - arm
